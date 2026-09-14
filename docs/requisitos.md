@@ -17,7 +17,7 @@ Este documento descreve os requisitos do MVP de **Plataforma C: Escape from Flor
 - **RF11:** O sistema deve exibir recompensas e conduzir o jogador à próxima sala após a conclusão do combate.
 - **RF12:** Ao final da área, o jogador deve enfrentar um chefe com ataques diferentes dos inimigos comuns.
 - **RF13:** Ao derrotar o chefe e chegar à Plataforma C, o sistema deve exibir a tela de vitória.
-- **RF14:** Quando a vida do jogador chegar a zero, o sistema deve encerrar a run, remover as melhorias obtidas e exibir a tela de derrota.
+- **RF14:** Quando a vida do jogador chegar a zero, o sistema deve encerrar a run, remover a build e as melhorias obtidas e exibir a tela de derrota, sem persistir esses elementos para partidas futuras.
 - **RF15:** O sistema deve permitir reiniciar uma partida após a derrota.
 - **RF16:** Durante a partida, a interface deve exibir ao menos a barra de vida, indicadores de armas/habilidades e a tela de escolha de melhorias.
 - **RF17:** O sistema deve oferecer um menu de pausa durante a partida.
@@ -29,13 +29,14 @@ Este documento descreve os requisitos do MVP de **Plataforma C: Escape from Flor
 - **RF20:** O sistema deve ter uma aplicação na nuvem, o *backend*, para atender às requisições do *frontend*.
 - **RF21:** O sistema deve ter documentação de API RESTful para comunicação entre *frontend* e *backend*.
 - **RF22:** O sistema deve ter acesso controlado por esquema de autenticação e autorização via provedores externos, como Google, Apple ou outros.
-- **RF23:** O sistema deve possuir persistência de dados de usuários em banco de dados.
+- **RF23:** O sistema deve possuir persistência de dados de usuários em banco de dados, incluindo os tempos das runs concluídas com vitória necessários para o placar de líderes.
 - **RF24:** O sistema deve ter documentação de modelagem de dados e de arquitetura do sistema.
 - **RF25:** O sistema deve ser capaz de enviar e-mails e notificações para os usuários.
 - **RF26:** O sistema deve registrar todas as operações críticas dos usuários para posterior análise.
 - **RF27:** O sistema deve possuir cenários de desenvolvimento e de produção.
 - **RF28:** O sistema deve ser implantado na AWS com o uso de infraestrutura como código (IaC), priorizando os recursos abordados no curso AWS Foundations.
 - **RF29:** O sistema deve ser implantado automaticamente em ambiente de produção com o uso de integração e entrega contínuas (CI/CD).
+- **RF30:** O sistema deve cronometrar cada run e registrar o tempo das runs concluídas com vitória no placar de líderes, associando-o ao usuário autenticado e ordenando o ranking em ordem crescente de tempo.
 
 ## Requisitos não funcionais
 
@@ -63,5 +64,6 @@ A aplicação será publicada em nuvem utilizando recursos da AWS.
 - **RN05:** A carta de melhoria selecionada deve permanecer ativa somente durante a partida atual e compor a build do personagem.
 - **RN06:** Cada partida deve conter de cinco a oito salas criadas manualmente, cuja ordem pode variar entre partidas.
 - **RN07:** O chefe final só deve ser enfrentado ao término da sequência de salas da partida.
-- **RN08:** A partida deve ser encerrada em derrota quando a vida do personagem chegar a zero; todas as melhorias da partida devem ser removidas.
+- **RN08:** A partida deve ser encerrada em derrota quando a vida do personagem chegar a zero; a build e todas as melhorias da partida devem ser removidas e não podem ser usadas em uma nova run.
 - **RN09:** A partida deve ser encerrada em vitória somente após a derrota do chefe final e a chegada do jogador à Plataforma C.
+- **RN10:** O tempo de uma run começa no início da partida e termina quando ela é encerrada. Somente runs encerradas em vitória são registradas no placar de líderes; derrotas não geram progresso, histórico de partidas ou estatísticas persistentes no MVP.
