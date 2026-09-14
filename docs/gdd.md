@@ -64,8 +64,6 @@ A prioridade será criar uma experiência pequena, completa e jogável.
 -  6 a 10 melhorias.  
 -  Sistema de movimentação.  
 -  Sistema de ataques automáticos.  
--  Sistema de experiência.  
--  Sistema de evolução.  
 -  Sistema de vida e morte.  
 -  Sistema de recompensas.  
 -  Sistema simples de construção de builds.  
@@ -147,7 +145,7 @@ A versão inicial terá entre duas e três armas e três tipos principais de ini
 
 ## Progressão
 
-Ao finalizar uma sala, o jogador sobe de nível e recebe 3 opções de cartas de melhoria.
+Ao finalizar uma sala, o jogador recebe 3 opções de cartas de melhoria.
 
 O jogador escolhe uma carta para adicionar à sua build.
 
@@ -173,9 +171,6 @@ A partida será dividida em pequenas salas com diferentes grupos de inimigos e
 recompensas.
 
 As salas serão produzidas manualmente e organizadas de forma parcialmente aleatória.
-
-O jogador poderá escolher entre caminhos diferentes em determinados momentos da  
-partida, permitindo pequenas variações entre as runs.
 
 ## Chefe
 
@@ -282,8 +277,6 @@ para montar as diferentes salas.
 -  Impactos.  
 -  Explosões.  
 -  Efeitos de habilidades.  
--  Coleta de experiência.  
--  Subida de nível.  
 -  Dano recebido.  
 -  Morte dos inimigos.
 
@@ -294,7 +287,6 @@ para montar as diferentes salas.
 -  Sons dos inimigos.  
 -  Sons de movimentação.  
 -  Sons de ambiente urbano.  
--  Sons de coleta de experiência.  
 -  Sons das cartas de melhoria.  
 -  Anúncios e mensagens da Floria.
 
@@ -304,8 +296,6 @@ para montar as diferentes salas.
 -  Sistema de ataques automáticos.  
 -  Sistema de armas.  
 -  Sistema de vida e dano.  
--  Sistema de experiência.  
--  Sistema de níveis.  
 -  Sistema de cartas de melhorias.  
 -  Sistema de construção de builds.  
 -  IA dos inimigos.  
@@ -323,4 +313,3 @@ para montar as diferentes salas.
 -  Ataques dos inimigos.  
 -  Animações do chefe.  
 -  Efeitos das armas e habilidades.  
--  Efeitos de coleta de experiência e subida de nível.
