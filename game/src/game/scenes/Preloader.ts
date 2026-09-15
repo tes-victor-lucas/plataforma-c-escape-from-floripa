@@ -34,8 +34,13 @@ export class Preloader extends Scene {
         );
 
         this.load.audio(
-            AUDIO_CONFIG.playerFootstep.key,
-            AUDIO_CONFIG.playerFootstep.path
+            AUDIO_CONFIG.effects.playerFootstep.key,
+            AUDIO_CONFIG.effects.playerFootstep.path
+        );
+
+        this.load.audio(
+            AUDIO_CONFIG.music.room1.key,
+            AUDIO_CONFIG.music.room1.path
         );
     }
 
