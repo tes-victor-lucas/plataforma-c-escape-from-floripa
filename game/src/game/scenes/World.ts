@@ -3,11 +3,13 @@ import { LoopingMusic } from '../audio/LoopingMusic';
 import { configureWorldCamera } from '../camera/configureWorldCamera';
 import { AUDIO_CONFIG } from '../config/audio';
 import { WORLD_CONFIG } from '../config/world';
+import { Drone } from '../entities/Drone';
 import { Player } from '../entities/Player';
 import { createRoom } from '../map/createRoom';
 
 export class World extends Scene {
     private player?: Player;
+    private drone?: Drone;
     private roomMusic?: LoopingMusic;
 
     constructor() {
@@ -19,10 +21,13 @@ export class World extends Scene {
         if (!room) return;
 
         this.player = new Player(this);
+        this.drone = new Drone(this);
 
         for (const layer of room.collisionLayers) {
             this.physics.add.collider(this.player.sprite, layer);
+            this.physics.add.collider(this.drone.sprite, layer);
         }
+        this.physics.add.collider(this.player.sprite, this.drone.sprite);
 
         configureWorldCamera(this, room.map, this.player.sprite);
         this.roomMusic = new LoopingMusic(this, AUDIO_CONFIG.music.room1);
@@ -32,6 +37,7 @@ export class World extends Scene {
 
     update(_time: number, delta: number) {
         this.player?.update(delta);
+        this.drone?.update();
     }
 
     private shutdown() {

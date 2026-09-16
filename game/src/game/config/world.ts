@@ -17,6 +17,15 @@ export const WORLD_CONFIG = {
             offsetY: 32
         }
     },
+    drone: {
+        x: 136,
+        y: 88,
+        texture: 'drone-fly',
+        scale: 1,
+        speed: 40,
+        patrolLeft: 112,
+        patrolRight: 176
+    },
     camera: {
         zoom: 2.25,
         lerpX: 0.15,
