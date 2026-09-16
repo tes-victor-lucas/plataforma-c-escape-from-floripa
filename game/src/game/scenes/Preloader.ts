@@ -33,6 +33,12 @@ export class Preloader extends Scene {
             { frameWidth: 38, frameHeight: 38 }
         );
 
+        this.load.spritesheet(
+            'drone-fly',
+            'assets/enemies/drone-robot_nyknck/drone-robot_nyknck.png',
+            { frameWidth: 32, frameHeight: 32 }
+        );
+
         this.load.audio(
             AUDIO_CONFIG.effects.playerFootstep.key,
             AUDIO_CONFIG.effects.playerFootstep.path
