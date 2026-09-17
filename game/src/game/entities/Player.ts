@@ -4,12 +4,12 @@ import { WORLD_CONFIG } from '../config/world';
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
-// A folha possui 12 colunas: cada direção ocupa 9 frames em uma linha distinta.
+// LPC: 9 quadros de 64px por linha, organizados em quatro direções.
 const WALK_FRAMES: Record<Direction, number[]> = {
-    up: [96, 97, 98, 99, 100, 101, 102, 103, 104],
-    left: [108, 109, 110, 111, 112, 113, 114, 115, 116],
-    down: [120, 121, 122, 123, 124, 125, 126, 127, 128],
-    right: [132, 133, 134, 135, 136, 137, 138, 139, 140]
+    up: [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    left: [9, 10, 11, 12, 13, 14, 15, 16, 17],
+    down: [18, 19, 20, 21, 22, 23, 24, 25, 26],
+    right: [27, 28, 29, 30, 31, 32, 33, 34, 35]
 };
 
 type MovementKeys = Record<Direction, Phaser.Input.Keyboard.Key>;
