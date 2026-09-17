@@ -1,8 +1,6 @@
 export const WORLD_CONFIG = {
     mapKey: 'room1',
     player: {
-        x: 104,
-        y: 88,
         texture: 'player-walk',
         initialFrame: 120,
         scale: 0.7,
@@ -27,7 +25,8 @@ export const WORLD_CONFIG = {
         patrolRight: 176
     },
     camera: {
-        zoom: 2.25,
+        // Mantém a mesma área vertical visível após a mudança para 16:9.
+        zoom: 1.75,
         lerpX: 0.15,
         lerpY: 0.15
     }

@@ -14,6 +14,7 @@ const WALK_FRAMES: Record<Direction, number[]> = {
 
 type MovementKeys = Record<Direction, Phaser.Input.Keyboard.Key>;
 type MovementDirection = { x: number; y: number };
+type SpawnPosition = { x: number; y: number };
 
 /** Reúne o estado e o comportamento controlável do personagem. */
 export class Player {
@@ -29,7 +30,7 @@ export class Player {
      */
     private blockedDirection?: MovementDirection;
 
-    constructor(private readonly scene: Scene) {
+    constructor(private readonly scene: Scene, spawnPosition: SpawnPosition) {
         const keyboard = scene.input.keyboard;
 
         if (!keyboard) {
@@ -37,7 +38,12 @@ export class Player {
         }
 
         const { player } = WORLD_CONFIG;
-        this.sprite = scene.physics.add.sprite(player.x, player.y, player.texture, player.initialFrame);
+        this.sprite = scene.physics.add.sprite(
+            spawnPosition.x,
+            spawnPosition.y,
+            player.texture,
+            player.initialFrame
+        );
         this.sprite.setScale(player.scale);
         this.sprite.setDepth(10);
         this.sprite.setCollideWorldBounds(true);
