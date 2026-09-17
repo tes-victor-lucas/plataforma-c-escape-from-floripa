@@ -7,6 +7,11 @@ export class Preloader extends Scene {
     }
 
     preload() {
+        this.load.image(
+            'menu-background',
+            'assets/menu-background.png'
+        );
+
         this.load.tilemapTiledJSON(
             'room1',
             'assets/maps/room01.json'
@@ -51,6 +56,6 @@ export class Preloader extends Scene {
     }
 
     create() {
-        this.scene.start('World');
+        this.scene.start('MainMenu');
     }
 }
