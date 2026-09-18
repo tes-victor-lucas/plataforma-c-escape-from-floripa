@@ -7,41 +7,20 @@ Esta é uma proposta simples de arquitetura para o jogo **Plataforma C: Escape f
 ```mermaid
 flowchart LR
     J["Jogador<br/>navegador"]
-    LOGIN["Google / Apple"]
+    WEB["Site do jogo<br/>Route 53 + CloudFront + S3"]
+    LOGIN["Login<br/>Cognito + Google/Apple"]
+    BACK["Backend<br/>API Gateway + Lambda"]
+    DB["Banco de dados<br/>DynamoDB: usuários, runs e placar"]
+    MULTI["Multiplayer<br/>GameLift + IoT Core (broker)"]
+    SUPPORT["Apoio<br/>EventBridge, SQS, SES/SNS e CloudWatch"]
 
-    subgraph Web["Site do jogo"]
-        R53["Route 53<br/>endereço do jogo"]
-        CF["CloudFront<br/>HTTPS e cache"]
-        S3["S3<br/>frontend e assets"]
-    end
-
-    subgraph Backend["Backend na AWS"]
-        COG["Cognito<br/>login"]
-        API["API Gateway<br/>API REST"]
-        LAMBDA["Lambda<br/>regras do backend"]
-        DB["DynamoDB<br/>usuários, runs e placar"]
-    end
-
-    subgraph Multi["Multiplayer"]
-        IOT["IoT Core<br/>broker de mensagens"]
-        GL["GameLift Servers<br/>partidas multiplayer"]
-    end
-
-    subgraph Support["Apoio"]
-        EVENT["EventBridge + SQS<br/>eventos e fila"]
-        NOTIFY["SES / SNS<br/>e-mail e notificações"]
-        LOG["CloudWatch<br/>logs e alarmes"]
-    end
-
-    J --> R53 --> CF --> S3
-    J -->|"login"| COG
-    COG <--> LOGIN
-    J -->|"requisições REST"| API --> LAMBDA --> DB
-    J <-->|"mensagens da partida"| IOT <-->|"estado da partida"| GL
-    LAMBDA -->|"cria/consulta partida"| GL
-    LAMBDA --> EVENT --> NOTIFY
-    LAMBDA --> LOG
-    GL --> LOG
+    J --> WEB
+    J --> LOGIN
+    J --> BACK
+    BACK --> DB
+    J <-->|"multiplayer"| MULTI
+    BACK --> MULTI
+    BACK --> SUPPORT
 ```
 
 ## Explicação
@@ -57,6 +36,5 @@ flowchart LR
 - **Multiplayer:** o GameLift Servers é o serviço da AWS voltado a hospedar partidas. O IoT Core funciona como o **broker**: recebe mensagens dos jogadores e distribui as atualizações da partida. O GameLift valida as ações importantes, como vitória e derrota.
 
 - **Notificações e logs:** quando algo importante acontece, como uma run concluída, o EventBridge e o SQS enviam o evento para processamento sem atrasar o jogo. SES pode enviar e-mails e SNS notificações. CloudWatch guarda logs e ajuda a encontrar erros.
-
 
 
