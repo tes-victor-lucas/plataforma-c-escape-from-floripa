@@ -1,6 +1,9 @@
 import type { Scene } from 'phaser';
 import { FootstepAudio } from '../audio/FootstepAudio';
+import { AUDIO_CONFIG } from '../config/audio';
 import { WORLD_CONFIG } from '../config/world';
+import { COMBAT_CONFIG } from '../config/combat';
+import { Health } from '../combat/Health';
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
@@ -19,6 +22,7 @@ type SpawnPosition = { x: number; y: number };
 /** Reúne o estado e o comportamento controlável do personagem. */
 export class Player {
     readonly sprite: Phaser.Physics.Arcade.Sprite;
+    readonly health = new Health(COMBAT_CONFIG.player.maxHealth);
 
     private readonly cursors: Phaser.Types.Input.Keyboard.CursorKeys;
     private readonly wasd: MovementKeys;
@@ -60,9 +64,11 @@ export class Player {
             right: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D)
         };
         this.footsteps = new FootstepAudio(scene);
+        scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.footsteps.destroy());
     }
 
     update(delta: number) {
+        if (!this.health.isAlive) return;
         const direction = this.getMovementDirection();
         const { x, y } = direction;
         const isReceivingMovementInput = x !== 0 || y !== 0;
@@ -103,6 +109,29 @@ export class Player {
         const animationKey = `player-walk-${this.facing}`;
         if (this.sprite.anims.currentAnim?.key !== animationKey || !this.sprite.anims.isPlaying) {
             this.playWalkAnimation(animationKey);
+        }
+    }
+
+    /** Permite continuar andando se a barreira sumir enquanto a tecla está pressionada. */
+    clearBlockedDirection() {
+        this.blockedDirection = undefined;
+    }
+
+    takeDamage(amount: number) {
+        if (!this.health.isAlive) return;
+        this.health.takeDamage(amount);
+        const sound = this.health.isAlive
+            ? AUDIO_CONFIG.effects.playerHurt
+            : AUDIO_CONFIG.effects.playerDeath;
+        this.scene.sound.play(sound.key, { volume: sound.volume });
+        this.sprite.setTint(0xff5555);
+        this.scene.time.delayedCall(120, () => {
+            if (this.sprite.active && this.health.isAlive) this.sprite.clearTint();
+        });
+        if (!this.health.isAlive) {
+            this.sprite.setVelocity(0, 0);
+            this.sprite.anims.stop();
+            this.footsteps.stop();
         }
     }
 

@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
+import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
 
 export class Preloader extends Scene {
     constructor() {
@@ -44,9 +45,42 @@ export class Preloader extends Scene {
             { frameWidth: 32, frameHeight: 32 }
         );
 
+        this.load.spritesheet(DRONE_EXPLOSION.texture, DRONE_EXPLOSION.path, {
+            frameWidth: DRONE_EXPLOSION.frameWidth,
+            frameHeight: DRONE_EXPLOSION.frameHeight
+        });
+
         this.load.audio(
             AUDIO_CONFIG.effects.playerFootstep.key,
             AUDIO_CONFIG.effects.playerFootstep.path
+        );
+
+
+        this.load.audio(
+            AUDIO_CONFIG.effects.playerHurt.key,
+            AUDIO_CONFIG.effects.playerHurt.path
+        );
+
+        this.load.audio(
+            AUDIO_CONFIG.effects.droneExplosion.key,
+            AUDIO_CONFIG.effects.droneExplosion.path
+        );
+
+        this.load.audio(
+            AUDIO_CONFIG.effects.playerDeath.key,
+            AUDIO_CONFIG.effects.playerDeath.path
+        );
+
+        this.load.audio(
+            AUDIO_CONFIG.effects.playerShot.key,
+            AUDIO_CONFIG.effects.playerShot.path,
+            { instances: 4 }
+        );
+
+        this.load.audio(
+            AUDIO_CONFIG.effects.enemyShot.key,
+            AUDIO_CONFIG.effects.enemyShot.path,
+            { instances: 24 }
         );
 
         this.load.audio(

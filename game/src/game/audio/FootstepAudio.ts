@@ -35,4 +35,8 @@ export class FootstepAudio {
         this.sound.stop();
         this.elapsed = AUDIO_CONFIG.effects.playerFootstep.interval;
     }
+
+    destroy() {
+        this.sound.destroy();
+    }
 }
