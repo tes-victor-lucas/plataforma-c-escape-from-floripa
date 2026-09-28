@@ -1,5 +1,6 @@
 import type { Scene } from 'phaser';
 import { createLampLights } from './createLampLights';
+import { openRoomExit } from './openRoomExit';
 
 const TILESETS = [
     { mapName: 'floor_and_buildings-01', textureKey: 'floor_and_buildings' },
@@ -25,6 +26,7 @@ const POST_FOREGROUND_TILE_INDICES = new Set([758, 768]);
 export interface Room {
     map: Phaser.Tilemaps.Tilemap;
     collisionLayers: Phaser.Tilemaps.TilemapLayer[];
+    openExit: () => void;
 }
 
 /** Cria as layers do mapa e habilita colisão somente nos tiles marcados no Tiled. */
@@ -85,5 +87,5 @@ export function createRoom(scene: Scene, mapKey: string): Room | null {
 
     scene.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 
-    return { map, collisionLayers };
+    return { map, collisionLayers, openExit: () => openRoomExit(collisionLayers) };
 }

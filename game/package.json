@@ -5,6 +5,7 @@
   "source": "./index.html",
   "browserslist": "> 0.25%, last 2 versions, not dead",
   "scripts": {
+    "test": "node --test tests/*.test.cjs",
     "dev": "node log.js dev &parcel index.html --no-cache --config ./parcel/.parcel.dev --open",
     "build": "node log.js build &parcel build index.html --public-url _relativeroute_ --no-source-maps --log-level error --config ./parcel/.parcel.prod",
     "dev-nolog": "parcel index.html --no-cache --config ./parcel/.parcel.dev --open",
