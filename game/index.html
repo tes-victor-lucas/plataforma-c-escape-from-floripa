@@ -10,8 +10,11 @@
         body {
             margin: 0;
             padding: 0;
+            width: 100vw;
+            height: 100vh;
             color: rgba(255, 255, 255, 0.87);
             background-color: #000000;
+            overflow: hidden;
         }
 
         #app {
@@ -24,11 +27,57 @@
         }
 
         #game-container {
-            width: 889px;
-            height: 500px;
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: #000000;
+        }
+
+        #fullscreen-button {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 10;
+            display: grid;
+            width: 42px;
+            height: 42px;
+            padding: 0;
+            background: transparent;
+            border: 0;
+            border-radius: 50%;
+            place-items: center;
+            cursor: pointer;
+        }
+
+        #game-container.gameplay-active #fullscreen-button {
+            top: 8px;
+            right: 58px;
+        }
+
+        #fullscreen-button:hover,
+        #fullscreen-button:focus-visible {
+            transform: scale(1.06);
+            outline: 2px solid #5ce5f1;
+            outline-offset: 1px;
+        }
+
+        #fullscreen-button:disabled,
+        #fullscreen-button[data-fullscreen='true'] {
+            display: none;
+        }
+
+        #fullscreen-button .action-button-icon {
+            width: 100%;
+            height: 100%;
+            background-image: url('./public/assets/ui/fullscreen.png');
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
+            image-rendering: pixelated;
         }
 
         canvas {
+            display: block;
             image-rendering: pixelated;
         }
     </style>
@@ -36,7 +85,17 @@
 
 <body>
     <div id="app">
-        <div id="game-container"></div>
+        <div id="game-container">
+            <button
+                id="fullscreen-button"
+                type="button"
+                data-fullscreen="false"
+                aria-label="Entrar em tela cheia"
+                title="Entrar em tela cheia"
+            >
+                <span class="action-button-icon" aria-hidden="true"></span>
+            </button>
+        </div>
     </div>
     <script type="module" src="./src/main.ts"></script>
 </body>

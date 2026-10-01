@@ -5,14 +5,16 @@ import { WORLD_CONFIG } from '../config/world';
 export class DroneWaves {
     private nextWave = 0;
     private completed = false;
+    private waitingForIntermission = false;
 
     constructor(
         private readonly spawn: (count: number) => void,
-        private readonly onComplete: () => void = () => {}
+        private readonly onComplete: () => void = () => {},
+        private readonly playIntermission: (resume: () => void) => void = (resume) => resume()
     ) {}
 
     update(drones: ReadonlyArray<{ health: { isAlive: boolean } }>) {
-        if (this.completed || drones.some((drone) => drone.health.isAlive)) return;
+        if (this.completed || this.waitingForIntermission || drones.some((drone) => drone.health.isAlive)) return;
         const count = COMBAT_CONFIG.waves[this.nextWave];
         if (count === undefined) {
             this.completed = true;
@@ -20,7 +22,15 @@ export class DroneWaves {
             return;
         }
 
-        this.spawn(count);
+        if (this.nextWave === 0) {
+            this.spawn(count);
+        } else {
+            this.waitingForIntermission = true;
+            this.playIntermission(() => {
+                this.waitingForIntermission = false;
+                this.spawn(count);
+            });
+        }
         this.nextWave += 1;
     }
 }

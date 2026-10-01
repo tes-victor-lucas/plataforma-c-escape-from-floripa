@@ -20,6 +20,8 @@ const LAYER_NAMES = [
 const FOREGROUND_DEPTH = 20;
 const FLOOR_DEPTH = 0;
 const SCENERY_DEPTH = 2;
+// Um tom frio e moderado cria o clima noturno sem esconder os detalhes do mapa.
+const ROOM_AMBIENT_TINT = 0xb8c0d0;
 // Os postes usam três tiles verticais: somente os dois primeiros devem ocultar o jogador.
 const POST_FOREGROUND_TILE_INDICES = new Set([758, 768]);
 
@@ -66,6 +68,7 @@ export function createRoom(scene: Scene, mapKey: string): Room | null {
     }
 
     for (const layer of collisionLayers) {
+        layer.setTint(ROOM_AMBIENT_TINT);
         layer.setCollisionByProperty({ collider: true });
     }
 
@@ -83,7 +86,9 @@ export function createRoom(scene: Scene, mapKey: string): Room | null {
             postForegroundLayer.putTileAt(tile.index, tile.x, tile.y);
         }
     });
-    postForegroundLayer.setDepth(FOREGROUND_DEPTH);
+    postForegroundLayer
+        .setDepth(FOREGROUND_DEPTH)
+        .setTint(ROOM_AMBIENT_TINT);
 
     scene.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 

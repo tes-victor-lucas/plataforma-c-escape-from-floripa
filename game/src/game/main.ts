@@ -1,5 +1,5 @@
 import { Boot } from './scenes/Boot';
-import { AUTO, Game } from 'phaser';
+import { AUTO, Game, Scale } from 'phaser';
 import { Preloader } from './scenes/Preloader';
 import { World } from './scenes/World';
 import { MainMenu } from './scenes/MainMenu';
@@ -18,6 +18,13 @@ const config: Phaser.Types.Core.GameConfig = {
     height: GAME_HEIGHT,
     parent: 'game-container',
     pixelArt: true,
+    scale: {
+        mode: Scale.FIT,
+        autoCenter: Scale.CENTER_BOTH,
+        fullscreenTarget: 'game-container',
+        width: GAME_WIDTH,
+        height: GAME_HEIGHT
+    },
     physics: {
         default: 'arcade',
         arcade: {

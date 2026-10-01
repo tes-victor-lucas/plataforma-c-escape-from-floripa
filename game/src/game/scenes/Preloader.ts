@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
 import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
+import { HUD_CONFIG } from '../config/hud';
 
 export class Preloader extends Scene {
     constructor() {
@@ -11,6 +12,12 @@ export class Preloader extends Scene {
         this.load.image(
             'menu-background',
             'assets/menu-background.png'
+        );
+
+        this.load.image(HUD_CONFIG.heart.texture, HUD_CONFIG.heart.path);
+        this.load.image(
+            HUD_CONFIG.controls.pauseTexture,
+            HUD_CONFIG.controls.pausePath
         );
 
         this.load.tilemapTiledJSON(
@@ -81,6 +88,11 @@ export class Preloader extends Scene {
             AUDIO_CONFIG.effects.enemyShot.key,
             AUDIO_CONFIG.effects.enemyShot.path,
             { instances: 24 }
+        );
+
+        this.load.audio(
+            AUDIO_CONFIG.music.mainMenu.key,
+            AUDIO_CONFIG.music.mainMenu.path
         );
 
         this.load.audio(

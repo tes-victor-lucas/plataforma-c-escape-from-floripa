@@ -98,6 +98,8 @@ export class Drone {
         if (!this.health.isAlive) {
             const position = this.sprite.body?.center ?? this.sprite;
             const sound = AUDIO_CONFIG.effects.droneExplosion;
+            const shake = COMBAT_CONFIG.drone.deathShake;
+            this.scene.cameras.main.shake(shake.duration, shake.intensity);
             this.scene.sound.play(sound.key, { volume: sound.volume });
             playDroneExplosion(this.scene, position.x, position.y);
             this.sprite.disableBody(true, true);
@@ -127,7 +129,8 @@ export class Drone {
             const { hitbox } = WORLD_CONFIG.drone;
             body.setSize(hitbox.width, hitbox.height);
             body.setOffset(hitbox.offsetX, hitbox.offsetY);
-            body.setImmovable(true);
+            // Continua bloqueando o jogador, mas pode ser separado de outro drone.
+            body.pushable = false;
             body.setAllowGravity(false);
         }
     }
