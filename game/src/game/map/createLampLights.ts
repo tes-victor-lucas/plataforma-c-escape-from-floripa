@@ -3,7 +3,8 @@ import type { Scene } from 'phaser';
 const LAMP_TILE_INDEX = 758;
 const LIGHT_DEPTH = 1;
 const LAMP_LIGHT_TEXTURE = 'lamp-light';
-const LAMP_LIGHT_RADIUS = 44;
+const LAMP_LIGHT_RADIUS = 60;
+const LAMP_LIGHT_ALPHA = 0.72;
 
 /** Cria halos suaves sob os postes de luz presentes na layer de objetos. */
 export function createLampLights(scene: Scene, objectsLayer: Phaser.Tilemaps.TilemapLayer) {
@@ -18,7 +19,7 @@ export function createLampLights(scene: Scene, objectsLayer: Phaser.Tilemaps.Til
             LAMP_LIGHT_TEXTURE
         )
             .setDepth(LIGHT_DEPTH)
-            .setAlpha(0.55)
+            .setAlpha(LAMP_LIGHT_ALPHA)
             .setBlendMode(Phaser.BlendModes.ADD);
     });
 }
@@ -40,8 +41,8 @@ function createLampLightTexture(scene: Scene) {
         LAMP_LIGHT_RADIUS
     );
 
-    gradient.addColorStop(0, 'rgba(255, 221, 134, 0.62)');
-    gradient.addColorStop(0.28, 'rgba(255, 183, 71, 0.30)');
+    gradient.addColorStop(0, 'rgba(255, 229, 158, 0.82)');
+    gradient.addColorStop(0.32, 'rgba(255, 190, 82, 0.42)');
     gradient.addColorStop(1, 'rgba(255, 142, 45, 0)');
     context.fillStyle = gradient;
     context.fillRect(0, 0, diameter, diameter);

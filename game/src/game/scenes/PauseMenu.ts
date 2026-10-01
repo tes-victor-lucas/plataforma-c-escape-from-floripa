@@ -16,7 +16,7 @@ export class PauseMenu extends Scene {
             onQuit: () => this.quitToMainMenu()
         }).create();
 
-        this.input.keyboard?.once('keydown-ESC', this.continueGame, this);
+        this.input.keyboard?.once('keydown-P', this.continueGame, this);
     }
 
     private continueGame() {

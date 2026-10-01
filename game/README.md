@@ -2,14 +2,14 @@
 
 ## Combate
 
-- Movimente o personagem com WASD ou as setas; Esc abre a pausa.
-- O jogador atira automaticamente no drone visível mais próximo a até 180 pixels.
+- Movimente o personagem com WASD ou as setas; P ou o botão no canto superior direito abrem a pausa.
+- O jogador atira automaticamente no drone visível mais próximo a até 100 pixels.
 - A sala tem duas ondas: 10 drones iniciais e mais 20 após eliminar todos os primeiros. Os drones disparam projéteis vermelhos a até 200 pixels; paredes e obstáculos bloqueiam os disparos.
 - Após eliminar os 30 drones, as barricadas das camadas `objectos-block-back` e `objects-block` desaparecem e a passagem superior é liberada. Reiniciar a sala restaura os bloqueios.
 - O jogador começa no centro inferior da sala, em uma área sem nascimento de drones num raio de 240 pixels. Novas ondas também respeitam 120 pixels de distância da posição atual do jogador.
 - Os projéteis são retangulares, com cantos arredondados, escala de 85% e orientação na direção do disparo.
 - Os drones perseguem o jogador visível a até 220 pixels, mantêm 64 pixels de distância para atirar e perdem o alvo ao sair de 260 pixels ou ao ter a visão bloqueada. Tamanho, velocidade e raios da perseguição ficam em `src/game/config/world.ts`.
-- O jogador tem 100 de vida e causa 20 de dano; cada drone tem 60 de vida e causa 10 de dano.
+- O jogador começa com 4 de vida (dois corações) e causa 20 de dano; cada drone tem 60 de vida e causa 1 de dano.
 - Ao destruir um drone, toca a explosão roxa da prévia (linha 4, coluna 7), usando os frames 306–309 do spritesheet original em `public/assets/effects/drone-explosion.png`.
 - A interface mostra a vida depois da transição de entrada na sala. Na derrota, escolha reiniciar a sala ou voltar ao menu.
 - Ajuste alcance, dano, vida, cadência e posições em `src/game/config/combat.ts`.

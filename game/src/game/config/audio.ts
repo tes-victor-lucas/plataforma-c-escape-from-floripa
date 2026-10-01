@@ -34,11 +34,18 @@ export const AUDIO_CONFIG = {
         },
     },
     music: {
+        fadeDuration: 1800,
+        sceneExitFadeDuration: 500,
+        mainMenu: {
+            key: 'main-menu-music',
+            path: 'assets/audio/mainmenu.mp3',
+            volume: 0.12
+        },
         room1: {
             key: 'room1-music',
-            path: 'assets/audio/song-room1.mp3',
+            path: 'assets/audio/room01.mp3',
             // Música de fundo: deixa os efeitos, como os passos, audíveis.
-            volume: 0.06
+            volume: 0.08
         }
     }
 } as const;
