@@ -13,6 +13,7 @@ const ArcadeBody = require(path.join(phaserRoot, 'src/physics/arcade/Body'));
 const phaser = {
     Scene: require(path.join(phaserRoot, 'src/scene/Scene')),
     Physics: { Arcade: { Body: ArcadeBody } },
+    Math: { Linear: (start, end, amount) => start + (end - start) * amount },
     Animations: { Events: require(path.join(phaserRoot, 'src/animations/events')) },
     Geom: {
         Line: require(path.join(phaserRoot, 'src/geom/line/Line')),
@@ -41,6 +42,11 @@ const { COMBAT_CONFIG } = load('../src/game/config/combat.ts');
 const { WORLD_CONFIG } = load('../src/game/config/world.ts');
 const { Drone } = load('../src/game/entities/Drone.ts');
 const { DroneWaves, selectDroneSpawns } = load('../src/game/combat/DroneWaves.ts');
+const { drawUpgradeCards } = load('../src/game/upgrades/drawUpgradeCards.ts');
+const { getUpgradeCard } = load('../src/game/upgrades/catalog.ts');
+const { PlayerUpgradeState } = load('../src/game/upgrades/PlayerUpgradeState.ts');
+const { getHeartFillLevels } = load('../src/game/ui/HeartHealthView.ts');
+const { MusicDirector } = load('../src/game/audio/MusicDirector.ts');
 
 function fighter(x, y, maxHealth) {
     const health = new Health(maxHealth);
@@ -53,7 +59,7 @@ function fighter(x, y, maxHealth) {
         takeDamage(amount) { health.takeDamage(amount); }
     };
 }
-function setup(positions = [[150, 100]], wallTiles = []) {
+function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUpgradeState()) {
     const player = fighter(100, 100, COMBAT_CONFIG.player.maxHealth);
     const drones = positions.map(([x, y]) => fighter(x, y, COMBAT_CONFIG.drone.maxHealth));
     const groups = [];
@@ -70,7 +76,34 @@ function setup(positions = [[150, 100]], wallTiles = []) {
         const { x, y } = actor.sprite.body.center;
         attachBody(actor.sprite, x, y);
     }
+    const damageLabels = [];
+    const companions = [];
     const scene = {
+        sound: { play() {} },
+        tweens: { add() {} },
+        add: {
+            sprite(x, y, texture, frame) {
+                const companion = {
+                    x, y, texture, frame,
+                    setScale(value) { this.scale = value; return this; },
+                    setTint(value) { this.color = value; return this; },
+                    setDepth(value) { this.depth = value; return this; },
+                    setPosition(nextX, nextY) { this.x = nextX; this.y = nextY; return this; }
+                };
+                companions.push(companion);
+                return companion;
+            },
+            text(x, y, text) {
+                const label = {
+                    x, y, text, active: true,
+                    setOrigin() { return this; },
+                    setDepth() { return this; },
+                    destroy() { this.active = false; }
+                };
+                damageLabels.push(label);
+                return label;
+            }
+        },
         textures: { exists: () => true },
         physics: {
             world: { bounds: new phaser.Geom.Rectangle(0, 0, 800, 640) },
@@ -115,8 +148,8 @@ function setup(positions = [[150, 100]], wallTiles = []) {
         }
     };
     const walls = [{ getTilesWithinWorldXY: () => wallTiles }];
-    const combat = new CombatSystem(scene, player, drones, walls);
-    return { combat, player, drones, groups, colliders, overlaps, attachBody };
+    const combat = new CombatSystem(scene, player, drones, walls, upgrades);
+    return { combat, player, drones, groups, colliders, overlaps, attachBody, damageLabels, companions };
 }
 
 test('vida diminui, não cura com dano negativo e não fica abaixo de zero', () => {
@@ -127,6 +160,20 @@ test('vida diminui, não cura com dano negativo e não fica abaixo de zero', () 
     health.takeDamage(200);
     assert.equal(health.current, 0);
     assert.equal(health.isAlive, false);
+
+    const expandableHealth = new Health(4);
+    expandableHealth.takeDamage(2);
+    expandableHealth.increaseMax(2, 2);
+    assert.equal(expandableHealth.max, 6);
+    assert.equal(expandableHealth.current, 4);
+});
+
+test('corações representam vida cheia, meia vida e vida perdida', () => {
+    assert.deepEqual(getHeartFillLevels(4, 4), [1, 1]);
+    assert.deepEqual(getHeartFillLevels(3, 4), [1, 0.5]);
+    assert.deepEqual(getHeartFillLevels(1, 4), [0.5, 0]);
+    assert.deepEqual(getHeartFillLevels(0, 4), [0, 0]);
+    assert.deepEqual(getHeartFillLevels(5, 6), [1, 1, 0.5]);
 });
 
 test('nenhum personagem dispara fora de alcance', () => {
@@ -137,7 +184,9 @@ test('nenhum personagem dispara fora de alcance', () => {
 });
 
 test('cada personagem usa seu próprio raio; tiro inimigo é vermelho e aponta para o jogador', () => {
-    const { combat, groups } = setup([[300, 100]]);
+    const upgrades = new PlayerUpgradeState();
+    upgrades.range = 180;
+    const { combat, groups } = setup([[300, 100]], [], upgrades);
     combat.update(1100);
     assert.equal(groups[0].shots.length, 0);
     assert.equal(groups[1].shots.length, 1);
@@ -150,7 +199,7 @@ test('jogador escolhe o inimigo vivo mais próximo e respeita o intervalo entre 
     combat.update(0);
     assert.ok(Math.abs(groups[0].shots[0].velocity.x) < 0.001);
     assert.ok(groups[0].shots[0].velocity.y > 0);
-    combat.update(449);
+    combat.update(COMBAT_CONFIG.player.fireInterval - 1);
     assert.equal(groups[0].shots.length, 1);
     drones[1].takeDamage(60);
     combat.update(1);
@@ -180,7 +229,7 @@ test('parede entre os personagens impede disparos dos dois lados', () => {
 test('projétil causa dano apenas uma vez e três acertos derrotam o drone', () => {
     const { combat, groups, overlaps, drones } = setup();
     for (let i = 0; i < 3; i++) {
-        combat.update(450);
+        combat.update(COMBAT_CONFIG.player.fireInterval);
         const shot = groups[0].shots[i];
         overlaps[0].hit(shot);
         overlaps[0].hit(shot);
@@ -198,10 +247,10 @@ test('tiro inimigo reduz a vida do jogador e jogador morto interrompe o combate'
     const { combat, groups, overlaps, player } = setup();
     combat.update(1100);
     overlaps[1].hit(groups[1].shots[0]);
-    assert.equal(player.health.current, 90);
+    assert.equal(player.health.current, COMBAT_CONFIG.player.maxHealth - COMBAT_CONFIG.drone.damage);
     assert.equal(player.sprite.active, true);
     assert.ok(player.sprite.body);
-    player.takeDamage(90);
+    player.takeDamage(COMBAT_CONFIG.player.maxHealth);
     combat.update(1100);
     assert.equal(groups[0].shots.length, 1);
     assert.equal(groups[1].shots.length, 1);
@@ -213,12 +262,12 @@ test('projéteis são removidos ao colidir com o mapa, expirar ou sair do mundo'
     const first = groups[0].shots[0];
     colliders[0].callback(first);
     assert.equal(first.active, false);
-    combat.update(450);
+    combat.update(COMBAT_CONFIG.player.fireInterval);
     const second = groups[0].shots[1];
     second.x = -1;
     combat.update(1);
     assert.equal(second.active, false);
-    combat.update(450);
+    combat.update(COMBAT_CONFIG.player.fireInterval);
     const third = groups[0].shots[2];
     drones[0].takeDamage(60);
     combat.update(COMBAT_CONFIG.projectile.lifetime);
@@ -231,6 +280,47 @@ test('limpeza de combate remove projéteis dos dois lados e pode ser repetida', 
     combat.clear();
     combat.clear();
     assert.ok(groups.every((group) => group.shots.every((shot) => !shot.active)));
+});
+
+test('cartas alteram atributos, habilidades, limites e reparo do jogador', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('attack-range'));
+    upgrades.acquire(getUpgradeCard('projectile-speed'));
+    upgrades.acquire(getUpgradeCard('projectile-damage'));
+    upgrades.acquire(getUpgradeCard('fire-rate'));
+    upgrades.acquire(getUpgradeCard('double-shot'));
+    for (let level = 0; level < 4; level++) upgrades.acquire(getUpgradeCard('piercing-shot'));
+    upgrades.acquire(getUpgradeCard('companion-drone'));
+    upgrades.acquire(getUpgradeCard('emergency-repair'));
+    upgrades.acquire(getUpgradeCard('max-health'));
+
+    assert.equal(upgrades.range, COMBAT_CONFIG.player.range * 1.1);
+    assert.equal(upgrades.projectileSpeed, COMBAT_CONFIG.player.projectileSpeed * 1.1);
+    assert.equal(upgrades.damage, COMBAT_CONFIG.player.damage * 1.2);
+    assert.equal(upgrades.fireInterval, COMBAT_CONFIG.player.fireInterval * 0.85);
+    assert.equal(upgrades.projectileCount, 2);
+    assert.equal(upgrades.piercingTargets, 3);
+    assert.equal(upgrades.companionCount, 1);
+    assert.equal(upgrades.maxHealth, COMBAT_CONFIG.player.maxHealth + 2);
+
+    const health = new Health(100);
+    health.takeDamage(50);
+    upgrades.repairAfterRoom(health);
+    assert.equal(health.current, 70);
+});
+
+test('sorteio oferece três cartas distintas com ao menos uma habilidade', () => {
+    for (let seed = 1; seed <= 50; seed++) {
+        let state = seed;
+        const random = () => {
+            state = (state * 1664525 + 1013904223) >>> 0;
+            return state / 2 ** 32;
+        };
+        const cards = drawUpgradeCards(random);
+        assert.equal(cards.length, 3);
+        assert.equal(new Set(cards.map((card) => card.id)).size, 3);
+        assert.ok(cards.some((card) => card.kind === 'ability'));
+    }
 });
 
 test('ondas criam 10 drones e depois 20 apenas quando todos os anteriores morrerem', () => {
@@ -259,6 +349,33 @@ test('ondas criam 10 drones e depois 20 apenas quando todos os anteriores morrer
     assert.deepEqual(restartedCounts, [10]);
 });
 
+test('segunda onda aguarda o fim da vinheta sem dispará-la mais de uma vez', () => {
+    const counts = [];
+    const drones = [];
+    let resumeWave;
+    let intermissions = 0;
+    const waves = new DroneWaves(
+        (count) => {
+            counts.push(count);
+            drones.push(...Array.from({ length: count }, () => fighter(0, 0, 60)));
+        },
+        () => {},
+        (resume) => {
+            intermissions += 1;
+            resumeWave = resume;
+        }
+    );
+
+    waves.update(drones);
+    for (const drone of drones) drone.takeDamage(60);
+    waves.update(drones);
+    waves.update(drones);
+    assert.deepEqual(counts, [10]);
+    assert.equal(intermissions, 1);
+    resumeWave();
+    assert.deepEqual(counts, [10, 20]);
+});
+
 test('novos drones entram no combate com tiros, dano e atraso inicial', () => {
     const { combat, player, drones, groups, overlaps, attachBody } = setup([]);
     const drone = fighter(150, 100, 60);
@@ -275,7 +392,7 @@ test('novos drones entram no combate com tiros, dano e atraso inicial', () => {
     combat.update(COMBAT_CONFIG.drone.fireInterval);
     assert.equal(groups[1].shots.length, 1);
     overlaps[0].hit(groups[1].shots[0]);
-    assert.equal(player.health.current, 90);
+    assert.equal(player.health.current, COMBAT_CONFIG.player.maxHealth - COMBAT_CONFIG.drone.damage);
 });
 
 test('projéteis menores acompanham a direção do tiro e a colisão retangular', () => {
@@ -286,6 +403,41 @@ test('projéteis menores acompanham a direção do tiro e a colisão retangular'
     assert.ok(Math.abs(shot.rotation - Math.PI / 2) < 0.001);
     assert.ok(Math.abs(shot.body.width - COMBAT_CONFIG.projectile.height) < 0.001);
     assert.ok(Math.abs(shot.body.height - COMBAT_CONFIG.projectile.width) < 0.001);
+});
+
+test('tiro duplo, dano aumentado e perfuração afetam o combate real', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('double-shot'));
+    upgrades.acquire(getUpgradeCard('projectile-damage'));
+    upgrades.acquire(getUpgradeCard('piercing-shot'));
+    const { combat, groups, drones, overlaps, damageLabels } = setup(
+        [[150, 100], [170, 100]],
+        [],
+        upgrades
+    );
+
+    combat.update(0);
+    assert.equal(groups[0].shots.length, 2);
+    const shot = groups[0].shots[0];
+    overlaps[0].hit(shot);
+    assert.equal(shot.active, true);
+    assert.equal(drones[0].health.current, 36);
+    overlaps[1].hit(shot);
+    assert.equal(shot.active, false);
+    assert.equal(drones[1].health.current, 36);
+    assert.deepEqual(damageLabels.map((label) => label.text), ['-24', '-24']);
+});
+
+test('drone companheiro nasce e dispara com atributos reduzidos', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('companion-drone'));
+    const { combat, groups, companions } = setup([[110, 100]], [], upgrades);
+    combat.update(0);
+    assert.equal(companions.length, 1);
+    const companionShot = groups[0].shots.find((shot) => shot.color === 0x39ff14);
+    assert.ok(companionShot);
+    assert.ok(Math.abs(Math.hypot(companionShot.velocity.x, companionShot.velocity.y)
+        - upgrades.projectileSpeed * 0.4) < 0.001);
 });
 
 test('duas ondas têm posições suficientes, distintas e fora da área inicial e do jogador', () => {
@@ -348,6 +500,7 @@ test('drones nascem e patrulham em áreas livres de obstáculos no mapa real', (
 
 function chasingDrone(wallTiles = []) {
     const explosions = [];
+    const cameraShakes = [];
     const animations = new Map();
     const world = new ArcadeWorld({ sys: { scale: { width: 800, height: 640 } } }, {});
     const sprite = {
@@ -360,6 +513,8 @@ function chasingDrone(wallTiles = []) {
     };
     const graphics = { clear() { return this; }, fillStyle() { return this; }, fillRect() { return this; }, setDepth() { return this; } };
     const scene = {
+        sound: { play() {} },
+        cameras: { main: { shake: (...args) => cameraShakes.push(args) } },
         physics: { add: { sprite: () => sprite } },
         anims: {
             exists: (key) => key === 'drone-hover' || animations.has(key),
@@ -387,17 +542,27 @@ function chasingDrone(wallTiles = []) {
     sprite.body.position.set(sprite.x - sprite.body.halfWidth, sprite.y - sprite.body.halfHeight);
     sprite.body.updateCenter();
     const playerAt = (dx, dy = 0) => fighter(sprite.body.center.x + dx, sprite.body.center.y + dy, 100);
-    return { drone, sprite, playerAt, explosions, animations, scene };
+    return { drone, sprite, playerAt, explosions, cameraShakes, animations, scene };
 }
 
+test('corpo do drone não é empurrável, mas permanece separável pelo motor físico', () => {
+    const { sprite } = chasingDrone();
+    assert.equal(sprite.body.immovable, false);
+    assert.equal(sprite.body.pushable, false);
+});
+
 test('drone explode uma única vez ao morrer, usando a sequência pedida e removendo o efeito ao terminar', () => {
-    const { drone, sprite, explosions, animations, scene } = chasingDrone();
+    const { drone, sprite, explosions, cameraShakes, animations, scene } = chasingDrone();
     const { DRONE_EXPLOSION, playDroneExplosion } = load('../src/game/effects/playDroneExplosion.ts');
     drone.takeDamage(20);
     assert.equal(explosions.length, 0);
     drone.takeDamage(40);
     drone.takeDamage(100);
     assert.equal(explosions.length, 1);
+    assert.deepEqual(cameraShakes, [[
+        COMBAT_CONFIG.drone.deathShake.duration,
+        COMBAT_CONFIG.drone.deathShake.intensity
+    ]]);
     assert.equal(sprite.body.enable, false);
     const effect = explosions[0];
     assert.equal(effect.x, sprite.body.center.x);
@@ -480,6 +645,19 @@ test('drone abandona jogador morto e deixa de agir ao ser destruído', () => {
     assert.equal(sprite.body.enable, false);
 });
 
+test('mundo registra uma única colisão interna para o grupo de drones', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const group = {};
+    const colliders = [];
+    world.physics = { add: {
+        group: () => group,
+        collider: (first, second) => colliders.push([first, second])
+    } };
+    assert.equal(world.createDroneBodies(), group);
+    assert.deepEqual(colliders, [[group, group]]);
+});
+
 test('mundo bloqueia combate e HUD até a revelação; reinício não espera outra transição', () => {
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();
@@ -527,13 +705,34 @@ test('transição só libera o mundo quando a animação de revelação termina'
         return object;
     };
     transition.add = { rectangle: graphic, text: graphic };
-    transition.tweens = { add(config) { tweens.push(config); } };
+    transition.sound = {
+        locked: false,
+        add() {
+            return {
+                volume: 0,
+                isPlaying: false,
+                play() { this.isPlaying = true; },
+                stop() { this.isPlaying = false; },
+                destroy() {},
+                setVolume(value) { this.volume = value; return this; }
+            };
+        }
+    };
+    transition.tweens = {
+        add(config) { tweens.push(config); },
+        addCounter(config) { return { config, stop() {} }; }
+    };
     transition.time = { delayedCall(_delay, callback) { timers.push(callback); } };
+    const worldScene = {
+        sound: transition.sound,
+        tweens: { addCounter(config) { return { config, stop() {} }; } },
+        startGameplay() { starts++; }
+    };
     transition.scene = {
         launch(key, data) { launches.push({ key, data }); },
         sendToBack() {},
         stop(key) { if (!key) stopped = true; },
-        get() { return { startGameplay() { starts++; } }; }
+        get() { return worldScene; }
     };
     transition.create();
     assert.equal(launches.length, 0);
@@ -548,4 +747,89 @@ test('transição só libera o mundo quando a animação de revelação termina'
     reveal.onComplete();
     assert.equal(starts, 1);
     assert.equal(stopped, true);
+});
+
+test('diretor de música encerra uma faixa antes de iniciar gradualmente a próxima', () => {
+    const sounds = [];
+    const transitions = [];
+    const scene = {
+        sound: {
+            locked: false,
+            add(key, config) {
+                const sound = {
+                    key,
+                    volume: config.volume,
+                    isPlaying: false,
+                    stopped: false,
+                    destroyed: false,
+                    play() { this.isPlaying = true; },
+                    stop() { this.stopped = true; this.isPlaying = false; },
+                    destroy() { this.destroyed = true; },
+                    setVolume(value) { this.volume = value; return this; }
+                };
+                sounds.push(sound);
+                return sound;
+            },
+            once(_event, callback) { this.unlockCallback = callback; },
+            off(_event, callback) {
+                if (this.unlockCallback === callback) this.unlockCallback = undefined;
+            }
+        },
+        tweens: {
+            addCounter(config) {
+                const tween = { stopped: false, stop() { this.stopped = true; } };
+                transitions.push({ config, tween });
+                return tween;
+            }
+        }
+    };
+    const finish = (transition) => {
+        transition.config.onUpdate({ getValue: () => 1 });
+        transition.config.onComplete();
+    };
+    const director = new MusicDirector();
+
+    director.play(scene, { key: 'menu', volume: 0.08 }, 2500);
+    assert.equal(sounds[0].volume, 0);
+    transitions[0].config.onUpdate({ getValue: () => 0.5 });
+    assert.equal(sounds[0].volume, 0.04);
+    finish(transitions[0]);
+
+    director.play(scene, { key: 'room', volume: 0.08 }, 2500);
+    assert.equal(sounds.length, 1);
+    transitions[1].config.onUpdate({ getValue: () => 0.5 });
+    assert.equal(sounds[0].volume, 0.04);
+    finish(transitions[1]);
+
+    assert.equal(sounds[0].stopped, true);
+    assert.equal(sounds[0].destroyed, true);
+    assert.equal(sounds.length, 2);
+    assert.equal(sounds[1].key, 'room');
+    assert.equal(sounds[1].volume, 0);
+    transitions[2].config.onUpdate({ getValue: () => 0.5 });
+    assert.equal(sounds[1].volume, 0.04);
+    finish(transitions[2]);
+
+    director.play(scene, { key: 'menu', volume: 0.08 }, 2500);
+    assert.equal(sounds.length, 2);
+    finish(transitions[3]);
+    assert.equal(sounds[1].stopped, true);
+    assert.equal(sounds[2].key, 'menu');
+    assert.equal(sounds[2].volume, 0);
+    finish(transitions[4]);
+    assert.equal(sounds[2].volume, 0.08);
+
+    director.stop(scene);
+    scene.sound.locked = true;
+    const deferredDirector = new MusicDirector();
+    const transitionCount = transitions.length;
+    deferredDirector.play(scene, { key: 'locked-menu', volume: 0.08 }, 2500);
+    assert.equal(sounds[3].volume, 0);
+    assert.equal(transitions.length, transitionCount);
+
+    scene.sound.locked = false;
+    scene.sound.unlockCallback();
+    assert.equal(transitions.length, transitionCount + 1);
+    transitions.at(-1).config.onUpdate({ getValue: () => 0.5 });
+    assert.equal(sounds[3].volume, 0.04);
 });
