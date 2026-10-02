@@ -1,3 +1,5 @@
+.PHONY: all install aws_cli aws_sam_cli pulumi uv shell
+
 all: install
 
 install: aws_cli aws_sam_cli pulumi uv shell
