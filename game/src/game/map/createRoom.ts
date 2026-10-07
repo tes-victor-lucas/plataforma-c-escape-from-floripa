@@ -2,6 +2,11 @@ import type { Scene } from 'phaser';
 import { createLampLights } from './createLampLights';
 import { openRoomExit } from './openRoomExit';
 import { ROOM_DEFINITIONS } from '../config/rooms';
+import {
+    isOutsideStairPassage,
+    toStairPassageArea,
+    type StairPassageArea
+} from './StairPassage';
 
 const LAYER_NAMES = [
     'floor',
@@ -23,6 +28,7 @@ const POST_FOREGROUND_TILE_INDICES = new Set([758, 768]);
 export interface Room {
     map: Phaser.Tilemaps.Tilemap;
     collisionLayers: Phaser.Tilemaps.TilemapLayer[];
+    stairPassage?: StairPassageArea;
     openExit: () => void;
 }
 
@@ -108,6 +114,7 @@ function createRoom2(scene: Scene): Room | null {
         return tileset;
     });
     const collisionLayers: Phaser.Tilemaps.TilemapLayer[] = [];
+    let stairsLayer: Phaser.Tilemaps.TilemapLayer | undefined;
 
     for (let index = 0; index < map.layers.length; index += 1) {
         const layer = map.createLayer(index, resolvedTilesets);
@@ -117,14 +124,51 @@ function createRoom2(scene: Scene): Room | null {
         }
 
         layer.setDepth(SCENERY_DEPTH).setTint(ROOM_AMBIENT_TINT);
+        if (layer.layer.name === 'stairs') stairsLayer = layer;
         if (hasColliderProperty(layer.layer.properties)) {
             layer.setCollisionByExclusion([-1]);
             collisionLayers.push(layer);
         }
     }
 
+    if (!stairsLayer) {
+        console.error('A layer stairs não foi encontrada na room2.');
+        return null;
+    }
+
+    const stairBlockers = createStairBlockers(map, resolvedTilesets, stairsLayer);
+    if (!stairBlockers) return null;
+    collisionLayers.push(stairBlockers);
+
     scene.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
-    return { map, collisionLayers, openExit: () => {} };
+    return {
+        map,
+        collisionLayers,
+        stairPassage: toStairPassageArea(map.tileWidth, map.tileHeight),
+        openExit: () => {}
+    };
+}
+
+/** Replica apenas os tiles laterais da escada em uma layer invisível de colisão. */
+function createStairBlockers(
+    map: Phaser.Tilemaps.Tilemap,
+    tilesets: Phaser.Tilemaps.Tileset[],
+    stairsLayer: Phaser.Tilemaps.TilemapLayer
+) {
+    const blockers = map.createBlankLayer('stair-side-blockers', tilesets, 0, 0);
+    if (!blockers) {
+        console.error('Não foi possível criar os bloqueios laterais da escada da room2.');
+        return null;
+    }
+
+    stairsLayer.forEachTile((tile) => {
+        if (tile.index !== -1 && isOutsideStairPassage(tile.x, tile.y)) {
+            blockers.putTileAt(tile.index, tile.x, tile.y);
+        }
+    });
+
+    blockers.setVisible(false).setCollisionByExclusion([-1]);
+    return blockers;
 }
 
 function hasColliderProperty(properties: Phaser.Types.Tilemaps.LayerDataConfig['properties']) {
