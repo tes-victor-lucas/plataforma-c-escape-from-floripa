@@ -41,7 +41,7 @@ const { CombatSystem } = load('../src/game/combat/CombatSystem.ts');
 const { COMBAT_CONFIG } = load('../src/game/config/combat.ts');
 const { WORLD_CONFIG } = load('../src/game/config/world.ts');
 const { Drone } = load('../src/game/entities/Drone.ts');
-const { DroneWaves, selectDroneSpawns } = load('../src/game/combat/DroneWaves.ts');
+const { createReachableDroneSpawns, DroneWaves, selectDroneSpawns } = load('../src/game/combat/DroneWaves.ts');
 const { drawUpgradeCards } = load('../src/game/upgrades/drawUpgradeCards.ts');
 const { getUpgradeCard } = load('../src/game/upgrades/catalog.ts');
 const { PlayerUpgradeState } = load('../src/game/upgrades/PlayerUpgradeState.ts');
@@ -454,6 +454,41 @@ test('duas ondas têm posições suficientes, distintas e fora da área inicial 
         }
     }
     assert.equal(selectDroneSpawns(10, spawn).length, 10);
+});
+
+test('room2 cria drones somente no setor alcançável pelo jogador', () => {
+    const map = JSON.parse(readFileSync(path.resolve(__dirname, '../public/assets/maps/room2.json'), 'utf8'));
+    const tileLayers = [];
+    const collectTileLayers = (layers) => layers.forEach((layer) => {
+        if (layer.type === 'group') collectTileLayers(layer.layers);
+        if (layer.type === 'tilelayer') tileLayers.push(layer);
+    });
+    collectTileLayers(map.layers);
+    const colliderLayers = tileLayers.filter((layer) =>
+        (layer.properties ?? []).some((property) => property.name === 'collider' && property.value)
+    );
+    const isBlocked = (tileX, tileY) => colliderLayers.some((layer) =>
+        layer.data[tileY * map.width + tileX] !== 0
+    );
+    const candidates = createReachableDroneSpawns({
+        width: map.width,
+        height: map.height,
+        tileWidth: map.tilewidth,
+        tileHeight: map.tileheight
+    }, isBlocked, WORLD_CONFIG.player.spawn);
+
+    assert.ok(candidates.length >= 20);
+    for (let y = map.tileheight * 2; y < map.height * map.tileheight; y += map.tileheight * 2) {
+        for (let x = map.tilewidth * 2; x < map.width * map.tilewidth; x += map.tilewidth * 2) {
+            if (isBlocked(Math.floor(x / map.tilewidth), Math.floor(y / map.tileheight))) continue;
+            const selected = selectDroneSpawns(20, { x, y }, candidates);
+            assert.equal(new Set(selected).size, 20);
+            assert.ok(selected.every((point) => !isBlocked(
+                Math.floor(point.x / map.tilewidth),
+                Math.floor(point.y / map.tileheight)
+            )));
+        }
+    }
 });
 
 test('jogador começa no centro inferior, com o corpo dentro do mapa e livre de paredes', () => {
