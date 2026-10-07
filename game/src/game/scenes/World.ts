@@ -12,6 +12,9 @@ import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
 import { drawUpgradeCards } from '../upgrades/drawUpgradeCards';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
+import { RemotePlayer } from '../entities/RemotePlayer';
+import { multiplayerClient } from '../network/MultiplayerClient';
+import type { ServerMessage } from '../network/protocol';
 
 export class World extends Scene {
     private player?: Player;
@@ -25,6 +28,9 @@ export class World extends Scene {
     private isPauseMenuOpen = false;
     private isGameplayReady = false;
     private readonly upgrades = new PlayerUpgradeState();
+    private readonly remotePlayers = new Map<string, RemotePlayer>();
+    private unsubscribeMultiplayer?: () => void;
+    private multiplayerSyncElapsed = 0;
 
     constructor() {
         super('World');
@@ -39,7 +45,9 @@ export class World extends Scene {
         const room = createRoom(this, WORLD_CONFIG.mapKey);
         if (!room) return;
 
-        this.player = new Player(this, WORLD_CONFIG.player.spawn);
+        const spawn = this.getPlayerSpawn();
+        this.player = new Player(this, spawn);
+        this.setupMultiplayer();
         this.createPlayerRangeIndicator();
         this.drones = [];
         this.droneBodies = this.createDroneBodies();
@@ -91,6 +99,7 @@ export class World extends Scene {
             return;
         }
         this.player?.update(delta);
+        this.updateMultiplayer(delta);
         for (const drone of this.drones) drone.update(this.player);
         this.combat?.update(delta);
         this.waves?.update(this.drones);
@@ -164,6 +173,10 @@ export class World extends Scene {
         this.droneBodies = undefined;
         this.player = undefined;
         this.playerRangeIndicator = undefined;
+        this.unsubscribeMultiplayer?.();
+        this.unsubscribeMultiplayer = undefined;
+        for (const remotePlayer of this.remotePlayers.values()) remotePlayer.destroy();
+        this.remotePlayers.clear();
         this.input.keyboard?.off('keydown-P', this.openPauseMenu, this);
         this.events.off(Phaser.Scenes.Events.RESUME, this.resetPauseMenuState, this);
     }
@@ -179,5 +192,52 @@ export class World extends Scene {
 
     private resetPauseMenuState() {
         this.isPauseMenuOpen = false;
+    }
+
+    private getPlayerSpawn() {
+        const base = WORLD_CONFIG.player.spawn;
+        if (!this.isMultiplayerEnabled()) return base;
+        const playerIndex = multiplayerClient.match?.players.indexOf(multiplayerClient.playerId ?? '') ?? 0;
+        return { x: base.x + Math.max(0, playerIndex) * 36, y: base.y };
+    }
+
+    private setupMultiplayer() {
+        if (!this.isMultiplayerEnabled()) return;
+        const localId = multiplayerClient.playerId;
+        for (const [index, playerId] of (multiplayerClient.match?.players ?? []).entries()) {
+            if (playerId === localId) continue;
+            const spawn = WORLD_CONFIG.player.spawn;
+            this.remotePlayers.set(playerId, new RemotePlayer(this, spawn.x + index * 36, spawn.y));
+        }
+        this.unsubscribeMultiplayer = multiplayerClient.subscribe((message) => this.handleMultiplayerMessage(message));
+    }
+
+    private updateMultiplayer(delta: number) {
+        for (const remotePlayer of this.remotePlayers.values()) remotePlayer.update();
+        if (!this.isMultiplayerEnabled() || !this.player) return;
+        this.multiplayerSyncElapsed += delta;
+        if (this.multiplayerSyncElapsed < 50) return;
+        this.multiplayerSyncElapsed = 0;
+        const state = this.player.getNetworkState();
+        multiplayerClient.sendPlayerState(state.x, state.y, state.facing);
+    }
+
+    private handleMultiplayerMessage(message: ServerMessage) {
+        if (message.type === 'player.state') {
+            this.remotePlayers.get(message.playerId)?.applyState(
+                message.sequence,
+                message.x,
+                message.y,
+                message.facing
+            );
+        }
+        if (message.type === 'player.left') {
+            this.remotePlayers.get(message.playerId)?.destroy();
+            this.remotePlayers.delete(message.playerId);
+        }
+    }
+
+    private isMultiplayerEnabled() {
+        return Boolean(this.registry?.get('multiplayerEnabled'));
     }
 }
