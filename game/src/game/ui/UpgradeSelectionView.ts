@@ -22,22 +22,60 @@ const PALETTES = {
         border: 0xa855f7,
         accent: '#d99aff',
         label: 'HABILIDADE'
+    },
+    yellow: {
+        background: 0x46360b,
+        hover: 0x6a520f,
+        border: 0xffc928,
+        accent: '#ffe071',
+        label: 'BEBIDA'
+    },
+    red: {
+        background: 0x4b1420,
+        hover: 0x711d2f,
+        border: 0xff405d,
+        accent: '#ff91a2',
+        label: 'BEBIDA'
+    },
+    mystery: {
+        background: 0x28143d,
+        hover: 0x41205f,
+        border: 0xb866ff,
+        accent: '#ddb0ff',
+        label: 'COMIDA'
     }
 } as const;
 
+type SelectionCard = Readonly<{
+    id: string;
+    kind: 'stat' | 'ability';
+    title: string;
+    description: string;
+    texture?: string;
+    theme?: keyof typeof PALETTES;
+    label?: string;
+}>;
+
+type SelectionViewOptions = Readonly<{
+    title?: string;
+    hint?: string;
+    footer?: string;
+}>;
+
 /** Exibe três cartas e encerra somente depois que uma delas for escolhida. */
-export class UpgradeSelectionView {
+export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefinition> {
     private readonly root: Phaser.GameObjects.Container;
     private selected = false;
 
     constructor(
         private readonly scene: Scene,
-        private readonly cards: readonly UpgradeCardDefinition[]
+        private readonly cards: readonly Card[],
+        private readonly options: SelectionViewOptions = {}
     ) {
         this.root = scene.add.container(0, 0).setDepth(DEPTH).setScrollFactor(0);
     }
 
-    play(onSelect: (card: UpgradeCardDefinition) => void) {
+    play(onSelect: (card: Card) => void) {
         const dim = this.scene.add.rectangle(
             GAME_WIDTH / 2,
             GAME_HEIGHT / 2,
@@ -46,12 +84,12 @@ export class UpgradeSelectionView {
             0x000000,
             0.58
         );
-        const title = this.scene.add.text(GAME_WIDTH / 2, 54, 'ESCOLHA UM APRIMORAMENTO', {
+        const title = this.scene.add.text(GAME_WIDTH / 2, 54, this.options.title ?? 'ESCOLHA UM APRIMORAMENTO', {
             fontFamily: 'PixelGamer, monospace',
             fontSize: '28px',
             color: '#ffffff'
         }).setOrigin(0.5);
-        const hint = this.scene.add.text(GAME_WIDTH / 2, 94, 'Selecione uma carta para continuar', {
+        const hint = this.scene.add.text(GAME_WIDTH / 2, 94, this.options.hint ?? 'Selecione uma carta para continuar', {
             fontFamily: 'PixelGamer, monospace',
             fontSize: '15px',
             color: '#b8c3cc'
@@ -79,22 +117,22 @@ export class UpgradeSelectionView {
     }
 
     private createCard(
-        card: UpgradeCardDefinition,
+        card: Card,
         x: number,
-        select: (card: UpgradeCardDefinition) => void
+        select: (card: Card) => void
     ) {
-        const palette = PALETTES[card.kind];
+        const palette = PALETTES[card.theme ?? card.kind];
         const cardContainer = this.scene.add.container(x, CARD_Y);
         const background = this.scene.add
             .rectangle(0, 0, CARD_WIDTH, CARD_HEIGHT, palette.background, 0.97)
             .setStrokeStyle(3, palette.border)
             .setInteractive({ useHandCursor: true });
-        const kind = this.scene.add.text(0, -87, palette.label, {
+        const kind = this.scene.add.text(0, -87, card.label ?? palette.label, {
             fontFamily: 'PixelGamer, monospace',
             fontSize: '13px',
             color: palette.accent
         }).setOrigin(0.5);
-        const title = this.scene.add.text(0, -53, card.title, {
+        const title = this.scene.add.text(0, card.texture ? -61 : -53, card.title, {
             fontFamily: 'monospace',
             fontStyle: 'bold',
             fontSize: '18px',
@@ -102,7 +140,7 @@ export class UpgradeSelectionView {
             align: 'center',
             wordWrap: { width: CARD_WIDTH - 22, useAdvancedWrap: true }
         }).setOrigin(0.5);
-        const description = this.scene.add.text(0, 10, card.description, {
+        const description = this.scene.add.text(0, card.texture ? 49 : 10, card.description, {
             fontFamily: 'monospace',
             fontSize: '13px',
             color: '#e6edf3',
@@ -110,13 +148,20 @@ export class UpgradeSelectionView {
             lineSpacing: 3,
             wordWrap: { width: CARD_WIDTH - 24, useAdvancedWrap: true }
         }).setOrigin(0.5);
-        const footer = this.scene.add.text(0, 88, 'CLIQUE PARA ESCOLHER', {
+        const footer = this.scene.add.text(0, 88, this.options.footer ?? 'CLIQUE PARA ESCOLHER', {
             fontFamily: 'PixelGamer, monospace',
             fontSize: '10px',
             color: palette.accent
         }).setOrigin(0.5);
 
-        cardContainer.add([background, kind, title, description, footer]);
+        const contents: Phaser.GameObjects.GameObject[] = [background, kind, title, description, footer];
+        if (card.texture) {
+            const image = this.scene.add.image(0, -9, card.texture);
+            const scale = Math.min(58 / image.width, 58 / image.height);
+            image.setScale(scale);
+            contents.push(image);
+        }
+        cardContainer.add(contents);
         background.on('pointerover', () => {
             background.setFillStyle(palette.hover, 1);
             this.scene.tweens.killTweensOf(cardContainer);
