@@ -6,7 +6,12 @@ import { Drone } from '../entities/Drone';
 import { Player } from '../entities/Player';
 import { createRoom } from '../map/createRoom';
 import { CombatSystem } from '../combat/CombatSystem';
-import { DroneWaves, selectDroneSpawns } from '../combat/DroneWaves';
+import {
+    createReachableDroneSpawns,
+    DroneWaves,
+    selectDroneSpawns,
+    type DroneSpawnPoint
+} from '../combat/DroneWaves';
 import { WaveThreatView } from '../ui/WaveThreatView';
 import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
 import { drawUpgradeCards } from '../upgrades/drawUpgradeCards';
@@ -25,6 +30,7 @@ export class World extends Scene {
     private isGameOver = false;
     private isPauseMenuOpen = false;
     private isGameplayReady = false;
+    private droneSpawnPoints: readonly DroneSpawnPoint[] = COMBAT_CONFIG.droneSpawns;
     private readonly upgrades = new PlayerUpgradeState();
 
     constructor() {
@@ -37,8 +43,17 @@ export class World extends Scene {
         this.isGameplayReady = false;
         this.upgrades.reset();
         this.physics.pause();
-        const room = createRoom(this, getRequestedRoomKey());
+        const roomKey = getRequestedRoomKey();
+        const room = createRoom(this, roomKey);
         if (!room) return;
+
+        this.droneSpawnPoints = roomKey === 'room2'
+            ? createReachableDroneSpawns(
+                room.map,
+                (tileX, tileY) => room.collisionLayers.some((layer) => layer.hasTileAt(tileX, tileY)),
+                WORLD_CONFIG.player.spawn
+            )
+            : COMBAT_CONFIG.droneSpawns;
 
         this.player = new Player(this, WORLD_CONFIG.player.spawn);
         this.createPlayerRangeIndicator();
@@ -99,7 +114,7 @@ export class World extends Scene {
 
     private spawnDrones(count: number) {
         if (!this.player || !this.combat) return;
-        const spawns = selectDroneSpawns(count, this.player.sprite);
+        const spawns = selectDroneSpawns(count, this.player.sprite, this.droneSpawnPoints);
         this.combat.clear();
         for (const spawn of spawns) {
             const drone = new Drone(this, spawn, this.collisionLayers);
