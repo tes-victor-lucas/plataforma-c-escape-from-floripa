@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { readFileSync } = require('node:fs');
+const { existsSync, readFileSync } = require('node:fs');
 const path = require('node:path');
 const { test } = require('node:test');
 const { EventEmitter } = require('node:events');
@@ -52,6 +52,61 @@ const {
     isOutsideStairPassage,
     toStairPassageArea
 } = load('../src/game/map/StairPassage.ts');
+const {
+    isInsidePiranhasBarArea,
+    PIRANHAS_BAR_CONFIG,
+    PIRANHAS_BAR_ITEMS
+} = load('../src/game/config/piranhasBar.ts');
+
+test('cardápio do Piranhas usa três itens e seus assets individuais', () => {
+    assert.equal(PIRANHAS_BAR_ITEMS.length, 3);
+    assert.equal(PIRANHAS_BAR_ITEMS.find((item) => item.id === 'cookie-magico').description, '???');
+    for (const filename of [
+        'cookie-magico-transparent.png',
+        'gin-de-10-melancia-transparent.png',
+        'gin-de-10-tropical-transparent.png'
+    ]) {
+        assert.equal(existsSync(path.resolve(__dirname, `../public/assets/items/piranhas-bar/${filename}`)), true);
+    }
+});
+
+test('interação do Piranhas funciona somente na calçada em frente ao bar', () => {
+    const area = PIRANHAS_BAR_CONFIG.interactionArea;
+    assert.equal(isInsidePiranhasBarArea((area.left + area.right) / 2, area.bottom), true);
+    assert.equal(isInsidePiranhasBarArea(area.left - 1, area.bottom), false);
+    assert.equal(isInsidePiranhasBarArea(area.right + 1, area.bottom), false);
+    assert.equal(isInsidePiranhasBarArea((area.left + area.right) / 2, area.top - 1), false);
+    assert.equal(isInsidePiranhasBarArea((area.left + area.right) / 2, area.bottom + 1), false);
+});
+
+test('itens do Piranhas aplicam velocidade, coração extra e efeito do cookie', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const health = new Health(4);
+    let speedMultiplier = 1;
+    let controlsInverted = false;
+    let resumes = 0;
+    world.player = {
+        health,
+        setMovementSpeedMultiplier(value) { speedMultiplier = value; },
+        setControlsInverted(value) { controlsInverted = value; }
+    };
+    world.physics = { resume() { resumes++; } };
+    world.time = { now: 2_000 };
+    world.isGameplayReady = true;
+
+    world.consumePiranhasItem(PIRANHAS_BAR_ITEMS.find((item) => item.id === 'gin-tropical'));
+    assert.equal(speedMultiplier, PIRANHAS_BAR_CONFIG.tropicalSpeedMultiplier);
+
+    world.consumePiranhasItem(PIRANHAS_BAR_ITEMS.find((item) => item.id === 'gin-melancia'));
+    assert.equal(health.max, 6);
+    assert.equal(health.current, 6);
+
+    world.consumePiranhasItem(PIRANHAS_BAR_ITEMS.find((item) => item.id === 'cookie-magico'));
+    assert.equal(controlsInverted, true);
+    assert.equal(world.nauseaEndsAt, 2_000 + PIRANHAS_BAR_CONFIG.nauseaDuration);
+    assert.equal(resumes, 3);
+});
 
 test('escada da room2 deixa somente o corredor central livre', () => {
     for (let tileX = 8; tileX <= 18; tileX += 1) {
