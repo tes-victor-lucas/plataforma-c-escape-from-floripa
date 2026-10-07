@@ -1,6 +1,20 @@
 import { COMBAT_CONFIG } from '../config/combat';
 import { WORLD_CONFIG } from '../config/world';
 
+export type DroneSpawnPoint = {
+    x: number;
+    y: number;
+    patrolLeft: number;
+    patrolRight: number;
+};
+
+type TileGrid = {
+    width: number;
+    height: number;
+    tileWidth: number;
+    tileHeight: number;
+};
+
 /** Avança uma única vez por onda, preservando a vida do jogador. */
 export class DroneWaves {
     private nextWave = 0;
