@@ -12,6 +12,7 @@ import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
 import { drawUpgradeCards } from '../upgrades/drawUpgradeCards';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
+import { getRequestedRoomKey } from '../config/rooms';
 
 export class World extends Scene {
     private player?: Player;
@@ -36,7 +37,7 @@ export class World extends Scene {
         this.isGameplayReady = false;
         this.upgrades.reset();
         this.physics.pause();
-        const room = createRoom(this, WORLD_CONFIG.mapKey);
+        const room = createRoom(this, getRequestedRoomKey());
         if (!room) return;
 
         this.player = new Player(this, WORLD_CONFIG.player.spawn);
