@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
 import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
 import { HUD_CONFIG } from '../config/hud';
+import { ROOM_DEFINITIONS } from '../config/rooms';
 
 export class Preloader extends Scene {
     constructor() {
@@ -20,25 +21,15 @@ export class Preloader extends Scene {
             HUD_CONFIG.controls.pausePath
         );
 
-        this.load.tilemapTiledJSON(
-            'room1',
-            'assets/maps/room01.json'
-        );
-
-        this.load.image(
-            'floor_and_buildings',
-            'assets/tilesets/floor_and_buildings-01.png'
-        );
-
-        this.load.image(
-            'floor_and_walls',
-            'assets/tilesets/floor_and_walls-1.png'
-        );
-
-        this.load.image(
-            'objects',
-            'assets/tilesets/objects_and_items-01.png'
-        );
+        const loadedTextures = new Set<string>();
+        for (const room of Object.values(ROOM_DEFINITIONS)) {
+            this.load.tilemapTiledJSON(room.mapKey, room.mapPath);
+            for (const tileset of room.tilesets) {
+                if (loadedTextures.has(tileset.textureKey)) continue;
+                loadedTextures.add(tileset.textureKey);
+                this.load.image(tileset.textureKey, tileset.path);
+            }
+        }
 
         this.load.spritesheet(
             'player-walk',
