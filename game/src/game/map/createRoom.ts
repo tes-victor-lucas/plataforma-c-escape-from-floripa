@@ -1,12 +1,7 @@
 import type { Scene } from 'phaser';
 import { createLampLights } from './createLampLights';
 import { openRoomExit } from './openRoomExit';
-
-const TILESETS = [
-    { mapName: 'floor_and_buildings-01', textureKey: 'floor_and_buildings' },
-    { mapName: 'floor_and_walls-1', textureKey: 'floor_and_walls' },
-    { mapName: 'objects_and_items-01', textureKey: 'objects' }
-] as const;
+import { ROOM_DEFINITIONS } from '../config/rooms';
 
 const LAYER_NAMES = [
     'floor',
@@ -33,8 +28,10 @@ export interface Room {
 
 /** Cria as layers do mapa e habilita colisão somente nos tiles marcados no Tiled. */
 export function createRoom(scene: Scene, mapKey: string): Room | null {
+    if (mapKey === 'room2') return createRoom2(scene);
+
     const map = scene.make.tilemap({ key: mapKey });
-    const tilesets = TILESETS.map(({ mapName, textureKey }) =>
+    const tilesets = ROOM_DEFINITIONS.room1.tilesets.map(({ mapName, textureKey }) =>
         map.addTilesetImage(mapName, textureKey)
     );
 
@@ -93,4 +90,43 @@ export function createRoom(scene: Scene, mapKey: string): Room | null {
     scene.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 
     return { map, collisionLayers, openExit: () => openRoomExit(collisionLayers) };
+}
+
+/** Monta todas as camadas da Room 2 na ordem do Tiled e respeita seus colliders por camada. */
+function createRoom2(scene: Scene): Room | null {
+    const roomDefinition = ROOM_DEFINITIONS.room2;
+    const map = scene.make.tilemap({ key: roomDefinition.mapKey });
+    if (map.tilesets.length !== roomDefinition.tilesets.length) {
+        console.error('A quantidade de tilesets da room2 não corresponde à configuração.');
+        return null;
+    }
+
+    // Resolve por posição para aceitar tilesets repetidos que o Tiled exporta com o mesmo nome.
+    const resolvedTilesets = map.tilesets.map((tileset, index) => {
+        const { textureKey } = roomDefinition.tilesets[index];
+        tileset.setImage(scene.textures.get(textureKey));
+        return tileset;
+    });
+    const collisionLayers: Phaser.Tilemaps.TilemapLayer[] = [];
+
+    for (let index = 0; index < map.layers.length; index += 1) {
+        const layer = map.createLayer(index, resolvedTilesets);
+        if (!layer) {
+            console.error(`Não foi possível criar a camada ${map.layers[index].name} da room2.`);
+            return null;
+        }
+
+        layer.setDepth(SCENERY_DEPTH).setTint(ROOM_AMBIENT_TINT);
+        if (hasColliderProperty(layer.layer.properties)) {
+            layer.setCollisionByExclusion([-1]);
+            collisionLayers.push(layer);
+        }
+    }
+
+    scene.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+    return { map, collisionLayers, openExit: () => {} };
+}
+
+function hasColliderProperty(properties: Phaser.Types.Tilemaps.LayerDataConfig['properties']) {
+    return properties?.some((property) => property.name === 'collider' && property.value === true) ?? false;
 }
