@@ -47,6 +47,28 @@ const { getUpgradeCard } = load('../src/game/upgrades/catalog.ts');
 const { PlayerUpgradeState } = load('../src/game/upgrades/PlayerUpgradeState.ts');
 const { getHeartFillLevels } = load('../src/game/ui/HeartHealthView.ts');
 const { MusicDirector } = load('../src/game/audio/MusicDirector.ts');
+const {
+    getStairProgress,
+    isOutsideStairPassage,
+    toStairPassageArea
+} = load('../src/game/map/StairPassage.ts');
+
+test('escada da room2 deixa somente o corredor central livre', () => {
+    for (let tileX = 8; tileX <= 18; tileX += 1) {
+        assert.equal(isOutsideStairPassage(tileX, 17), tileX < 12 || tileX > 14);
+    }
+    assert.equal(isOutsideStairPassage(11, 14), false, 'fora da altura da escada não cria bloqueio');
+    assert.equal(isOutsideStairPassage(15, 21), true);
+});
+
+test('efeito da escada progride do pé até o patamar superior', () => {
+    const area = toStairPassageArea(16, 16);
+    const centerX = (area.left + area.right) / 2;
+    assert.equal(getStairProgress(centerX, area.bottom, area), 0);
+    assert.equal(getStairProgress(centerX, area.top, area), 1);
+    assert.equal(getStairProgress(centerX, (area.top + area.bottom) / 2, area), 0.5);
+    assert.equal(getStairProgress(area.left - 1, area.top, area), null);
+});
 
 function fighter(x, y, maxHealth) {
     const health = new Health(maxHealth);
