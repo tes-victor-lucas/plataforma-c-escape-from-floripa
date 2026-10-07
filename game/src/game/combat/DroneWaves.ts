@@ -67,3 +67,79 @@ export function selectDroneSpawns(
     }
     return Array.from({ length: count }, (_, index) => candidates[Math.floor(index * candidates.length / count)]);
 }
+
+/** Gera patrulhas apenas no componente navegável que contém o jogador. */
+export function createReachableDroneSpawns(
+    map: TileGrid,
+    isBlocked: (tileX: number, tileY: number) => boolean,
+    origin: { x: number; y: number }
+): DroneSpawnPoint[] {
+    const reachableTiles = collectReachableTiles(map, isBlocked, origin);
+    const { hitbox, scale } = WORLD_CONFIG.drone;
+    const halfFrame = 16;
+    const patrolRadius = map.tileWidth;
+    const candidates: DroneSpawnPoint[] = [];
+
+    for (let y = map.tileHeight * 2; y < map.height * map.tileHeight - map.tileHeight * 2; y += map.tileHeight * 3) {
+        for (let x = map.tileWidth * 2; x < map.width * map.tileWidth - map.tileWidth * 2; x += map.tileWidth * 4) {
+            const point = { x, y, patrolLeft: x - patrolRadius, patrolRight: x + patrolRadius };
+            const left = Math.floor((point.patrolLeft + (hitbox.offsetX - halfFrame) * scale) / map.tileWidth);
+            const right = Math.floor((point.patrolRight + (hitbox.offsetX + hitbox.width - halfFrame) * scale - 0.001) / map.tileWidth);
+            const top = Math.floor((point.y + (hitbox.offsetY - halfFrame) * scale) / map.tileHeight);
+            const bottom = Math.floor((point.y + (hitbox.offsetY + hitbox.height - halfFrame) * scale - 0.001) / map.tileHeight);
+
+            if (isAreaReachable(map.width, reachableTiles, left, right, top, bottom)) {
+                candidates.push(point);
+            }
+        }
+    }
+    return candidates;
+}
+
+function collectReachableTiles(
+    map: TileGrid,
+    isBlocked: (tileX: number, tileY: number) => boolean,
+    origin: { x: number; y: number }
+) {
+    const originX = Math.floor(origin.x / map.tileWidth);
+    const originY = Math.floor(origin.y / map.tileHeight);
+    const reachable = new Set<number>();
+    const pending: Array<[number, number]> = [];
+
+    if (!isBlocked(originX, originY)) {
+        reachable.add(originY * map.width + originX);
+        pending.push([originX, originY]);
+    }
+
+    for (let index = 0; index < pending.length; index += 1) {
+        const [tileX, tileY] = pending[index];
+        for (const [offsetX, offsetY] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const nextX = tileX + offsetX;
+            const nextY = tileY + offsetY;
+            const key = nextY * map.width + nextX;
+            if (
+                nextX < 0 || nextX >= map.width || nextY < 0 || nextY >= map.height
+                || reachable.has(key) || isBlocked(nextX, nextY)
+            ) continue;
+            reachable.add(key);
+            pending.push([nextX, nextY]);
+        }
+    }
+    return reachable;
+}
+
+function isAreaReachable(
+    mapWidth: number,
+    reachableTiles: ReadonlySet<number>,
+    left: number,
+    right: number,
+    top: number,
+    bottom: number
+) {
+    for (let tileY = top; tileY <= bottom; tileY += 1) {
+        for (let tileX = left; tileX <= right; tileX += 1) {
+            if (!reachableTiles.has(tileY * mapWidth + tileX)) return false;
+        }
+    }
+    return true;
+}
