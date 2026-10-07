@@ -21,6 +21,10 @@ export class Preloader extends Scene {
             HUD_CONFIG.controls.pausePath
         );
 
+        this.load.image('piranhas-cookie-magico', 'assets/items/piranhas-bar/cookie-magico-transparent.png');
+        this.load.image('piranhas-gin-melancia', 'assets/items/piranhas-bar/gin-de-10-melancia-transparent.png');
+        this.load.image('piranhas-gin-tropical', 'assets/items/piranhas-bar/gin-de-10-tropical-transparent.png');
+
         const loadedTextures = new Set<string>();
         for (const room of Object.values(ROOM_DEFINITIONS)) {
             this.load.tilemapTiledJSON(room.mapKey, room.mapPath);
