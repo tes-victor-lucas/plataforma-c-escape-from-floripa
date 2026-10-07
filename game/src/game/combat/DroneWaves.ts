@@ -50,9 +50,13 @@ export class DroneWaves {
 }
 
 /** Distribui a onda fora do início protegido e longe da posição atual do jogador. */
-export function selectDroneSpawns(count: number, playerPosition: { x: number; y: number }) {
+export function selectDroneSpawns(
+    count: number,
+    playerPosition: { x: number; y: number },
+    spawnPoints: readonly DroneSpawnPoint[] = COMBAT_CONFIG.droneSpawns
+) {
     const { spawn, spawnSafeRadius } = WORLD_CONFIG.player;
-    const candidates = COMBAT_CONFIG.droneSpawns.filter((point) => {
+    const candidates = spawnPoints.filter((point) => {
         // Inclui toda a patrulha e uma margem para o corpo do drone.
         const closestX = Math.max(point.patrolLeft, Math.min(spawn.x, point.patrolRight));
         return Math.hypot(closestX - spawn.x, point.y - spawn.y) >= spawnSafeRadius + 16
