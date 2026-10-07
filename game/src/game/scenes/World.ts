@@ -18,10 +18,12 @@ import { drawUpgradeCards } from '../upgrades/drawUpgradeCards';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
 import { getRequestedRoomKey } from '../config/rooms';
+import { StairClimbEffect } from '../map/StairClimbEffect';
 
 export class World extends Scene {
     private player?: Player;
     private playerRangeIndicator?: Phaser.GameObjects.Arc;
+    private stairClimbEffect?: StairClimbEffect;
     private drones: Drone[] = [];
     private droneBodies?: Phaser.Physics.Arcade.Group;
     private combat?: CombatSystem;
@@ -56,6 +58,9 @@ export class World extends Scene {
             : COMBAT_CONFIG.droneSpawns;
 
         this.player = new Player(this, WORLD_CONFIG.player.spawn);
+        this.stairClimbEffect = room.stairPassage
+            ? new StairClimbEffect(this, this.player.sprite, room.stairPassage)
+            : undefined;
         this.createPlayerRangeIndicator();
         this.drones = [];
         this.droneBodies = this.createDroneBodies();
@@ -107,6 +112,7 @@ export class World extends Scene {
             return;
         }
         this.player?.update(delta);
+        this.stairClimbEffect?.update();
         for (const drone of this.drones) drone.update(this.player);
         this.combat?.update(delta);
         this.waves?.update(this.drones);
@@ -178,6 +184,9 @@ export class World extends Scene {
         this.collisionLayers = [];
         this.drones = [];
         this.droneBodies = undefined;
+        this.droneSpawnPoints = COMBAT_CONFIG.droneSpawns;
+        this.stairClimbEffect?.destroy();
+        this.stairClimbEffect = undefined;
         this.player = undefined;
         this.playerRangeIndicator = undefined;
         this.input.keyboard?.off('keydown-P', this.openPauseMenu, this);
