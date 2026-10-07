@@ -3,6 +3,7 @@ import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 
 type MainMenuViewOptions = {
     onNewGame: () => void;
+    onMultiplayer: () => void;
 };
 
 const ACTION_FONT = 'PixelGamer, monospace';
@@ -30,6 +31,7 @@ type RenderedAction = {
 export class MainMenuView {
     private selectedAction = 0;
     private readonly renderedActions: RenderedAction[] = [];
+    private statusText?: Phaser.GameObjects.Text;
 
     constructor(
         private readonly scene: Scene,
@@ -43,13 +45,24 @@ export class MainMenuView {
             .setScrollFactor(0);
 
         this.addActions();
+        this.statusText = this.scene.add.text(GAME_WIDTH / 2, 340, '', {
+            color: '#ffffff',
+            fontFamily: ACTION_FONT,
+            fontSize: '12px',
+            align: 'center'
+        }).setOrigin(0.5).setScrollFactor(0).setResolution(2);
+    }
+
+    setStatus(status: string) {
+        this.statusText?.setText(status);
     }
 
     private addActions() {
         const actions: MenuAction[] = [
-            { label: 'JOGAR', y: 237, onSelect: this.options.onNewGame },
-            { label: 'OPÇÕES', y: 268 },
-            { label: 'SAIR', y: 294 }
+            { label: 'JOGAR SOLO', y: 225, onSelect: this.options.onNewGame },
+            { label: 'MULTIPLAYER', y: 255, onSelect: this.options.onMultiplayer },
+            { label: 'OPÇÕES', y: 285 },
+            { label: 'SAIR', y: 315 }
         ];
 
         actions.forEach((action, index) => this.createAction(action, index));

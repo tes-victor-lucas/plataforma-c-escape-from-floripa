@@ -112,6 +112,10 @@ export class Player {
         }
     }
 
+    getNetworkState() {
+        return { x: this.sprite.x, y: this.sprite.y, facing: this.facing };
+    }
+
     /** Permite continuar andando se a barreira sumir enquanto a tecla está pressionada. */
     clearBlockedDirection() {
         this.blockedDirection = undefined;
