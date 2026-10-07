@@ -22,3 +22,44 @@ test('room2 usa a grade esperada e referencia apenas assets do repositório', ()
         );
     }
 });
+
+test('room2 preserva os colliders do Tiled e mantém o ponto inicial livre', () => {
+    const tileLayers = [];
+    const collectTileLayers = (layers) => {
+        for (const layer of layers) {
+            if (layer.type === 'group') collectTileLayers(layer.layers);
+            if (layer.type === 'tilelayer') tileLayers.push(layer);
+        }
+    };
+    collectTileLayers(map.layers);
+
+    const colliderLayers = tileLayers.filter((layer) =>
+        (layer.properties ?? []).some((property) =>
+            property.name === 'collider' && property.value === true
+        )
+    );
+    assert.deepEqual(
+        colliderLayers.map((layer) => layer.name).sort(),
+        [
+            'block',
+            'block-mapa',
+            'block-vertical',
+            'block-wall',
+            'bloqueador-passagem',
+            'bloqueador2',
+            'centro-marinha',
+            'lampadas',
+            'objects-block',
+            'old-terminal',
+            'old-terminal-teto',
+            'pipoqueira',
+            'placa-onibus',
+            'right'
+        ].sort()
+    );
+    assert.ok(colliderLayers.every((layer) => layer.data.some((gid) => gid !== 0)));
+
+    const spawnTile = { x: Math.floor(400 / 16), y: Math.floor(536 / 16) };
+    const spawnIndex = spawnTile.y * map.width + spawnTile.x;
+    assert.ok(colliderLayers.every((layer) => layer.data[spawnIndex] === 0));
+});
