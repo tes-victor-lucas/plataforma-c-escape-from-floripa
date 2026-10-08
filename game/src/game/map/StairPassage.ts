@@ -19,42 +19,6 @@ export const ROOM2_STAIR_PASSAGE: StairPassageDefinition = {
     maxTileY: 21
 };
 
-export const ROOM2_STAIR_CLEARANCE: StairPassageDefinition = {
-    ...ROOM2_STAIR_PASSAGE
-};
-
-export const ROOM2_STAIR_APPROACH: StairPassageDefinition = {
-    minTileX: 12,
-    maxTileX: 15,
-    minTileY: 22,
-    maxTileY: 24
-};
-
-/** Bloqueia somente tiles que estejam fora de toda a largura desenhada da escada. */
-export function isOutsideStairPassage(
-    tileX: number,
-    tileY: number,
-    passage: StairPassageDefinition = ROOM2_STAIR_PASSAGE
-) {
-    const isOnStairHeight = tileY >= passage.minTileY && tileY <= passage.maxTileY;
-    const isInCentralCorridor = tileX >= passage.minTileX && tileX <= passage.maxTileX;
-    return isOnStairHeight && !isInCentralCorridor;
-}
-
-/** Corredor que conecta o pé da escada ao patamar, incluindo sua aproximação. */
-export function isInsideStairClearance(
-    tileX: number,
-    tileY: number,
-    clearance: StairPassageDefinition = ROOM2_STAIR_CLEARANCE,
-    approach: StairPassageDefinition = ROOM2_STAIR_APPROACH
-) {
-    const isOnStairs = tileX >= clearance.minTileX && tileX <= clearance.maxTileX
-        && tileY >= clearance.minTileY && tileY <= clearance.maxTileY;
-    const isOnApproach = tileX >= approach.minTileX && tileX <= approach.maxTileX
-        && tileY >= approach.minTileY && tileY <= approach.maxTileY;
-    return isOnStairs || isOnApproach;
-}
-
 export function toStairPassageArea(
     tileWidth: number,
     tileHeight: number,

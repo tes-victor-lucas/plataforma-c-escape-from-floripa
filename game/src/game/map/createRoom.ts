@@ -3,10 +3,6 @@ import { createLampLights } from './createLampLights';
 import { openRoomExit } from './openRoomExit';
 import { ROOM_DEFINITIONS } from '../config/rooms';
 import {
-    isInsideStairClearance,
-    isOutsideStairPassage,
-    ROOM2_STAIR_APPROACH,
-    ROOM2_STAIR_CLEARANCE,
     toStairPassageArea,
     type StairPassageArea
 } from './StairPassage';
@@ -27,7 +23,6 @@ const SCENERY_DEPTH = 2;
 const ROOM_AMBIENT_TINT = 0xb8c0d0;
 // Os postes usam três tiles verticais: somente os dois primeiros devem ocultar o jogador.
 const POST_FOREGROUND_TILE_INDICES = new Set([758, 768]);
-const STAIR_COLLIDER_LAYER = 'block-escadas-';
 
 export interface Room {
     map: Phaser.Tilemaps.Tilemap;
@@ -140,12 +135,6 @@ function createRoom2(scene: Scene): Room | null {
         return null;
     }
 
-    clearStairPassageCollision(collisionLayers);
-
-    const stairBlockers = createStairBlockers(map, resolvedTilesets, stairsLayer);
-    if (!stairBlockers) return null;
-    collisionLayers.push(stairBlockers);
-
     scene.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     return {
         map,
@@ -153,47 +142,6 @@ function createRoom2(scene: Scene): Room | null {
         stairPassage: toStairPassageArea(map.tileWidth, map.tileHeight),
         openExit: () => {}
     };
-}
-
-/** Libera tiles de outras layers que cruzam acidentalmente o corredor da escada. */
-function clearStairPassageCollision(collisionLayers: Phaser.Tilemaps.TilemapLayer[]) {
-    const clearance = ROOM2_STAIR_CLEARANCE;
-    for (const layer of collisionLayers) {
-        if (layer.layer.name === STAIR_COLLIDER_LAYER) continue;
-        layer.forEachTile((tile) => {
-            if (tile.index !== -1 && isInsideStairClearance(tile.x, tile.y)) {
-                tile.resetCollision(false);
-            }
-        });
-        layer.calculateFacesWithin(
-            clearance.minTileX - 1,
-            clearance.minTileY - 1,
-            clearance.maxTileX - clearance.minTileX + 3,
-            ROOM2_STAIR_APPROACH.maxTileY - clearance.minTileY + 3
-        );
-    }
-}
-
-/** Replica apenas os tiles laterais da escada em uma layer invisível de colisão. */
-function createStairBlockers(
-    map: Phaser.Tilemaps.Tilemap,
-    tilesets: Phaser.Tilemaps.Tileset[],
-    stairsLayer: Phaser.Tilemaps.TilemapLayer
-) {
-    const blockers = map.createBlankLayer('stair-side-blockers', tilesets, 0, 0);
-    if (!blockers) {
-        console.error('Não foi possível criar os bloqueios laterais da escada da room2.');
-        return null;
-    }
-
-    stairsLayer.forEachTile((tile) => {
-        if (tile.index !== -1 && isOutsideStairPassage(tile.x, tile.y)) {
-            blockers.putTileAt(tile.index, tile.x, tile.y);
-        }
-    });
-
-    blockers.setVisible(false).setCollisionByExclusion([-1]);
-    return blockers;
 }
 
 function hasColliderProperty(properties: Phaser.Types.Tilemaps.LayerDataConfig['properties']) {
