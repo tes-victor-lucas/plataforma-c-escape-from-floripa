@@ -28,6 +28,11 @@ import {
 
 const ROOM2_WALKABLE_LAYERS = ['floor', 'stairs', 'street', 'floor-terminal'] as const;
 
+export function isRoom2WalkableLayer(layerName: string) {
+    const localName = layerName.split('/').at(-1);
+    return ROOM2_WALKABLE_LAYERS.some((name) => name === localName);
+}
+
 export class World extends Scene {
     private player?: Player;
     private playerRangeIndicator?: Phaser.GameObjects.Arc;
@@ -66,6 +71,8 @@ export class World extends Scene {
         const roomKey = getRequestedRoomKey();
         const room = createRoom(this, roomKey);
         if (!room) return;
+        const walkableRoom2Layers = room.map.layers.filter((layer) =>
+            isRoom2WalkableLayer(layer.name));
 
         this.droneSpawnPoints = roomKey === 'room2'
             ? createReachableDroneSpawns(
@@ -73,8 +80,8 @@ export class World extends Scene {
                 (tileX, tileY) => room.collisionLayers.some((layer) =>
                     layer.getTileAt(tileX, tileY)?.collides ?? false),
                 WORLD_CONFIG.player.spawn,
-                (tileX, tileY) => ROOM2_WALKABLE_LAYERS.some((layerName) =>
-                    room.map.hasTileAt(tileX, tileY, layerName))
+                (tileX, tileY) => walkableRoom2Layers.some((layer) =>
+                    room.map.hasTileAt(tileX, tileY, layer.name))
             )
             : COMBAT_CONFIG.droneSpawns;
 
