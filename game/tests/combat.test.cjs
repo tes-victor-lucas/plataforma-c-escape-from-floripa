@@ -49,6 +49,7 @@ const { getHeartFillLevels } = load('../src/game/ui/HeartHealthView.ts');
 const { MusicDirector } = load('../src/game/audio/MusicDirector.ts');
 const {
     getStairProgress,
+    isInsideStairClearance,
     isOutsideStairPassage,
     toStairPassageArea
 } = load('../src/game/map/StairPassage.ts');
@@ -110,10 +111,13 @@ test('itens do Piranhas aplicam velocidade, coração extra e efeito do cookie',
 
 test('escada da room2 deixa somente o corredor central livre', () => {
     for (let tileX = 8; tileX <= 18; tileX += 1) {
-        assert.equal(isOutsideStairPassage(tileX, 17), tileX < 12 || tileX > 14);
+        assert.equal(isOutsideStairPassage(tileX, 17), tileX < 12 || tileX > 15);
     }
     assert.equal(isOutsideStairPassage(11, 14), false, 'fora da altura da escada não cria bloqueio');
-    assert.equal(isOutsideStairPassage(15, 21), true);
+    assert.equal(isOutsideStairPassage(16, 21), true);
+    assert.equal(isInsideStairClearance(12, 24), true, 'a entrada inferior precisa ficar livre');
+    assert.equal(isInsideStairClearance(15, 15), true, 'a saída superior precisa ficar livre');
+    assert.equal(isInsideStairClearance(16, 20), false, 'a rampa lateral continua bloqueada');
 });
 
 test('efeito da escada progride do pé até o patamar superior', () => {
@@ -547,14 +551,23 @@ test('room2 cria drones somente no setor alcançável pelo jogador', () => {
     const isBlocked = (tileX, tileY) => colliderLayers.some((layer) =>
         layer.data[tileY * map.width + tileX] !== 0
     );
+    const walkableLayerNames = new Set(['floor', 'stairs', 'street', 'floor-terminal']);
+    const walkableLayers = tileLayers.filter((layer) => walkableLayerNames.has(layer.name));
+    const isWalkable = (tileX, tileY) => walkableLayers.some((layer) =>
+        layer.data[tileY * map.width + tileX] !== 0
+    );
     const candidates = createReachableDroneSpawns({
         width: map.width,
         height: map.height,
         tileWidth: map.tilewidth,
         tileHeight: map.tileheight
-    }, isBlocked, WORLD_CONFIG.player.spawn);
+    }, isBlocked, WORLD_CONFIG.player.spawn, isWalkable);
 
     assert.ok(candidates.length >= 20);
+    assert.ok(candidates.every((point) => isWalkable(
+        Math.floor(point.x / map.tilewidth),
+        Math.floor(point.y / map.tileheight)
+    )), 'nenhum drone pode nascer no vazio fora do desenho do mapa');
     for (let y = map.tileheight * 2; y < map.height * map.tileheight; y += map.tileheight * 2) {
         for (let x = map.tilewidth * 2; x < map.width * map.tilewidth; x += map.tilewidth * 2) {
             if (isBlocked(Math.floor(x / map.tilewidth), Math.floor(y / map.tileheight))) continue;
