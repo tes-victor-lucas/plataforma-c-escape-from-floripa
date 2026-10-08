@@ -801,8 +801,8 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     const launches = [];
     const stoppedScenes = [];
     world.player = { health: new Health(100), update() { movementUpdates++; } };
-    world.combat = { update() { combatUpdates++; } };
-    world.physics = { resume() { resumes++; } };
+    world.combat = { update() { combatUpdates++; }, clear() {} };
+    world.physics = { resume() { resumes++; }, pause() {} };
     world.scene = {
         launch(key, data) { launches.push({ key, data }); },
         stop(key) { stoppedScenes.push(key); },
@@ -820,6 +820,9 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     world.update(2000, 16);
     assert.equal(combatUpdates, 1);
     assert.equal(movementUpdates, 1);
+    world.player.health.takeDamage(100);
+    world.update(2016, 16);
+    assert.equal(restartData, undefined, 'a derrota sozinha não pode reiniciar a partida');
     launches[0].data.onRestart();
     assert.deepEqual(stoppedScenes, ['CombatHud']);
     assert.equal(restartData.waitForReveal, false);
