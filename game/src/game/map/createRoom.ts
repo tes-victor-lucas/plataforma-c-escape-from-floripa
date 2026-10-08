@@ -3,7 +3,9 @@ import { createLampLights } from './createLampLights';
 import { openRoomExit } from './openRoomExit';
 import { ROOM_DEFINITIONS } from '../config/rooms';
 import {
+    isInsideStairClearance,
     isOutsideStairPassage,
+    ROOM2_STAIR_CLEARANCE,
     toStairPassageArea,
     type StairPassageArea
 } from './StairPassage';
@@ -136,6 +138,8 @@ function createRoom2(scene: Scene): Room | null {
         return null;
     }
 
+    clearStairPassageCollision(collisionLayers);
+
     const stairBlockers = createStairBlockers(map, resolvedTilesets, stairsLayer);
     if (!stairBlockers) return null;
     collisionLayers.push(stairBlockers);
@@ -147,6 +151,24 @@ function createRoom2(scene: Scene): Room | null {
         stairPassage: toStairPassageArea(map.tileWidth, map.tileHeight),
         openExit: () => {}
     };
+}
+
+/** Libera tiles de outras layers que cruzam acidentalmente o corredor da escada. */
+function clearStairPassageCollision(collisionLayers: Phaser.Tilemaps.TilemapLayer[]) {
+    const clearance = ROOM2_STAIR_CLEARANCE;
+    for (const layer of collisionLayers) {
+        layer.forEachTile((tile) => {
+            if (tile.index !== -1 && isInsideStairClearance(tile.x, tile.y)) {
+                tile.resetCollision(false);
+            }
+        });
+        layer.calculateFacesWithin(
+            clearance.minTileX - 1,
+            clearance.minTileY - 1,
+            clearance.maxTileX - clearance.minTileX + 3,
+            clearance.maxTileY - clearance.minTileY + 3
+        );
+    }
 }
 
 /** Replica apenas os tiles laterais da escada em uma layer invisível de colisão. */
