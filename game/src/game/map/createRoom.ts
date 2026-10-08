@@ -27,6 +27,7 @@ const SCENERY_DEPTH = 2;
 const ROOM_AMBIENT_TINT = 0xb8c0d0;
 // Os postes usam três tiles verticais: somente os dois primeiros devem ocultar o jogador.
 const POST_FOREGROUND_TILE_INDICES = new Set([758, 768]);
+const STAIR_COLLIDER_LAYER = 'block-escadas-';
 
 export interface Room {
     map: Phaser.Tilemaps.Tilemap;
@@ -158,6 +159,7 @@ function createRoom2(scene: Scene): Room | null {
 function clearStairPassageCollision(collisionLayers: Phaser.Tilemaps.TilemapLayer[]) {
     const clearance = ROOM2_STAIR_CLEARANCE;
     for (const layer of collisionLayers) {
+        if (layer.layer.name === STAIR_COLLIDER_LAYER) continue;
         layer.forEachTile((tile) => {
             if (tile.index !== -1 && isInsideStairClearance(tile.x, tile.y)) {
                 tile.resetCollision(false);
