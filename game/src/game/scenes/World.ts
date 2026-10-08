@@ -128,12 +128,13 @@ export class World extends Scene {
         this.scene.launch('CombatHud', {
             player: this.player,
             onPause: () => this.openPauseMenu(),
-            onRestart: () => this.restartAfterDefeat(),
+            onRestart: () => this.restartFromDefeatMenu(),
             onQuit: () => this.scene.start('MainMenu')
         });
     }
 
-    private restartAfterDefeat() {
+    /** Executado exclusivamente pelo botão "Tentar novamente" da tela de derrota. */
+    private restartFromDefeatMenu() {
         this.scene.stop('CombatHud');
         this.scene.restart({ waitForReveal: false });
     }
