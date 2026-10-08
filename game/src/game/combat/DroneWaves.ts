@@ -72,16 +72,17 @@ export function selectDroneSpawns(
 export function createReachableDroneSpawns(
     map: TileGrid,
     isBlocked: (tileX: number, tileY: number) => boolean,
-    origin: { x: number; y: number }
+    origin: { x: number; y: number },
+    isWalkable: (tileX: number, tileY: number) => boolean = () => true
 ): DroneSpawnPoint[] {
-    const reachableTiles = collectReachableTiles(map, isBlocked, origin);
+    const reachableTiles = collectReachableTiles(map, isBlocked, isWalkable, origin);
     const { hitbox, scale } = WORLD_CONFIG.drone;
     const halfFrame = 16;
     const patrolRadius = map.tileWidth;
     const candidates: DroneSpawnPoint[] = [];
 
-    for (let y = map.tileHeight * 2; y < map.height * map.tileHeight - map.tileHeight * 2; y += map.tileHeight * 3) {
-        for (let x = map.tileWidth * 2; x < map.width * map.tileWidth - map.tileWidth * 2; x += map.tileWidth * 4) {
+    for (let y = map.tileHeight * 2; y < map.height * map.tileHeight - map.tileHeight * 2; y += map.tileHeight) {
+        for (let x = map.tileWidth * 2; x < map.width * map.tileWidth - map.tileWidth * 2; x += map.tileWidth) {
             const point = { x, y, patrolLeft: x - patrolRadius, patrolRight: x + patrolRadius };
             const left = Math.floor((point.patrolLeft + (hitbox.offsetX - halfFrame) * scale) / map.tileWidth);
             const right = Math.floor((point.patrolRight + (hitbox.offsetX + hitbox.width - halfFrame) * scale - 0.001) / map.tileWidth);
@@ -99,6 +100,7 @@ export function createReachableDroneSpawns(
 function collectReachableTiles(
     map: TileGrid,
     isBlocked: (tileX: number, tileY: number) => boolean,
+    isWalkable: (tileX: number, tileY: number) => boolean,
     origin: { x: number; y: number }
 ) {
     const originX = Math.floor(origin.x / map.tileWidth);
@@ -106,7 +108,7 @@ function collectReachableTiles(
     const reachable = new Set<number>();
     const pending: Array<[number, number]> = [];
 
-    if (!isBlocked(originX, originY)) {
+    if (!isBlocked(originX, originY) && isWalkable(originX, originY)) {
         reachable.add(originY * map.width + originX);
         pending.push([originX, originY]);
     }
@@ -119,7 +121,7 @@ function collectReachableTiles(
             const key = nextY * map.width + nextX;
             if (
                 nextX < 0 || nextX >= map.width || nextY < 0 || nextY >= map.height
-                || reachable.has(key) || isBlocked(nextX, nextY)
+                || reachable.has(key) || isBlocked(nextX, nextY) || !isWalkable(nextX, nextY)
             ) continue;
             reachable.add(key);
             pending.push([nextX, nextY]);

@@ -26,6 +26,8 @@ import {
     type PiranhasBarItem
 } from '../config/piranhasBar';
 
+const ROOM2_WALKABLE_LAYERS = ['floor', 'stairs', 'street', 'floor-terminal'] as const;
+
 export class World extends Scene {
     private player?: Player;
     private playerRangeIndicator?: Phaser.GameObjects.Arc;
@@ -68,8 +70,11 @@ export class World extends Scene {
         this.droneSpawnPoints = roomKey === 'room2'
             ? createReachableDroneSpawns(
                 room.map,
-                (tileX, tileY) => room.collisionLayers.some((layer) => layer.hasTileAt(tileX, tileY)),
-                WORLD_CONFIG.player.spawn
+                (tileX, tileY) => room.collisionLayers.some((layer) =>
+                    layer.getTileAt(tileX, tileY)?.collides ?? false),
+                WORLD_CONFIG.player.spawn,
+                (tileX, tileY) => ROOM2_WALKABLE_LAYERS.some((layerName) =>
+                    room.map.hasTileAt(tileX, tileY, layerName))
             )
             : COMBAT_CONFIG.droneSpawns;
 
