@@ -14,9 +14,14 @@ export interface StairPassageDefinition {
 
 export const ROOM2_STAIR_PASSAGE: StairPassageDefinition = {
     minTileX: 12,
-    maxTileX: 14,
+    maxTileX: 15,
     minTileY: 15,
     maxTileY: 21
+};
+
+export const ROOM2_STAIR_CLEARANCE: StairPassageDefinition = {
+    ...ROOM2_STAIR_PASSAGE,
+    maxTileY: 24
 };
 
 /** As partes laterais desenhadas na layer stairs são rampas/grades, não passagem. */
@@ -28,6 +33,16 @@ export function isOutsideStairPassage(
     const isOnStairHeight = tileY >= passage.minTileY && tileY <= passage.maxTileY;
     const isInCentralCorridor = tileX >= passage.minTileX && tileX <= passage.maxTileX;
     return isOnStairHeight && !isInCentralCorridor;
+}
+
+/** Corredor que conecta o pé da escada ao patamar, incluindo sua aproximação. */
+export function isInsideStairClearance(
+    tileX: number,
+    tileY: number,
+    clearance: StairPassageDefinition = ROOM2_STAIR_CLEARANCE
+) {
+    return tileX >= clearance.minTileX && tileX <= clearance.maxTileX
+        && tileY >= clearance.minTileY && tileY <= clearance.maxTileY;
 }
 
 export function toStairPassageArea(
