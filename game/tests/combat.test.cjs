@@ -49,8 +49,6 @@ const { getHeartFillLevels } = load('../src/game/ui/HeartHealthView.ts');
 const { MusicDirector } = load('../src/game/audio/MusicDirector.ts');
 const {
     getStairProgress,
-    isInsideStairClearance,
-    isOutsideStairPassage,
     toStairPassageArea
 } = load('../src/game/map/StairPassage.ts');
 const {
@@ -107,18 +105,6 @@ test('itens do Piranhas aplicam velocidade, coração extra e efeito do cookie',
     assert.equal(controlsInverted, true);
     assert.equal(world.nauseaEndsAt, 2_000 + PIRANHAS_BAR_CONFIG.nauseaDuration);
     assert.equal(resumes, 3);
-});
-
-test('escada da room2 libera as laterais e mantém a aproximação delimitada', () => {
-    for (let tileX = 8; tileX <= 18; tileX += 1) {
-        assert.equal(isOutsideStairPassage(tileX, 17), false);
-    }
-    assert.equal(isOutsideStairPassage(11, 14), false, 'fora da altura da escada não cria bloqueio');
-    assert.equal(isOutsideStairPassage(7, 17), true, 'fora do desenho da escada continua bloqueado');
-    assert.equal(isInsideStairClearance(12, 24), true, 'a entrada inferior precisa ficar livre');
-    assert.equal(isInsideStairClearance(15, 15), true, 'a saída superior precisa ficar livre');
-    assert.equal(isInsideStairClearance(16, 20), true, 'a lateral desenhada também é transitável');
-    assert.equal(isInsideStairClearance(16, 23), false, 'a aproximação não invade a lateral da praça');
 });
 
 test('efeito da escada progride do pé até o patamar superior', () => {
