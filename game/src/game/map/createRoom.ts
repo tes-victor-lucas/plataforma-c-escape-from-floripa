@@ -5,6 +5,7 @@ import { ROOM_DEFINITIONS } from '../config/rooms';
 import {
     isInsideStairClearance,
     isOutsideStairPassage,
+    ROOM2_STAIR_APPROACH,
     ROOM2_STAIR_CLEARANCE,
     toStairPassageArea,
     type StairPassageArea
@@ -166,7 +167,7 @@ function clearStairPassageCollision(collisionLayers: Phaser.Tilemaps.TilemapLaye
             clearance.minTileX - 1,
             clearance.minTileY - 1,
             clearance.maxTileX - clearance.minTileX + 3,
-            clearance.maxTileY - clearance.minTileY + 3
+            ROOM2_STAIR_APPROACH.maxTileY - clearance.minTileY + 3
         );
     }
 }

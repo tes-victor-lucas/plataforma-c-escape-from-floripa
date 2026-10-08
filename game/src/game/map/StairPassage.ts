@@ -13,18 +13,24 @@ export interface StairPassageDefinition {
 }
 
 export const ROOM2_STAIR_PASSAGE: StairPassageDefinition = {
-    minTileX: 12,
-    maxTileX: 15,
+    minTileX: 8,
+    maxTileX: 18,
     minTileY: 15,
     maxTileY: 21
 };
 
 export const ROOM2_STAIR_CLEARANCE: StairPassageDefinition = {
-    ...ROOM2_STAIR_PASSAGE,
+    ...ROOM2_STAIR_PASSAGE
+};
+
+export const ROOM2_STAIR_APPROACH: StairPassageDefinition = {
+    minTileX: 12,
+    maxTileX: 15,
+    minTileY: 22,
     maxTileY: 24
 };
 
-/** As partes laterais desenhadas na layer stairs são rampas/grades, não passagem. */
+/** Bloqueia somente tiles que estejam fora de toda a largura desenhada da escada. */
 export function isOutsideStairPassage(
     tileX: number,
     tileY: number,
@@ -39,10 +45,14 @@ export function isOutsideStairPassage(
 export function isInsideStairClearance(
     tileX: number,
     tileY: number,
-    clearance: StairPassageDefinition = ROOM2_STAIR_CLEARANCE
+    clearance: StairPassageDefinition = ROOM2_STAIR_CLEARANCE,
+    approach: StairPassageDefinition = ROOM2_STAIR_APPROACH
 ) {
-    return tileX >= clearance.minTileX && tileX <= clearance.maxTileX
+    const isOnStairs = tileX >= clearance.minTileX && tileX <= clearance.maxTileX
         && tileY >= clearance.minTileY && tileY <= clearance.maxTileY;
+    const isOnApproach = tileX >= approach.minTileX && tileX <= approach.maxTileX
+        && tileY >= approach.minTileY && tileY <= approach.maxTileY;
+    return isOnStairs || isOnApproach;
 }
 
 export function toStairPassageArea(
