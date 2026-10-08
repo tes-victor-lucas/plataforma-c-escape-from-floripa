@@ -109,15 +109,16 @@ test('itens do Piranhas aplicam velocidade, coração extra e efeito do cookie',
     assert.equal(resumes, 3);
 });
 
-test('escada da room2 deixa somente o corredor central livre', () => {
+test('escada da room2 libera as laterais e mantém a aproximação delimitada', () => {
     for (let tileX = 8; tileX <= 18; tileX += 1) {
-        assert.equal(isOutsideStairPassage(tileX, 17), tileX < 12 || tileX > 15);
+        assert.equal(isOutsideStairPassage(tileX, 17), false);
     }
     assert.equal(isOutsideStairPassage(11, 14), false, 'fora da altura da escada não cria bloqueio');
-    assert.equal(isOutsideStairPassage(16, 21), true);
+    assert.equal(isOutsideStairPassage(7, 17), true, 'fora do desenho da escada continua bloqueado');
     assert.equal(isInsideStairClearance(12, 24), true, 'a entrada inferior precisa ficar livre');
     assert.equal(isInsideStairClearance(15, 15), true, 'a saída superior precisa ficar livre');
-    assert.equal(isInsideStairClearance(16, 20), false, 'a rampa lateral continua bloqueada');
+    assert.equal(isInsideStairClearance(16, 20), true, 'a lateral desenhada também é transitável');
+    assert.equal(isInsideStairClearance(16, 23), false, 'a aproximação não invade a lateral da praça');
 });
 
 test('efeito da escada progride do pé até o patamar superior', () => {
@@ -798,11 +799,13 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     let resumes = 0;
     let restartData;
     const launches = [];
+    const stoppedScenes = [];
     world.player = { health: new Health(100), update() { movementUpdates++; } };
     world.combat = { update() { combatUpdates++; } };
     world.physics = { resume() { resumes++; } };
     world.scene = {
         launch(key, data) { launches.push({ key, data }); },
+        stop(key) { stoppedScenes.push(key); },
         restart(data) { restartData = data; }
     };
     world.update(1000, 16);
@@ -818,6 +821,7 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     assert.equal(combatUpdates, 1);
     assert.equal(movementUpdates, 1);
     launches[0].data.onRestart();
+    assert.deepEqual(stoppedScenes, ['CombatHud']);
     assert.equal(restartData.waitForReveal, false);
 });
 
