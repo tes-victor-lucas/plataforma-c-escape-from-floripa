@@ -581,6 +581,13 @@ test('room2 cria drones somente no setor alcançável pelo jogador', () => {
     }
 });
 
+test('room2 reconhece o piso dentro de grupos do Tiled', () => {
+    const { isRoom2WalkableLayer } = load('../src/game/scenes/World.ts');
+    assert.equal(isRoom2WalkableLayer('flowers/floor'), true);
+    assert.equal(isRoom2WalkableLayer('floor-terminal'), true);
+    assert.equal(isRoom2WalkableLayer('flowers/flowers'), false);
+});
+
 test('jogador começa no centro inferior, com o corpo dentro do mapa e livre de paredes', () => {
     const map = JSON.parse(readFileSync(path.resolve(__dirname, '../public/assets/maps/room01.json'), 'utf8'));
     const { spawn, hitbox, scale } = WORLD_CONFIG.player;
