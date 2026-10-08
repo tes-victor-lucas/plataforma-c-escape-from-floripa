@@ -222,7 +222,8 @@ export class World extends Scene {
         new UpgradeSelectionView(overlayScene, PIRANHAS_BAR_ITEMS, {
             title: 'CARDÁPIO DO PIRANHAS BAR',
             hint: 'Escolha um item para consumir',
-            footer: 'CLIQUE PARA CONSUMIR'
+            footer: 'CLIQUE PARA CONSUMIR',
+            cardCenterDistance: 220
         }).play((item) => this.consumePiranhasItem(item));
     }
 
