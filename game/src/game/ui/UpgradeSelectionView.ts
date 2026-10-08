@@ -6,7 +6,7 @@ const DEPTH = 180;
 const CARD_WIDTH = 178;
 const CARD_HEIGHT = 220;
 const CARD_Y = 282;
-const CARD_X = [248, GAME_WIDTH / 2, GAME_WIDTH - 248] as const;
+const DEFAULT_CARD_CENTER_DISTANCE = GAME_WIDTH / 2 - 248;
 
 const PALETTES = {
     stat: {
@@ -60,6 +60,7 @@ type SelectionViewOptions = Readonly<{
     title?: string;
     hint?: string;
     footer?: string;
+    cardCenterDistance?: number;
 }>;
 
 /** Exibe três cartas e encerra somente depois que uma delas for escolhida. */
@@ -96,8 +97,14 @@ export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefini
         }).setOrigin(0.5);
 
         this.root.add([dim, title, hint]);
+        const centerDistance = this.options.cardCenterDistance ?? DEFAULT_CARD_CENTER_DISTANCE;
+        const cardX = [
+            GAME_WIDTH / 2 - centerDistance,
+            GAME_WIDTH / 2,
+            GAME_WIDTH / 2 + centerDistance
+        ];
         this.cards.forEach((card, index) => {
-            this.root.add(this.createCard(card, CARD_X[index], (selected) => {
+            this.root.add(this.createCard(card, cardX[index], (selected) => {
                 if (this.selected) return;
                 this.selected = true;
                 this.scene.tweens.add({
