@@ -128,9 +128,14 @@ export class World extends Scene {
         this.scene.launch('CombatHud', {
             player: this.player,
             onPause: () => this.openPauseMenu(),
-            onRestart: () => this.scene.restart({ waitForReveal: false }),
+            onRestart: () => this.restartAfterDefeat(),
             onQuit: () => this.scene.start('MainMenu')
         });
+    }
+
+    private restartAfterDefeat() {
+        this.scene.stop('CombatHud');
+        this.scene.restart({ waitForReveal: false });
     }
 
     update(_time: number, delta: number) {
