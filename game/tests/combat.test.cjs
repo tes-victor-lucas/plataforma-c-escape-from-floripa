@@ -65,6 +65,7 @@ const {
     isInsideRoomGateway,
     ROOM1_TO_ROOM2_GATEWAY
 } = load('../src/game/config/roomGateway.ts');
+const { ROOM_EXIT_LIGHT_STYLE } = load('../src/game/map/RoomExitPortal.ts');
 
 test('room2 possui entrada oficial no centro da via vertical', () => {
     assert.deepEqual(ROOM_DEFINITIONS.room2.spawn, { x: 184, y: 536 });
@@ -86,6 +87,14 @@ test('portal ocupa somente o corredor liberado no topo da room1', () => {
     assert.equal(isInsideRoomGateway(area.left - 1, portal.y), false);
     assert.equal(isInsideRoomGateway(area.right + 1, portal.y), false);
     assert.equal(isInsideRoomGateway(portal.x, area.bottom + 1), false);
+});
+
+test('saida da room1 usa foco branco com halo lilas', () => {
+    assert.equal(ROOM_EXIT_LIGHT_STYLE.core.color, 0xffffff);
+    assert.equal(ROOM_EXIT_LIGHT_STYLE.floor.color, 0xffffff);
+    assert.equal(ROOM_EXIT_LIGHT_STYLE.outerGlow.color, 0xad7cff);
+    assert.ok(ROOM_EXIT_LIGHT_STYLE.outerGlow.width > ROOM_EXIT_LIGHT_STYLE.glow.width);
+    assert.ok(ROOM_EXIT_LIGHT_STYLE.glow.width > ROOM_EXIT_LIGHT_STYLE.core.width);
 });
 
 test('cardápio do Piranhas usa três itens e seus assets individuais', () => {
