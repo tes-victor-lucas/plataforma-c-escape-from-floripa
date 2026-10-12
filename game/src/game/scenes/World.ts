@@ -350,6 +350,8 @@ export class World extends Scene {
         this.isGameplayReady = false;
         this.isPiranhasMenuOpen = false;
         this.isWaveIntermissionOpen = false;
+        this.isRoomExitOpen = false;
+        this.isRoomTransitioning = false;
         this.scene.stop('CombatHud');
         this.combat?.clear();
         this.combat = undefined;
@@ -361,6 +363,8 @@ export class World extends Scene {
         this.droneSpawnPoints = COMBAT_CONFIG.droneSpawns;
         this.stairClimbEffect?.destroy();
         this.stairClimbEffect = undefined;
+        this.roomExitPortal?.destroy();
+        this.roomExitPortal = undefined;
         this.player?.setControlsInverted(false);
         this.cameras.main.setRotation(0).setZoom(this.normalCameraZoom);
         this.piranhasBarPrompt = undefined;
