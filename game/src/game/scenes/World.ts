@@ -157,6 +157,9 @@ export class World extends Scene {
 
     /** Executado exclusivamente pelo botão "Tentar novamente" da tela de derrota. */
     private restartFromDefeatMenu() {
+        this.scene.stop('PauseMenu');
+        this.scene.stop('RoomTransition');
+        this.scene.stop('ReturnToMenuTransition');
         this.scene.stop('CombatHud');
         this.scene.restart({
             waitForReveal: false,
