@@ -77,6 +77,15 @@ test('rota direta preserva parametros e aponta para a room2', () => {
     assert.equal(getRoomSearch('room1', '?debug=1&room=2'), '?debug=1');
 });
 
+test('portal ocupa somente o corredor liberado no topo da room1', () => {
+    const { area, portal } = ROOM1_TO_ROOM2_GATEWAY;
+    assert.equal(isInsideRoomGateway(portal.x, portal.y), true);
+    assert.equal(isInsideRoomGateway(area.left, area.bottom), true);
+    assert.equal(isInsideRoomGateway(area.left - 1, portal.y), false);
+    assert.equal(isInsideRoomGateway(area.right + 1, portal.y), false);
+    assert.equal(isInsideRoomGateway(portal.x, area.bottom + 1), false);
+});
+
 test('cardápio do Piranhas usa três itens e seus assets individuais', () => {
     assert.equal(PIRANHAS_BAR_ITEMS.length, 3);
     assert.equal(PIRANHAS_BAR_ITEMS.find((item) => item.id === 'cookie-magico').description, '???');
