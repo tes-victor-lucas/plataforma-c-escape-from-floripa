@@ -188,7 +188,17 @@ export class World extends Scene {
 
     private spawnDrones(count: number) {
         if (!this.player || !this.combat) return;
-        const spawns = selectDroneSpawns(count, this.player.sprite, this.droneSpawnPoints);
+        const shouldSpawnStairGuards = this.activeRoomKey === 'room2'
+            && !this.hasSpawnedRoom2Guards;
+        const spawns = shouldSpawnStairGuards
+            ? selectDroneSpawnsWithPriority(
+                count,
+                this.player.sprite,
+                ROOM2_STAIR_GUARD_SPAWNS,
+                this.droneSpawnPoints
+            )
+            : selectDroneSpawns(count, this.player.sprite, this.droneSpawnPoints);
+        if (shouldSpawnStairGuards) this.hasSpawnedRoom2Guards = true;
         this.combat.clear();
         for (const spawn of spawns) {
             const drone = new Drone(this, spawn, this.collisionLayers);
