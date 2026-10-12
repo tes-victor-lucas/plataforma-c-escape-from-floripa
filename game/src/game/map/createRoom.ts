@@ -147,5 +147,8 @@ function createRoom2(scene: Scene): Room | null {
 }
 
 function hasColliderProperty(properties: Phaser.Types.Tilemaps.LayerDataConfig['properties']) {
-    return properties?.some((property) => property.name === 'collider' && property.value === true) ?? false;
+    const tiledProperties = properties as Array<{ name?: string; value?: unknown }> | undefined;
+    return tiledProperties?.some((property) =>
+        property.name === 'collider' && property.value === true
+    ) ?? false;
 }
