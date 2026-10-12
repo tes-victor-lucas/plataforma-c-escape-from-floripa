@@ -58,7 +58,7 @@ test('room2 preserva os colliders do Tiled e mantém o ponto inicial livre', () 
     );
     assert.ok(colliderLayers.every((layer) => layer.data.some((gid) => gid !== 0)));
 
-    const spawnTile = { x: Math.floor(400 / 16), y: Math.floor(536 / 16) };
+    const spawnTile = { x: Math.floor(184 / 16), y: Math.floor(536 / 16) };
     const spawnIndex = spawnTile.y * map.width + spawnTile.x;
     assert.ok(colliderLayers.every((layer) => layer.data[spawnIndex] === 0));
 });
