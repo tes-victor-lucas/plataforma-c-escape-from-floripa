@@ -38,10 +38,15 @@ function load(relative) {
 }
 const { Health } = load('../src/game/combat/Health.ts');
 const { CombatSystem } = load('../src/game/combat/CombatSystem.ts');
-const { COMBAT_CONFIG } = load('../src/game/config/combat.ts');
+const { COMBAT_CONFIG, ROOM2_STAIR_GUARD_SPAWNS } = load('../src/game/config/combat.ts');
 const { WORLD_CONFIG } = load('../src/game/config/world.ts');
 const { Drone } = load('../src/game/entities/Drone.ts');
-const { createReachableDroneSpawns, DroneWaves, selectDroneSpawns } = load('../src/game/combat/DroneWaves.ts');
+const {
+    createReachableDroneSpawns,
+    DroneWaves,
+    selectDroneSpawns,
+    selectDroneSpawnsWithPriority
+} = load('../src/game/combat/DroneWaves.ts');
 const { drawUpgradeCards } = load('../src/game/upgrades/drawUpgradeCards.ts');
 const { getUpgradeCard } = load('../src/game/upgrades/catalog.ts');
 const { PlayerUpgradeState } = load('../src/game/upgrades/PlayerUpgradeState.ts');
@@ -562,6 +567,24 @@ test('duas ondas têm posições suficientes, distintas e fora da área inicial 
         }
     }
     assert.equal(selectDroneSpawns(10, spawn).length, 10);
+});
+
+test('primeira onda da room2 reserva dois drones na base da escadaria', () => {
+    const regularSpawns = Array.from({ length: 12 }, (_, index) => ({
+        x: 320 + index * 16,
+        y: 400,
+        patrolLeft: 312 + index * 16,
+        patrolRight: 328 + index * 16
+    }));
+    const selected = selectDroneSpawnsWithPriority(
+        10,
+        ROOM_DEFINITIONS.room2.spawn,
+        ROOM2_STAIR_GUARD_SPAWNS,
+        regularSpawns
+    );
+
+    assert.equal(selected.length, 10);
+    assert.deepEqual(selected.slice(0, 2), [...ROOM2_STAIR_GUARD_SPAWNS]);
 });
 
 test('room2 cria drones somente no setor alcançável pelo jogador', () => {
