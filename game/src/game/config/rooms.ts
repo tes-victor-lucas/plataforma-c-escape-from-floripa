@@ -120,3 +120,18 @@ export function getRequestedRoomKey(search = window.location.search): RoomKey {
     const requestedRoom = new URLSearchParams(search).get('room');
     return requestedRoom === '2' || requestedRoom === 'room2' ? 'room2' : 'room1';
 }
+
+export function getRoomSearch(roomKey: RoomKey, search = '') {
+    const parameters = new URLSearchParams(search);
+    if (roomKey === 'room1') parameters.delete('room');
+    else parameters.set('room', '2');
+    const serialized = parameters.toString();
+    return serialized ? `?${serialized}` : '';
+}
+
+/** Mantém recarregamentos e links compatíveis com a sala atualmente aberta. */
+export function replaceRequestedRoomKey(roomKey: RoomKey) {
+    if (typeof window === 'undefined') return;
+    const search = getRoomSearch(roomKey, window.location.search);
+    window.history.replaceState(null, '', `${window.location.pathname}${search}${window.location.hash}`);
+}
