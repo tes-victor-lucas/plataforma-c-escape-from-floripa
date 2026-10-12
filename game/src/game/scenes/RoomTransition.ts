@@ -12,6 +12,7 @@ import type { World } from './World';
 
 export type RoomTransitionData = {
     roomKey?: RoomKey;
+    source?: 'main-menu' | 'world';
 };
 
 /** Orchestrates the transition from the main menu to Room 1. */
