@@ -2,7 +2,12 @@ import { Scene } from 'phaser';
 import { musicDirector } from '../audio/MusicDirector';
 import { AUDIO_CONFIG } from '../config/audio';
 import { RoomTransitionView } from '../ui/RoomTransitionView';
-import { replaceRequestedRoomKey, ROOM_DEFINITIONS, type RoomKey } from '../config/rooms';
+import {
+    getRequestedRoomKey,
+    replaceRequestedRoomKey,
+    ROOM_DEFINITIONS,
+    type RoomKey
+} from '../config/rooms';
 import type { World } from './World';
 
 export type RoomTransitionData = {
@@ -16,7 +21,7 @@ export class RoomTransition extends Scene {
     }
 
     create(data: RoomTransitionData = {}) {
-        const roomKey = data.roomKey ?? 'room1';
+        const roomKey = data.roomKey ?? getRequestedRoomKey();
         const roomDefinition = ROOM_DEFINITIONS[roomKey];
         musicDirector.stop(this, AUDIO_CONFIG.music.fadeDuration);
         new RoomTransitionView(this, roomDefinition.title).play({
