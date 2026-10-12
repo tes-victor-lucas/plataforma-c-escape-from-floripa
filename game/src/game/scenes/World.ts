@@ -35,6 +35,12 @@ import { isInsideRoomGateway, ROOM1_TO_ROOM2_GATEWAY } from '../config/roomGatew
 import { RoomExitPortal } from '../map/RoomExitPortal';
 
 const ROOM2_WALKABLE_LAYERS = ['floor', 'stairs', 'street', 'floor-terminal'] as const;
+const GAMEPLAY_OVERLAY_SCENES = [
+    'PauseMenu',
+    'RoomTransition',
+    'ReturnToMenuTransition',
+    'CombatHud'
+] as const;
 
 type WorldSceneData = {
     waitForReveal?: boolean;
@@ -162,10 +168,7 @@ export class World extends Scene {
 
     /** Executado exclusivamente pelo botão "Tentar novamente" da tela de derrota. */
     private restartFromDefeatMenu() {
-        this.scene.stop('PauseMenu');
-        this.scene.stop('RoomTransition');
-        this.scene.stop('ReturnToMenuTransition');
-        this.scene.stop('CombatHud');
+        this.stopGameplayOverlays();
         this.scene.restart({
             waitForReveal: false,
             roomKey: this.activeRoomKey,
@@ -176,13 +179,14 @@ export class World extends Scene {
     /** Encerra completamente a partida derrotada e volta para uma nova campanha. */
     private returnToMainMenuFromDefeat() {
         replaceRequestedRoomKey('room1');
-        this.scene.stop('PauseMenu');
-        this.scene.stop('RoomTransition');
-        this.scene.stop('ReturnToMenuTransition');
-        this.scene.stop('CombatHud');
+        this.stopGameplayOverlays();
         this.scene.stop('MainMenu');
         this.scene.start('MainMenu');
         this.scene.bringToTop('MainMenu');
+    }
+
+    private stopGameplayOverlays() {
+        for (const sceneKey of GAMEPLAY_OVERLAY_SCENES) this.scene.stop(sceneKey);
     }
 
     update(_time: number, delta: number) {
