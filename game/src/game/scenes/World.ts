@@ -17,7 +17,7 @@ import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
 import { drawUpgradeCards } from '../upgrades/drawUpgradeCards';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
-import { getRequestedRoomKey } from '../config/rooms';
+import { getRequestedRoomKey, ROOM_DEFINITIONS, type RoomKey } from '../config/rooms';
 import { StairClimbEffect } from '../map/StairClimbEffect';
 import {
     isInsidePiranhasBarArea,
@@ -27,6 +27,12 @@ import {
 } from '../config/piranhasBar';
 
 const ROOM2_WALKABLE_LAYERS = ['floor', 'stairs', 'street', 'floor-terminal'] as const;
+
+type WorldSceneData = {
+    waitForReveal?: boolean;
+    roomKey?: RoomKey;
+    spawn?: Readonly<{ x: number; y: number }>;
+};
 
 export function isRoom2WalkableLayer(layerName: string) {
     const localName = layerName.split('/').at(-1);
@@ -51,6 +57,8 @@ export class World extends Scene {
     private isGameplayReady = false;
     private nauseaEndsAt = 0;
     private normalCameraZoom = WORLD_CONFIG.camera.zoom;
+    private activeRoomKey: RoomKey = 'room1';
+    private activeSpawn: Readonly<{ x: number; y: number }> = ROOM_DEFINITIONS.room1.spawn;
     private droneSpawnPoints: readonly DroneSpawnPoint[] = COMBAT_CONFIG.droneSpawns;
     private readonly upgrades = new PlayerUpgradeState();
 
@@ -58,7 +66,7 @@ export class World extends Scene {
         super('World');
     }
 
-    create(data: { waitForReveal?: boolean } = {}) {
+    create(data: WorldSceneData = {}) {
         this.isPauseMenuOpen = false;
         this.isWaveIntermissionOpen = false;
         this.isPiranhasMenuOpen = false;
@@ -68,7 +76,10 @@ export class World extends Scene {
         this.nauseaEndsAt = 0;
         this.upgrades.reset();
         this.physics.pause();
-        const roomKey = getRequestedRoomKey();
+        const roomKey = data.roomKey ?? getRequestedRoomKey();
+        const spawn = data.spawn ?? ROOM_DEFINITIONS[roomKey].spawn;
+        this.activeRoomKey = roomKey;
+        this.activeSpawn = spawn;
         const room = createRoom(this, roomKey);
         if (!room) return;
         const walkableRoom2Layers = room.map.layers.filter((layer) =>
@@ -79,13 +90,13 @@ export class World extends Scene {
                 room.map,
                 (tileX, tileY) => room.collisionLayers.some((layer) =>
                     layer.getTileAt(tileX, tileY)?.collides ?? false),
-                WORLD_CONFIG.player.spawn,
+                spawn,
                 (tileX, tileY) => walkableRoom2Layers.some((layer) =>
                     room.map.hasTileAt(tileX, tileY, layer.name))
             )
             : COMBAT_CONFIG.droneSpawns;
 
-        this.player = new Player(this, WORLD_CONFIG.player.spawn);
+        this.player = new Player(this, spawn);
         if (roomKey === 'room2') this.createPiranhasBarPrompt();
         this.stairClimbEffect = room.stairPassage
             ? new StairClimbEffect(this, this.player.sprite, room.stairPassage)
@@ -136,7 +147,11 @@ export class World extends Scene {
     /** Executado exclusivamente pelo botão "Tentar novamente" da tela de derrota. */
     private restartFromDefeatMenu() {
         this.scene.stop('CombatHud');
-        this.scene.restart({ waitForReveal: false });
+        this.scene.restart({
+            waitForReveal: false,
+            roomKey: this.activeRoomKey,
+            spawn: this.activeSpawn
+        });
     }
 
     update(_time: number, delta: number) {
