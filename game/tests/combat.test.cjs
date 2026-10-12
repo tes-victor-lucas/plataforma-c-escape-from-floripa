@@ -573,7 +573,7 @@ test('duas ondas têm posições suficientes, distintas e fora da área inicial 
 test('primeira onda da room2 reserva dois drones na base da escadaria', () => {
     const regularSpawns = Array.from({ length: 12 }, (_, index) => ({
         x: 320 + index * 16,
-        y: 400,
+        y: 160,
         patrolLeft: 312 + index * 16,
         patrolRight: 328 + index * 16
     }));
