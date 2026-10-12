@@ -37,7 +37,7 @@ type WorldSceneData = {
 };
 
 export function isRoom2WalkableLayer(layerName: string) {
-    const localName = layerName.split('/').at(-1);
+    const localName = layerName.split('/').pop();
     return ROOM2_WALKABLE_LAYERS.some((name) => name === localName);
 }
 
@@ -61,7 +61,7 @@ export class World extends Scene {
     private isRoomExitOpen = false;
     private isRoomTransitioning = false;
     private nauseaEndsAt = 0;
-    private normalCameraZoom = WORLD_CONFIG.camera.zoom;
+    private normalCameraZoom: number = WORLD_CONFIG.camera.zoom;
     private activeRoomKey: RoomKey = 'room1';
     private activeSpawn: Readonly<{ x: number; y: number }> = ROOM_DEFINITIONS.room1.spawn;
     private droneSpawnPoints: readonly DroneSpawnPoint[] = COMBAT_CONFIG.droneSpawns;
