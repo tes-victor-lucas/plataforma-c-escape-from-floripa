@@ -68,6 +68,23 @@ export function selectDroneSpawns(
     return Array.from({ length: count }, (_, index) => candidates[Math.floor(index * candidates.length / count)]);
 }
 
+/** Reserva sentinelas em pontos narrativos e completa a onda com os pontos comuns. */
+export function selectDroneSpawnsWithPriority(
+    count: number,
+    playerPosition: { x: number; y: number },
+    prioritySpawns: readonly DroneSpawnPoint[],
+    spawnPoints: readonly DroneSpawnPoint[] = COMBAT_CONFIG.droneSpawns
+) {
+    const priority = prioritySpawns.slice(0, count);
+    const remainingCandidates = spawnPoints.filter((candidate) =>
+        !priority.some((reserved) => reserved.x === candidate.x && reserved.y === candidate.y)
+    );
+    return [
+        ...priority,
+        ...selectDroneSpawns(count - priority.length, playerPosition, remainingCandidates)
+    ];
+}
+
 /** Gera patrulhas apenas no componente navegável que contém o jogador. */
 export function createReachableDroneSpawns(
     map: TileGrid,
