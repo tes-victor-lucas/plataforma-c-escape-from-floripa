@@ -1,12 +1,14 @@
 import type { Scene } from 'phaser';
+import { createLampLight, LAMP_LIGHT_TEXTURE } from './createLampLights';
 
 const PORTAL_DEPTH = 7;
 
 export const ROOM_EXIT_LIGHT_STYLE = {
-    outerGlow: { width: 104, height: 78, color: 0xad7cff, alpha: 0.08 },
-    glow: { width: 68, height: 54, color: 0xd8b7ff, alpha: 0.18 },
-    core: { width: 24, height: 30, color: 0xffffff, alpha: 0.82 },
-    floor: { width: 48, height: 13, color: 0xffffff, alpha: 0.68 }
+    texture: LAMP_LIGHT_TEXTURE,
+    mainScale: 1.15,
+    spillScale: 1.65,
+    mainAlpha: 0.82,
+    spillAlpha: 0.3
 } as const;
 
 /** Sinal luminoso exibido sobre a saída liberada da Room 1. */
@@ -15,36 +17,18 @@ export class RoomExitPortal {
     private readonly pulses: Phaser.Tweens.Tween[];
 
     constructor(scene: Scene, x: number, y: number) {
-        const { outerGlow: outer, glow: middle, core: center, floor } = ROOM_EXIT_LIGHT_STYLE;
-        const outerGlow = scene.add.ellipse(x, y, outer.width, outer.height, outer.color, outer.alpha)
-            .setBlendMode(Phaser.BlendModes.ADD)
-            .setDepth(PORTAL_DEPTH);
-        const glow = scene.add.ellipse(x, y + 3, middle.width, middle.height, middle.color, middle.alpha)
-            .setBlendMode(Phaser.BlendModes.ADD)
-            .setDepth(PORTAL_DEPTH + 1);
-        const core = scene.add.ellipse(x, y + 8, center.width, center.height, center.color, center.alpha)
-            .setBlendMode(Phaser.BlendModes.ADD)
-            .setDepth(PORTAL_DEPTH + 2);
-        const floorLight = scene.add.ellipse(x, y + 18, floor.width, floor.height, floor.color, floor.alpha)
-            .setBlendMode(Phaser.BlendModes.ADD)
-            .setDepth(PORTAL_DEPTH + 3);
+        const style = ROOM_EXIT_LIGHT_STYLE;
+        const spill = createLampLight(scene, x - 18, y - 14, PORTAL_DEPTH, style.spillAlpha)
+            .setScale(style.spillScale);
+        const light = createLampLight(scene, x, y, PORTAL_DEPTH + 1, style.mainAlpha)
+            .setScale(style.mainScale);
 
-        this.objects = [outerGlow, glow, core, floorLight];
+        this.objects = [spill, light];
         this.pulses = [
             scene.tweens.add({
-                targets: outerGlow,
-                alpha: { from: 0.05, to: 0.16 },
-                scaleX: { from: 0.9, to: 1.14 },
-                scaleY: { from: 0.9, to: 1.08 },
-                duration: 1050,
-                ease: 'Sine.InOut',
-                yoyo: true,
-                repeat: -1
-            }),
-            scene.tweens.add({
-                targets: [glow, core, floorLight],
-                alpha: { from: 0.34, to: 0.9 },
-                duration: 720,
+                targets: [spill, light],
+                alpha: { from: style.spillAlpha, to: style.mainAlpha },
+                duration: 950,
                 ease: 'Sine.InOut',
                 yoyo: true,
                 repeat: -1
