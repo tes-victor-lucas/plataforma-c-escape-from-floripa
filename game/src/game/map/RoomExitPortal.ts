@@ -2,22 +2,30 @@ import type { Scene } from 'phaser';
 
 const PORTAL_DEPTH = 7;
 
+export const ROOM_EXIT_LIGHT_STYLE = {
+    outerGlow: { width: 104, height: 78, color: 0xad7cff, alpha: 0.08 },
+    glow: { width: 68, height: 54, color: 0xd8b7ff, alpha: 0.18 },
+    core: { width: 24, height: 30, color: 0xffffff, alpha: 0.82 },
+    floor: { width: 48, height: 13, color: 0xffffff, alpha: 0.68 }
+} as const;
+
 /** Sinal luminoso exibido sobre a saída liberada da Room 1. */
 export class RoomExitPortal {
     private readonly objects: Phaser.GameObjects.GameObject[];
     private readonly pulses: Phaser.Tweens.Tween[];
 
     constructor(scene: Scene, x: number, y: number) {
-        const outerGlow = scene.add.ellipse(x, y, 104, 78, 0xad7cff, 0.08)
+        const { outerGlow: outer, glow: middle, core: center, floor } = ROOM_EXIT_LIGHT_STYLE;
+        const outerGlow = scene.add.ellipse(x, y, outer.width, outer.height, outer.color, outer.alpha)
             .setBlendMode(Phaser.BlendModes.ADD)
             .setDepth(PORTAL_DEPTH);
-        const glow = scene.add.ellipse(x, y + 3, 68, 54, 0xd8b7ff, 0.18)
+        const glow = scene.add.ellipse(x, y + 3, middle.width, middle.height, middle.color, middle.alpha)
             .setBlendMode(Phaser.BlendModes.ADD)
             .setDepth(PORTAL_DEPTH + 1);
-        const core = scene.add.ellipse(x, y + 8, 24, 30, 0xffffff, 0.82)
+        const core = scene.add.ellipse(x, y + 8, center.width, center.height, center.color, center.alpha)
             .setBlendMode(Phaser.BlendModes.ADD)
             .setDepth(PORTAL_DEPTH + 2);
-        const floorLight = scene.add.ellipse(x, y + 18, 48, 13, 0xffffff, 0.68)
+        const floorLight = scene.add.ellipse(x, y + 18, floor.width, floor.height, floor.color, floor.alpha)
             .setBlendMode(Phaser.BlendModes.ADD)
             .setDepth(PORTAL_DEPTH + 3);
 
