@@ -893,6 +893,8 @@ test('transição só libera o mundo quando a animação de revelação termina'
     tweens[0].onComplete();
     assert.equal(launches[0].key, 'World');
     assert.equal(launches[0].data.waitForReveal, true);
+    assert.equal(launches[0].data.roomKey, 'room1');
+    assert.deepEqual(launches[0].data.spawn, ROOM_DEFINITIONS.room1.spawn);
     while (timers.length) timers.shift()();
     assert.equal(starts, 0);
     assert.equal(stopped, false);
