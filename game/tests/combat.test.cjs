@@ -806,6 +806,41 @@ test('mundo registra uma única colisão interna para o grupo de drones', () => 
     assert.deepEqual(colliders, [[group, group]]);
 });
 
+test('mundo somente atravessa o portal depois de liberar a saida', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const launches = [];
+    let pauses = 0;
+    let stops = 0;
+    let clears = 0;
+    world.player = {
+        sprite: { body: { center: { ...ROOM1_TO_ROOM2_GATEWAY.portal } } },
+        stopMovement() { stops++; }
+    };
+    world.combat = { clear() { clears++; } };
+    world.physics = { pause() { pauses++; } };
+    world.scene = {
+        launch(key, data) { launches.push({ key, data }); },
+        bringToTop() {}
+    };
+
+    world.updateRoomGateway();
+    assert.equal(launches.length, 0);
+
+    world.isRoomExitOpen = true;
+    world.updateRoomGateway();
+    world.updateRoomGateway();
+
+    assert.equal(launches.length, 1);
+    assert.deepEqual(launches[0], {
+        key: 'RoomTransition',
+        data: { roomKey: 'room2' }
+    });
+    assert.equal(pauses, 1);
+    assert.equal(stops, 1);
+    assert.equal(clears, 1);
+});
+
 test('mundo bloqueia combate e HUD até a revelação; reinício não espera outra transição', () => {
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();
