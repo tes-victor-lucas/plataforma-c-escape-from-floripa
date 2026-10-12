@@ -876,6 +876,8 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     launches[0].data.onRestart();
     assert.deepEqual(stoppedScenes, ['CombatHud']);
     assert.equal(restartData.waitForReveal, false);
+    assert.equal(restartData.roomKey, 'room1');
+    assert.deepEqual(restartData.spawn, ROOM_DEFINITIONS.room1.spawn);
 });
 
 test('transição só libera o mundo quando a animação de revelação termina', () => {
