@@ -8,37 +8,35 @@ export class RoomExitPortal {
     private readonly pulses: Phaser.Tweens.Tween[];
 
     constructor(scene: Scene, x: number, y: number) {
-        const glow = scene.add.ellipse(x, y, 62, 92, 0x31e6ff, 0.16)
+        const outerGlow = scene.add.ellipse(x, y, 104, 78, 0xad7cff, 0.08)
             .setBlendMode(Phaser.BlendModes.ADD)
             .setDepth(PORTAL_DEPTH);
-        const core = scene.add.ellipse(x, y, 30, 74, 0xc8fbff, 0.28)
-            .setStrokeStyle(2, 0x69f4ff, 0.72)
+        const glow = scene.add.ellipse(x, y + 3, 68, 54, 0xd8b7ff, 0.18)
             .setBlendMode(Phaser.BlendModes.ADD)
             .setDepth(PORTAL_DEPTH + 1);
-        const marker = scene.add.text(x, y + 50, 'PRÓXIMA SALA', {
-            fontFamily: 'PixelGamer, monospace',
-            fontSize: '7px',
-            color: '#bffaff',
-            backgroundColor: '#06141ddd',
-            padding: { x: 4, y: 2 }
-        }).setOrigin(0.5).setDepth(PORTAL_DEPTH + 2);
+        const core = scene.add.ellipse(x, y + 8, 24, 30, 0xffffff, 0.82)
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setDepth(PORTAL_DEPTH + 2);
+        const floorLight = scene.add.ellipse(x, y + 18, 48, 13, 0xffffff, 0.68)
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setDepth(PORTAL_DEPTH + 3);
 
-        this.objects = [glow, core, marker];
+        this.objects = [outerGlow, glow, core, floorLight];
         this.pulses = [
             scene.tweens.add({
-                targets: glow,
-                alpha: { from: 0.1, to: 0.3 },
-                scaleX: { from: 0.88, to: 1.12 },
-                scaleY: { from: 0.94, to: 1.06 },
-                duration: 900,
+                targets: outerGlow,
+                alpha: { from: 0.05, to: 0.16 },
+                scaleX: { from: 0.9, to: 1.14 },
+                scaleY: { from: 0.9, to: 1.08 },
+                duration: 1050,
                 ease: 'Sine.InOut',
                 yoyo: true,
                 repeat: -1
             }),
             scene.tweens.add({
-                targets: core,
-                alpha: { from: 0.22, to: 0.48 },
-                duration: 650,
+                targets: [glow, core, floorLight],
+                alpha: { from: 0.34, to: 0.9 },
+                duration: 720,
                 ease: 'Sine.InOut',
                 yoyo: true,
                 repeat: -1
