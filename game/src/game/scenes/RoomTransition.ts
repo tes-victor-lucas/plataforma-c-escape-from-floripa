@@ -26,7 +26,7 @@ export class RoomTransition extends Scene {
         const roomDefinition = ROOM_DEFINITIONS[roomKey];
         musicDirector.stop(this, AUDIO_CONFIG.music.fadeDuration);
         new RoomTransitionView(this, roomDefinition.title).play({
-            onCovered: () => this.startWorldUnderTransition(roomKey),
+            onCovered: () => this.startWorldUnderTransition(roomKey, data.source ?? 'main-menu'),
             onComplete: () => {
                 const world = this.scene.get('World') as World;
                 musicDirector.play(world, AUDIO_CONFIG.music.room1, AUDIO_CONFIG.music.fadeDuration);
@@ -36,16 +36,21 @@ export class RoomTransition extends Scene {
         });
     }
 
-    private startWorldUnderTransition(roomKey: RoomKey) {
+    private startWorldUnderTransition(roomKey: RoomKey, source: 'main-menu' | 'world' = 'main-menu') {
         const roomDefinition = ROOM_DEFINITIONS[roomKey];
         replaceRequestedRoomKey(roomKey);
         this.scene.stop('CombatHud');
-        this.scene.stop('World');
-        this.scene.launch('World', {
+        const worldData = {
             waitForReveal: true,
             roomKey,
             spawn: roomDefinition.spawn
-        });
+        };
+        if (source === 'world') {
+            const world = this.scene.get('World') as World;
+            world.scene.restart(worldData);
+        } else {
+            this.scene.launch('World', worldData);
+        }
         this.scene.sendToBack('World');
         this.scene.stop('MainMenu');
     }
