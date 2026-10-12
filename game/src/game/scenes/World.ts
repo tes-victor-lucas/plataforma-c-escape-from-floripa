@@ -1,6 +1,6 @@
 import { Scene } from 'phaser';
 import { configureWorldCamera } from '../camera/configureWorldCamera';
-import { COMBAT_CONFIG } from '../config/combat';
+import { COMBAT_CONFIG, ROOM2_STAIR_GUARD_SPAWNS } from '../config/combat';
 import { WORLD_CONFIG } from '../config/world';
 import { Drone } from '../entities/Drone';
 import { Player } from '../entities/Player';
@@ -10,6 +10,7 @@ import {
     createReachableDroneSpawns,
     DroneWaves,
     selectDroneSpawns,
+    selectDroneSpawnsWithPriority,
     type DroneSpawnPoint
 } from '../combat/DroneWaves';
 import { WaveThreatView } from '../ui/WaveThreatView';
@@ -60,6 +61,7 @@ export class World extends Scene {
     private isGameplayReady = false;
     private isRoomExitOpen = false;
     private isRoomTransitioning = false;
+    private hasSpawnedRoom2Guards = false;
     private nauseaEndsAt = 0;
     private normalCameraZoom: number = WORLD_CONFIG.camera.zoom;
     private activeRoomKey: RoomKey = 'room1';
@@ -80,6 +82,7 @@ export class World extends Scene {
         this.isGameplayReady = false;
         this.isRoomExitOpen = false;
         this.isRoomTransitioning = false;
+        this.hasSpawnedRoom2Guards = false;
         this.nauseaEndsAt = 0;
         this.upgrades.reset();
         this.physics.pause();
@@ -355,6 +358,7 @@ export class World extends Scene {
         this.isWaveIntermissionOpen = false;
         this.isRoomExitOpen = false;
         this.isRoomTransitioning = false;
+        this.hasSpawnedRoom2Guards = false;
         this.scene.stop('CombatHud');
         this.combat?.clear();
         this.combat = undefined;
