@@ -966,10 +966,32 @@ test('transição para room2 inicia o mundo no ponto indicado', () => {
 
     transition.startWorldUnderTransition('room2');
 
-    assert.deepEqual(stopped, ['CombatHud', 'World', 'MainMenu']);
+    assert.deepEqual(stopped, ['CombatHud', 'MainMenu']);
     assert.equal(launches[0].key, 'World');
     assert.equal(launches[0].data.roomKey, 'room2');
     assert.deepEqual(launches[0].data.spawn, ROOM_DEFINITIONS.room2.spawn);
+});
+
+test('passagem entre salas reinicia World sem relancar o menu', () => {
+    const { RoomTransition } = load('../src/game/scenes/RoomTransition.ts');
+    const transition = new RoomTransition();
+    const launches = [];
+    const stopped = [];
+    let restartData;
+    const world = { scene: { restart(data) { restartData = data; } } };
+    transition.scene = {
+        stop(key) { stopped.push(key); },
+        launch(key, data) { launches.push({ key, data }); },
+        get() { return world; },
+        sendToBack() {}
+    };
+
+    transition.startWorldUnderTransition('room2', 'world');
+
+    assert.equal(launches.length, 0);
+    assert.equal(restartData.roomKey, 'room2');
+    assert.deepEqual(restartData.spawn, ROOM_DEFINITIONS.room2.spawn);
+    assert.deepEqual(stopped, ['CombatHud', 'MainMenu']);
 });
 
 test('abertura da room2 escreve Sala II antes de revelar o mapa', () => {
