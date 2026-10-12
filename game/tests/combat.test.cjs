@@ -56,6 +56,26 @@ const {
     PIRANHAS_BAR_CONFIG,
     PIRANHAS_BAR_ITEMS
 } = load('../src/game/config/piranhasBar.ts');
+const {
+    getRequestedRoomKey,
+    getRoomSearch,
+    ROOM_DEFINITIONS
+} = load('../src/game/config/rooms.ts');
+const {
+    isInsideRoomGateway,
+    ROOM1_TO_ROOM2_GATEWAY
+} = load('../src/game/config/roomGateway.ts');
+
+test('room2 possui entrada oficial no centro da via vertical', () => {
+    assert.deepEqual(ROOM_DEFINITIONS.room2.spawn, { x: 184, y: 536 });
+    assert.equal(ROOM_DEFINITIONS.room2.title, 'Sala II');
+});
+
+test('rota direta preserva parametros e aponta para a room2', () => {
+    assert.equal(getRequestedRoomKey('?room=2'), 'room2');
+    assert.equal(getRoomSearch('room2', '?debug=1'), '?debug=1&room=2');
+    assert.equal(getRoomSearch('room1', '?debug=1&room=2'), '?debug=1');
+});
 
 test('cardápio do Piranhas usa três itens e seus assets individuais', () => {
     assert.equal(PIRANHAS_BAR_ITEMS.length, 3);
