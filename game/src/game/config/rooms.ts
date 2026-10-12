@@ -9,6 +9,8 @@ export interface RoomTilesetDefinition {
 export interface RoomDefinition {
     mapKey: RoomKey;
     mapPath: string;
+    title: string;
+    spawn: Readonly<{ x: number; y: number }>;
     tilesets: readonly RoomTilesetDefinition[];
 }
 
@@ -34,11 +36,15 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
     room1: {
         mapKey: 'room1',
         mapPath: 'assets/maps/room01.json',
+        title: 'Sala I',
+        spawn: { x: 400, y: 536 },
         tilesets: SHARED_TILESETS
     },
     room2: {
         mapKey: 'room2',
         mapPath: 'assets/maps/room2.json',
+        title: 'Sala II',
+        spawn: { x: 184, y: 536 },
         tilesets: [
             ...SHARED_TILESETS,
             {
