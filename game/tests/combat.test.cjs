@@ -905,6 +905,25 @@ test('transição só libera o mundo quando a animação de revelação termina'
     assert.equal(stopped, true);
 });
 
+test('transição para room2 inicia o mundo no ponto indicado', () => {
+    const { RoomTransition } = load('../src/game/scenes/RoomTransition.ts');
+    const transition = new RoomTransition();
+    const launches = [];
+    const stopped = [];
+    transition.scene = {
+        stop(key) { stopped.push(key); },
+        launch(key, data) { launches.push({ key, data }); },
+        sendToBack() {}
+    };
+
+    transition.startWorldUnderTransition('room2');
+
+    assert.deepEqual(stopped, ['CombatHud', 'World', 'MainMenu']);
+    assert.equal(launches[0].key, 'World');
+    assert.equal(launches[0].data.roomKey, 'room2');
+    assert.deepEqual(launches[0].data.spawn, ROOM_DEFINITIONS.room2.spawn);
+});
+
 test('diretor de música encerra uma faixa antes de iniciar gradualmente a próxima', () => {
     const sounds = [];
     const transitions = [];
