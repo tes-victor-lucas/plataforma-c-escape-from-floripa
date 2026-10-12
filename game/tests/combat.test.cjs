@@ -972,6 +972,36 @@ test('transição para room2 inicia o mundo no ponto indicado', () => {
     assert.deepEqual(launches[0].data.spawn, ROOM_DEFINITIONS.room2.spawn);
 });
 
+test('abertura da room2 escreve Sala II antes de revelar o mapa', () => {
+    const { RoomTransitionView } = load('../src/game/ui/RoomTransitionView.ts');
+    const timers = [];
+    const writtenTitles = [];
+    const graphic = () => {
+        const object = {};
+        for (const method of ['setOrigin', 'setScale', 'setDepth', 'setScrollFactor', 'setAlpha']) {
+            object[method] = () => object;
+        }
+        object.setText = (value) => {
+            writtenTitles.push(value);
+            return object;
+        };
+        return object;
+    };
+    const scene = {
+        add: { rectangle: graphic, text: graphic },
+        tweens: { add() {} },
+        time: { delayedCall(_delay, callback) { timers.push(callback); } }
+    };
+    const view = new RoomTransitionView(scene, ROOM_DEFINITIONS.room2.title);
+    let completed = false;
+
+    view.typeTitle(() => { completed = true; });
+    while (timers.length) timers.shift()();
+
+    assert.equal(writtenTitles.at(-1), 'Sala II');
+    assert.equal(completed, true);
+});
+
 test('diretor de música encerra uma faixa antes de iniciar gradualmente a próxima', () => {
     const sounds = [];
     const transitions = [];
