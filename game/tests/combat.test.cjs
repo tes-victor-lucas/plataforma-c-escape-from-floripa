@@ -845,7 +845,7 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
     assert.equal(launches.length, 1);
     assert.deepEqual(launches[0], {
         key: 'RoomTransition',
-        data: { roomKey: 'room2' }
+        data: { roomKey: 'room2', source: 'world' }
     });
     assert.equal(pauses, 1);
     assert.equal(stops, 1);
