@@ -116,11 +116,13 @@ function createRoom2(scene: Scene): Room | null {
     let stairsLayer: Phaser.Tilemaps.TilemapLayer | undefined;
 
     for (let index = 0; index < map.layers.length; index += 1) {
-        const layer = map.createLayer(index, resolvedTilesets);
-        if (!layer) {
+        const createdLayer = map.createLayer(index, resolvedTilesets);
+        if (!createdLayer) {
             console.error(`Não foi possível criar a camada ${map.layers[index].name} da room2.`);
             return null;
         }
+        // A Room 2 usa o renderizador clássico, que oferece tint e colisão Arcade.
+        const layer = createdLayer as Phaser.Tilemaps.TilemapLayer;
 
         layer.setDepth(SCENERY_DEPTH).setTint(ROOM_AMBIENT_TINT);
         if (layer.layer.name === 'stairs') stairsLayer = layer;
