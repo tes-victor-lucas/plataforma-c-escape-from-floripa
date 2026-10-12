@@ -116,7 +116,9 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
     }
 };
 
-export function getRequestedRoomKey(search = window.location.search): RoomKey {
+export function getRequestedRoomKey(
+    search = typeof window === 'undefined' ? '' : window.location.search
+): RoomKey {
     const requestedRoom = new URLSearchParams(search).get('room');
     return requestedRoom === '2' || requestedRoom === 'room2' ? 'room2' : 'room1';
 }
