@@ -955,6 +955,31 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     assert.deepEqual(restartData.spawn, ROOM_DEFINITIONS.room1.spawn);
 });
 
+test('voltar ao menu após derrota encerra gameplay e abre MainMenu', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const stopped = [];
+    const started = [];
+    const topScenes = [];
+    world.scene = {
+        stop(key) { stopped.push(key); },
+        start(key) { started.push(key); },
+        bringToTop(key) { topScenes.push(key); }
+    };
+
+    world.returnToMainMenuFromDefeat();
+
+    assert.deepEqual(stopped, [
+        'PauseMenu',
+        'RoomTransition',
+        'ReturnToMenuTransition',
+        'CombatHud',
+        'MainMenu'
+    ]);
+    assert.deepEqual(started, ['MainMenu']);
+    assert.deepEqual(topScenes, ['MainMenu']);
+});
+
 test('transição só libera o mundo quando a animação de revelação termina', () => {
     const { RoomTransition } = load('../src/game/scenes/RoomTransition.ts');
     const transition = new RoomTransition();
