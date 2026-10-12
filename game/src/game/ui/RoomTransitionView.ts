@@ -6,7 +6,6 @@ type RoomTransitionOptions = {
     onComplete: () => void;
 };
 
-const TITLE = 'Sala I';
 const TRANSITION_DEPTH = 100;
 const CLOSE_DURATION = 1200;
 const TITLE_DELAY = 350;
@@ -20,7 +19,7 @@ export class RoomTransitionView {
     private readonly rightCurtain: Phaser.GameObjects.Rectangle;
     private readonly title: Phaser.GameObjects.Text;
 
-    constructor(private readonly scene: Scene) {
+    constructor(private readonly scene: Scene, private readonly roomTitle = 'Sala I') {
         const centerX = GAME_WIDTH / 2;
         const centerY = GAME_HEIGHT / 2;
         const curtainWidth = GAME_WIDTH / 2;
@@ -82,7 +81,7 @@ export class RoomTransitionView {
     }
 
     private typeTitle(onComplete: () => void) {
-        const characters = [...TITLE];
+        const characters = [...this.roomTitle];
         let characterIndex = 0;
 
         this.title.setText('').setScale(0.92).setAlpha(0);
