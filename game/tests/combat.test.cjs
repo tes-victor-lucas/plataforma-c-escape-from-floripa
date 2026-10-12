@@ -980,6 +980,23 @@ test('voltar ao menu após derrota encerra gameplay e abre MainMenu', () => {
     assert.deepEqual(topScenes, ['MainMenu']);
 });
 
+test('menu principal remove qualquer cena restante da partida anterior', () => {
+    const { MainMenu } = load('../src/game/scenes/MainMenu.ts');
+    const menu = new MainMenu();
+    const stopped = [];
+    menu.scene = { stop(key) { stopped.push(key); } };
+
+    menu.stopResidualGameplayScenes();
+
+    assert.deepEqual(stopped, [
+        'World',
+        'CombatHud',
+        'PauseMenu',
+        'RoomTransition',
+        'ReturnToMenuTransition'
+    ]);
+});
+
 test('transição só libera o mundo quando a animação de revelação termina', () => {
     const { RoomTransition } = load('../src/game/scenes/RoomTransition.ts');
     const transition = new RoomTransition();
