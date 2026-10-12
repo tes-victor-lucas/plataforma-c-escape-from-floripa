@@ -18,7 +18,12 @@ import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
 import { drawUpgradeCards } from '../upgrades/drawUpgradeCards';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
-import { getRequestedRoomKey, ROOM_DEFINITIONS, type RoomKey } from '../config/rooms';
+import {
+    getRequestedRoomKey,
+    replaceRequestedRoomKey,
+    ROOM_DEFINITIONS,
+    type RoomKey
+} from '../config/rooms';
 import { StairClimbEffect } from '../map/StairClimbEffect';
 import {
     isInsidePiranhasBarArea,
@@ -151,7 +156,7 @@ export class World extends Scene {
             player: this.player,
             onPause: () => this.openPauseMenu(),
             onRestart: () => this.restartFromDefeatMenu(),
-            onQuit: () => this.scene.start('MainMenu')
+            onQuit: () => this.returnToMainMenuFromDefeat()
         });
     }
 
@@ -166,6 +171,18 @@ export class World extends Scene {
             roomKey: this.activeRoomKey,
             spawn: this.activeSpawn
         });
+    }
+
+    /** Encerra completamente a partida derrotada e volta para uma nova campanha. */
+    private returnToMainMenuFromDefeat() {
+        replaceRequestedRoomKey('room1');
+        this.scene.stop('PauseMenu');
+        this.scene.stop('RoomTransition');
+        this.scene.stop('ReturnToMenuTransition');
+        this.scene.stop('CombatHud');
+        this.scene.stop('MainMenu');
+        this.scene.start('MainMenu');
+        this.scene.bringToTop('MainMenu');
     }
 
     update(_time: number, delta: number) {
