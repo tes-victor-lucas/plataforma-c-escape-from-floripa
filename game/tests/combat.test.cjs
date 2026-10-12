@@ -944,7 +944,12 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     world.update(2016, 16);
     assert.equal(restartData, undefined, 'a derrota sozinha não pode reiniciar a partida');
     launches[0].data.onRestart();
-    assert.deepEqual(stoppedScenes, ['CombatHud']);
+    assert.deepEqual(stoppedScenes, [
+        'PauseMenu',
+        'RoomTransition',
+        'ReturnToMenuTransition',
+        'CombatHud'
+    ]);
     assert.equal(restartData.waitForReveal, false);
     assert.equal(restartData.roomKey, 'room1');
     assert.deepEqual(restartData.spawn, ROOM_DEFINITIONS.room1.spawn);
