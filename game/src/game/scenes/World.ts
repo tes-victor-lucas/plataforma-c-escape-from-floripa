@@ -25,7 +25,7 @@ import {
     PIRANHAS_BAR_ITEMS,
     type PiranhasBarItem
 } from '../config/piranhasBar';
-import { ROOM1_TO_ROOM2_GATEWAY } from '../config/roomGateway';
+import { isInsideRoomGateway, ROOM1_TO_ROOM2_GATEWAY } from '../config/roomGateway';
 import { RoomExitPortal } from '../map/RoomExitPortal';
 
 const ROOM2_WALKABLE_LAYERS = ['floor', 'stairs', 'street', 'floor-terminal'] as const;
@@ -175,6 +175,8 @@ export class World extends Scene {
         this.updateNauseaEffect();
         if (this.isPiranhasMenuOpen) return;
         this.player?.update(delta);
+        this.updateRoomGateway();
+        if (this.isRoomTransitioning) return;
         this.stairClimbEffect?.update();
         for (const drone of this.drones) drone.update(this.player);
         this.combat?.update(delta);
@@ -206,6 +208,19 @@ export class World extends Scene {
         this.isRoomExitOpen = true;
         const { x, y } = ROOM1_TO_ROOM2_GATEWAY.portal;
         this.roomExitPortal = new RoomExitPortal(this, x, y);
+    }
+
+    private updateRoomGateway() {
+        if (!this.player || !this.isRoomExitOpen || this.isRoomTransitioning) return;
+        const center = this.player.sprite.body?.center ?? this.player.sprite;
+        if (!isInsideRoomGateway(center.x, center.y)) return;
+
+        this.isRoomTransitioning = true;
+        this.player.stopMovement();
+        this.combat?.clear();
+        this.physics.pause();
+        this.scene.launch('RoomTransition', { roomKey: ROOM1_TO_ROOM2_GATEWAY.to });
+        this.scene.bringToTop('RoomTransition');
     }
 
     private playWaveIntermission(resume: () => void) {
