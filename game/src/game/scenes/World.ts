@@ -25,6 +25,8 @@ import {
     PIRANHAS_BAR_ITEMS,
     type PiranhasBarItem
 } from '../config/piranhasBar';
+import { ROOM1_TO_ROOM2_GATEWAY } from '../config/roomGateway';
+import { RoomExitPortal } from '../map/RoomExitPortal';
 
 const ROOM2_WALKABLE_LAYERS = ['floor', 'stairs', 'street', 'floor-terminal'] as const;
 
@@ -44,6 +46,7 @@ export class World extends Scene {
     private playerRangeIndicator?: Phaser.GameObjects.Arc;
     private piranhasBarPrompt?: Phaser.GameObjects.Text;
     private stairClimbEffect?: StairClimbEffect;
+    private roomExitPortal?: RoomExitPortal;
     private drones: Drone[] = [];
     private droneBodies?: Phaser.Physics.Arcade.Group;
     private combat?: CombatSystem;
@@ -55,6 +58,8 @@ export class World extends Scene {
     private isPiranhasMenuOpen = false;
     private hasSelectedPiranhasItem = false;
     private isGameplayReady = false;
+    private isRoomExitOpen = false;
+    private isRoomTransitioning = false;
     private nauseaEndsAt = 0;
     private normalCameraZoom = WORLD_CONFIG.camera.zoom;
     private activeRoomKey: RoomKey = 'room1';
@@ -73,6 +78,8 @@ export class World extends Scene {
         this.hasSelectedPiranhasItem = false;
         this.isGameOver = false;
         this.isGameplayReady = false;
+        this.isRoomExitOpen = false;
+        this.isRoomTransitioning = false;
         this.nauseaEndsAt = 0;
         this.upgrades.reset();
         this.physics.pause();
@@ -116,6 +123,7 @@ export class World extends Scene {
                 if (this.player) this.upgrades.repairAfterRoom(this.player.health);
                 room.openExit();
                 this.player?.clearBlockedDirection();
+                if (roomKey === ROOM1_TO_ROOM2_GATEWAY.from) this.activateRoomExit();
             },
             (resume) => this.playWaveIntermission(resume)
         );
@@ -191,6 +199,13 @@ export class World extends Scene {
         const group = this.physics.add.group();
         this.physics.add.collider(group, group);
         return group;
+    }
+
+    private activateRoomExit() {
+        if (this.isRoomExitOpen || this.activeRoomKey !== ROOM1_TO_ROOM2_GATEWAY.from) return;
+        this.isRoomExitOpen = true;
+        const { x, y } = ROOM1_TO_ROOM2_GATEWAY.portal;
+        this.roomExitPortal = new RoomExitPortal(this, x, y);
     }
 
     private playWaveIntermission(resume: () => void) {
