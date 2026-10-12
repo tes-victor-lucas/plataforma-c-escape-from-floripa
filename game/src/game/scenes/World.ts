@@ -219,7 +219,10 @@ export class World extends Scene {
         this.player.stopMovement();
         this.combat?.clear();
         this.physics.pause();
-        this.scene.launch('RoomTransition', { roomKey: ROOM1_TO_ROOM2_GATEWAY.to });
+        this.scene.launch('RoomTransition', {
+            roomKey: ROOM1_TO_ROOM2_GATEWAY.to,
+            source: 'world'
+        });
         this.scene.bringToTop('RoomTransition');
     }
 
