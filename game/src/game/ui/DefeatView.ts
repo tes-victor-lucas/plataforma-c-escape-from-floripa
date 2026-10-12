@@ -57,6 +57,13 @@ export class DefeatView {
             .rectangle(GAME_WIDTH / 2, y, BUTTON_WIDTH, BUTTON_HEIGHT, 0x000000, 0)
             .setDepth(DEPTH + 4)
             .setInteractive({ useHandCursor: true });
+        let activated = false;
+        const activate = () => {
+            if (activated) return;
+            activated = true;
+            hitArea.disableInteractive();
+            action();
+        };
 
         const drawButton = (isHovered: boolean) => {
             background.clear();
@@ -77,6 +84,7 @@ export class DefeatView {
             drawButton(false);
             text.setColor('#f7f7f7');
         });
-        hitArea.once('pointerup', action);
+        // pointerdown é mais confiável quando a própria ação encerra esta cena.
+        hitArea.once('pointerdown', activate);
     }
 }
