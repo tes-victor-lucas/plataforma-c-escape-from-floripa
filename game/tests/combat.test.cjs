@@ -79,6 +79,8 @@ test('rota direta preserva parametros e aponta para a room2', () => {
 
 test('portal ocupa somente o corredor liberado no topo da room1', () => {
     const { area, portal } = ROOM1_TO_ROOM2_GATEWAY;
+    assert.equal(ROOM1_TO_ROOM2_GATEWAY.from, 'room1');
+    assert.equal(ROOM1_TO_ROOM2_GATEWAY.to, 'room2');
     assert.equal(isInsideRoomGateway(portal.x, portal.y), true);
     assert.equal(isInsideRoomGateway(area.left, area.bottom), true);
     assert.equal(isInsideRoomGateway(area.left - 1, portal.y), false);
