@@ -1030,6 +1030,24 @@ test('voltar ao menu após derrota encerra gameplay e abre MainMenu', () => {
     assert.deepEqual(topScenes, ['MainMenu']);
 });
 
+test('encerramento do mundo não falha quando a câmera já foi removida', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const stopped = [];
+    world.scene = { stop(key) { stopped.push(key); } };
+    world.cameras = { main: undefined };
+    world.input = {};
+    world.events = { off() {} };
+    const previousPhaser = global.Phaser;
+    global.Phaser = { Scenes: { Events: { RESUME: 'resume' } } };
+    try {
+        assert.doesNotThrow(() => world.shutdown());
+        assert.deepEqual(stopped, ['CombatHud']);
+    } finally {
+        global.Phaser = previousPhaser;
+    }
+});
+
 test('menu principal remove qualquer cena restante da partida anterior', () => {
     const { MainMenu } = load('../src/game/scenes/MainMenu.ts');
     const menu = new MainMenu();
