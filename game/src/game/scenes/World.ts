@@ -323,7 +323,7 @@ export class World extends Scene {
             color: '#ffffff',
             backgroundColor: '#07131fe6',
             padding: { x: 5, y: 3 }
-        }).setOrigin(0.5).setDepth(40).setVisible(false);
+        }).setOrigin(0.5).setDepth(9).setVisible(false);
     }
 
     private updatePiranhasBarInteraction() {
