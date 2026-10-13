@@ -62,6 +62,7 @@ export class World extends Scene {
     private roomExitPortal?: RoomExitPortal;
     private drones: Drone[] = [];
     private droneBodies?: Phaser.Physics.Arcade.Group;
+    private playerBarrier?: Phaser.GameObjects.Rectangle;
     private combat?: CombatSystem;
     private waves?: DroneWaves;
     private collisionLayers: Phaser.Tilemaps.TilemapLayer[] = [];
@@ -136,6 +137,7 @@ export class World extends Scene {
         for (const layer of room.collisionLayers) {
             this.physics.add.collider(this.player.sprite, layer);
         }
+        this.createPlayerBarrier(room.map.widthInPixels, ROOM_DEFINITIONS[roomKey].playerBarrier);
         this.combat = new CombatSystem(this, this.player, this.drones, room.collisionLayers, this.upgrades);
         this.completeRoomCombat = () => {
             if (this.isRoomCombatComplete) return;
@@ -268,6 +270,23 @@ export class World extends Scene {
         const group = this.physics.add.group();
         this.physics.add.collider(group, group);
         return group;
+    }
+
+    private createPlayerBarrier(
+        mapWidth: number,
+        definition: Readonly<{ y: number; height: number }> | undefined
+    ) {
+        if (!this.player || !definition) return;
+        this.playerBarrier = this.add.rectangle(
+            mapWidth / 2,
+            definition.y,
+            mapWidth,
+            definition.height,
+            0,
+            0
+        );
+        this.physics.add.existing(this.playerBarrier, true);
+        this.physics.add.collider(this.player.sprite, this.playerBarrier);
     }
 
     private activateRoomExit() {
@@ -434,6 +453,8 @@ export class World extends Scene {
         this.collisionLayers = [];
         this.drones = [];
         this.droneBodies = undefined;
+        this.playerBarrier?.destroy();
+        this.playerBarrier = undefined;
         this.droneSpawnPoints = COMBAT_CONFIG.droneSpawns;
         this.stairClimbEffect?.destroy();
         this.stairClimbEffect = undefined;
