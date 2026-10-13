@@ -72,6 +72,17 @@ const {
 } = load('../src/game/config/roomGateway.ts');
 const { ROOM_EXIT_LIGHT_STYLE } = load('../src/game/map/RoomExitPortal.ts');
 const { LAMP_LIGHT_TEXTURE } = load('../src/game/map/createLampLights.ts');
+const { ROOM1_CLEAR_CODE, SecretCodeMatcher } = load('../src/game/config/secretCodes.ts');
+
+test('código secreto reconhece 9090 mesmo após teclas anteriores', () => {
+    const matcher = new SecretCodeMatcher(ROOM1_CLEAR_CODE);
+    assert.equal(matcher.push('1'), false);
+    assert.equal(matcher.push('9'), false);
+    assert.equal(matcher.push('0'), false);
+    assert.equal(matcher.push('9'), false);
+    assert.equal(matcher.push('0'), true);
+    assert.equal(matcher.push('0'), false, 'o código deve ser consumido após ativar');
+});
 
 test('room2 possui entrada oficial no centro da via vertical', () => {
     assert.deepEqual(ROOM_DEFINITIONS.room2.spawn, { x: 184, y: 536 });
