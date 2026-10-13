@@ -231,7 +231,9 @@ export class World extends Scene {
             ? selectDroneSpawnsWithPriority(
                 count,
                 this.player.sprite,
-                ROOM2_STAIR_GUARD_SPAWNS,
+                ROOM2_STAIR_GUARD_SPAWNS.filter((prioritySpawn) =>
+                    this.droneSpawnPoints.some((spawnPoint) =>
+                        spawnPoint.x === prioritySpawn.x && spawnPoint.y === prioritySpawn.y)),
                 this.droneSpawnPoints
             )
             : selectDroneSpawns(count, this.player.sprite, this.droneSpawnPoints);
