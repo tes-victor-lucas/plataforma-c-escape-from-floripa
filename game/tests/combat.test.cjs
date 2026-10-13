@@ -922,6 +922,45 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
     assert.equal(clears, 1);
 });
 
+test('9090 elimina os drones e conclui o combate somente na room1', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    let clears = 0;
+    let completions = 0;
+    const createDrone = (health) => ({
+        health: { current: health, isAlive: true },
+        takeDamage(amount) {
+            this.health.current = Math.max(0, this.health.current - amount);
+            this.health.isAlive = this.health.current > 0;
+        }
+    });
+    const drones = [createDrone(60), createDrone(40)];
+    world.activeRoomKey = 'room1';
+    world.isGameplayReady = true;
+    world.drones = drones;
+    world.waves = {};
+    world.combat = { clear() { clears++; } };
+    world.completeRoomCombat = () => {
+        completions++;
+        world.isRoomCombatComplete = true;
+        world.waves = undefined;
+    };
+
+    for (const key of '909') world.handleSecretCodeKey({ key, repeat: false });
+    assert.equal(drones.every((drone) => drone.health.isAlive), true);
+    world.handleSecretCodeKey({ key: '0', repeat: false });
+
+    assert.equal(drones.every((drone) => !drone.health.isAlive), true);
+    assert.equal(clears, 1);
+    assert.equal(completions, 1);
+    assert.equal(world.waves, undefined);
+
+    world.activeRoomKey = 'room2';
+    world.isRoomCombatComplete = false;
+    for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
+    assert.equal(completions, 1, 'o segredo não deve concluir a room2');
+});
+
 test('mundo bloqueia combate e HUD até a revelação; reinício não espera outra transição', () => {
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();
