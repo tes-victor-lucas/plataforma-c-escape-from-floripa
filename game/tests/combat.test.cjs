@@ -73,6 +73,7 @@ const {
 const { ROOM_EXIT_LIGHT_STYLE } = load('../src/game/map/RoomExitPortal.ts');
 const { LAMP_LIGHT_TEXTURE } = load('../src/game/map/createLampLights.ts');
 const { ROOM1_CLEAR_CODE, SecretCodeMatcher } = load('../src/game/config/secretCodes.ts');
+const { getInitialSceneRoute } = load('../src/game/scenes/Preloader.ts');
 
 test('código secreto reconhece 9090 mesmo após teclas anteriores', () => {
     const matcher = new SecretCodeMatcher(ROOM1_CLEAR_CODE);
@@ -93,6 +94,17 @@ test('rota direta preserva parametros e aponta para a room2', () => {
     assert.equal(getRequestedRoomKey('?room=2'), 'room2');
     assert.equal(getRoomSearch('room2', '?debug=1'), '?debug=1&room=2');
     assert.equal(getRoomSearch('room1', '?debug=1&room=2'), '?debug=1');
+});
+
+test('recarregar com room2 inicia diretamente a transição da Sala II', () => {
+    assert.deepEqual(getInitialSceneRoute('?room=2'), {
+        key: 'RoomTransition',
+        data: { roomKey: 'room2' }
+    });
+    assert.deepEqual(getInitialSceneRoute(''), {
+        key: 'MainMenu',
+        data: undefined
+    });
 });
 
 test('portal ocupa somente o corredor liberado no topo da room1', () => {
