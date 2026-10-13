@@ -438,7 +438,9 @@ export class World extends Scene {
         this.roomExitPortal?.destroy();
         this.roomExitPortal = undefined;
         this.player?.setControlsInverted(false);
-        this.cameras.main.setRotation(0).setZoom(this.normalCameraZoom);
+        // No SHUTDOWN o Phaser pode remover a câmera antes de notificar a cena.
+        // A limpeza não pode interromper a fila de restart/start do SceneManager.
+        this.cameras.main?.setRotation(0).setZoom(this.normalCameraZoom);
         this.piranhasBarPrompt = undefined;
         this.player = undefined;
         this.playerRangeIndicator = undefined;
