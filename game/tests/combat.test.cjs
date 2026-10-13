@@ -88,7 +88,6 @@ test('código secreto reconhece 9090 mesmo após teclas anteriores', () => {
 test('room2 possui entrada oficial no centro da via vertical', () => {
     assert.deepEqual(ROOM_DEFINITIONS.room2.spawn, { x: 184, y: 536 });
     assert.equal(ROOM_DEFINITIONS.room2.title, 'Sala II');
-    assert.deepEqual(ROOM_DEFINITIONS.room2.playerBarrier, { y: 320, height: 16 });
 });
 
 test('rota direta preserva parametros e aponta para a room2', () => {

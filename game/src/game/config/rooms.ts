@@ -11,7 +11,6 @@ export interface RoomDefinition {
     mapPath: string;
     title: string;
     spawn: Readonly<{ x: number; y: number }>;
-    playerBarrier?: Readonly<{ y: number; height: number }>;
     tilesets: readonly RoomTilesetDefinition[];
 }
 
@@ -46,7 +45,6 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
         mapPath: 'assets/maps/room2.json',
         title: 'Sala II',
         spawn: { x: 184, y: 536 },
-        playerBarrier: { y: 320, height: 16 },
         tilesets: [
             ...SHARED_TILESETS,
             {
