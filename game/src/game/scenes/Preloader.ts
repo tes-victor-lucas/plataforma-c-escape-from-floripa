@@ -2,7 +2,16 @@ import { Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
 import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
 import { HUD_CONFIG } from '../config/hud';
-import { ROOM_DEFINITIONS } from '../config/rooms';
+import { getRequestedRoomKey, ROOM_DEFINITIONS } from '../config/rooms';
+
+export function getInitialSceneRoute(
+    search = typeof window === 'undefined' ? '' : window.location.search
+) {
+    const roomKey = getRequestedRoomKey(search);
+    return roomKey === 'room2'
+        ? { key: 'RoomTransition', data: { roomKey } }
+        : { key: 'MainMenu', data: undefined };
+}
 
 export class Preloader extends Scene {
     constructor() {
@@ -97,6 +106,7 @@ export class Preloader extends Scene {
     }
 
     create() {
-        this.scene.start('MainMenu');
+        const route = getInitialSceneRoute();
+        this.scene.start(route.key, route.data);
     }
 }
