@@ -23,7 +23,10 @@ const SCENERY_DEPTH = 2;
 const ROOM_AMBIENT_TINT = 0xb8c0d0;
 // Os postes usam três tiles verticais: somente os dois primeiros devem ocultar o jogador.
 const POST_FOREGROUND_TILE_INDICES = new Set([758, 768]);
-const ROOM2_FOREGROUND_LAYERS = new Set(['superior-postes']);
+const ROOM2_FOREGROUND_LAYERS = new Set([
+    'superior-postes',
+    'old-terminal-teto-front'
+]);
 
 export interface Room {
     map: Phaser.Tilemaps.Tilemap;
