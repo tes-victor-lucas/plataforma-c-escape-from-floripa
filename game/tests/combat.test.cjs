@@ -54,6 +54,12 @@ const {
     capturePlayerProgress,
     restorePlayerProgress
 } = load('../src/game/progress/PlayerProgress.ts');
+const {
+    clearCampaignProgress,
+    loadCampaignProgress,
+    saveCampaignProgress
+} = load('../src/game/progress/CampaignProgress.ts');
+const { createMainMenuActions } = load('../src/game/ui/MainMenuView.ts');
 const { getHeartFillLevels } = load('../src/game/ui/HeartHealthView.ts');
 const { MusicDirector } = load('../src/game/audio/MusicDirector.ts');
 const {
@@ -517,6 +523,53 @@ test('progresso entre salas preserva vida, habilidades e bônus permanentes', ()
         'movementSpeedMultiplier',
         'upgrades'
     ], 'náusea e controles invertidos não pertencem ao progresso permanente');
+});
+
+test('continuar só é liberado por checkpoint conquistado depois da room1', () => {
+    const values = new Map();
+    const storage = {
+        getItem(key) { return values.get(key) ?? null; },
+        setItem(key, value) { values.set(key, value); },
+        removeItem(key) { values.delete(key); }
+    };
+    const playerProgress = {
+        currentHealth: 3,
+        maxHealth: 4,
+        movementSpeedMultiplier: 1,
+        upgrades: [['double-shot', 1]]
+    };
+
+    assert.equal(loadCampaignProgress(storage), undefined);
+    saveCampaignProgress({ roomKey: 'room1', playerProgress }, storage);
+    assert.equal(loadCampaignProgress(storage), undefined, 'entrar na room1 não desbloqueia continuar');
+
+    saveCampaignProgress({ roomKey: 'room2', playerProgress }, storage);
+    assert.deepEqual(loadCampaignProgress(storage), { roomKey: 'room2', playerProgress });
+
+    clearCampaignProgress(storage);
+    assert.equal(loadCampaignProgress(storage), undefined);
+});
+
+test('menu oferece continuar apenas com progresso e sempre identifica novo jogo', () => {
+    let selected = '';
+    const withoutCheckpoint = createMainMenuActions({
+        onNewGame: () => { selected = 'new'; }
+    });
+    assert.deepEqual(withoutCheckpoint.map(({ label }) => label), [
+        'NOVO JOGO', 'OPÇÕES', 'SAIR'
+    ]);
+    withoutCheckpoint[0].onSelect();
+    assert.equal(selected, 'new');
+
+    const withCheckpoint = createMainMenuActions({
+        onNewGame: () => { selected = 'new'; },
+        onContinue: () => { selected = 'continue'; }
+    });
+    assert.deepEqual(withCheckpoint.map(({ label }) => label), [
+        'CONTINUAR', 'NOVO JOGO', 'OPÇÕES', 'SAIR'
+    ]);
+    withCheckpoint[0].onSelect();
+    assert.equal(selected, 'continue');
 });
 
 test('sorteio oferece três cartas distintas com ao menos uma habilidade', () => {
