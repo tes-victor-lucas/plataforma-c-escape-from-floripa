@@ -29,7 +29,8 @@ const ROOM2_FOREGROUND_LAYERS = new Set([
     'old-terminal-teto-back',
     'linhas-placa',
     'poste-old-terminal',
-    'placa-onibus'
+    'placa-onibus',
+    'grades'
 ]);
 
 export interface Room {
