@@ -801,7 +801,7 @@ test('room2 cria luzes a partir da camada superior dos postes', () => {
     assert.equal(lampLayer.data.filter((gid) => gid === 758).length, 2);
 });
 
-test('topos dos postes, terminal e placa ficam na frente do personagem', () => {
+test('postes, teto e placas do terminal ficam na frente do personagem', () => {
     const { getRoom2LayerDepth } = load('../src/game/map/createRoom.ts');
     assert.ok(getRoom2LayerDepth('superior-postes') > 10);
     assert.ok(getRoom2LayerDepth('grupo/superior-postes') > 10);
@@ -809,6 +809,8 @@ test('topos dos postes, terminal e placa ficam na frente do personagem', () => {
     assert.ok(getRoom2LayerDepth('grupo/old-terminal-teto-front') > 10);
     assert.ok(getRoom2LayerDepth('old-terminal-teto-back') > 10);
     assert.ok(getRoom2LayerDepth('linhas-placa') > 10);
+    assert.ok(getRoom2LayerDepth('poste-old-terminal') > 10);
+    assert.ok(getRoom2LayerDepth('placa-onibus') > 10);
     assert.ok(getRoom2LayerDepth('base-postes') < 10);
     assert.ok(getRoom2LayerDepth('poste') < 10);
     assert.ok(getRoom2LayerDepth('street') < 10);
