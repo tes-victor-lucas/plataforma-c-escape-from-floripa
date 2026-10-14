@@ -50,6 +50,7 @@ test('room2 preserva os colliders do Tiled e mantém o ponto inicial livre', () 
             'bloqueador2',
             'centro-marinha',
             'colisao-old-terminal-floor',
+            'placa-onubus-base',
             'pipoqueira'
         ].sort()
     );
