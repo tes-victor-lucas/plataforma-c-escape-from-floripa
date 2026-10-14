@@ -132,16 +132,15 @@ function createRoom2(scene: Scene): Room | null {
         }
     }
 
-    if (!stairsLayer) {
-        console.error('A layer stairs não foi encontrada na room2.');
-        return null;
-    }
-
     scene.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     return {
         map,
         collisionLayers,
-        stairPassage: toStairPassageArea(map.tileWidth, map.tileHeight),
+        // O efeito especial da escada existe apenas nas versões do mapa que
+        // ainda possuem a layer dedicada `stairs`.
+        stairPassage: stairsLayer
+            ? toStairPassageArea(map.tileWidth, map.tileHeight)
+            : undefined,
         openExit: () => {}
     };
 }
