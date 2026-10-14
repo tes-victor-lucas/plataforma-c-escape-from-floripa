@@ -41,7 +41,13 @@ import {
 } from '../progress/PlayerProgress';
 import { loadCampaignProgress, saveCampaignProgress } from '../progress/CampaignProgress';
 
-const ROOM2_WALKABLE_LAYERS = ['floor', 'stairs', 'street', 'floor-terminal'] as const;
+const ROOM2_WALKABLE_LAYERS = [
+    'floor',
+    'stairs',
+    'street',
+    'new-street',
+    'floor-terminal'
+] as const;
 const GAMEPLAY_OVERLAY_SCENES = [
     'PauseMenu',
     'RoomTransition',
