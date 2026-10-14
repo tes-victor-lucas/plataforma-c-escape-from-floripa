@@ -1,7 +1,7 @@
 import { COMBAT_CONFIG } from '../config/combat';
 import type { Health } from '../combat/Health';
 import { UPGRADE_CARDS } from './catalog';
-import type { StatName, UpgradeCardDefinition, UpgradeId } from './types';
+import type { StatName, UpgradeCardDefinition, UpgradeId, UpgradeProgress } from './types';
 
 export class PlayerUpgradeState {
     private readonly levels = new Map<UpgradeId, number>();
@@ -27,6 +27,21 @@ export class PlayerUpgradeState {
         this.piercingTargets = 0;
         this.companionCount = 0;
         this.emergencyRepairRatio = 0;
+    }
+
+    exportProgress(): UpgradeProgress {
+        return Array.from(this.levels.entries(), ([id, level]) => [id, level] as const);
+    }
+
+    importProgress(progress: UpgradeProgress) {
+        this.reset();
+        for (const [id, level] of progress) {
+            const card = UPGRADE_CARDS.find((candidate) => candidate.id === id);
+            if (!card) continue;
+            for (let acquired = 0; acquired < level; acquired++) {
+                if (!this.acquire(card)) break;
+            }
+        }
     }
 
     acquire(card: UpgradeCardDefinition) {
