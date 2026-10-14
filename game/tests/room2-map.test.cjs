@@ -41,6 +41,7 @@ test('room2 preserva os colliders do Tiled e mantém o ponto inicial livre', () 
     assert.deepEqual(
         colliderLayers.map((layer) => layer.name).sort(),
         [
+            'base-postes',
             'block',
             'block-mapa',
             'block-vertical',
@@ -48,7 +49,6 @@ test('room2 preserva os colliders do Tiled e mantém o ponto inicial livre', () 
             'bloqueador-passagem',
             'bloqueador2',
             'centro-marinha',
-            'lampadas',
             'old-terminal',
             'pipoqueira'
         ].sort()
