@@ -697,6 +697,13 @@ test('room2 reconhece o piso dentro de grupos do Tiled', () => {
     assert.equal(isRoom2WalkableLayer('flowers/flowers'), false);
 });
 
+test('poste da room2 é renderizado na frente do personagem', () => {
+    const { getRoom2LayerDepth } = load('../src/game/map/createRoom.ts');
+    assert.ok(getRoom2LayerDepth('poste') > 10);
+    assert.ok(getRoom2LayerDepth('grupo/poste') > 10);
+    assert.ok(getRoom2LayerDepth('street') < 10);
+});
+
 test('jogador começa no centro inferior, com o corpo dentro do mapa e livre de paredes', () => {
     const map = JSON.parse(readFileSync(path.resolve(__dirname, '../public/assets/maps/room01.json'), 'utf8'));
     const { spawn, hitbox, scale } = WORLD_CONFIG.player;
