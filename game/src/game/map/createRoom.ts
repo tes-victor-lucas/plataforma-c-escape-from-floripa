@@ -25,7 +25,9 @@ const ROOM_AMBIENT_TINT = 0xb8c0d0;
 const POST_FOREGROUND_TILE_INDICES = new Set([758, 768]);
 const ROOM2_FOREGROUND_LAYERS = new Set([
     'superior-postes',
-    'old-terminal-teto-front'
+    'old-terminal-teto-front',
+    'old-terminal-teto-back',
+    'linhas-placa'
 ]);
 
 export interface Room {
