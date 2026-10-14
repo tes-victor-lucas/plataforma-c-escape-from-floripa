@@ -43,6 +43,10 @@ export function getRoom2LayerDepth(layerName: string) {
     return ROOM2_FOREGROUND_LAYERS.has(localName) ? FOREGROUND_DEPTH : SCENERY_DEPTH;
 }
 
+export function isRoom2LampLayer(layerName: string) {
+    return (layerName.split('/').pop() ?? layerName) === 'superior-postes';
+}
+
 /** Cria as layers do mapa e habilita colisão somente nos tiles marcados no Tiled. */
 export function createRoom(scene: Scene, mapKey: string): Room | null {
     if (mapKey === 'room2') return createRoom2(scene);
@@ -137,6 +141,7 @@ function createRoom2(scene: Scene): Room | null {
         const layer = createdLayer as Phaser.Tilemaps.TilemapLayer;
 
         layer.setDepth(getRoom2LayerDepth(layer.layer.name)).setTint(ROOM_AMBIENT_TINT);
+        if (isRoom2LampLayer(layer.layer.name)) createLampLights(scene, layer);
         if (layer.layer.name === 'stairs') stairsLayer = layer;
         if (hasColliderProperty(layer.layer.properties)) {
             layer.setCollisionByExclusion([-1]);
