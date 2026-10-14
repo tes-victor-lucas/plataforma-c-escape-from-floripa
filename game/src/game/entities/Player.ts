@@ -123,6 +123,10 @@ export class Player {
         this.movementSpeedMultiplier = Math.max(0, multiplier);
     }
 
+    getMovementSpeedMultiplier() {
+        return this.movementSpeedMultiplier;
+    }
+
     setControlsInverted(inverted: boolean) {
         this.controlsInverted = inverted;
         this.clearBlockedDirection();

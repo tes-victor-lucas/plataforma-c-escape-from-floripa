@@ -25,4 +25,9 @@ export class Health {
         this.max += increase;
         this.heal(healAmount);
     }
+
+    restore(current: number, max: number) {
+        this.max = Math.max(0, max);
+        this.current = Math.min(this.max, Math.max(0, current));
+    }
 }
