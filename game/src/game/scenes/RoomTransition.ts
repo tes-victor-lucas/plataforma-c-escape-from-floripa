@@ -9,10 +9,12 @@ import {
     type RoomKey
 } from '../config/rooms';
 import type { World } from './World';
+import type { PlayerProgress } from '../progress/PlayerProgress';
 
 export type RoomTransitionData = {
     roomKey?: RoomKey;
     source?: 'main-menu' | 'world';
+    playerProgress?: PlayerProgress;
 };
 
 /** Orchestrates the transition from the main menu to Room 1. */
@@ -27,7 +29,11 @@ export class RoomTransition extends Scene {
         if (data.source === 'world') this.scene.stop('MainMenu');
         musicDirector.stop(this, AUDIO_CONFIG.music.fadeDuration);
         new RoomTransitionView(this, roomDefinition.title).play({
-            onCovered: () => this.startWorldUnderTransition(roomKey, data.source ?? 'main-menu'),
+            onCovered: () => this.startWorldUnderTransition(
+                roomKey,
+                data.source ?? 'main-menu',
+                data.playerProgress
+            ),
             onComplete: () => {
                 const world = this.scene.get('World') as World;
                 this.scene.stop('MainMenu');
@@ -38,14 +44,19 @@ export class RoomTransition extends Scene {
         });
     }
 
-    private startWorldUnderTransition(roomKey: RoomKey, source: 'main-menu' | 'world' = 'main-menu') {
+    private startWorldUnderTransition(
+        roomKey: RoomKey,
+        source: 'main-menu' | 'world' = 'main-menu',
+        playerProgress?: PlayerProgress
+    ) {
         const roomDefinition = ROOM_DEFINITIONS[roomKey];
         replaceRequestedRoomKey(roomKey);
         this.scene.stop('CombatHud');
         const worldData = {
             waitForReveal: true,
             roomKey,
-            spawn: roomDefinition.spawn
+            spawn: roomDefinition.spawn,
+            ...(playerProgress ? { playerProgress } : {})
         };
         if (source === 'world') {
             const world = this.scene.get('World') as World;

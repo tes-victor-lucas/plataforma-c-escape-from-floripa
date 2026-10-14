@@ -34,6 +34,11 @@ import {
 import { isInsideRoomGateway, ROOM1_TO_ROOM2_GATEWAY } from '../config/roomGateway';
 import { RoomExitPortal } from '../map/RoomExitPortal';
 import { ROOM1_CLEAR_CODE, SecretCodeMatcher } from '../config/secretCodes';
+import {
+    capturePlayerProgress,
+    restorePlayerProgress,
+    type PlayerProgress
+} from '../progress/PlayerProgress';
 
 const ROOM2_WALKABLE_LAYERS = ['floor', 'stairs', 'street', 'floor-terminal'] as const;
 const GAMEPLAY_OVERLAY_SCENES = [
@@ -47,6 +52,7 @@ type WorldSceneData = {
     waitForReveal?: boolean;
     roomKey?: RoomKey;
     spawn?: Readonly<{ x: number; y: number }>;
+    playerProgress?: PlayerProgress;
 };
 
 export function isRoom2WalkableLayer(layerName: string) {
@@ -124,6 +130,14 @@ export class World extends Scene {
             : COMBAT_CONFIG.droneSpawns;
 
         this.player = new Player(this, spawn);
+        if (data.playerProgress) {
+            restorePlayerProgress(
+                data.playerProgress,
+                this.player.health,
+                (multiplier) => this.player?.setMovementSpeedMultiplier(multiplier),
+                this.upgrades
+            );
+        }
         if (roomKey === 'room2') this.createPiranhasBarPrompt();
         this.stairClimbEffect = room.stairPassage
             ? new StairClimbEffect(this, this.player.sprite, room.stairPassage)
@@ -288,7 +302,8 @@ export class World extends Scene {
         this.physics.pause();
         this.scene.launch('RoomTransition', {
             roomKey: ROOM1_TO_ROOM2_GATEWAY.to,
-            source: 'world'
+            source: 'world',
+            playerProgress: capturePlayerProgress(this.player, this.upgrades)
         });
         this.scene.bringToTop('RoomTransition');
     }
