@@ -788,13 +788,14 @@ test('room2 reconhece o piso dentro de grupos do Tiled', () => {
     assert.equal(isRoom2WalkableLayer('flowers/flowers'), false);
 });
 
-test('topos dos postes e do terminal ficam na frente do personagem', () => {
+test('topos dos postes, terminal e placa ficam na frente do personagem', () => {
     const { getRoom2LayerDepth } = load('../src/game/map/createRoom.ts');
     assert.ok(getRoom2LayerDepth('superior-postes') > 10);
     assert.ok(getRoom2LayerDepth('grupo/superior-postes') > 10);
     assert.ok(getRoom2LayerDepth('old-terminal-teto-front') > 10);
     assert.ok(getRoom2LayerDepth('grupo/old-terminal-teto-front') > 10);
-    assert.ok(getRoom2LayerDepth('old-terminal-teto-back') < 10);
+    assert.ok(getRoom2LayerDepth('old-terminal-teto-back') > 10);
+    assert.ok(getRoom2LayerDepth('linhas-placa') > 10);
     assert.ok(getRoom2LayerDepth('base-postes') < 10);
     assert.ok(getRoom2LayerDepth('poste') < 10);
     assert.ok(getRoom2LayerDepth('street') < 10);
