@@ -50,6 +50,10 @@ const {
 const { drawUpgradeCards } = load('../src/game/upgrades/drawUpgradeCards.ts');
 const { getUpgradeCard } = load('../src/game/upgrades/catalog.ts');
 const { PlayerUpgradeState } = load('../src/game/upgrades/PlayerUpgradeState.ts');
+const {
+    capturePlayerProgress,
+    restorePlayerProgress
+} = load('../src/game/progress/PlayerProgress.ts');
 const { getHeartFillLevels } = load('../src/game/ui/HeartHealthView.ts');
 const { MusicDirector } = load('../src/game/audio/MusicDirector.ts');
 const {
@@ -479,6 +483,40 @@ test('cartas alteram atributos, habilidades, limites e reparo do jogador', () =>
     health.takeDamage(50);
     upgrades.repairAfterRoom(health);
     assert.equal(health.current, 70);
+});
+
+test('progresso entre salas preserva vida, habilidades e bônus permanentes', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('double-shot'));
+    upgrades.acquire(getUpgradeCard('projectile-damage'));
+    const sourceHealth = new Health(8);
+    sourceHealth.takeDamage(3);
+    const progress = capturePlayerProgress({
+        health: sourceHealth,
+        getMovementSpeedMultiplier: () => 1.2
+    }, upgrades);
+
+    const restoredUpgrades = new PlayerUpgradeState();
+    const restoredHealth = new Health(4);
+    let restoredSpeed = 1;
+    restorePlayerProgress(
+        progress,
+        restoredHealth,
+        (multiplier) => { restoredSpeed = multiplier; },
+        restoredUpgrades
+    );
+
+    assert.equal(restoredHealth.current, 5);
+    assert.equal(restoredHealth.max, 8);
+    assert.equal(restoredSpeed, 1.2);
+    assert.equal(restoredUpgrades.projectileCount, 2);
+    assert.equal(restoredUpgrades.damage, COMBAT_CONFIG.player.damage * 1.2);
+    assert.deepEqual(Object.keys(progress).sort(), [
+        'currentHealth',
+        'maxHealth',
+        'movementSpeedMultiplier',
+        'upgrades'
+    ], 'náusea e controles invertidos não pertencem ao progresso permanente');
 });
 
 test('sorteio oferece três cartas distintas com ao menos uma habilidade', () => {
@@ -916,7 +954,9 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
     let stops = 0;
     let clears = 0;
     world.player = {
+        health: new Health(4),
         sprite: { body: { center: { ...ROOM1_TO_ROOM2_GATEWAY.portal } } },
+        getMovementSpeedMultiplier() { return 1; },
         stopMovement() { stops++; }
     };
     world.combat = { clear() { clears++; } };
@@ -936,7 +976,16 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
     assert.equal(launches.length, 1);
     assert.deepEqual(launches[0], {
         key: 'RoomTransition',
-        data: { roomKey: 'room2', source: 'world' }
+        data: {
+            roomKey: 'room2',
+            source: 'world',
+            playerProgress: {
+                currentHealth: 4,
+                maxHealth: 4,
+                movementSpeedMultiplier: 1,
+                upgrades: []
+            }
+        }
     });
     assert.equal(pauses, 1);
     assert.equal(stops, 1);
@@ -1181,11 +1230,18 @@ test('passagem entre salas reinicia World sem relancar o menu', () => {
         sendToBack() {}
     };
 
-    transition.startWorldUnderTransition('room2', 'world');
+    const playerProgress = {
+        currentHealth: 3,
+        maxHealth: 6,
+        movementSpeedMultiplier: 1.2,
+        upgrades: [['double-shot', 1]]
+    };
+    transition.startWorldUnderTransition('room2', 'world', playerProgress);
 
     assert.equal(launches.length, 0);
     assert.equal(restartData.roomKey, 'room2');
     assert.deepEqual(restartData.spawn, ROOM_DEFINITIONS.room2.spawn);
+    assert.deepEqual(restartData.playerProgress, playerProgress);
     assert.deepEqual(stopped, ['CombatHud', 'MainMenu']);
 });
 
