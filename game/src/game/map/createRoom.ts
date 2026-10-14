@@ -23,12 +23,19 @@ const SCENERY_DEPTH = 2;
 const ROOM_AMBIENT_TINT = 0xb8c0d0;
 // Os postes usam três tiles verticais: somente os dois primeiros devem ocultar o jogador.
 const POST_FOREGROUND_TILE_INDICES = new Set([758, 768]);
+const ROOM2_FOREGROUND_LAYERS = new Set(['poste']);
 
 export interface Room {
     map: Phaser.Tilemaps.Tilemap;
     collisionLayers: Phaser.Tilemaps.TilemapLayer[];
     stairPassage?: StairPassageArea;
     openExit: () => void;
+}
+
+/** Mantém elementos altos da Room 2 na frente do personagem. */
+export function getRoom2LayerDepth(layerName: string) {
+    const localName = layerName.split('/').pop() ?? layerName;
+    return ROOM2_FOREGROUND_LAYERS.has(localName) ? FOREGROUND_DEPTH : SCENERY_DEPTH;
 }
 
 /** Cria as layers do mapa e habilita colisão somente nos tiles marcados no Tiled. */
@@ -124,7 +131,7 @@ function createRoom2(scene: Scene): Room | null {
         // A Room 2 usa o renderizador clássico, que oferece tint e colisão Arcade.
         const layer = createdLayer as Phaser.Tilemaps.TilemapLayer;
 
-        layer.setDepth(SCENERY_DEPTH).setTint(ROOM_AMBIENT_TINT);
+        layer.setDepth(getRoom2LayerDepth(layer.layer.name)).setTint(ROOM_AMBIENT_TINT);
         if (layer.layer.name === 'stairs') stairsLayer = layer;
         if (hasColliderProperty(layer.layer.properties)) {
             layer.setCollisionByExclusion([-1]);
