@@ -2,6 +2,12 @@ import { Scene } from 'phaser';
 import { MainMenuView } from '../ui/MainMenuView';
 import { musicDirector } from '../audio/MusicDirector';
 import { AUDIO_CONFIG } from '../config/audio';
+import { replaceRequestedRoomKey } from '../config/rooms';
+import {
+    clearCampaignProgress,
+    loadCampaignProgress,
+    type CampaignProgress
+} from '../progress/CampaignProgress';
 
 const GAMEPLAY_SCENES = [
     'World',
@@ -22,8 +28,10 @@ export class MainMenu extends Scene {
         this.isStartingGame = false;
         this.stopResidualGameplayScenes();
         musicDirector.play(this, AUDIO_CONFIG.music.mainMenu, AUDIO_CONFIG.music.fadeDuration);
+        const continuation = loadCampaignProgress();
         new MainMenuView(this, {
-            onNewGame: () => this.startNewGame()
+            onNewGame: () => this.startNewGame(),
+            onContinue: continuation ? () => this.continueGame(continuation) : undefined
         }).create();
     }
 
@@ -31,7 +39,19 @@ export class MainMenu extends Scene {
         if (this.isStartingGame) return;
 
         this.isStartingGame = true;
-        this.scene.launch('RoomTransition');
+        clearCampaignProgress();
+        replaceRequestedRoomKey('room1');
+        this.scene.launch('RoomTransition', { roomKey: 'room1' });
+    }
+
+    private continueGame(progress: CampaignProgress) {
+        if (this.isStartingGame) return;
+
+        this.isStartingGame = true;
+        this.scene.launch('RoomTransition', {
+            roomKey: progress.roomKey,
+            playerProgress: progress.playerProgress
+        });
     }
 
     private stopResidualGameplayScenes() {

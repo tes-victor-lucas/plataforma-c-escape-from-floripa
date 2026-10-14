@@ -1,8 +1,9 @@
 import { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 
-type MainMenuViewOptions = {
+export type MainMenuViewOptions = {
     onNewGame: () => void;
+    onContinue?: () => void;
 };
 
 const ACTION_FONT = 'PixelGamer, monospace';
@@ -20,6 +21,21 @@ type MenuAction = {
     y: number;
     onSelect?: () => void;
 };
+
+export function createMainMenuActions(options: MainMenuViewOptions): MenuAction[] {
+    return options.onContinue
+        ? [
+            { label: 'CONTINUAR', y: 222, onSelect: options.onContinue },
+            { label: 'NOVO JOGO', y: 250, onSelect: options.onNewGame },
+            { label: 'OPÇÕES', y: 278 },
+            { label: 'SAIR', y: 306 }
+        ]
+        : [
+            { label: 'NOVO JOGO', y: 237, onSelect: options.onNewGame },
+            { label: 'OPÇÕES', y: 268 },
+            { label: 'SAIR', y: 294 }
+        ];
+}
 
 type RenderedAction = {
     background: Phaser.GameObjects.Rectangle;
@@ -46,11 +62,7 @@ export class MainMenuView {
     }
 
     private addActions() {
-        const actions: MenuAction[] = [
-            { label: 'JOGAR', y: 237, onSelect: this.options.onNewGame },
-            { label: 'OPÇÕES', y: 268 },
-            { label: 'SAIR', y: 294 }
-        ];
+        const actions = createMainMenuActions(this.options);
 
         actions.forEach((action, index) => this.createAction(action, index));
         this.updateSelection();
