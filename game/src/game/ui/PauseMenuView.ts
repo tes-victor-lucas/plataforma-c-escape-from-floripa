@@ -42,8 +42,8 @@ export class PauseMenuView {
             .setDepth(DEPTH + 2)
             .setScrollFactor(0);
 
-        this.createButton('Continue', 242, this.options.onContinue);
-        this.createButton('Quit', 326, this.options.onQuit);
+        this.createButton('CONTINUAR', 242, this.options.onContinue);
+        this.createButton('SAIR', 326, this.options.onQuit);
     }
 
     private drawPanel() {

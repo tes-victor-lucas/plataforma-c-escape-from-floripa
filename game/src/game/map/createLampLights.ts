@@ -2,26 +2,36 @@ import type { Scene } from 'phaser';
 
 const LAMP_TILE_INDEX = 758;
 const LIGHT_DEPTH = 1;
-const LAMP_LIGHT_TEXTURE = 'lamp-light';
+export const LAMP_LIGHT_TEXTURE = 'lamp-light';
 const LAMP_LIGHT_RADIUS = 60;
 const LAMP_LIGHT_ALPHA = 0.72;
 
 /** Cria halos suaves sob os postes de luz presentes na layer de objetos. */
 export function createLampLights(scene: Scene, objectsLayer: Phaser.Tilemaps.TilemapLayer) {
-    createLampLightTexture(scene);
-
     objectsLayer.forEachTile((tile) => {
         if (tile.index !== LAMP_TILE_INDEX) return;
 
-        scene.add.image(
+        createLampLight(
+            scene,
             tile.getCenterX(),
-            tile.getCenterY() + 11,
-            LAMP_LIGHT_TEXTURE
-        )
-            .setDepth(LIGHT_DEPTH)
-            .setAlpha(LAMP_LIGHT_ALPHA)
-            .setBlendMode(Phaser.BlendModes.ADD);
+            tile.getCenterY() + 11
+        );
     });
+}
+
+/** Reutiliza o mesmo halo radial quente dos postes em outros pontos do mapa. */
+export function createLampLight(
+    scene: Scene,
+    x: number,
+    y: number,
+    depth = LIGHT_DEPTH,
+    alpha = LAMP_LIGHT_ALPHA
+) {
+    createLampLightTexture(scene);
+    return scene.add.image(x, y, LAMP_LIGHT_TEXTURE)
+        .setDepth(depth)
+        .setAlpha(alpha)
+        .setBlendMode(Phaser.BlendModes.ADD);
 }
 
 function createLampLightTexture(scene: Scene) {

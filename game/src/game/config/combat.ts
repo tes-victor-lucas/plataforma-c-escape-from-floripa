@@ -1,3 +1,8 @@
+export const ROOM2_STAIR_GUARD_SPAWNS = [
+    { x: 176, y: 352, patrolLeft: 168, patrolRight: 184 },
+    { x: 240, y: 352, patrolLeft: 232, patrolRight: 248 }
+] as const;
+
 /** Distâncias em pixels do mundo; intervalos e duração em milissegundos. */
 export const COMBAT_CONFIG = {
     player: { maxHealth: 4, healthPerHeart: 2, range: 100, fireInterval: 600, damage: 20, projectileSpeed: 180, color: 0x5ce5f1 },

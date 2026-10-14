@@ -2,6 +2,16 @@ import { Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
 import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
 import { HUD_CONFIG } from '../config/hud';
+import { getRequestedRoomKey, ROOM_DEFINITIONS } from '../config/rooms';
+
+export function getInitialSceneRoute(
+    search = typeof window === 'undefined' ? '' : window.location.search
+) {
+    const roomKey = getRequestedRoomKey(search);
+    return roomKey === 'room2'
+        ? { key: 'RoomTransition', data: { roomKey } }
+        : { key: 'MainMenu', data: undefined };
+}
 
 export class Preloader extends Scene {
     constructor() {
@@ -20,25 +30,19 @@ export class Preloader extends Scene {
             HUD_CONFIG.controls.pausePath
         );
 
-        this.load.tilemapTiledJSON(
-            'room1',
-            'assets/maps/room01.json'
-        );
+        this.load.image('piranhas-cookie-magico', 'assets/items/piranhas-bar/cookie-magico-transparent.png');
+        this.load.image('piranhas-gin-melancia', 'assets/items/piranhas-bar/gin-de-10-melancia-transparent.png');
+        this.load.image('piranhas-gin-tropical', 'assets/items/piranhas-bar/gin-de-10-tropical-transparent.png');
 
-        this.load.image(
-            'floor_and_buildings',
-            'assets/tilesets/floor_and_buildings-01.png'
-        );
-
-        this.load.image(
-            'floor_and_walls',
-            'assets/tilesets/floor_and_walls-1.png'
-        );
-
-        this.load.image(
-            'objects',
-            'assets/tilesets/objects_and_items-01.png'
-        );
+        const loadedTextures = new Set<string>();
+        for (const room of Object.values(ROOM_DEFINITIONS)) {
+            this.load.tilemapTiledJSON(room.mapKey, room.mapPath);
+            for (const tileset of room.tilesets) {
+                if (loadedTextures.has(tileset.textureKey)) continue;
+                loadedTextures.add(tileset.textureKey);
+                this.load.image(tileset.textureKey, tileset.path);
+            }
+        }
 
         this.load.spritesheet(
             'player-walk',
@@ -102,6 +106,7 @@ export class Preloader extends Scene {
     }
 
     create() {
-        this.scene.start('MainMenu');
+        const route = getInitialSceneRoute();
+        this.scene.start(route.key, route.data);
     }
 }

@@ -1,21 +1,78 @@
 import { Scene } from 'phaser';
 import { configureWorldCamera } from '../camera/configureWorldCamera';
-import { COMBAT_CONFIG } from '../config/combat';
+import { COMBAT_CONFIG, ROOM2_STAIR_GUARD_SPAWNS } from '../config/combat';
 import { WORLD_CONFIG } from '../config/world';
 import { Drone } from '../entities/Drone';
 import { Player } from '../entities/Player';
 import { createRoom } from '../map/createRoom';
 import { CombatSystem } from '../combat/CombatSystem';
-import { DroneWaves, selectDroneSpawns } from '../combat/DroneWaves';
+import {
+    createReachableDroneSpawns,
+    DroneWaves,
+    selectDroneSpawns,
+    selectDroneSpawnsWithPriority,
+    type DroneSpawnPoint
+} from '../combat/DroneWaves';
 import { WaveThreatView } from '../ui/WaveThreatView';
 import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
 import { drawUpgradeCards } from '../upgrades/drawUpgradeCards';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
+import {
+    getRequestedRoomKey,
+    replaceRequestedRoomKey,
+    ROOM_DEFINITIONS,
+    type RoomKey
+} from '../config/rooms';
+import { StairClimbEffect } from '../map/StairClimbEffect';
+import {
+    isInsidePiranhasBarArea,
+    PIRANHAS_BAR_CONFIG,
+    PIRANHAS_BAR_ITEMS,
+    type PiranhasBarItem
+} from '../config/piranhasBar';
+import { isInsideRoomGateway, ROOM1_TO_ROOM2_GATEWAY } from '../config/roomGateway';
+import { RoomExitPortal } from '../map/RoomExitPortal';
+import { ROOM1_CLEAR_CODE, SecretCodeMatcher } from '../config/secretCodes';
+import {
+    capturePlayerProgress,
+    restorePlayerProgress,
+    type PlayerProgress
+} from '../progress/PlayerProgress';
+import { loadCampaignProgress, saveCampaignProgress } from '../progress/CampaignProgress';
+
+const ROOM2_WALKABLE_LAYERS = [
+    'floor',
+    'stairs',
+    'street',
+    'new-street',
+    'floor-terminal'
+] as const;
+const GAMEPLAY_OVERLAY_SCENES = [
+    'PauseMenu',
+    'RoomTransition',
+    'ReturnToMenuTransition',
+    'CombatHud'
+] as const;
+
+type WorldSceneData = {
+    waitForReveal?: boolean;
+    roomKey?: RoomKey;
+    spawn?: Readonly<{ x: number; y: number }>;
+    playerProgress?: PlayerProgress;
+};
+
+export function isRoom2WalkableLayer(layerName: string) {
+    const localName = layerName.split('/').pop();
+    return ROOM2_WALKABLE_LAYERS.some((name) => name === localName);
+}
 
 export class World extends Scene {
     private player?: Player;
     private playerRangeIndicator?: Phaser.GameObjects.Arc;
+    private piranhasBarPrompt?: Phaser.GameObjects.Text;
+    private stairClimbEffect?: StairClimbEffect;
+    private roomExitPortal?: RoomExitPortal;
     private drones: Drone[] = [];
     private droneBodies?: Phaser.Physics.Arcade.Group;
     private combat?: CombatSystem;
@@ -23,23 +80,75 @@ export class World extends Scene {
     private collisionLayers: Phaser.Tilemaps.TilemapLayer[] = [];
     private isGameOver = false;
     private isPauseMenuOpen = false;
+    private isWaveIntermissionOpen = false;
+    private isPiranhasMenuOpen = false;
+    private hasSelectedPiranhasItem = false;
     private isGameplayReady = false;
+    private isRoomExitOpen = false;
+    private isRoomTransitioning = false;
+    private hasSpawnedRoom2Guards = false;
+    private isRoomCombatComplete = false;
+    private nauseaEndsAt = 0;
+    private normalCameraZoom: number = WORLD_CONFIG.camera.zoom;
+    private activeRoomKey: RoomKey = 'room1';
+    private activeSpawn: Readonly<{ x: number; y: number }> = ROOM_DEFINITIONS.room1.spawn;
+    private droneSpawnPoints: readonly DroneSpawnPoint[] = COMBAT_CONFIG.droneSpawns;
     private readonly upgrades = new PlayerUpgradeState();
+    private readonly room1SecretCode = new SecretCodeMatcher(ROOM1_CLEAR_CODE);
+    private completeRoomCombat?: () => void;
 
     constructor() {
         super('World');
     }
 
-    create(data: { waitForReveal?: boolean } = {}) {
+    create(data: WorldSceneData = {}) {
         this.isPauseMenuOpen = false;
+        this.isWaveIntermissionOpen = false;
+        this.isPiranhasMenuOpen = false;
+        this.hasSelectedPiranhasItem = false;
         this.isGameOver = false;
         this.isGameplayReady = false;
+        this.isRoomExitOpen = false;
+        this.isRoomTransitioning = false;
+        this.hasSpawnedRoom2Guards = false;
+        this.isRoomCombatComplete = false;
+        this.room1SecretCode.reset();
+        this.nauseaEndsAt = 0;
         this.upgrades.reset();
         this.physics.pause();
-        const room = createRoom(this, WORLD_CONFIG.mapKey);
+        const roomKey = data.roomKey ?? getRequestedRoomKey();
+        const spawn = data.spawn ?? ROOM_DEFINITIONS[roomKey].spawn;
+        this.activeRoomKey = roomKey;
+        this.activeSpawn = spawn;
+        const room = createRoom(this, roomKey);
         if (!room) return;
+        const walkableRoom2Layers = room.map.layers.filter((layer) =>
+            isRoom2WalkableLayer(layer.name));
 
-        this.player = new Player(this, WORLD_CONFIG.player.spawn);
+        this.droneSpawnPoints = roomKey === 'room2'
+            ? createReachableDroneSpawns(
+                room.map,
+                (tileX, tileY) => room.collisionLayers.some((layer) =>
+                    layer.getTileAt(tileX, tileY)?.collides ?? false),
+                spawn,
+                (tileX, tileY) => walkableRoom2Layers.some((layer) =>
+                    room.map.hasTileAt(tileX, tileY, layer.name))
+            )
+            : COMBAT_CONFIG.droneSpawns;
+
+        this.player = new Player(this, spawn);
+        if (data.playerProgress) {
+            restorePlayerProgress(
+                data.playerProgress,
+                this.player.health,
+                (multiplier) => this.player?.setMovementSpeedMultiplier(multiplier),
+                this.upgrades
+            );
+        }
+        if (roomKey === 'room2') this.createPiranhasBarPrompt();
+        this.stairClimbEffect = room.stairPassage
+            ? new StairClimbEffect(this, this.player.sprite, room.stairPassage)
+            : undefined;
         this.createPlayerRangeIndicator();
         this.drones = [];
         this.droneBodies = this.createDroneBodies();
@@ -49,19 +158,29 @@ export class World extends Scene {
             this.physics.add.collider(this.player.sprite, layer);
         }
         this.combat = new CombatSystem(this, this.player, this.drones, room.collisionLayers, this.upgrades);
+        this.completeRoomCombat = () => {
+            if (this.isRoomCombatComplete) return;
+            this.isRoomCombatComplete = true;
+            this.waves = undefined;
+            if (this.player) this.upgrades.repairAfterRoom(this.player.health);
+            room.openExit();
+            this.player?.clearBlockedDirection();
+            if (roomKey === ROOM1_TO_ROOM2_GATEWAY.from) this.activateRoomExit();
+        };
         this.waves = new DroneWaves(
             (count) => this.spawnDrones(count),
             () => {
-                if (this.player) this.upgrades.repairAfterRoom(this.player.health);
-                room.openExit();
-                this.player?.clearBlockedDirection();
+                this.completeRoomCombat?.();
             },
             (resume) => this.playWaveIntermission(resume)
         );
         this.waves.update(this.drones);
 
         configureWorldCamera(this, room.map, this.player.sprite);
+        this.normalCameraZoom = this.cameras.main.zoom;
         this.input.keyboard?.on('keydown-P', this.openPauseMenu, this);
+        this.input.keyboard?.on('keydown-G', this.openPiranhasMenu, this);
+        this.input.keyboard?.on('keydown', this.handleSecretCodeKey, this);
         this.events.on(Phaser.Scenes.Events.RESUME, this.resetPauseMenuState, this);
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
         if (!data.waitForReveal) this.startGameplay();
@@ -76,9 +195,32 @@ export class World extends Scene {
         this.scene.launch('CombatHud', {
             player: this.player,
             onPause: () => this.openPauseMenu(),
-            onRestart: () => this.scene.restart({ waitForReveal: false }),
-            onQuit: () => this.scene.start('MainMenu')
+            onRestart: () => this.restartFromDefeatMenu(),
+            onQuit: () => this.returnToMainMenuFromDefeat()
         });
+    }
+
+    /** Executado exclusivamente pelo botão "Tentar novamente" da tela de derrota. */
+    private restartFromDefeatMenu() {
+        this.stopGameplayOverlays();
+        this.scene.restart({
+            waitForReveal: false,
+            roomKey: this.activeRoomKey,
+            spawn: this.activeSpawn
+        });
+    }
+
+    /** Encerra completamente a partida derrotada e volta para uma nova campanha. */
+    private returnToMainMenuFromDefeat() {
+        replaceRequestedRoomKey('room1');
+        this.stopGameplayOverlays();
+        this.scene.stop('MainMenu');
+        this.scene.start('MainMenu');
+        this.scene.bringToTop('MainMenu');
+    }
+
+    private stopGameplayOverlays() {
+        for (const sceneKey of GAMEPLAY_OVERLAY_SCENES) this.scene.stop(sceneKey);
     }
 
     update(_time: number, delta: number) {
@@ -90,15 +232,33 @@ export class World extends Scene {
             this.physics.pause();
             return;
         }
+        this.updatePiranhasBarInteraction();
+        this.updateNauseaEffect();
+        if (this.isPiranhasMenuOpen) return;
         this.player?.update(delta);
+        this.updateRoomGateway();
+        if (this.isRoomTransitioning) return;
+        this.stairClimbEffect?.update();
         for (const drone of this.drones) drone.update(this.player);
         this.combat?.update(delta);
         this.waves?.update(this.drones);
     }
 
     private spawnDrones(count: number) {
-        if (!this.player || !this.combat) return;
-        const spawns = selectDroneSpawns(count, this.player.sprite);
+        if (!this.player || !this.combat || this.isRoomCombatComplete) return;
+        const shouldSpawnStairGuards = this.activeRoomKey === 'room2'
+            && !this.hasSpawnedRoom2Guards;
+        const spawns = shouldSpawnStairGuards
+            ? selectDroneSpawnsWithPriority(
+                count,
+                this.player.sprite,
+                ROOM2_STAIR_GUARD_SPAWNS.filter((prioritySpawn) =>
+                    this.droneSpawnPoints.some((spawnPoint) =>
+                        spawnPoint.x === prioritySpawn.x && spawnPoint.y === prioritySpawn.y)),
+                this.droneSpawnPoints
+            )
+            : selectDroneSpawns(count, this.player.sprite, this.droneSpawnPoints);
+        if (shouldSpawnStairGuards) this.hasSpawnedRoom2Guards = true;
         this.combat.clear();
         for (const spawn of spawns) {
             const drone = new Drone(this, spawn, this.collisionLayers);
@@ -110,19 +270,75 @@ export class World extends Scene {
         }
     }
 
+    private handleSecretCodeKey(event: KeyboardEvent) {
+        if (
+            event.repeat || this.activeRoomKey !== 'room1'
+            || !this.isGameplayReady || this.isGameOver || this.isRoomCombatComplete
+        ) return;
+        if (!this.room1SecretCode.push(event.key)) return;
+
+        this.combat?.clear();
+        this.waves = undefined;
+        for (const drone of this.drones) {
+            if (drone.health.isAlive) drone.takeDamage(drone.health.current);
+        }
+        this.completeRoomCombat?.();
+    }
+
     private createDroneBodies() {
         const group = this.physics.add.group();
         this.physics.add.collider(group, group);
         return group;
     }
 
+    private activateRoomExit() {
+        if (this.isRoomExitOpen || this.activeRoomKey !== ROOM1_TO_ROOM2_GATEWAY.from) return;
+        this.isRoomExitOpen = true;
+        const { x, y } = ROOM1_TO_ROOM2_GATEWAY.portal;
+        this.roomExitPortal = new RoomExitPortal(this, x, y);
+    }
+
+    private updateRoomGateway() {
+        if (!this.player || !this.isRoomExitOpen || this.isRoomTransitioning) return;
+        const center = this.player.sprite.body?.center ?? this.player.sprite;
+        if (!isInsideRoomGateway(center.x, center.y)) return;
+
+        this.isRoomTransitioning = true;
+        this.player.stopMovement();
+        this.combat?.clear();
+        this.physics.pause();
+        const playerProgress = capturePlayerProgress(this.player, this.upgrades);
+        saveCampaignProgress({
+            roomKey: ROOM1_TO_ROOM2_GATEWAY.to,
+            playerProgress
+        });
+        this.scene.launch('RoomTransition', {
+            roomKey: ROOM1_TO_ROOM2_GATEWAY.to,
+            source: 'world',
+            playerProgress
+        });
+        this.scene.bringToTop('RoomTransition');
+    }
+
+    /** Atualiza um checkpoint já desbloqueado sem liberar salas por acesso direto. */
+    saveContinuation() {
+        if (!this.player || !loadCampaignProgress()) return;
+        saveCampaignProgress({
+            roomKey: this.activeRoomKey,
+            playerProgress: capturePlayerProgress(this.player, this.upgrades)
+        });
+    }
+
     private playWaveIntermission(resume: () => void) {
         this.combat?.clear();
         this.physics.pause();
+        this.isWaveIntermissionOpen = true;
+        this.piranhasBarPrompt?.setVisible(false);
         const overlayScene = this.scene.get('CombatHud') as Scene;
         new UpgradeSelectionView(overlayScene, drawUpgradeCards(undefined, this.upgrades.availableCards())).play((selected) => {
             this.acquireUpgrade(selected);
             new WaveThreatView(overlayScene, this.cameras.main).play(() => {
+                this.isWaveIntermissionOpen = false;
                 if (this.isGameplayReady && !this.isGameOver) this.physics.resume();
                 resume();
             });
@@ -135,6 +351,90 @@ export class World extends Scene {
             this.player?.health.increaseMax(card.effect.amount, card.effect.healAmount);
         }
         this.playerRangeIndicator?.setRadius(this.upgrades.range);
+    }
+
+    private createPiranhasBarPrompt() {
+        const { x, y } = PIRANHAS_BAR_CONFIG.prompt;
+        this.piranhasBarPrompt = this.add.text(x, y, '[ G ]  CARDÁPIO', {
+            fontFamily: 'PixelGamer, monospace',
+            fontSize: '8px',
+            color: '#ffffff',
+            backgroundColor: '#07131fe6',
+            padding: { x: 5, y: 3 }
+        }).setOrigin(0.5).setDepth(9).setVisible(false);
+    }
+
+    private updatePiranhasBarInteraction() {
+        if (!this.player || !this.piranhasBarPrompt) return;
+        const center = this.player.sprite.body?.center ?? this.player.sprite;
+        const canInteract = !this.hasSelectedPiranhasItem
+            && !this.isPiranhasMenuOpen
+            && !this.isWaveIntermissionOpen
+            && isInsidePiranhasBarArea(center.x, center.y);
+        this.piranhasBarPrompt.setVisible(canInteract);
+    }
+
+    private openPiranhasMenu() {
+        if (
+            !this.player || !this.piranhasBarPrompt?.visible
+            || !this.isGameplayReady || this.isGameOver
+            || this.isPauseMenuOpen || this.isWaveIntermissionOpen
+            || this.hasSelectedPiranhasItem || this.isPiranhasMenuOpen
+        ) return;
+
+        this.isPiranhasMenuOpen = true;
+        this.piranhasBarPrompt.setVisible(false);
+        this.player.stopMovement();
+        this.physics.pause();
+
+        const overlayScene = this.scene.get('CombatHud') as Scene;
+        new UpgradeSelectionView(overlayScene, PIRANHAS_BAR_ITEMS, {
+            title: 'CARDÁPIO DO PIRANHAS BAR',
+            hint: 'Escolha um item para consumir',
+            footer: 'CLIQUE PARA CONSUMIR',
+            cardCenterDistance: 220
+        }).play((item) => this.consumePiranhasItem(item));
+    }
+
+    private consumePiranhasItem(item: PiranhasBarItem) {
+        if (!this.player) return;
+
+        switch (item.id) {
+            case 'gin-tropical':
+                this.player.setMovementSpeedMultiplier(PIRANHAS_BAR_CONFIG.tropicalSpeedMultiplier);
+                break;
+            case 'gin-melancia':
+                this.player.health.increaseMax(
+                    PIRANHAS_BAR_CONFIG.watermelonHealthIncrease,
+                    PIRANHAS_BAR_CONFIG.watermelonHealthIncrease
+                );
+                break;
+            case 'cookie-magico':
+                this.nauseaEndsAt = this.time.now + PIRANHAS_BAR_CONFIG.nauseaDuration;
+                this.player.setControlsInverted(true);
+                break;
+        }
+
+        this.hasSelectedPiranhasItem = true;
+        this.isPiranhasMenuOpen = false;
+        if (this.isGameplayReady && !this.isGameOver && !this.isPauseMenuOpen) this.physics.resume();
+    }
+
+    private updateNauseaEffect() {
+        if (!this.player || this.nauseaEndsAt === 0) return;
+        if (this.time.now >= this.nauseaEndsAt) {
+            this.nauseaEndsAt = 0;
+            this.player.setControlsInverted(false);
+            this.cameras.main.setRotation(0).setZoom(this.normalCameraZoom);
+            return;
+        }
+
+        const elapsed = PIRANHAS_BAR_CONFIG.nauseaDuration - (this.nauseaEndsAt - this.time.now);
+        this.cameras.main
+            .setRotation(Math.sin(elapsed / 260) * PIRANHAS_BAR_CONFIG.nauseaRotation)
+            .setZoom(this.normalCameraZoom * (
+                1 + Math.sin(elapsed / 190) * PIRANHAS_BAR_CONFIG.nauseaZoom
+            ));
     }
 
     private createPlayerRangeIndicator() {
@@ -154,22 +454,45 @@ export class World extends Scene {
 
     private shutdown() {
         this.isGameplayReady = false;
+        this.isPiranhasMenuOpen = false;
+        this.isWaveIntermissionOpen = false;
+        this.isRoomExitOpen = false;
+        this.isRoomTransitioning = false;
+        this.hasSpawnedRoom2Guards = false;
+        this.isRoomCombatComplete = false;
+        this.room1SecretCode.reset();
         this.scene.stop('CombatHud');
         this.combat?.clear();
         this.combat = undefined;
         this.waves = undefined;
+        this.completeRoomCombat = undefined;
         this.upgrades.reset();
         this.collisionLayers = [];
         this.drones = [];
         this.droneBodies = undefined;
+        this.droneSpawnPoints = COMBAT_CONFIG.droneSpawns;
+        this.stairClimbEffect?.destroy();
+        this.stairClimbEffect = undefined;
+        this.roomExitPortal?.destroy();
+        this.roomExitPortal = undefined;
+        this.player?.setControlsInverted(false);
+        // No SHUTDOWN o Phaser pode remover a câmera antes de notificar a cena.
+        // A limpeza não pode interromper a fila de restart/start do SceneManager.
+        this.cameras.main?.setRotation(0).setZoom(this.normalCameraZoom);
+        this.piranhasBarPrompt = undefined;
         this.player = undefined;
         this.playerRangeIndicator = undefined;
         this.input.keyboard?.off('keydown-P', this.openPauseMenu, this);
+        this.input.keyboard?.off('keydown-G', this.openPiranhasMenu, this);
+        this.input.keyboard?.off('keydown', this.handleSecretCodeKey, this);
         this.events.off(Phaser.Scenes.Events.RESUME, this.resetPauseMenuState, this);
     }
 
     private openPauseMenu() {
-        if (!this.isGameplayReady || this.isPauseMenuOpen || !this.player?.health.isAlive) return;
+        if (
+            !this.isGameplayReady || this.isPauseMenuOpen || this.isPiranhasMenuOpen
+            || this.isWaveIntermissionOpen || !this.player?.health.isAlive
+        ) return;
 
         this.isPauseMenuOpen = true;
         this.scene.launch('PauseMenu');
