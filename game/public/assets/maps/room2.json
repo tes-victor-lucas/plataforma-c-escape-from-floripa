@@ -1851,7 +1851,7 @@
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
          "height":40,
          "id":50,
-         "name":"old-terminal-teto",
+         "name":"old-terminal-teto-back",
          "opacity":1,
          "properties":[
                 {
@@ -1908,7 +1908,7 @@
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
          "height":40,
          "id":39,
-         "name":"old-terminal-teto",
+         "name":"old-terminal-teto-front",
          "opacity":1,
          "type":"tilelayer",
          "visible":true,
