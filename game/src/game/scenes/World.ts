@@ -39,6 +39,7 @@ import {
     restorePlayerProgress,
     type PlayerProgress
 } from '../progress/PlayerProgress';
+import { loadCampaignProgress, saveCampaignProgress } from '../progress/CampaignProgress';
 
 const ROOM2_WALKABLE_LAYERS = ['floor', 'stairs', 'street', 'floor-terminal'] as const;
 const GAMEPLAY_OVERLAY_SCENES = [
@@ -300,12 +301,26 @@ export class World extends Scene {
         this.player.stopMovement();
         this.combat?.clear();
         this.physics.pause();
+        const playerProgress = capturePlayerProgress(this.player, this.upgrades);
+        saveCampaignProgress({
+            roomKey: ROOM1_TO_ROOM2_GATEWAY.to,
+            playerProgress
+        });
         this.scene.launch('RoomTransition', {
             roomKey: ROOM1_TO_ROOM2_GATEWAY.to,
             source: 'world',
-            playerProgress: capturePlayerProgress(this.player, this.upgrades)
+            playerProgress
         });
         this.scene.bringToTop('RoomTransition');
+    }
+
+    /** Atualiza um checkpoint já desbloqueado sem liberar salas por acesso direto. */
+    saveContinuation() {
+        if (!this.player || !loadCampaignProgress()) return;
+        saveCampaignProgress({
+            roomKey: this.activeRoomKey,
+            playerProgress: capturePlayerProgress(this.player, this.upgrades)
+        });
     }
 
     private playWaveIntermission(resume: () => void) {
