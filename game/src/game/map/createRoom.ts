@@ -17,6 +17,7 @@ const LAYER_NAMES = [
     'objects-block'
 ] as const;
 const FOREGROUND_DEPTH = 20;
+const GRADES_DEPTH = 18;
 const FLOOR_DEPTH = 0;
 const SCENERY_DEPTH = 2;
 // Um tom frio e moderado cria o clima noturno sem esconder os detalhes do mapa.
@@ -43,6 +44,7 @@ export interface Room {
 /** Mantém elementos altos da Room 2 na frente do personagem. */
 export function getRoom2LayerDepth(layerName: string) {
     const localName = layerName.split('/').pop() ?? layerName;
+    if (localName === 'grades') return GRADES_DEPTH;
     return ROOM2_FOREGROUND_LAYERS.has(localName) ? FOREGROUND_DEPTH : SCENERY_DEPTH;
 }
 
