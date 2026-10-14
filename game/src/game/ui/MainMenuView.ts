@@ -1,9 +1,10 @@
 import { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 
-type MainMenuViewOptions = {
+export type MainMenuViewOptions = {
     onNewGame: () => void;
-    onMultiplayer: () => void;
+    onContinue?: () => void;
+    onMultiplayer?: () => void;
 };
 
 const ACTION_FONT = 'PixelGamer, monospace';
@@ -21,6 +22,26 @@ type MenuAction = {
     y: number;
     onSelect?: () => void;
 };
+
+export function createMainMenuActions(options: MainMenuViewOptions): MenuAction[] {
+    const actions: Omit<MenuAction, 'y'>[] = [];
+    if (options.onContinue) {
+        actions.push({ label: 'CONTINUAR', onSelect: options.onContinue });
+    }
+    actions.push({
+        label: options.onMultiplayer ? 'JOGAR SOLO' : 'NOVO JOGO',
+        onSelect: options.onNewGame
+    });
+    if (options.onMultiplayer) {
+        actions.push({ label: 'MULTIPLAYER', onSelect: options.onMultiplayer });
+    }
+    actions.push({ label: 'OPÇÕES' }, { label: 'SAIR' });
+
+    const spacing = 28;
+    const centerY = 264;
+    const firstY = centerY - (actions.length - 1) * spacing / 2;
+    return actions.map((action, index) => ({ ...action, y: firstY + index * spacing }));
+}
 
 type RenderedAction = {
     background: Phaser.GameObjects.Rectangle;
@@ -58,12 +79,7 @@ export class MainMenuView {
     }
 
     private addActions() {
-        const actions: MenuAction[] = [
-            { label: 'JOGAR SOLO', y: 225, onSelect: this.options.onNewGame },
-            { label: 'MULTIPLAYER', y: 255, onSelect: this.options.onMultiplayer },
-            { label: 'OPÇÕES', y: 285 },
-            { label: 'SAIR', y: 315 }
-        ];
+        const actions = createMainMenuActions(this.options);
 
         actions.forEach((action, index) => this.createAction(action, index));
         this.updateSelection();

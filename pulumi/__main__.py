@@ -1,10 +1,10 @@
-"""An AWS Python Pulumi program"""
-
 import pulumi
-from pulumi_aws import s3
+import pulumi_aws as aws
 
-# Create an AWS resource (S3 Bucket)
-bucket = s3.Bucket('my-bucket')
+if pulumi.get_stack() == "prod":
+    zona_escape = aws.route53.Zone(
+        "escape-from-floripa",
+        name="escape-from-floripa.negoci.online",
+    )
 
-# Export the name of the bucket
-pulumi.export('bucket_name', bucket.id)
+    pulumi.export("ns_escape", zona_escape.name_servers)

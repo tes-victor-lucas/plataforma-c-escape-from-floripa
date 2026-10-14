@@ -11,6 +11,8 @@ export type UpgradeId =
 
 export type UpgradeKind = 'stat' | 'ability';
 
+export type UpgradeProgress = ReadonlyArray<readonly [UpgradeId, number]>;
+
 export type StatName = 'attackRange' | 'projectileSpeed' | 'damage' | 'fireInterval';
 
 export type UpgradeEffect =

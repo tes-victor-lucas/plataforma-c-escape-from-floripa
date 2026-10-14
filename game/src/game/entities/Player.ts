@@ -28,6 +28,8 @@ export class Player {
     private readonly wasd: MovementKeys;
     private readonly footsteps: FootstepAudio;
     private facing: Direction = 'down';
+    private movementSpeedMultiplier = 1;
+    private controlsInverted = false;
     /**
      * `body.blocked` é limpo pelo Arcade Physics antes do próximo passo. Guardamos
      * a direção que bateu para não tentar avançar e bater de novo a cada quadro.
@@ -121,6 +123,25 @@ export class Player {
         this.blockedDirection = undefined;
     }
 
+    setMovementSpeedMultiplier(multiplier: number) {
+        this.movementSpeedMultiplier = Math.max(0, multiplier);
+    }
+
+    getMovementSpeedMultiplier() {
+        return this.movementSpeedMultiplier;
+    }
+
+    setControlsInverted(inverted: boolean) {
+        this.controlsInverted = inverted;
+        this.clearBlockedDirection();
+    }
+
+    stopMovement() {
+        this.sprite.setVelocity(0, 0);
+        this.footsteps.stop();
+        this.stopWalkingAnimation();
+    }
+
     takeDamage(amount: number) {
         if (!this.health.isAlive) return;
         this.health.takeDamage(amount);
@@ -163,6 +184,11 @@ export class Player {
             y /= length;
         }
 
+        if (this.controlsInverted) {
+            x *= -1;
+            y *= -1;
+        }
+
         return { x, y };
     }
 
@@ -170,8 +196,8 @@ export class Player {
         const { speed, velocityResponsiveness } = WORLD_CONFIG.player;
         const interpolation = 1 - Math.exp(-velocityResponsiveness * delta / 1000);
         const body = this.sprite.body;
-        const targetX = direction.x * speed;
-        const targetY = direction.y * speed;
+        const targetX = direction.x * speed * this.movementSpeedMultiplier;
+        const targetY = direction.y * speed * this.movementSpeedMultiplier;
 
         if (!(body instanceof Phaser.Physics.Arcade.Body)) {
             this.sprite.setVelocity(targetX, targetY);
