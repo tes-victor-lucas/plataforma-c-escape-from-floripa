@@ -785,7 +785,20 @@ test('room2 reconhece o piso dentro de grupos do Tiled', () => {
     const { isRoom2WalkableLayer } = load('../src/game/scenes/World.ts');
     assert.equal(isRoom2WalkableLayer('flowers/floor'), true);
     assert.equal(isRoom2WalkableLayer('floor-terminal'), true);
+    assert.equal(isRoom2WalkableLayer('new-street'), true);
     assert.equal(isRoom2WalkableLayer('flowers/flowers'), false);
+});
+
+test('room2 cria luzes a partir da camada superior dos postes', () => {
+    const { isRoom2LampLayer } = load('../src/game/map/createRoom.ts');
+    assert.equal(isRoom2LampLayer('superior-postes'), true);
+    assert.equal(isRoom2LampLayer('grupo/superior-postes'), true);
+    assert.equal(isRoom2LampLayer('base-postes'), false);
+
+    const map = JSON.parse(readFileSync(path.resolve(__dirname, '../public/assets/maps/room2.json'), 'utf8'));
+    const lampLayer = map.layers.find((layer) => layer.name === 'superior-postes');
+    assert.ok(lampLayer);
+    assert.equal(lampLayer.data.filter((gid) => gid === 758).length, 2);
 });
 
 test('topos dos postes, terminal e placa ficam na frente do personagem', () => {
