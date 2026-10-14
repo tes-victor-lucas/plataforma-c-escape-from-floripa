@@ -42,7 +42,7 @@ test('room2 preserva os colliders do Tiled e mantém o ponto inicial livre', () 
         colliderLayers.map((layer) => layer.name).sort(),
         [
             'block',
-            'block-escadas-',
+            'block-mapa',
             'block-vertical',
             'block-wall',
             'bloqueador-passagem',
@@ -51,9 +51,7 @@ test('room2 preserva os colliders do Tiled e mantém o ponto inicial livre', () 
             'lampadas',
             'old-terminal',
             'old-terminal-teto',
-            'pipoqueira',
-            'placa-onibus',
-            'right'
+            'pipoqueira'
         ].sort()
     );
     assert.ok(colliderLayers.every((layer) => layer.data.some((gid) => gid !== 0)));
@@ -63,21 +61,19 @@ test('room2 preserva os colliders do Tiled e mantém o ponto inicial livre', () 
     assert.ok(colliderLayers.every((layer) => layer.data[spawnIndex] === 0));
 });
 
-test('collider dedicado da escada é a única fonte dos bloqueios da escada', () => {
-    const stairCollider = map.layers.find((layer) => layer.name === 'block-escadas-');
-    assert.ok(stairCollider);
-    assert.equal(stairCollider.properties.some((property) =>
+test('block-mapa delimita o mapa sem bloquear o ponto inicial', () => {
+    const mapBoundary = map.layers.find((layer) => layer.name === 'block-mapa');
+    assert.ok(mapBoundary);
+    assert.equal(mapBoundary.properties.some((property) =>
         property.name === 'collider' && property.value === true), true);
 
-    const occupiedTiles = stairCollider.data.flatMap((gid, index) => gid === 0 ? [] : [{
+    const occupiedTiles = mapBoundary.data.flatMap((gid, index) => gid === 0 ? [] : [{
         x: index % map.width,
         y: Math.floor(index / map.width)
     }]);
-    assert.deepEqual(occupiedTiles, [
-        { x: 8, y: 16 }, { x: 9, y: 16 }, { x: 17, y: 16 }, { x: 18, y: 16 },
-        { x: 9, y: 18 }, { x: 10, y: 18 }, { x: 11, y: 18 }, { x: 12, y: 18 },
-        { x: 13, y: 18 }, { x: 14, y: 18 }, { x: 15, y: 18 }, { x: 16, y: 18 },
-        { x: 17, y: 18 }, { x: 8, y: 19 }, { x: 9, y: 19 }, { x: 17, y: 19 },
-        { x: 18, y: 19 }
-    ]);
+    assert.equal(occupiedTiles.length, 154);
+    assert.ok(occupiedTiles.some(({ x, y }) => x === 4 && y === 0));
+    assert.ok(occupiedTiles.some(({ x, y }) => x === 45 && y === 34));
+    assert.ok(occupiedTiles.some(({ x, y }) => x === 11 && y === 35));
+    assert.equal(occupiedTiles.some(({ x, y }) => x === 11 && y === 33), false);
 });
