@@ -111,6 +111,16 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
                 mapName: 'mural-cruz-e-sousa-8x12',
                 textureKey: 'mural-cruz-e-sousa-8x12',
                 path: 'assets/props/mural-cruz-e-sousa-8x12.png'
+            },
+            {
+                mapName: 'terminal-placa-pendente-3x3',
+                textureKey: 'terminal-placa-pendente-3x3',
+                path: 'assets/props/terminal-placa-pendente-3x3.png'
+            },
+            {
+                mapName: 'curva-faixa-rua-256',
+                textureKey: 'curva-faixa-rua-256',
+                path: 'assets/tilesets/curva-faixa-rua-256.png'
             }
         ]
     }
