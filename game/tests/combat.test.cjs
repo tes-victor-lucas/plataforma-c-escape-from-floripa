@@ -813,6 +813,8 @@ test('postes, teto, placas e grades ficam na frente do personagem', () => {
     assert.ok(getRoom2LayerDepth('placa-onibus') > 10);
     assert.ok(getRoom2LayerDepth('grades') > 10);
     assert.ok(getRoom2LayerDepth('terminal/grades') > 10);
+    assert.ok(getRoom2LayerDepth('grades') < getRoom2LayerDepth('old-terminal-teto-front'));
+    assert.ok(getRoom2LayerDepth('grades') < getRoom2LayerDepth('old-terminal-teto-back'));
     assert.ok(getRoom2LayerDepth('base-postes') < 10);
     assert.ok(getRoom2LayerDepth('poste') < 10);
     assert.ok(getRoom2LayerDepth('street') < 10);
