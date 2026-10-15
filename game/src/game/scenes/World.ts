@@ -222,9 +222,8 @@ export class World extends Scene {
     private returnToMainMenuFromDefeat() {
         replaceRequestedRoomKey('room1');
         this.stopGameplayOverlays();
-        this.scene.stop('MainMenu');
-        this.scene.start('MainMenu');
-        this.scene.bringToTop('MainMenu');
+        this.scene.launch('ReturnToMenuTransition', { saveContinuation: false });
+        this.scene.bringToTop('ReturnToMenuTransition');
     }
 
     private stopGameplayOverlays() {

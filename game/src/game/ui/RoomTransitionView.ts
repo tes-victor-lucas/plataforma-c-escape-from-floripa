@@ -7,7 +7,7 @@ type RoomTransitionOptions = {
 };
 
 const TRANSITION_DEPTH = 100;
-const CLOSE_DURATION = 1200;
+export const ROOM_TRANSITION_CLOSE_DURATION = 1200;
 const TITLE_DELAY = 350;
 const CHARACTER_DELAY = 160;
 const TITLE_HOLD_DURATION = 1200;
@@ -74,7 +74,7 @@ export class RoomTransitionView {
         this.scene.tweens.add({
             targets: [this.leftCurtain, this.rightCurtain],
             scaleX: 1,
-            duration: CLOSE_DURATION,
+            duration: ROOM_TRANSITION_CLOSE_DURATION,
             ease: 'Sine.Out',
             onComplete
         });

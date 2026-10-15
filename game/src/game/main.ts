@@ -8,6 +8,7 @@ import { PauseMenu } from './scenes/PauseMenu';
 import { ReturnToMenuTransition } from './scenes/ReturnToMenuTransition';
 import { GAME_HEIGHT, GAME_WIDTH } from './config/display';
 import { CombatHud } from './scenes/CombatHud';
+import { Audio } from './scenes/Audio';
 
 
 //  Find out more information about the Game Config at:
@@ -34,6 +35,7 @@ const config: Phaser.Types.Core.GameConfig = {
     },
     scene: [
         Boot,
+        Audio,
         Preloader,
         MainMenu,
         RoomTransition,

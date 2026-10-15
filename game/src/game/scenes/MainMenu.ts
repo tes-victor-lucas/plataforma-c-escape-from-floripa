@@ -14,8 +14,7 @@ const GAMEPLAY_SCENES = [
     'World',
     'CombatHud',
     'PauseMenu',
-    'RoomTransition',
-    'ReturnToMenuTransition'
+    'RoomTransition'
 ] as const;
 
 export class MainMenu extends Scene {

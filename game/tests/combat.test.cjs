@@ -1181,15 +1181,16 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     assert.deepEqual(restartData.spawn, ROOM_DEFINITIONS.room1.spawn);
 });
 
-test('voltar ao menu após derrota encerra gameplay e abre MainMenu', () => {
+test('voltar ao menu após derrota usa a transição suave de saída', () => {
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();
     const stopped = [];
-    const started = [];
+    const launched = [];
+    let launchData;
     const topScenes = [];
     world.scene = {
         stop(key) { stopped.push(key); },
-        start(key) { started.push(key); },
+        launch(key, data) { launched.push(key); launchData = data; },
         bringToTop(key) { topScenes.push(key); }
     };
 
@@ -1199,11 +1200,11 @@ test('voltar ao menu após derrota encerra gameplay e abre MainMenu', () => {
         'PauseMenu',
         'RoomTransition',
         'ReturnToMenuTransition',
-        'CombatHud',
-        'MainMenu'
+        'CombatHud'
     ]);
-    assert.deepEqual(started, ['MainMenu']);
-    assert.deepEqual(topScenes, ['MainMenu']);
+    assert.deepEqual(launched, ['ReturnToMenuTransition']);
+    assert.deepEqual(launchData, { saveContinuation: false });
+    assert.deepEqual(topScenes, ['ReturnToMenuTransition']);
 });
 
 test('encerramento do mundo não falha quando a câmera já foi removida', () => {
@@ -1236,8 +1237,7 @@ test('menu principal remove qualquer cena restante da partida anterior', () => {
         'World',
         'CombatHud',
         'PauseMenu',
-        'RoomTransition',
-        'ReturnToMenuTransition'
+        'RoomTransition'
     ]);
 });
 
@@ -1425,6 +1425,8 @@ test('diretor de música encerra uma faixa antes de iniciar gradualmente a próx
     assert.equal(sounds[0].volume, 0);
     transitions[0].config.onUpdate({ getValue: () => 0.5 });
     assert.equal(sounds[0].volume, 0.04);
+    director.play(scene, { key: 'menu', volume: 0.08 }, 2500);
+    assert.equal(transitions.length, 1, 'o mesmo pedido não deve reiniciar o fade');
     finish(transitions[0]);
 
     director.play(scene, { key: 'room', volume: 0.08 }, 2500);
@@ -1464,4 +1466,58 @@ test('diretor de música encerra uma faixa antes de iniciar gradualmente a próx
     assert.equal(transitions.length, transitionCount + 1);
     transitions.at(-1).config.onUpdate({ getValue: () => 0.5 });
     assert.equal(sounds[3].volume, 0.04);
+});
+
+test('diretor força o GainNode real para zero antes de iniciar a música', () => {
+    const transitions = [];
+    const context = { currentTime: 4 };
+    const gain = {
+        value: 1,
+        cancelScheduledValues() {},
+        setValueAtTime(value) { this.value = value; }
+    };
+    const sounds = [];
+    const manager = {
+        context,
+        locked: false,
+        sounds,
+        add(key) {
+            const sound = {
+                key,
+                manager,
+                pendingRemove: false,
+                volumeNode: { gain },
+                get volume() { return gain.value; },
+                isPlaying: false,
+                play() { this.isPlaying = true; },
+                stop() { this.isPlaying = false; },
+                destroy() { this.pendingRemove = true; },
+                // Simula o comportamento problemático: a configuração muda,
+                // mas o ganho do WebAudio continua em 1 enquanto suspenso.
+                setVolume(value) { this.configuredVolume = value; return this; }
+            };
+            sounds.push(sound);
+            return sound;
+        },
+        once() {},
+        off() {}
+    };
+    const scene = {
+        sound: manager,
+        tweens: {
+            addCounter(config) {
+                const tween = { stop() {} };
+                transitions.push({ config, tween });
+                return tween;
+            }
+        }
+    };
+
+    const director = new MusicDirector();
+    director.play(scene, { key: 'menu', volume: 0.12 }, 1800);
+
+    assert.equal(sounds.length, 1);
+    assert.equal(sounds[0].isPlaying, true);
+    assert.equal(gain.value, 0, 'o nó de áudio não pode ser liberado no ganho padrão 1');
+    assert.equal(transitions.length, 1);
 });
