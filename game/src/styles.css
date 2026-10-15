@@ -51,7 +51,6 @@ button {
     overflow: hidden;
     background: #050508;
     border: 1px solid var(--border);
-    border-radius: 16px;
     box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
 }
 
@@ -61,7 +60,6 @@ button {
     max-width: none;
     max-height: none;
     border: 0;
-    border-radius: 0;
 }
 
 .game-stage {
@@ -74,9 +72,6 @@ button {
 #game-container {
     position: absolute;
     inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
 canvas {
@@ -102,15 +97,6 @@ canvas {
     min-width: 0;
     align-items: center;
     gap: 13px;
-}
-
-.game-identity__status {
-    width: 9px;
-    height: 9px;
-    flex: 0 0 auto;
-    background: #44e68a;
-    border-radius: 50%;
-    box-shadow: 0 0 0 5px rgba(68, 230, 138, 0.1), 0 0 16px rgba(68, 230, 138, 0.75);
 }
 
 .game-identity h1,
@@ -159,7 +145,6 @@ canvas {
     color: #d8d3e2;
     background: rgba(255, 255, 255, 0.055);
     border-color: rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
     font-size: 0.83rem;
     font-weight: 700;
 }
@@ -266,7 +251,6 @@ canvas {
     height: 42px;
     flex: 0 0 auto;
     background: rgba(255, 255, 255, 0.04);
-    border-radius: 50%;
 }
 
 .icon-button:hover,
@@ -342,7 +326,6 @@ kbd {
 
     .game-player {
         border: 0;
-        border-radius: 0;
     }
 
     .player-bar {
