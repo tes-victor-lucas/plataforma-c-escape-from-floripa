@@ -31,6 +31,9 @@ export function setupControlsPanel() {
     });
     closeButton.addEventListener('click', () => setOpen(false));
     backdrop.addEventListener('click', () => setOpen(false));
+    document.addEventListener('fullscreenchange', () => {
+        if (document.fullscreenElement) setOpen(false);
+    });
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && player.classList.contains('controls-open')) {
             event.stopPropagation();
