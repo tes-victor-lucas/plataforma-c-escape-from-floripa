@@ -1,3 +1,4 @@
+import './styles.css';
 import StartGame from './game/main';
 import { setupFullscreenButton } from './game/ui/FullscreenButton';
 
