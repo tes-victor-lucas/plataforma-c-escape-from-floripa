@@ -17,3 +17,15 @@ No ano de 2067, uma IA (Floria) assumiu o controle do Centro de Florianópolis p
 4. Dê o comando "npm install" ou "npm i"
 5. Dê o comando "npm run dev"
 6. Entre em http://localhost:1234/
+
+## Multiplayer (dois jogadores)
+
+O servidor fica separado em `server/` e usa agentes de conexão, lobby e partida coordenados por um broker de mensagens em memória. Em outro terminal:
+
+```bash
+cd server
+npm install
+npm start
+```
+
+Abra o jogo em duas abas e escolha **MULTIPLAYER**. Cada sala aceita no máximo dois jogadores. Consulte `server/README.md` para configurar sala, endereço do servidor e porta.

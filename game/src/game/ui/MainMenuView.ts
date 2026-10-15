@@ -4,6 +4,7 @@ import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 export type MainMenuViewOptions = {
     onNewGame: () => void;
     onContinue?: () => void;
+    onMultiplayer?: () => void;
 };
 
 const ACTION_FONT = 'PixelGamer, monospace';
@@ -23,18 +24,23 @@ type MenuAction = {
 };
 
 export function createMainMenuActions(options: MainMenuViewOptions): MenuAction[] {
-    return options.onContinue
-        ? [
-            { label: 'CONTINUAR', y: 222, onSelect: options.onContinue },
-            { label: 'NOVO JOGO', y: 250, onSelect: options.onNewGame },
-            { label: 'OPÇÕES', y: 278 },
-            { label: 'SAIR', y: 306 }
-        ]
-        : [
-            { label: 'NOVO JOGO', y: 237, onSelect: options.onNewGame },
-            { label: 'OPÇÕES', y: 268 },
-            { label: 'SAIR', y: 294 }
-        ];
+    const actions: Omit<MenuAction, 'y'>[] = [];
+    if (options.onContinue) {
+        actions.push({ label: 'CONTINUAR', onSelect: options.onContinue });
+    }
+    actions.push({
+        label: options.onMultiplayer ? 'JOGAR SOLO' : 'NOVO JOGO',
+        onSelect: options.onNewGame
+    });
+    if (options.onMultiplayer) {
+        actions.push({ label: 'MULTIPLAYER', onSelect: options.onMultiplayer });
+    }
+    actions.push({ label: 'OPÇÕES' }, { label: 'SAIR' });
+
+    const spacing = 28;
+    const centerY = 264;
+    const firstY = centerY - (actions.length - 1) * spacing / 2;
+    return actions.map((action, index) => ({ ...action, y: firstY + index * spacing }));
 }
 
 type RenderedAction = {
@@ -46,6 +52,7 @@ type RenderedAction = {
 export class MainMenuView {
     private selectedAction = 0;
     private readonly renderedActions: RenderedAction[] = [];
+    private statusText?: Phaser.GameObjects.Text;
 
     constructor(
         private readonly scene: Scene,
@@ -59,6 +66,16 @@ export class MainMenuView {
             .setScrollFactor(0);
 
         this.addActions();
+        this.statusText = this.scene.add.text(GAME_WIDTH / 2, 340, '', {
+            color: '#ffffff',
+            fontFamily: ACTION_FONT,
+            fontSize: '12px',
+            align: 'center'
+        }).setOrigin(0.5).setScrollFactor(0).setResolution(2);
+    }
+
+    setStatus(status: string) {
+        this.statusText?.setText(status);
     }
 
     private addActions() {

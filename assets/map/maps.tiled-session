@@ -38,8 +38,8 @@
             "scale": 1,
             "selectedLayer": 3,
             "viewCenter": {
-                "x": 482.5,
-                "y": 415
+                "x": 483,
+                "y": 415.5
             }
         },
         "room-01.json#floor_and_buildings-01": {
@@ -73,17 +73,16 @@
     "map.tileWidth": 16,
     "map.width": 50,
     "openFiles": [
-        "room-01.json"
     ],
     "project": "maps.tiled-project",
     "property.type": "bool",
     "recentFiles": [
+        "buildings-1.tsx",
         "room-01.json",
         "objects_and_items-01.tsx",
         "room01.json",
         "floor_and_walls-1.tsx",
         "floor_and_buildings-01.tsx",
-        "buildings-1.tsx",
         "neo_zero_buildings.tsx",
         "neo-zero-floor_and_walls.tsx"
     ],

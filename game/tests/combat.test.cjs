@@ -570,6 +570,17 @@ test('menu oferece continuar apenas com progresso e sempre identifica novo jogo'
     ]);
     withCheckpoint[0].onSelect();
     assert.equal(selected, 'continue');
+
+    const withMultiplayer = createMainMenuActions({
+        onNewGame: () => { selected = 'new'; },
+        onContinue: () => { selected = 'continue'; },
+        onMultiplayer: () => { selected = 'multiplayer'; }
+    });
+    assert.deepEqual(withMultiplayer.map(({ label }) => label), [
+        'CONTINUAR', 'JOGAR SOLO', 'MULTIPLAYER', 'OPÇÕES', 'SAIR'
+    ]);
+    withMultiplayer[2].onSelect();
+    assert.equal(selected, 'multiplayer');
 });
 
 test('sorteio oferece três cartas distintas com ao menos uma habilidade', () => {
@@ -1020,6 +1031,25 @@ test('mundo registra uma única colisão interna para o grupo de drones', () => 
     } };
     assert.equal(world.createDroneBodies(), group);
     assert.deepEqual(colliders, [[group, group]]);
+});
+
+test('multiplayer desloca jogadores a partir do spawn da sala ativa', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { multiplayerClient } = load('../src/game/network/MultiplayerClient.ts');
+    const world = new World();
+    world.registry = { get: (key) => key === 'multiplayerEnabled' };
+    multiplayerClient.playerId = 'player-2';
+    multiplayerClient.match = {
+        type: 'match.ready',
+        roomId: 'publica',
+        players: ['player-1', 'player-2']
+    };
+
+    assert.deepEqual(world.getPlayerSpawn(ROOM_DEFINITIONS.room2.spawn), {
+        x: ROOM_DEFINITIONS.room2.spawn.x + 36,
+        y: ROOM_DEFINITIONS.room2.spawn.y
+    });
+    multiplayerClient.disconnect();
 });
 
 test('mundo somente atravessa o portal depois de liberar a saida', () => {
