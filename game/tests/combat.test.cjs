@@ -59,7 +59,10 @@ const {
     loadCampaignProgress,
     saveCampaignProgress
 } = load('../src/game/progress/CampaignProgress.ts');
-const { createMainMenuActions } = load('../src/game/ui/MainMenuView.ts');
+const {
+    createMainMenuActions,
+    createPlayMenuActions
+} = load('../src/game/ui/MainMenuView.ts');
 const { getHeartFillLevels } = load('../src/game/ui/HeartHealthView.ts');
 const { MusicDirector } = load('../src/game/audio/MusicDirector.ts');
 const {
@@ -625,34 +628,47 @@ test('continuar só é liberado por checkpoint conquistado depois da room1', () 
     assert.equal(loadCampaignProgress(storage), undefined);
 });
 
-test('menu oferece continuar apenas com progresso e sempre identifica novo jogo', () => {
+test('menu principal abre opções de jogo e desabilita continuar sem checkpoint', () => {
     let selected = '';
-    const withoutCheckpoint = createMainMenuActions({
-        onNewGame: () => { selected = 'new'; }
-    });
-    assert.deepEqual(withoutCheckpoint.map(({ label }) => label), [
-        'NOVO JOGO', 'OPÇÕES', 'SAIR'
+    const mainMenu = createMainMenuActions(
+        () => { selected = 'play'; },
+        () => { selected = 'leaderboard'; }
+    );
+    assert.deepEqual(mainMenu.map(({ label }) => label), [
+        'JOGAR', 'PLACAR', 'OPÇÕES', 'SAIR'
     ]);
-    withoutCheckpoint[0].onSelect();
+    mainMenu[0].onSelect();
+    assert.equal(selected, 'play');
+
+    const withoutCheckpoint = createPlayMenuActions({
+        onNewGame: () => { selected = 'new'; }
+    }, () => { selected = 'back'; });
+    assert.deepEqual(withoutCheckpoint.map(({ label }) => label), [
+        'CONTINUAR', 'JOGAR SOLO', 'VOLTAR'
+    ]);
+    assert.equal(withoutCheckpoint[0].enabled, false);
+    assert.equal(withoutCheckpoint[0].onSelect, undefined);
+    withoutCheckpoint[1].onSelect();
     assert.equal(selected, 'new');
 
-    const withCheckpoint = createMainMenuActions({
+    const withCheckpoint = createPlayMenuActions({
         onNewGame: () => { selected = 'new'; },
         onContinue: () => { selected = 'continue'; }
-    });
+    }, () => { selected = 'back'; });
     assert.deepEqual(withCheckpoint.map(({ label }) => label), [
-        'CONTINUAR', 'NOVO JOGO', 'OPÇÕES', 'SAIR'
+        'CONTINUAR', 'JOGAR SOLO', 'VOLTAR'
     ]);
+    assert.equal(withCheckpoint[0].enabled, true);
     withCheckpoint[0].onSelect();
     assert.equal(selected, 'continue');
 
-    const withMultiplayer = createMainMenuActions({
+    const withMultiplayer = createPlayMenuActions({
         onNewGame: () => { selected = 'new'; },
         onContinue: () => { selected = 'continue'; },
         onMultiplayer: () => { selected = 'multiplayer'; }
-    });
+    }, () => { selected = 'back'; });
     assert.deepEqual(withMultiplayer.map(({ label }) => label), [
-        'CONTINUAR', 'JOGAR SOLO', 'MULTIPLAYER', 'OPÇÕES', 'SAIR'
+        'CONTINUAR', 'JOGAR SOLO', 'MULTIPLAYER', 'VOLTAR'
     ]);
     withMultiplayer[2].onSelect();
     assert.equal(selected, 'multiplayer');
