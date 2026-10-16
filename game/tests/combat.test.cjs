@@ -205,12 +205,14 @@ test('portal ocupa somente o corredor liberado no topo da room1', () => {
     assert.equal(isInsideRoomGateway(portal.x, area.bottom + 1), false);
 });
 
-test('saida da room1 reutiliza a luz dos postes no canto da passagem', () => {
+test('saida da room1 usa um halo circular centralizado e exige entrar no corredor', () => {
+    const { area, portal } = ROOM1_TO_ROOM2_GATEWAY;
     assert.equal(ROOM_EXIT_LIGHT_STYLE.texture, LAMP_LIGHT_TEXTURE);
     assert.ok(ROOM_EXIT_LIGHT_STYLE.spillScale > ROOM_EXIT_LIGHT_STYLE.mainScale);
     assert.ok(ROOM_EXIT_LIGHT_STYLE.mainAlpha > ROOM_EXIT_LIGHT_STYLE.spillAlpha);
-    assert.ok(ROOM1_TO_ROOM2_GATEWAY.portal.x < 10 * 16);
-    assert.ok(ROOM1_TO_ROOM2_GATEWAY.portal.y < 2 * 16);
+    assert.equal(portal.x, (area.left + area.right) / 2);
+    assert.equal(area.bottom, 2 * 16);
+    assert.equal(portal.y, 0.25 * 16);
 });
 
 test('cardápio do Piranhas usa três itens e seus assets individuais', () => {
