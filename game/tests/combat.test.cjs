@@ -37,7 +37,7 @@ function load(relative) {
     return module.exports;
 }
 const { Health } = load('../src/game/combat/Health.ts');
-const { CombatSystem } = load('../src/game/combat/CombatSystem.ts');
+const { CombatSystem, createProjectileId } = load('../src/game/combat/CombatSystem.ts');
 const { COMBAT_CONFIG, ROOM2_STAIR_GUARD_SPAWNS } = load('../src/game/config/combat.ts');
 const { WORLD_CONFIG } = load('../src/game/config/world.ts');
 const { Drone } = load('../src/game/entities/Drone.ts');
@@ -84,6 +84,80 @@ const { ROOM_EXIT_LIGHT_STYLE } = load('../src/game/map/RoomExitPortal.ts');
 const { LAMP_LIGHT_TEXTURE } = load('../src/game/map/createLampLights.ts');
 const { ROOM1_CLEAR_CODE, SecretCodeMatcher } = load('../src/game/config/secretCodes.ts');
 const { getInitialSceneRoute } = load('../src/game/scenes/Preloader.ts');
+const {
+    calculateDamagePoints,
+    calculateMultiKillBonus,
+    calculateScore,
+    calculateTimePoints
+} = load('../src/game/scoring/ScoreCalculator.ts');
+const { RunTracker } = load('../src/game/scoring/RunTracker.ts');
+
+test('pontuação v1 aplica tempo, dano, mortes, multi-kill e vitória', () => {
+    const score = calculateScore({
+        won: true,
+        elapsedTimeMs: 12_999,
+        enemiesDefeated: 3,
+        hitsTaken: 0,
+        multiKillBonuses: [calculateMultiKillBonus(3)]
+    });
+    assert.deepEqual(score, {
+        victoryPoints: 1_000,
+        timePoints: 5_880,
+        enemyPoints: 300,
+        multiKillPoints: 350,
+        damagePoints: 2_000,
+        total: 9_530
+    });
+    assert.equal(calculateTimePoints(900_000), 0);
+    assert.equal(calculateDamagePoints(1), 1_200);
+    assert.equal(calculateDamagePoints(2), 600);
+    assert.equal(calculateDamagePoints(3), 0);
+});
+
+test('tracker deduplica mortes, acertos e fechamento do mesmo projétil', () => {
+    const tracker = new RunTracker();
+    tracker.startNew('SINGLE_PLAYER', new Date('2026-01-01T00:00:00.000Z'));
+    tracker.registerProjectile('shot-1');
+    assert.equal(tracker.recordEnemyDeath('enemy-1', 'shot-1'), true);
+    assert.equal(tracker.recordEnemyDeath('enemy-1', 'shot-1'), false);
+    assert.equal(tracker.recordEnemyDeath('enemy-2', 'shot-1'), true);
+    assert.equal(tracker.finalizeProjectile('shot-1'), 250);
+    assert.equal(tracker.finalizeProjectile('shot-1'), 0);
+    assert.equal(tracker.recordPlayerHit(0), false);
+    assert.equal(tracker.recordPlayerHit(1), true);
+    const snapshot = tracker.snapshot(Date.parse('2026-01-01T00:00:10.000Z'));
+    assert.equal(snapshot.enemiesDefeated, 2);
+    assert.equal(snapshot.hitsTaken, 1);
+    assert.equal(snapshot.multiKills.length, 1);
+    assert.equal(snapshot.score.total, 450, 'tempo e dano entram apenas ao terminar');
+    const finalSnapshot = tracker.lose(new Date('2026-01-01T00:00:10.000Z'));
+    assert.equal(finalSnapshot.score.total, 7_550);
+});
+
+test('projéteis continuam únicos depois da troca de sala', () => {
+    const room1Projectile = createProjectileId('same-run');
+    const room2Projectile = createProjectileId('same-run');
+    assert.notEqual(room1Projectile, room2Projectile);
+
+    const tracker = new RunTracker();
+    tracker.startNew('SINGLE_PLAYER', new Date('2026-01-01T00:00:00.000Z'));
+    tracker.recordEnemyDeath('room1-enemy', room1Projectile);
+    tracker.finalizeProjectile(room1Projectile);
+    tracker.recordEnemyDeath('room2-enemy', room2Projectile);
+    tracker.finalizeProjectile(room2Projectile);
+    const snapshot = tracker.snapshot();
+    assert.equal(snapshot.enemiesDefeated, 2);
+    assert.equal(snapshot.score.enemyPoints, 200);
+});
+
+test('run inicia com zero e recebe o bônus de tempo somente ao terminar', () => {
+    const tracker = new RunTracker();
+    tracker.startNew('SINGLE_PLAYER', new Date('2026-01-01T00:00:00.000Z'));
+    assert.equal(tracker.snapshot(Date.parse('2026-01-01T00:00:05.000Z')).score.total, 0);
+    const result = tracker.lose(new Date('2026-01-01T00:00:05.000Z'));
+    assert.equal(result.score.timePoints, 5_950);
+    assert.equal(result.score.total, 7_950);
+});
 
 test('código secreto reconhece 9090 mesmo após teclas anteriores', () => {
     const matcher = new SecretCodeMatcher(ROOM1_CLEAR_CODE);
@@ -195,10 +269,10 @@ test('efeito da escada progride do pé até o patamar superior', () => {
     assert.equal(getStairProgress(area.left - 1, area.top, area), null);
 });
 
-function fighter(x, y, maxHealth) {
+function fighter(x, y, maxHealth, id = 'fighter') {
     const health = new Health(maxHealth);
     return {
-        health, sprite: {
+        id, health, sprite: {
             active: true,
             body: { center: { x, y } },
             destroy() { this.active = false; this.body = null; }
@@ -206,9 +280,10 @@ function fighter(x, y, maxHealth) {
         takeDamage(amount) { health.takeDamage(amount); }
     };
 }
-function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUpgradeState()) {
-    const player = fighter(100, 100, COMBAT_CONFIG.player.maxHealth);
-    const drones = positions.map(([x, y]) => fighter(x, y, COMBAT_CONFIG.drone.maxHealth));
+function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUpgradeState(), tracker) {
+    const player = fighter(100, 100, COMBAT_CONFIG.player.maxHealth, 'player');
+    const drones = positions.map(([x, y], index) =>
+        fighter(x, y, COMBAT_CONFIG.drone.maxHealth, `enemy-${index}`));
     const groups = [];
     const colliders = [];
     const overlaps = [];
@@ -295,7 +370,7 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
         }
     };
     const walls = [{ getTilesWithinWorldXY: () => wallTiles }];
-    const combat = new CombatSystem(scene, player, drones, walls, upgrades);
+    const combat = new CombatSystem(scene, player, drones, walls, upgrades, tracker);
     return { combat, player, drones, groups, colliders, overlaps, attachBody, damageLabels, companions };
 }
 
@@ -595,6 +670,20 @@ test('sorteio oferece três cartas distintas com ao menos uma habilidade', () =>
         assert.equal(new Set(cards.map((card) => card.id)).size, 3);
         assert.ok(cards.some((card) => card.kind === 'ability'));
     }
+});
+
+test('morte causada pelo projétil soma pontos à run ativa exatamente uma vez', () => {
+    const tracker = new RunTracker();
+    tracker.startNew('SINGLE_PLAYER', new Date('2026-01-01T00:00:00.000Z'));
+    const { combat, groups, overlaps } = setup([[150, 100]], [], new PlayerUpgradeState(), tracker);
+
+    for (let index = 0; index < 3; index++) {
+        combat.update(COMBAT_CONFIG.player.fireInterval);
+        overlaps[0].hit(groups[0].shots[index]);
+    }
+
+    assert.equal(tracker.snapshot(Date.parse('2026-01-01T00:00:05.000Z')).enemiesDefeated, 1);
+    assert.equal(tracker.snapshot(Date.parse('2026-01-01T00:00:05.000Z')).score.total, 100);
 });
 
 test('ondas criam 10 drones e depois 20 apenas quando todos os anteriores morrerem', () => {

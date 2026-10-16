@@ -6,6 +6,7 @@ import {
     RETURN_TO_MENU_CLOSE_DURATION
 } from '../ui/BlackScreenTransitionView';
 import type { World } from './World';
+import { runTracker } from '../scoring/RunTracker';
 
 export type ReturnToMenuTransitionData = {
     saveContinuation?: boolean;
@@ -25,7 +26,8 @@ export class ReturnToMenuTransition extends Scene {
         new BlackScreenTransitionView(this).play({
             onCovered: () => {
                 const world = this.scene.get('World') as World;
-                if (data.saveContinuation !== false) world.saveContinuation();
+                const saved = data.saveContinuation !== false && world.saveContinuation();
+                if (!saved && runTracker.snapshot().status === 'RUNNING') runTracker.abandon();
                 this.scene.stop('World');
                 this.scene.stop('PauseMenu');
                 this.scene.launch('MainMenu');

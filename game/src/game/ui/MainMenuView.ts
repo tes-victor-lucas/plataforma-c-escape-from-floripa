@@ -5,6 +5,7 @@ export type MainMenuViewOptions = {
     onNewGame: () => void;
     onContinue?: () => void;
     onMultiplayer?: () => void;
+    onLeaderboard?: () => void;
 };
 
 const ACTION_FONT = 'PixelGamer, monospace';
@@ -35,9 +36,10 @@ export function createMainMenuActions(options: MainMenuViewOptions): MenuAction[
     if (options.onMultiplayer) {
         actions.push({ label: 'MULTIPLAYER', onSelect: options.onMultiplayer });
     }
+    if (options.onLeaderboard) actions.push({ label: 'PLACAR', onSelect: options.onLeaderboard });
     actions.push({ label: 'OPÇÕES' }, { label: 'SAIR' });
 
-    const spacing = 28;
+    const spacing = 25;
     const centerY = 264;
     const firstY = centerY - (actions.length - 1) * spacing / 2;
     return actions.map((action, index) => ({ ...action, y: firstY + index * spacing }));

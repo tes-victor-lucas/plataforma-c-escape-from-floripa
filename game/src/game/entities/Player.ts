@@ -36,7 +36,11 @@ export class Player {
      */
     private blockedDirection?: MovementDirection;
 
-    constructor(private readonly scene: Scene, spawnPosition: SpawnPosition) {
+    constructor(
+        private readonly scene: Scene,
+        spawnPosition: SpawnPosition,
+        private readonly onDamageApplied?: (healthLost: number) => void
+    ) {
         const keyboard = scene.input.keyboard;
 
         if (!keyboard) {
@@ -144,7 +148,11 @@ export class Player {
 
     takeDamage(amount: number) {
         if (!this.health.isAlive) return;
+        const previousHealth = this.health.current;
         this.health.takeDamage(amount);
+        const healthLost = previousHealth - this.health.current;
+        if (healthLost <= 0) return;
+        this.onDamageApplied?.(healthLost);
         const sound = this.health.isAlive
             ? AUDIO_CONFIG.effects.playerHurt
             : AUDIO_CONFIG.effects.playerDeath;
