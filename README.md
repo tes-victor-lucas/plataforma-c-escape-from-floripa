@@ -29,3 +29,7 @@ npm start
 ```
 
 Abra o jogo em duas abas e escolha **MULTIPLAYER**. Cada sala aceita no máximo dois jogadores. Consulte `server/README.md` para configurar sala, endereço do servidor e porta.
+
+## Pontuação e placar
+
+A pontuação da run é acompanhada no frontend e recalculada pelo backend serverless em Python. O relógio competitivo usa os horários registrados pela API, e somente vitórias entram no ranking. Consulte `backend/README.md`, `docs/api-placar.yaml` e `docs/modelo-dados-placar.md` para executar e implantar a API Gateway + Lambda + DynamoDB definida em `pulumi/`.
