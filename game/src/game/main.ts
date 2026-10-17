@@ -8,6 +8,8 @@ import { PauseMenu } from './scenes/PauseMenu';
 import { ReturnToMenuTransition } from './scenes/ReturnToMenuTransition';
 import { GAME_HEIGHT, GAME_WIDTH } from './config/display';
 import { CombatHud } from './scenes/CombatHud';
+import { Audio } from './scenes/Audio';
+import { Leaderboard } from './scenes/Leaderboard';
 
 
 //  Find out more information about the Game Config at:
@@ -21,7 +23,7 @@ const config: Phaser.Types.Core.GameConfig = {
     scale: {
         mode: Scale.FIT,
         autoCenter: Scale.CENTER_BOTH,
-        fullscreenTarget: 'game-container',
+        fullscreenTarget: 'game-player',
         width: GAME_WIDTH,
         height: GAME_HEIGHT
     },
@@ -34,8 +36,10 @@ const config: Phaser.Types.Core.GameConfig = {
     },
     scene: [
         Boot,
+        Audio,
         Preloader,
         MainMenu,
+        Leaderboard,
         RoomTransition,
         PauseMenu,
         ReturnToMenuTransition,

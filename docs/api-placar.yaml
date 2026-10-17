@@ -1,0 +1,72 @@
+openapi: 3.0.3
+info:
+  title: Escape from Floripa — Pontuação
+  version: 1.0.0
+paths:
+  /runs:
+    post:
+      summary: Inicia uma run usando o relógio do backend
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StartRun'}
+      responses:
+        '201': {description: Run iniciada}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+  /runs/{runId}/victory:
+    post:
+      summary: Finaliza e persiste uma run vencedora
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: runId, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Victory'}
+      responses:
+        '200': {description: Vitória registrada}
+        '404': {description: Run não encontrada}
+        '409': {description: Run já encerrada ou incompatível}
+  /runs/{runId}:
+    delete:
+      summary: Descarta uma run que não venceu
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: runId, in: path, required: true, schema: {type: string}}
+      responses:
+        '204': {description: Run descartada}
+  /leaderboard:
+    get:
+      summary: Lista o melhor resultado de cada jogador
+      parameters:
+        - {name: mode, in: query, schema: {type: string, enum: [SINGLE_PLAYER, MULTIPLAYER], default: SINGLE_PLAYER}}
+        - {name: scoreVersion, in: query, schema: {type: integer, enum: [1], default: 1}}
+      responses:
+        '200': {description: Ranking ordenado por pontuação, tempo e data}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  responses:
+    InvalidRequest: {description: Dados inválidos}
+  schemas:
+    StartRun:
+      type: object
+      required: [runId, mode, scoreVersion]
+      properties:
+        runId: {type: string}
+        mode: {type: string, enum: [SINGLE_PLAYER, MULTIPLAYER]}
+        scoreVersion: {type: integer, enum: [1]}
+    Victory:
+      type: object
+      required: [mode, scoreVersion, enemiesDefeated, hitsTaken, multiKills]
+      properties:
+        mode: {type: string, enum: [SINGLE_PLAYER, MULTIPLAYER]}
+        scoreVersion: {type: integer, enum: [1]}
+        enemiesDefeated: {type: integer, minimum: 0}
+        hitsTaken: {type: integer, minimum: 0}
+        multiKills:
+          type: array
+          items: {type: integer, minimum: 2}

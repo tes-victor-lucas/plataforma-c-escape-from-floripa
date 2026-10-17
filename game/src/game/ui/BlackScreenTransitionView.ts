@@ -7,8 +7,8 @@ type BlackScreenTransitionOptions = {
 };
 
 const DEPTH = 300;
-const CLOSE_DURATION = 500;
-const REVEAL_DURATION = 550;
+export const RETURN_TO_MENU_CLOSE_DURATION = 900;
+const REVEAL_DURATION = 750;
 
 /** Covers the screen before swapping scenes, then reveals the new scene. */
 export class BlackScreenTransitionView {
@@ -38,7 +38,7 @@ export class BlackScreenTransitionView {
         this.scene.tweens.add({
             targets: [this.leftCurtain, this.rightCurtain],
             scaleX: 1,
-            duration: CLOSE_DURATION,
+            duration: RETURN_TO_MENU_CLOSE_DURATION,
             ease: 'Sine.Out',
             onComplete: () => {
                 options.onCovered();

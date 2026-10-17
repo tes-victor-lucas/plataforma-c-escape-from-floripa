@@ -3,6 +3,8 @@ import { AUDIO_CONFIG } from '../config/audio';
 import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
 import { HUD_CONFIG } from '../config/hud';
 import { getRequestedRoomKey, ROOM_DEFINITIONS } from '../config/rooms';
+import { loadCampaignProgress } from '../progress/CampaignProgress';
+import { runTracker } from '../scoring/RunTracker';
 
 export function getInitialSceneRoute(
     search = typeof window === 'undefined' ? '' : window.location.search
@@ -107,6 +109,16 @@ export class Preloader extends Scene {
 
     create() {
         const route = getInitialSceneRoute();
+        if (route.key === 'RoomTransition') {
+            const continuation = loadCampaignProgress();
+            if (continuation?.run) runTracker.restore(continuation.run);
+            else runTracker.startNew('SINGLE_PLAYER');
+            this.scene.start(route.key, {
+                ...route.data,
+                ...(continuation ? { playerProgress: continuation.playerProgress } : {})
+            });
+            return;
+        }
         this.scene.start(route.key, route.data);
     }
 }

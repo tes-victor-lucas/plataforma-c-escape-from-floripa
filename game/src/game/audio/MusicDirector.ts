@@ -1,79 +1,132 @@
 import type { Scene } from 'phaser';
 
-type MusicConfig = Readonly<{
-    key: string;
-    volume: number;
+type MusicConfig = Readonly<{ key: string; volume: number }>;
+type MusicTransitionOptions = Readonly<{
+    fadeOutDuration?: number;
+    fadeInDuration?: number;
+    restart?: boolean;
 }>;
 
 type VolumeSound = Phaser.Sound.BaseSound & {
+    key: string;
+    manager: Phaser.Sound.BaseSoundManager & { context?: BaseAudioContext };
+    pendingRemove: boolean;
     volume: number;
+    volumeNode?: GainNode;
     setVolume(value: number): Phaser.Sound.BaseSound;
 };
 
-/** Mantém uma única música ativa e faz transições suaves entre cenas. */
+type SoundManagerWithSounds = Scene['sound'] & { sounds: Phaser.Sound.BaseSound[] };
+type DesiredTrack = {
+    config: MusicConfig;
+    fadeInDuration: number;
+    scene: Scene;
+    version: number;
+};
+type VolumeTransition = {
+    sound: VolumeSound;
+    targetVolume: number;
+    tween: Phaser.Tweens.Tween;
+    onComplete?: () => void;
+};
+
+/**
+ * Dono único das músicas do jogo.
+ *
+ * A troca é sempre serial: a faixa atual chega a zero e é destruída antes de
+ * a próxima ser criada em volume zero. Os tweens rodam na cena Audio, que não
+ * é encerrada durante as trocas de tela.
+ */
 export class MusicDirector {
-    private active?: { key: string; sound: VolumeSound };
-    private readonly fadingOut = new Set<VolumeSound>();
-    private transitions: Phaser.Tweens.Tween[] = [];
+    private current?: { key: string; sound: VolumeSound };
+    private desired?: DesiredTrack;
+    private transition?: VolumeTransition;
     private transitionVersion = 0;
     private pendingUnlock?: { manager: Scene['sound']; callback: () => void };
+    private readonly musicKeys = new Set<string>();
 
     play(scene: Scene, config: MusicConfig, fadeDuration = 0) {
+        this.transitionTo(scene, config, {
+            fadeOutDuration: fadeDuration,
+            fadeInDuration: fadeDuration
+        });
+    }
+
+    transitionTo(scene: Scene, config: MusicConfig, options: MusicTransitionOptions = {}) {
+        const fadeOutDuration = options.fadeOutDuration ?? 0;
+        const fadeInDuration = options.fadeInDuration ?? fadeOutDuration;
+        const restart = options.restart ?? false;
+        this.musicKeys.add(config.key);
+        this.removeOrphanedMusic(scene);
+
+        if (this.desired?.config.key === config.key && !restart) {
+            this.debug(scene, 'pedido repetido ignorado');
+            return;
+        }
+
         const version = ++this.transitionVersion;
         this.cancelPendingUnlock();
-        this.cancelTransitions();
+        this.desired = { config, fadeInDuration, scene, version };
+        this.debug(scene, `transição solicitada para ${config.key}`);
 
-        if (this.active?.key === config.key) {
-            if (!this.active.sound.isPlaying) this.active.sound.play();
-            this.fadeOutInactive(scene, fadeDuration);
-            this.fadeWhenUnlocked(scene, this.active.sound, config.volume, fadeDuration);
+        if (this.current?.key === config.key && !restart) {
+            this.fadeWhenUnlocked(scene, this.current.sound, config.volume, fadeInDuration);
             return;
         }
 
-        if (this.active) {
-            this.fadingOut.add(this.active.sound);
-            this.active = undefined;
-        }
-
-        const outgoing = [...this.fadingOut];
-        if (outgoing.length === 0) {
-            this.startTrack(scene, config, fadeDuration, version);
+        if (!this.current) {
+            this.startDesiredTrack();
             return;
         }
 
-        let remaining = outgoing.length;
-        for (const sound of outgoing) {
-            this.fade(scene, sound, 0, fadeDuration, () => {
-                this.release(sound);
-                remaining -= 1;
-                if (remaining === 0 && version === this.transitionVersion) {
-                    this.startTrack(scene, config, fadeDuration, version);
-                }
-            });
-        }
+        const outgoing = this.current.sound;
+        this.fade(this.getAudioScene(scene), outgoing, 0, fadeOutDuration, () => {
+            this.release(outgoing);
+            if (version === this.transitionVersion) this.startDesiredTrack();
+        });
     }
 
     stop(scene: Scene, fadeDuration = 0) {
         this.transitionVersion += 1;
+        this.desired = undefined;
         this.cancelPendingUnlock();
-        this.cancelTransitions();
-        if (this.active) {
-            this.fadingOut.add(this.active.sound);
-            this.active = undefined;
+        if (!this.current) {
+            this.removeOrphanedMusic(scene);
+            return;
         }
-        this.fadeOutInactive(scene, scene.sound.locked ? 0 : fadeDuration);
+
+        const outgoing = this.current.sound;
+        this.fade(
+            this.getAudioScene(scene),
+            outgoing,
+            0,
+            scene.sound.locked ? 0 : fadeDuration,
+            () => this.release(outgoing)
+        );
     }
 
-    private startTrack(scene: Scene, config: MusicConfig, duration: number, version: number) {
-        if (version !== this.transitionVersion) return;
+    private startDesiredTrack() {
+        const desired = this.desired;
+        if (!desired || desired.version !== this.transitionVersion) return;
 
-        const sound = scene.sound.add(config.key, {
+        this.removeOrphanedMusic(desired.scene);
+        const sound = desired.scene.sound.add(desired.config.key, {
             loop: true,
-            volume: duration > 0 ? 0 : config.volume
+            volume: 0
         }) as VolumeSound;
+
+        // Reforça o zero antes e depois de play nos backends WebAudio e HTML5.
+        this.setVolume(sound, 0);
         sound.play();
-        this.active = { key: config.key, sound };
-        this.fadeWhenUnlocked(scene, sound, config.volume, duration);
+        this.setVolume(sound, 0);
+        this.current = { key: desired.config.key, sound };
+        this.debug(desired.scene, `faixa criada em zero: ${desired.config.key}`);
+        this.fadeWhenUnlocked(
+            desired.scene,
+            sound,
+            desired.config.volume,
+            desired.fadeInDuration
+        );
     }
 
     private fadeWhenUnlocked(
@@ -82,25 +135,20 @@ export class MusicDirector {
         targetVolume: number,
         duration: number
     ) {
+        this.setVolume(sound, 0);
         if (duration <= 0 || !scene.sound.locked) {
-            this.fade(scene, sound, targetVolume, duration);
+            this.fade(this.getAudioScene(scene), sound, targetVolume, duration);
             return;
         }
 
-        sound.setVolume(0);
         const callback = () => {
             this.pendingUnlock = undefined;
-            if (this.active?.sound !== sound) return;
-            this.fade(scene, sound, targetVolume, duration);
+            if (this.current?.sound !== sound) return;
+            this.setVolume(sound, 0);
+            this.fade(this.getAudioScene(scene), sound, targetVolume, duration);
         };
         this.pendingUnlock = { manager: scene.sound, callback };
         scene.sound.once('unlocked', callback);
-    }
-
-    private fadeOutInactive(scene: Scene, duration: number) {
-        for (const sound of this.fadingOut) {
-            this.fade(scene, sound, 0, duration, () => this.release(sound));
-        }
     }
 
     private fade(
@@ -110,8 +158,14 @@ export class MusicDirector {
         duration: number,
         onComplete?: () => void
     ) {
+        if (this.transition?.sound === sound && this.transition.targetVolume === targetVolume) {
+            this.transition.onComplete = onComplete;
+            return;
+        }
+
+        this.cancelTransition();
         if (duration <= 0 || Math.abs(sound.volume - targetVolume) < 0.001) {
-            sound.setVolume(targetVolume);
+            this.setVolume(sound, targetVolume);
             onComplete?.();
             return;
         }
@@ -124,22 +178,59 @@ export class MusicDirector {
             ease: 'Sine.InOut',
             onUpdate: (activeTween) => {
                 const progress = activeTween.getValue() ?? 1;
-                const volume = initialVolume
-                    + (targetVolume - initialVolume) * progress;
-                sound.setVolume(volume);
+                this.setVolume(sound, initialVolume + (targetVolume - initialVolume) * progress);
             },
             onComplete: () => {
-                sound.setVolume(targetVolume);
-                this.transitions = this.transitions.filter((candidate) => candidate !== tween);
-                onComplete?.();
+                this.setVolume(sound, targetVolume);
+                const callback = this.transition?.tween === tween
+                    ? this.transition.onComplete
+                    : undefined;
+                if (this.transition?.tween === tween) this.transition = undefined;
+                callback?.();
             }
         });
-        this.transitions.push(tween);
+        this.transition = { sound, targetVolume, tween, onComplete };
     }
 
-    private cancelTransitions() {
-        for (const tween of this.transitions) tween.stop();
-        this.transitions = [];
+    private getAudioScene(scene: Scene) {
+        const audioScene = scene.scene?.get?.('Audio');
+        return audioScene && audioScene.tweens ? audioScene : scene;
+    }
+
+    private setVolume(sound: VolumeSound, value: number) {
+        sound.setVolume(value);
+
+        // Phaser usa setValueAtTime(value, 0). Com o AudioContext suspenso,
+        // o GainNode pode continuar expondo o ganho padrão 1 até o unlock.
+        // Escrever no tempo atual garante silêncio antes de liberar o source.
+        const gain = sound.volumeNode?.gain;
+        if (!gain) return;
+        const context = sound.manager.context;
+        gain.value = value;
+        if (!context) return;
+        gain.cancelScheduledValues(context.currentTime);
+        gain.setValueAtTime(value, context.currentTime);
+    }
+
+    private removeOrphanedMusic(scene: Scene) {
+        const manager = scene.sound as SoundManagerWithSounds;
+        if (!Array.isArray(manager.sounds)) return;
+
+        for (const candidate of [...manager.sounds] as VolumeSound[]) {
+            if (
+                candidate.pendingRemove
+                || !this.musicKeys.has(candidate.key)
+                || candidate === this.current?.sound
+            ) continue;
+            candidate.stop();
+            candidate.destroy();
+            this.debug(scene, `instância órfã removida: ${candidate.key}`);
+        }
+    }
+
+    private cancelTransition() {
+        this.transition?.tween.stop();
+        this.transition = undefined;
     }
 
     private cancelPendingUnlock() {
@@ -150,9 +241,24 @@ export class MusicDirector {
     }
 
     private release(sound: VolumeSound) {
-        this.fadingOut.delete(sound);
+        if (this.transition?.sound === sound) this.cancelTransition();
+        if (this.current?.sound === sound) this.current = undefined;
         sound.stop();
         sound.destroy();
+    }
+
+    private debug(scene: Scene, event: string) {
+        if (typeof window === 'undefined' || !new URLSearchParams(window.location.search).has('audioDebug')) {
+            return;
+        }
+
+        const manager = scene.sound as SoundManagerWithSounds;
+        const music = Array.isArray(manager.sounds)
+            ? (manager.sounds as VolumeSound[])
+                .filter((sound) => this.musicKeys.has(sound.key) && !sound.pendingRemove)
+                .map((sound) => ({ key: sound.key, volume: sound.volume, playing: sound.isPlaying }))
+            : [];
+        console.debug(`[audio] ${event} ${JSON.stringify(music)}`);
     }
 }
 

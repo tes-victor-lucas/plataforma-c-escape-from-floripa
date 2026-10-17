@@ -7,6 +7,7 @@ import { hasLineOfSight } from '../map/hasLineOfSight';
 import { playDamageNumber } from '../effects/playDamageNumber';
 import { WORLD_CONFIG } from '../config/world';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
+import { runTracker, type RunTracker } from '../scoring/RunTracker';
 
 type Fighter = Player | Drone;
 type Weapon = {
@@ -18,11 +19,22 @@ type Weapon = {
 };
 
 type ProjectileState = {
+    id: string;
     lifetime: number;
     damage: number;
     remainingPierces: number;
     hitDrones: Set<Drone>;
 };
+
+let fallbackProjectileSequence = 0;
+
+/** Mantém a identidade do projétil única mesmo ao trocar de sala. */
+export function createProjectileId(runId = 'untracked') {
+    const uniquePart = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${fallbackProjectileSequence++}`;
+    return `${runId}:projectile-${uniquePart}`;
+}
 
 /** Disparos automáticos, colisões e duração dos projéteis da sala. */
 export class CombatSystem {
@@ -39,7 +51,8 @@ export class CombatSystem {
         private readonly player: Player,
         private readonly drones: Drone[],
         private readonly walls: Phaser.Tilemaps.TilemapLayer[],
-        private readonly playerStats: PlayerUpgradeState = new PlayerUpgradeState()
+        private readonly playerStats: PlayerUpgradeState = new PlayerUpgradeState(),
+        private readonly tracker: RunTracker = runTracker
     ) {
         const texture = 'combat-projectile-rounded';
         if (!scene.textures.exists(texture)) {
@@ -80,7 +93,11 @@ export class CombatSystem {
             state.hitDrones.add(drone);
             const damage = Math.min(state.damage, drone.health.current);
             const center = this.getCenter(drone);
+            const wasAlive = drone.health.isAlive;
             drone.takeDamage(state.damage);
+            if (wasAlive && !drone.health.isAlive) {
+                this.tracker.recordEnemyDeath(drone.id, state.id);
+            }
             playDamageNumber(this.scene, center.x, center.y, damage);
             if (state.remainingPierces > 0) {
                 state.remainingPierces -= 1;
@@ -181,6 +198,7 @@ export class CombatSystem {
         remainingPierces: number
     ) {
         const shot = group.create(origin.x, origin.y, 'combat-projectile-rounded') as Physics.Arcade.Image;
+        const id = createProjectileId(this.tracker.snapshot().runId);
         const { width, height, scale } = COMBAT_CONFIG.projectile;
         shot.setDepth(15).setTint(weapon.color);
         shot.setScale(scale).setRotation(angle);
@@ -190,11 +208,13 @@ export class CombatSystem {
         );
         shot.setVelocity(Math.cos(angle) * weapon.projectileSpeed, Math.sin(angle) * weapon.projectileSpeed);
         this.projectiles.set(shot, {
+            id,
             lifetime: COMBAT_CONFIG.projectile.lifetime,
             damage: weapon.damage,
             remainingPierces,
             hitDrones: new Set()
         });
+        this.tracker.registerProjectile(id);
     }
 
     private updateCompanion(delta: number) {
@@ -250,7 +270,9 @@ export class CombatSystem {
     }
 
     private removeShot(shot: Physics.Arcade.Image) {
+        const state = this.projectiles.get(shot);
+        if (state) this.tracker.finalizeProjectile(state.id);
         this.projectiles.delete(shot);
-        shot.destroy();
+        if (shot.active) shot.destroy();
     }
 }

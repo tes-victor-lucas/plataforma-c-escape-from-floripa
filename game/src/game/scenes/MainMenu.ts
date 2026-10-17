@@ -9,13 +9,13 @@ import {
     loadCampaignProgress,
     type CampaignProgress
 } from '../progress/CampaignProgress';
+import { runTracker } from '../scoring/RunTracker';
 
 const GAMEPLAY_SCENES = [
     'World',
     'CombatHud',
     'PauseMenu',
-    'RoomTransition',
-    'ReturnToMenuTransition'
+    'RoomTransition'
 ] as const;
 
 export class MainMenu extends Scene {
@@ -36,7 +36,8 @@ export class MainMenu extends Scene {
         this.view = new MainMenuView(this, {
             onNewGame: () => this.startNewGame(),
             onContinue: continuation ? () => this.continueGame(continuation) : undefined,
-            onMultiplayer: () => void this.startMultiplayer()
+            onMultiplayer: () => void this.startMultiplayer(),
+            onLeaderboard: () => this.scene.launch('Leaderboard')
         });
         this.view.create();
     }
@@ -47,6 +48,7 @@ export class MainMenu extends Scene {
         this.isStartingGame = true;
         this.registry.set('multiplayerEnabled', false);
         clearCampaignProgress();
+        runTracker.startNew('SINGLE_PLAYER');
         replaceRequestedRoomKey('room1');
         this.scene.launch('RoomTransition', { roomKey: 'room1' });
     }
@@ -56,6 +58,8 @@ export class MainMenu extends Scene {
 
         this.isStartingGame = true;
         this.registry.set('multiplayerEnabled', false);
+        if (progress.run) runTracker.restore(progress.run);
+        else runTracker.startNew('SINGLE_PLAYER');
         this.scene.launch('RoomTransition', {
             roomKey: progress.roomKey,
             playerProgress: progress.playerProgress
@@ -76,6 +80,7 @@ export class MainMenu extends Scene {
         try {
             await multiplayerClient.connect((status) => view.setStatus(status));
             this.registry.set('multiplayerEnabled', true);
+            runTracker.startNew('MULTIPLAYER');
             replaceRequestedRoomKey('room1');
             view.setStatus('DUPLA ENCONTRADA!');
             this.scene.launch('RoomTransition', { roomKey: 'room1' });

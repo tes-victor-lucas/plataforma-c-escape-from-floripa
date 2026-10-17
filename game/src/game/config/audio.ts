@@ -35,7 +35,6 @@ export const AUDIO_CONFIG = {
     },
     music: {
         fadeDuration: 1800,
-        sceneExitFadeDuration: 500,
         mainMenu: {
             key: 'main-menu-music',
             path: 'assets/audio/mainmenu.mp3',

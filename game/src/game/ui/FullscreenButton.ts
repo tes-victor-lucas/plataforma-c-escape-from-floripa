@@ -2,10 +2,12 @@ import { Game, Scale } from 'phaser';
 
 const BUTTON_ID = 'fullscreen-button';
 
-/** Connects the persistent DOM button to Phaser's fullscreen scale manager. */
+/** Connects the player-shell action to Phaser's fullscreen scale manager. */
 export function setupFullscreenButton(game: Game) {
     const button = document.getElementById(BUTTON_ID) as HTMLButtonElement | null;
     if (!button) return;
+
+    const visibleLabel = button.querySelector<HTMLElement>('.fullscreen-label');
 
     const updateButton = () => {
         const isFullscreen = game.scale.isFullscreen;
@@ -14,6 +16,9 @@ export function setupFullscreenButton(game: Game) {
         button.dataset.fullscreen = String(isFullscreen);
         button.setAttribute('aria-label', label);
         button.title = label;
+        if (visibleLabel) {
+            visibleLabel.textContent = isFullscreen ? 'Sair da tela cheia' : 'Tela cheia';
+        }
     };
 
     const disableButton = () => {

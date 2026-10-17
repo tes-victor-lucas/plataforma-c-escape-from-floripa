@@ -1,102 +1,127 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
 
 <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="./favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Plataforma C: Escape From Floripa</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            width: 100vw;
-            height: 100vh;
-            color: rgba(255, 255, 255, 0.87);
-            background-color: #000000;
-            overflow: hidden;
-        }
-
-        #app {
-            width: 100%;
-            height: 100vh;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        #game-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            background: #000000;
-        }
-
-        #fullscreen-button {
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            z-index: 10;
-            display: grid;
-            width: 42px;
-            height: 42px;
-            padding: 0;
-            background: transparent;
-            border: 0;
-            border-radius: 50%;
-            place-items: center;
-            cursor: pointer;
-        }
-
-        #game-container.gameplay-active #fullscreen-button {
-            top: 8px;
-            right: 58px;
-        }
-
-        #fullscreen-button:hover,
-        #fullscreen-button:focus-visible {
-            transform: scale(1.06);
-            outline: 2px solid #5ce5f1;
-            outline-offset: 1px;
-        }
-
-        #fullscreen-button:disabled,
-        #fullscreen-button[data-fullscreen='true'] {
-            display: none;
-        }
-
-        #fullscreen-button .action-button-icon {
-            width: 100%;
-            height: 100%;
-            background-image: url('./public/assets/ui/fullscreen.png');
-            background-repeat: no-repeat;
-            background-position: center;
-            background-size: contain;
-            image-rendering: pixelated;
-        }
-
-        canvas {
-            display: block;
-            image-rendering: pixelated;
-        }
-    </style>
+    <meta name="theme-color" content="#08080d" />
+    <title>Escape From Floripa</title>
 </head>
 
 <body>
-    <div id="app">
-        <div id="game-container">
-            <button
-                id="fullscreen-button"
-                type="button"
-                data-fullscreen="false"
-                aria-label="Entrar em tela cheia"
-                title="Entrar em tela cheia"
-            >
-                <span class="action-button-icon" aria-hidden="true"></span>
-            </button>
-        </div>
-    </div>
+    <main id="app">
+        <section id="game-player" class="game-player" aria-label="Escape From Floripa">
+            <div class="game-stage">
+                <div id="game-container"></div>
+
+                <button
+                    id="controls-backdrop"
+                    class="controls-backdrop"
+                    type="button"
+                    tabindex="-1"
+                    aria-label="Fechar painel de controles"
+                ></button>
+
+                <aside
+                    id="controls-panel"
+                    class="controls-panel"
+                    aria-labelledby="controls-title"
+                    aria-hidden="true"
+                >
+                    <header class="controls-panel__header">
+                        <div>
+                            <span class="eyebrow">Como jogar</span>
+                            <h2 id="controls-title">Controles</h2>
+                        </div>
+                        <button
+                            id="close-controls-button"
+                            class="icon-button icon-button--quiet"
+                            type="button"
+                            aria-label="Fechar painel de controles"
+                            title="Fechar"
+                        >
+                            <svg aria-hidden="true" viewBox="0 0 24 24">
+                                <path d="M6 6l12 12M18 6 6 18" />
+                            </svg>
+                        </button>
+                    </header>
+
+                    <div class="control-section">
+                        <h3>Movimentação</h3>
+                        <div class="control-row">
+                            <div class="key-group" aria-label="W, A, S, D">
+                                <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
+                            </div>
+                            <span>Movimentar personagem</span>
+                        </div>
+                        <div class="control-row">
+                            <div class="key-group key-group--wide" aria-label="Setas direcionais">
+                                <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd>
+                            </div>
+                            <span>Movimentação alternativa</span>
+                        </div>
+                    </div>
+
+                    <div class="control-section">
+                        <h3>Ações</h3>
+                        <div class="control-row">
+                            <kbd>P</kbd>
+                            <span>Pausar ou continuar</span>
+                        </div>
+                        <div class="control-row">
+                            <kbd>G</kbd>
+                            <span>Interagir no Piranhas Bar</span>
+                        </div>
+                        <p class="control-note">Os disparos são automáticos quando um inimigo entra no alcance.</p>
+                    </div>
+                </aside>
+            </div>
+
+            <footer class="player-bar">
+                <div class="game-identity">
+                    <div>
+                        <h1>Escape From Floripa</h1>
+                        <p>Sobreviva. Explore. Escape.</p>
+                    </div>
+                </div>
+
+                <div class="player-actions" aria-label="Ações do jogo">
+                    <button
+                        id="controls-button"
+                        class="player-action"
+                        type="button"
+                        aria-controls="controls-panel"
+                        aria-expanded="false"
+                        title="Ver controles"
+                    >
+                        <svg aria-hidden="true" viewBox="0 0 24 24">
+                            <path d="M8.5 8h7a5.5 5.5 0 0 1 5.25 7.15l-.7 2.22a2.4 2.4 0 0 1-4.03.93L14.3 16.5H9.7l-1.72 1.8a2.4 2.4 0 0 1-4.03-.93l-.7-2.22A5.5 5.5 0 0 1 8.5 8Z" />
+                            <path d="M7.5 11v4M5.5 13h4M16.8 12h.01M18.5 14h.01" />
+                        </svg>
+                        <span>Controles</span>
+                    </button>
+
+                    <button
+                        id="fullscreen-button"
+                        class="player-action"
+                        type="button"
+                        data-fullscreen="false"
+                        aria-label="Entrar em tela cheia"
+                        title="Entrar em tela cheia"
+                    >
+                        <svg class="fullscreen-enter" aria-hidden="true" viewBox="0 0 24 24">
+                            <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+                        </svg>
+                        <svg class="fullscreen-exit" aria-hidden="true" viewBox="0 0 24 24">
+                            <path d="M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5" />
+                        </svg>
+                        <span class="fullscreen-label">Tela cheia</span>
+                    </button>
+                </div>
+            </footer>
+        </section>
+    </main>
     <script type="module" src="./src/main.ts"></script>
 </body>
 

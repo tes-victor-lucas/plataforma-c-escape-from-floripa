@@ -42,7 +42,12 @@ import {
     restorePlayerProgress,
     type PlayerProgress
 } from '../progress/PlayerProgress';
-import { loadCampaignProgress, saveCampaignProgress } from '../progress/CampaignProgress';
+import {
+    clearCampaignProgress,
+    loadCampaignProgress,
+    saveCampaignProgress
+} from '../progress/CampaignProgress';
+import { runTracker } from '../scoring/RunTracker';
 
 const ROOM2_WALKABLE_LAYERS = [
     'floor',
@@ -99,6 +104,7 @@ export class World extends Scene {
     private readonly upgrades = new PlayerUpgradeState();
     private readonly remotePlayers = new Map<string, RemotePlayer>();
     private unsubscribeMultiplayer?: () => void;
+    private unsubscribeRunTracker?: () => void;
     private multiplayerSyncElapsed = 0;
     private readonly room1SecretCode = new SecretCodeMatcher(ROOM1_CLEAR_CODE);
     private completeRoomCombat?: () => void;
@@ -143,7 +149,13 @@ export class World extends Scene {
             )
             : COMBAT_CONFIG.droneSpawns;
 
-        this.player = new Player(this, this.getPlayerSpawn(spawn));
+        const mode = this.isMultiplayerEnabled() ? 'MULTIPLAYER' : 'SINGLE_PLAYER';
+        runTracker.ensureRunning(mode);
+        this.player = new Player(
+            this,
+            this.getPlayerSpawn(spawn),
+            (healthLost) => runTracker.recordPlayerHit(healthLost)
+        );
         if (data.playerProgress) {
             restorePlayerProgress(
                 data.playerProgress,
@@ -152,6 +164,13 @@ export class World extends Scene {
                 this.upgrades
             );
         }
+        this.unsubscribeRunTracker = runTracker.subscribe((snapshot) => {
+            if (snapshot.status !== 'RUNNING') {
+                if (!this.isMultiplayerEnabled()) clearCampaignProgress();
+                return;
+            }
+            this.persistContinuationCheckpoint();
+        });
         if (roomKey === 'room2') this.createPiranhasBarPrompt();
         this.stairClimbEffect = room.stairPassage
             ? new StairClimbEffect(this, this.player.sprite, room.stairPassage)
@@ -174,6 +193,12 @@ export class World extends Scene {
             room.openExit();
             this.player?.clearBlockedDirection();
             if (roomKey === ROOM1_TO_ROOM2_GATEWAY.from) this.activateRoomExit();
+            if (roomKey === 'room2') {
+                this.isGameOver = true;
+                this.combat?.clear();
+                this.physics.pause();
+                void runTracker.win();
+            }
         };
         this.waves = new DroneWaves(
             (count) => this.spawnDrones(count),
@@ -210,6 +235,8 @@ export class World extends Scene {
 
     /** Executado exclusivamente pelo botão "Tentar novamente" da tela de derrota. */
     private restartFromDefeatMenu() {
+        clearCampaignProgress();
+        runTracker.startNew(this.isMultiplayerEnabled() ? 'MULTIPLAYER' : 'SINGLE_PLAYER');
         this.stopGameplayOverlays();
         this.scene.restart({
             waitForReveal: false,
@@ -220,11 +247,11 @@ export class World extends Scene {
 
     /** Encerra completamente a partida derrotada e volta para uma nova campanha. */
     private returnToMainMenuFromDefeat() {
+        clearCampaignProgress();
         replaceRequestedRoomKey('room1');
         this.stopGameplayOverlays();
-        this.scene.stop('MainMenu');
-        this.scene.start('MainMenu');
-        this.scene.bringToTop('MainMenu');
+        this.scene.launch('ReturnToMenuTransition', { saveContinuation: false });
+        this.scene.bringToTop('ReturnToMenuTransition');
     }
 
     private stopGameplayOverlays() {
@@ -238,6 +265,7 @@ export class World extends Scene {
             this.isGameOver = true;
             this.combat?.clear();
             this.physics.pause();
+            runTracker.lose();
             return;
         }
         this.updatePiranhasBarInteraction();
@@ -320,7 +348,8 @@ export class World extends Scene {
         if (!this.isMultiplayerEnabled()) {
             saveCampaignProgress({
                 roomKey: ROOM1_TO_ROOM2_GATEWAY.to,
-                playerProgress
+                playerProgress,
+                run: runTracker.checkpoint()
             });
         }
         this.scene.launch('RoomTransition', {
@@ -333,10 +362,22 @@ export class World extends Scene {
 
     /** Atualiza um checkpoint já desbloqueado sem liberar salas por acesso direto. */
     saveContinuation() {
-        if (this.isMultiplayerEnabled() || !this.player || !loadCampaignProgress()) return;
+        if (this.isMultiplayerEnabled() || !this.player || !loadCampaignProgress()) return false;
+        this.combat?.clear();
+        this.persistContinuationCheckpoint();
+        return true;
+    }
+
+    /** Mantém estatísticas, vida e build alinhadas no mesmo checkpoint local. */
+    private persistContinuationCheckpoint() {
+        if (
+            this.isMultiplayerEnabled() || !this.player
+            || this.activeRoomKey !== 'room2' || !loadCampaignProgress()
+        ) return;
         saveCampaignProgress({
             roomKey: this.activeRoomKey,
-            playerProgress: capturePlayerProgress(this.player, this.upgrades)
+            playerProgress: capturePlayerProgress(this.player, this.upgrades),
+            run: runTracker.checkpoint()
         });
     }
 
@@ -495,6 +536,8 @@ export class World extends Scene {
         this.playerRangeIndicator = undefined;
         this.unsubscribeMultiplayer?.();
         this.unsubscribeMultiplayer = undefined;
+        this.unsubscribeRunTracker?.();
+        this.unsubscribeRunTracker = undefined;
         for (const remotePlayer of this.remotePlayers.values()) remotePlayer.destroy();
         this.remotePlayers.clear();
         this.multiplayerSyncElapsed = 0;
