@@ -11,14 +11,14 @@ export const ROOM_EXIT_LIGHT_STYLE = {
     spillAlpha: 0.3
 } as const;
 
-/** Sinal luminoso exibido sobre a saída liberada da Room 1. */
+/** Halo circular centralizado sobre a saída liberada da Room 1. */
 export class RoomExitPortal {
     private readonly objects: Phaser.GameObjects.GameObject[];
     private readonly pulses: Phaser.Tweens.Tween[];
 
     constructor(scene: Scene, x: number, y: number) {
         const style = ROOM_EXIT_LIGHT_STYLE;
-        const spill = createLampLight(scene, x - 18, y - 14, PORTAL_DEPTH, style.spillAlpha)
+        const spill = createLampLight(scene, x, y, PORTAL_DEPTH, style.spillAlpha)
             .setScale(style.spillScale);
         const light = createLampLight(scene, x, y, PORTAL_DEPTH + 1, style.mainAlpha)
             .setScale(style.mainScale);

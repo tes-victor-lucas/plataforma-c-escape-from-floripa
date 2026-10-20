@@ -31,10 +31,9 @@ flowchart LR
 
 - **Backend:** o frontend chama a API REST no API Gateway. As funções Lambda executam as regras que precisam ficar na nuvem, como iniciar/finalizar uma run, salvar o tempo e consultar o placar. O DynamoDB guarda usuários, runs vencedoras e o ranking.
 
-- **Placar:** somente runs vencidas são salvas. O banco consulta os tempos do menor para o maior; portanto, quem terminou mais rápido aparece primeiro. O tempo deve ser confirmado pelo backend/servidor, e não aceito diretamente do navegador.
+- **Placar:** somente runs vencidas são salvas. A Lambda calcula a pontuação com a versão da fórmula e com os horários de início e fim registrados no backend. O ranking separa modalidade e versão, mantém um resultado por jogador e ordena por maior pontuação, menor tempo e conclusão mais antiga.
 
 - **Multiplayer:** o GameLift Servers é o serviço da AWS voltado a hospedar partidas. O IoT Core funciona como o **broker**: recebe mensagens dos jogadores e distribui as atualizações da partida. O GameLift valida as ações importantes, como vitória e derrota.
 
 - **Notificações e logs:** quando algo importante acontece, como uma run concluída, o EventBridge e o SQS enviam o evento para processamento sem atrasar o jogo. SES pode enviar e-mails e SNS notificações. CloudWatch guarda logs e ajuda a encontrar erros.
-
 

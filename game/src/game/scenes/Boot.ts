@@ -14,6 +14,7 @@ export class Boot extends Scene
 
     create ()
     {
+        this.scene.launch('Audio');
         this.scene.start('Preloader');
     }
 }

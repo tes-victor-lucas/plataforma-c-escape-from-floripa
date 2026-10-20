@@ -1,7 +1,10 @@
 import { Scene } from 'phaser';
 import { musicDirector } from '../audio/MusicDirector';
 import { AUDIO_CONFIG } from '../config/audio';
-import { RoomTransitionView } from '../ui/RoomTransitionView';
+import {
+    ROOM_TRANSITION_CLOSE_DURATION,
+    RoomTransitionView
+} from '../ui/RoomTransitionView';
 import {
     getRequestedRoomKey,
     replaceRequestedRoomKey,
@@ -27,17 +30,22 @@ export class RoomTransition extends Scene {
         const roomKey = data.roomKey ?? getRequestedRoomKey();
         const roomDefinition = ROOM_DEFINITIONS[roomKey];
         if (data.source === 'world') this.scene.stop('MainMenu');
-        musicDirector.stop(this, AUDIO_CONFIG.music.fadeDuration);
+        musicDirector.transitionTo(this, AUDIO_CONFIG.music.room1, {
+            fadeOutDuration: ROOM_TRANSITION_CLOSE_DURATION,
+            fadeInDuration: AUDIO_CONFIG.music.fadeDuration,
+            restart: data.source === 'world'
+        });
         new RoomTransitionView(this, roomDefinition.title).play({
-            onCovered: () => this.startWorldUnderTransition(
-                roomKey,
-                data.source ?? 'main-menu',
-                data.playerProgress
-            ),
+            onCovered: () => {
+                this.startWorldUnderTransition(
+                    roomKey,
+                    data.source ?? 'main-menu',
+                    data.playerProgress
+                );
+            },
             onComplete: () => {
                 const world = this.scene.get('World') as World;
                 this.scene.stop('MainMenu');
-                musicDirector.play(world, AUDIO_CONFIG.music.room1, AUDIO_CONFIG.music.fadeDuration);
                 world.startGameplay();
                 this.scene.stop();
             }

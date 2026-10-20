@@ -11,9 +11,10 @@ export type RoomGatewayDefinition = {
 export const ROOM1_TO_ROOM2_GATEWAY: RoomGatewayDefinition = {
     from: 'room1',
     to: 'room2',
-    area: { left: 9 * 16, right: 13 * 16, top: 0, bottom: 5 * 16 },
-    // O halo fica deslocado para o canto superior esquerdo, como luz externa.
-    portal: { x: 9.25 * 16, y: 1.25 * 16 }
+    // A troca de sala só acontece perto do fundo da passagem.
+    area: { left: 9 * 16, right: 13 * 16, top: 0, bottom: 2 * 16 },
+    // Centraliza somente no eixo horizontal e mantém o halo junto à borda superior.
+    portal: { x: 11 * 16, y: 0.25 * 16 }
 };
 
 export function isInsideRoomGateway(

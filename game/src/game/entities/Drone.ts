@@ -9,8 +9,16 @@ import { playDroneExplosion } from '../effects/playDroneExplosion';
 
 type DroneSpawn = { x: number; y: number; patrolLeft: number; patrolRight: number };
 
+function createDroneId() {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+        return `drone-${crypto.randomUUID()}`;
+    }
+    return `drone-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 /** Exibe e movimenta o drone inimigo na sala. */
 export class Drone {
+    readonly id = createDroneId();
     readonly sprite: Phaser.Physics.Arcade.Sprite;
     readonly health = new Health(COMBAT_CONFIG.drone.maxHealth);
 

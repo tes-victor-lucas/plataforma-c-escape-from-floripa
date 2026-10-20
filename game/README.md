@@ -3,6 +3,7 @@
 ## Combate
 
 - Movimente o personagem com WASD ou as setas; P ou o botão no canto superior direito abrem a pausa.
+- A barra abaixo do jogo permite consultar os controles e alternar o player completo para tela cheia.
 - O jogador atira automaticamente no drone visível mais próximo a até 100 pixels.
 - A sala tem duas ondas: 10 drones iniciais e mais 20 após eliminar todos os primeiros. Os drones disparam projéteis vermelhos a até 200 pixels; paredes e obstáculos bloqueiam os disparos.
 - Após eliminar os 30 drones, as barricadas das camadas `objectos-block-back` e `objects-block` desaparecem e a passagem superior é liberada. Reiniciar a sala restaura os bloqueios.

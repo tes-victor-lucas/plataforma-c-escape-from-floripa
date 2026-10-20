@@ -37,7 +37,7 @@ function load(relative) {
     return module.exports;
 }
 const { Health } = load('../src/game/combat/Health.ts');
-const { CombatSystem } = load('../src/game/combat/CombatSystem.ts');
+const { CombatSystem, createProjectileId } = load('../src/game/combat/CombatSystem.ts');
 const { COMBAT_CONFIG, ROOM2_STAIR_GUARD_SPAWNS } = load('../src/game/config/combat.ts');
 const { WORLD_CONFIG } = load('../src/game/config/world.ts');
 const { Drone } = load('../src/game/entities/Drone.ts');
@@ -59,7 +59,10 @@ const {
     loadCampaignProgress,
     saveCampaignProgress
 } = load('../src/game/progress/CampaignProgress.ts');
-const { createMainMenuActions } = load('../src/game/ui/MainMenuView.ts');
+const {
+    createMainMenuActions,
+    createPlayMenuActions
+} = load('../src/game/ui/MainMenuView.ts');
 const { getHeartFillLevels } = load('../src/game/ui/HeartHealthView.ts');
 const { MusicDirector } = load('../src/game/audio/MusicDirector.ts');
 const {
@@ -84,6 +87,80 @@ const { ROOM_EXIT_LIGHT_STYLE } = load('../src/game/map/RoomExitPortal.ts');
 const { LAMP_LIGHT_TEXTURE } = load('../src/game/map/createLampLights.ts');
 const { ROOM1_CLEAR_CODE, SecretCodeMatcher } = load('../src/game/config/secretCodes.ts');
 const { getInitialSceneRoute } = load('../src/game/scenes/Preloader.ts');
+const {
+    calculateDamagePoints,
+    calculateMultiKillBonus,
+    calculateScore,
+    calculateTimePoints
+} = load('../src/game/scoring/ScoreCalculator.ts');
+const { RunTracker } = load('../src/game/scoring/RunTracker.ts');
+
+test('pontuação v1 aplica tempo, dano, mortes, multi-kill e vitória', () => {
+    const score = calculateScore({
+        won: true,
+        elapsedTimeMs: 12_999,
+        enemiesDefeated: 3,
+        hitsTaken: 0,
+        multiKillBonuses: [calculateMultiKillBonus(3)]
+    });
+    assert.deepEqual(score, {
+        victoryPoints: 1_000,
+        timePoints: 5_880,
+        enemyPoints: 300,
+        multiKillPoints: 350,
+        damagePoints: 2_000,
+        total: 9_530
+    });
+    assert.equal(calculateTimePoints(900_000), 0);
+    assert.equal(calculateDamagePoints(1), 1_200);
+    assert.equal(calculateDamagePoints(2), 600);
+    assert.equal(calculateDamagePoints(3), 0);
+});
+
+test('tracker deduplica mortes, acertos e fechamento do mesmo projétil', () => {
+    const tracker = new RunTracker();
+    tracker.startNew('SINGLE_PLAYER', new Date('2026-01-01T00:00:00.000Z'));
+    tracker.registerProjectile('shot-1');
+    assert.equal(tracker.recordEnemyDeath('enemy-1', 'shot-1'), true);
+    assert.equal(tracker.recordEnemyDeath('enemy-1', 'shot-1'), false);
+    assert.equal(tracker.recordEnemyDeath('enemy-2', 'shot-1'), true);
+    assert.equal(tracker.finalizeProjectile('shot-1'), 250);
+    assert.equal(tracker.finalizeProjectile('shot-1'), 0);
+    assert.equal(tracker.recordPlayerHit(0), false);
+    assert.equal(tracker.recordPlayerHit(1), true);
+    const snapshot = tracker.snapshot(Date.parse('2026-01-01T00:00:10.000Z'));
+    assert.equal(snapshot.enemiesDefeated, 2);
+    assert.equal(snapshot.hitsTaken, 1);
+    assert.equal(snapshot.multiKills.length, 1);
+    assert.equal(snapshot.score.total, 450, 'tempo e dano entram apenas ao terminar');
+    const finalSnapshot = tracker.lose(new Date('2026-01-01T00:00:10.000Z'));
+    assert.equal(finalSnapshot.score.total, 7_550);
+});
+
+test('projéteis continuam únicos depois da troca de sala', () => {
+    const room1Projectile = createProjectileId('same-run');
+    const room2Projectile = createProjectileId('same-run');
+    assert.notEqual(room1Projectile, room2Projectile);
+
+    const tracker = new RunTracker();
+    tracker.startNew('SINGLE_PLAYER', new Date('2026-01-01T00:00:00.000Z'));
+    tracker.recordEnemyDeath('room1-enemy', room1Projectile);
+    tracker.finalizeProjectile(room1Projectile);
+    tracker.recordEnemyDeath('room2-enemy', room2Projectile);
+    tracker.finalizeProjectile(room2Projectile);
+    const snapshot = tracker.snapshot();
+    assert.equal(snapshot.enemiesDefeated, 2);
+    assert.equal(snapshot.score.enemyPoints, 200);
+});
+
+test('run inicia com zero e recebe o bônus de tempo somente ao terminar', () => {
+    const tracker = new RunTracker();
+    tracker.startNew('SINGLE_PLAYER', new Date('2026-01-01T00:00:00.000Z'));
+    assert.equal(tracker.snapshot(Date.parse('2026-01-01T00:00:05.000Z')).score.total, 0);
+    const result = tracker.lose(new Date('2026-01-01T00:00:05.000Z'));
+    assert.equal(result.score.timePoints, 5_950);
+    assert.equal(result.score.total, 7_950);
+});
 
 test('código secreto reconhece 9090 mesmo após teclas anteriores', () => {
     const matcher = new SecretCodeMatcher(ROOM1_CLEAR_CODE);
@@ -128,12 +205,14 @@ test('portal ocupa somente o corredor liberado no topo da room1', () => {
     assert.equal(isInsideRoomGateway(portal.x, area.bottom + 1), false);
 });
 
-test('saida da room1 reutiliza a luz dos postes no canto da passagem', () => {
+test('saida da room1 usa um halo circular centralizado e exige entrar no corredor', () => {
+    const { area, portal } = ROOM1_TO_ROOM2_GATEWAY;
     assert.equal(ROOM_EXIT_LIGHT_STYLE.texture, LAMP_LIGHT_TEXTURE);
     assert.ok(ROOM_EXIT_LIGHT_STYLE.spillScale > ROOM_EXIT_LIGHT_STYLE.mainScale);
     assert.ok(ROOM_EXIT_LIGHT_STYLE.mainAlpha > ROOM_EXIT_LIGHT_STYLE.spillAlpha);
-    assert.ok(ROOM1_TO_ROOM2_GATEWAY.portal.x < 10 * 16);
-    assert.ok(ROOM1_TO_ROOM2_GATEWAY.portal.y < 2 * 16);
+    assert.equal(portal.x, (area.left + area.right) / 2);
+    assert.equal(area.bottom, 2 * 16);
+    assert.equal(portal.y, 0.25 * 16);
 });
 
 test('cardápio do Piranhas usa três itens e seus assets individuais', () => {
@@ -195,10 +274,10 @@ test('efeito da escada progride do pé até o patamar superior', () => {
     assert.equal(getStairProgress(area.left - 1, area.top, area), null);
 });
 
-function fighter(x, y, maxHealth) {
+function fighter(x, y, maxHealth, id = 'fighter') {
     const health = new Health(maxHealth);
     return {
-        health, sprite: {
+        id, health, sprite: {
             active: true,
             body: { center: { x, y } },
             destroy() { this.active = false; this.body = null; }
@@ -206,9 +285,10 @@ function fighter(x, y, maxHealth) {
         takeDamage(amount) { health.takeDamage(amount); }
     };
 }
-function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUpgradeState()) {
-    const player = fighter(100, 100, COMBAT_CONFIG.player.maxHealth);
-    const drones = positions.map(([x, y]) => fighter(x, y, COMBAT_CONFIG.drone.maxHealth));
+function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUpgradeState(), tracker) {
+    const player = fighter(100, 100, COMBAT_CONFIG.player.maxHealth, 'player');
+    const drones = positions.map(([x, y], index) =>
+        fighter(x, y, COMBAT_CONFIG.drone.maxHealth, `enemy-${index}`));
     const groups = [];
     const colliders = [];
     const overlaps = [];
@@ -295,7 +375,7 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
         }
     };
     const walls = [{ getTilesWithinWorldXY: () => wallTiles }];
-    const combat = new CombatSystem(scene, player, drones, walls, upgrades);
+    const combat = new CombatSystem(scene, player, drones, walls, upgrades, tracker);
     return { combat, player, drones, groups, colliders, overlaps, attachBody, damageLabels, companions };
 }
 
@@ -550,34 +630,47 @@ test('continuar só é liberado por checkpoint conquistado depois da room1', () 
     assert.equal(loadCampaignProgress(storage), undefined);
 });
 
-test('menu oferece continuar apenas com progresso e sempre identifica novo jogo', () => {
+test('menu principal abre opções de jogo e desabilita continuar sem checkpoint', () => {
     let selected = '';
-    const withoutCheckpoint = createMainMenuActions({
-        onNewGame: () => { selected = 'new'; }
-    });
-    assert.deepEqual(withoutCheckpoint.map(({ label }) => label), [
-        'NOVO JOGO', 'OPÇÕES', 'SAIR'
+    const mainMenu = createMainMenuActions(
+        () => { selected = 'play'; },
+        () => { selected = 'leaderboard'; }
+    );
+    assert.deepEqual(mainMenu.map(({ label }) => label), [
+        'JOGAR', 'PLACAR', 'OPÇÕES', 'SAIR'
     ]);
-    withoutCheckpoint[0].onSelect();
+    mainMenu[0].onSelect();
+    assert.equal(selected, 'play');
+
+    const withoutCheckpoint = createPlayMenuActions({
+        onNewGame: () => { selected = 'new'; }
+    }, () => { selected = 'back'; });
+    assert.deepEqual(withoutCheckpoint.map(({ label }) => label), [
+        'CONTINUAR', 'JOGAR SOLO', 'VOLTAR'
+    ]);
+    assert.equal(withoutCheckpoint[0].enabled, false);
+    assert.equal(withoutCheckpoint[0].onSelect, undefined);
+    withoutCheckpoint[1].onSelect();
     assert.equal(selected, 'new');
 
-    const withCheckpoint = createMainMenuActions({
+    const withCheckpoint = createPlayMenuActions({
         onNewGame: () => { selected = 'new'; },
         onContinue: () => { selected = 'continue'; }
-    });
+    }, () => { selected = 'back'; });
     assert.deepEqual(withCheckpoint.map(({ label }) => label), [
-        'CONTINUAR', 'NOVO JOGO', 'OPÇÕES', 'SAIR'
+        'CONTINUAR', 'JOGAR SOLO', 'VOLTAR'
     ]);
+    assert.equal(withCheckpoint[0].enabled, true);
     withCheckpoint[0].onSelect();
     assert.equal(selected, 'continue');
 
-    const withMultiplayer = createMainMenuActions({
+    const withMultiplayer = createPlayMenuActions({
         onNewGame: () => { selected = 'new'; },
         onContinue: () => { selected = 'continue'; },
         onMultiplayer: () => { selected = 'multiplayer'; }
-    });
+    }, () => { selected = 'back'; });
     assert.deepEqual(withMultiplayer.map(({ label }) => label), [
-        'CONTINUAR', 'JOGAR SOLO', 'MULTIPLAYER', 'OPÇÕES', 'SAIR'
+        'CONTINUAR', 'JOGAR SOLO', 'MULTIPLAYER', 'VOLTAR'
     ]);
     withMultiplayer[2].onSelect();
     assert.equal(selected, 'multiplayer');
@@ -595,6 +688,20 @@ test('sorteio oferece três cartas distintas com ao menos uma habilidade', () =>
         assert.equal(new Set(cards.map((card) => card.id)).size, 3);
         assert.ok(cards.some((card) => card.kind === 'ability'));
     }
+});
+
+test('morte causada pelo projétil soma pontos à run ativa exatamente uma vez', () => {
+    const tracker = new RunTracker();
+    tracker.startNew('SINGLE_PLAYER', new Date('2026-01-01T00:00:00.000Z'));
+    const { combat, groups, overlaps } = setup([[150, 100]], [], new PlayerUpgradeState(), tracker);
+
+    for (let index = 0; index < 3; index++) {
+        combat.update(COMBAT_CONFIG.player.fireInterval);
+        overlaps[0].hit(groups[0].shots[index]);
+    }
+
+    assert.equal(tracker.snapshot(Date.parse('2026-01-01T00:00:05.000Z')).enemiesDefeated, 1);
+    assert.equal(tracker.snapshot(Date.parse('2026-01-01T00:00:05.000Z')).score.total, 100);
 });
 
 test('ondas criam 10 drones e depois 20 apenas quando todos os anteriores morrerem', () => {
@@ -1181,15 +1288,16 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     assert.deepEqual(restartData.spawn, ROOM_DEFINITIONS.room1.spawn);
 });
 
-test('voltar ao menu após derrota encerra gameplay e abre MainMenu', () => {
+test('voltar ao menu após derrota usa a transição suave de saída', () => {
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();
     const stopped = [];
-    const started = [];
+    const launched = [];
+    let launchData;
     const topScenes = [];
     world.scene = {
         stop(key) { stopped.push(key); },
-        start(key) { started.push(key); },
+        launch(key, data) { launched.push(key); launchData = data; },
         bringToTop(key) { topScenes.push(key); }
     };
 
@@ -1199,11 +1307,11 @@ test('voltar ao menu após derrota encerra gameplay e abre MainMenu', () => {
         'PauseMenu',
         'RoomTransition',
         'ReturnToMenuTransition',
-        'CombatHud',
-        'MainMenu'
+        'CombatHud'
     ]);
-    assert.deepEqual(started, ['MainMenu']);
-    assert.deepEqual(topScenes, ['MainMenu']);
+    assert.deepEqual(launched, ['ReturnToMenuTransition']);
+    assert.deepEqual(launchData, { saveContinuation: false });
+    assert.deepEqual(topScenes, ['ReturnToMenuTransition']);
 });
 
 test('encerramento do mundo não falha quando a câmera já foi removida', () => {
@@ -1236,8 +1344,7 @@ test('menu principal remove qualquer cena restante da partida anterior', () => {
         'World',
         'CombatHud',
         'PauseMenu',
-        'RoomTransition',
-        'ReturnToMenuTransition'
+        'RoomTransition'
     ]);
 });
 
@@ -1425,6 +1532,8 @@ test('diretor de música encerra uma faixa antes de iniciar gradualmente a próx
     assert.equal(sounds[0].volume, 0);
     transitions[0].config.onUpdate({ getValue: () => 0.5 });
     assert.equal(sounds[0].volume, 0.04);
+    director.play(scene, { key: 'menu', volume: 0.08 }, 2500);
+    assert.equal(transitions.length, 1, 'o mesmo pedido não deve reiniciar o fade');
     finish(transitions[0]);
 
     director.play(scene, { key: 'room', volume: 0.08 }, 2500);
@@ -1464,4 +1573,58 @@ test('diretor de música encerra uma faixa antes de iniciar gradualmente a próx
     assert.equal(transitions.length, transitionCount + 1);
     transitions.at(-1).config.onUpdate({ getValue: () => 0.5 });
     assert.equal(sounds[3].volume, 0.04);
+});
+
+test('diretor força o GainNode real para zero antes de iniciar a música', () => {
+    const transitions = [];
+    const context = { currentTime: 4 };
+    const gain = {
+        value: 1,
+        cancelScheduledValues() {},
+        setValueAtTime(value) { this.value = value; }
+    };
+    const sounds = [];
+    const manager = {
+        context,
+        locked: false,
+        sounds,
+        add(key) {
+            const sound = {
+                key,
+                manager,
+                pendingRemove: false,
+                volumeNode: { gain },
+                get volume() { return gain.value; },
+                isPlaying: false,
+                play() { this.isPlaying = true; },
+                stop() { this.isPlaying = false; },
+                destroy() { this.pendingRemove = true; },
+                // Simula o comportamento problemático: a configuração muda,
+                // mas o ganho do WebAudio continua em 1 enquanto suspenso.
+                setVolume(value) { this.configuredVolume = value; return this; }
+            };
+            sounds.push(sound);
+            return sound;
+        },
+        once() {},
+        off() {}
+    };
+    const scene = {
+        sound: manager,
+        tweens: {
+            addCounter(config) {
+                const tween = { stop() {} };
+                transitions.push({ config, tween });
+                return tween;
+            }
+        }
+    };
+
+    const director = new MusicDirector();
+    director.play(scene, { key: 'menu', volume: 0.12 }, 1800);
+
+    assert.equal(sounds.length, 1);
+    assert.equal(sounds[0].isPlaying, true);
+    assert.equal(gain.value, 0, 'o nó de áudio não pode ser liberado no ganho padrão 1');
+    assert.equal(transitions.length, 1);
 });
