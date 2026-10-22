@@ -11,6 +11,8 @@ No ano de 2067, uma IA (Floria) assumiu o controle do Centro de Florianópolis p
 
 ## Como rodar
 
+O guia completo, incluindo instalação, jogo, servidor multiplayer, build e testes, está em [`docs/como-rodar.md`](docs/como-rodar.md).
+
 1. É necessário ter node instalado no computador
 2. Clone o repositório e entre no repositório
 3. Entre na pasta 'game' -> cd game
@@ -33,3 +35,5 @@ Abra o jogo em duas abas e escolha **MULTIPLAYER**. Cada sala aceita no máximo 
 ## Pontuação e placar
 
 A pontuação da run é acompanhada no frontend e recalculada pelo backend serverless em Python. O relógio competitivo usa os horários registrados pela API, e somente vitórias entram no ranking. Consulte `backend/README.md`, `docs/api-placar.yaml` e `docs/modelo-dados-placar.md` para executar e implantar a API Gateway + Lambda + DynamoDB definida em `pulumi/`.
+
+O inventário completo da infraestrutura implementada e planejada, com instruções de deploy e verificação, está em [`docs/nuvem-aws-pulumi.md`](docs/nuvem-aws-pulumi.md).
