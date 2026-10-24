@@ -16,8 +16,8 @@ const DISABLED_ACTION_COLOR = '#6c7580';
 const SELECTED_ACTION_COLOR = '#ffffff';
 const SELECTED_MARKER_COLOR = 0xe90931;
 const MARKER_GAP = 8;
+const ACTION_SPACING = 25;
 const ACTION_HIT_AREA_WIDTH = 190;
-const ACTION_HIT_AREA_HEIGHT = 30;
 
 type MenuAction = {
     label: string;
@@ -27,10 +27,9 @@ type MenuAction = {
 };
 
 function positionActions(actions: Omit<MenuAction, 'y'>[]): MenuAction[] {
-    const spacing = 25;
     const centerY = 264;
-    const firstY = centerY - (actions.length - 1) * spacing / 2;
-    return actions.map((action, index) => ({ ...action, y: firstY + index * spacing }));
+    const firstY = centerY - (actions.length - 1) * ACTION_SPACING / 2;
+    return actions.map((action, index) => ({ ...action, y: firstY + index * ACTION_SPACING }));
 }
 
 export function createMainMenuActions(
@@ -153,7 +152,8 @@ export class MainMenuView {
                 GAME_WIDTH / 2,
                 action.y,
                 ACTION_HIT_AREA_WIDTH,
-                ACTION_HIT_AREA_HEIGHT,
+                // Altura igual ao espaçamento, para que itens vizinhos não disputem o mesmo ponteiro.
+                ACTION_SPACING,
                 0x000000,
                 0
             )
