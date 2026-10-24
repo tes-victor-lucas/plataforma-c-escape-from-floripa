@@ -13,10 +13,9 @@ const ACTION_FONT = 'PixelGamer, monospace';
 const ACTION_FONT_SIZE = '18px';
 const ACTION_COLOR = '#0074df';
 const DISABLED_ACTION_COLOR = '#6c7580';
-const SELECTED_ACTION_COLOR = '#00162e';
-const SELECTED_BACKGROUND_COLOR = 0xe90931;
-const ACTION_WIDTH = 165;
-const ACTION_HEIGHT = 27;
+const SELECTED_ACTION_COLOR = '#ffffff';
+const SELECTED_MARKER_COLOR = 0xe90931;
+const MARKER_GAP = 8;
 const ACTION_HIT_AREA_WIDTH = 190;
 const ACTION_HIT_AREA_HEIGHT = 30;
 
@@ -62,7 +61,7 @@ export function createPlayMenuActions(
 }
 
 type RenderedAction = {
-    background: Phaser.GameObjects.Rectangle;
+    marker: Phaser.GameObjects.Graphics;
     label: Phaser.GameObjects.Text;
     hitArea: Phaser.GameObjects.Rectangle;
 };
@@ -118,8 +117,8 @@ export class MainMenuView {
     }
 
     private renderActions(actions: MenuAction[]) {
-        this.renderedActions.forEach(({ background, label, hitArea }) => {
-            background.destroy();
+        this.renderedActions.forEach(({ marker, label, hitArea }) => {
+            marker.destroy();
             label.destroy();
             hitArea.destroy();
         });
@@ -131,16 +130,6 @@ export class MainMenuView {
     }
 
     private createAction(action: MenuAction, index: number) {
-        const background = this.scene.add
-            .rectangle(
-                GAME_WIDTH / 2,
-                action.y,
-                ACTION_WIDTH,
-                ACTION_HEIGHT,
-                SELECTED_BACKGROUND_COLOR
-            )
-            .setScrollFactor(0);
-
         const label = this.scene.add
             .text(GAME_WIDTH / 2, action.y, action.label, {
                 color: action.enabled === false ? DISABLED_ACTION_COLOR : ACTION_COLOR,
@@ -150,6 +139,14 @@ export class MainMenuView {
             .setOrigin(0.5)
             .setScrollFactor(0)
             .setResolution(2);
+
+        const markerX = Math.round(label.x - label.width / 2 - MARKER_GAP);
+        const marker = this.scene.add.graphics({ x: markerX, y: Math.round(action.y) }).setScrollFactor(0);
+        // Seta em degraus de 2px, com a ponta na origem, no mesmo traço pixel art do logo.
+        marker.fillStyle(0x000000, 1);
+        [10, 8, 6, 4, 2].forEach((height, step) => marker.fillRect(step * 2 - 10, 2 - height / 2, 2, height));
+        marker.fillStyle(SELECTED_MARKER_COLOR, 1);
+        [10, 8, 6, 4, 2].forEach((height, step) => marker.fillRect(step * 2 - 10, -height / 2, 2, height));
 
         const hitArea = this.scene.add
             .rectangle(
@@ -173,7 +170,7 @@ export class MainMenuView {
             hitArea.on('pointerup', action.onSelect);
         }
 
-        this.renderedActions.push({ background, label, hitArea });
+        this.renderedActions.push({ marker, label, hitArea });
     }
 
     private addKeyboardNavigation() {
@@ -216,11 +213,11 @@ export class MainMenuView {
     }
 
     private updateSelection() {
-        this.renderedActions.forEach(({ background, label }, index) => {
+        this.renderedActions.forEach(({ marker, label }, index) => {
             const action = this.currentActions[index];
             const isEnabled = action.enabled !== false;
             const isSelected = isEnabled && index === this.selectedAction;
-            background.setVisible(isSelected);
+            marker.setVisible(isSelected);
             label.setColor(
                 isSelected
                     ? SELECTED_ACTION_COLOR
