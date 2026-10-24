@@ -1,7 +1,47 @@
 import { GAME_WIDTH } from './display';
 
+const SIDE_MARGIN = 48;
+
 export const MENU_CONFIG = {
-    // Posição e escala em que o logo estava pintado no fundo original.
-    title: { texture: 'menu-title', path: 'assets/menu/title.png', x: GAME_WIDTH / 2, y: 139, scale: 0.5317 },
-    background: { texture: 'menu-background-bridge', path: 'assets/menu/background-bridge.png' }
+    // O central é o menu principal; o lateral só aparece com ?telas na URL.
+    layouts: {
+        center: {
+            // Posição e escala em que o logo estava pintado no fundo original.
+            title: { texture: 'menu-title', path: 'assets/menu/title.png', scale: 0.5317 },
+            titleX: GAME_WIDTH / 2,
+            titleOriginX: 0.5,
+            titleY: 139,
+            menuX: GAME_WIDTH / 2,
+            backgrounds: [
+                { texture: 'menu-background-bridge', path: 'assets/menu/background-bridge.png' }
+            ]
+        },
+        side: {
+            // Logo já reduzido a 260px: no pixelArt o Phaser amostra sem filtro e quebraria as letras.
+            title: { texture: 'menu-title-side', path: 'assets/menu/title-side.png', scale: 1 },
+            titleX: SIDE_MARGIN,
+            titleOriginX: 0,
+            // Logo de 40px de altura terminando 22px acima da faixa do primeiro item (y=213).
+            titleY: 171,
+            // Centro do logo lateral, que tem 260px de largura.
+            menuX: SIDE_MARGIN + 260 / 2,
+            backgrounds: [
+                { texture: 'menu-background-platform', path: 'assets/menu/background-platform.png' },
+                { texture: 'menu-background-bus', path: 'assets/menu/background-bus.png' },
+                { texture: 'menu-background-drone', path: 'assets/menu/background-drone.png' },
+                { texture: 'menu-background-terminal', path: 'assets/menu/background-terminal.png' },
+                { texture: 'menu-background-bar', path: 'assets/menu/background-bar.png' }
+            ]
+        }
+    },
+    backgroundHoldMs: 9000,
+    backgroundFadeMs: 1600
 } as const;
+
+export type MenuLayout = (typeof MENU_CONFIG.layouts)[keyof typeof MENU_CONFIG.layouts];
+
+export function getMenuLayout(
+    search = typeof window === 'undefined' ? '' : window.location.search
+): MenuLayout {
+    return new URLSearchParams(search).has('telas') ? MENU_CONFIG.layouts.side : MENU_CONFIG.layouts.center;
+}

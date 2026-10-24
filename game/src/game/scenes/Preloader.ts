@@ -22,8 +22,10 @@ export class Preloader extends Scene {
     }
 
     preload() {
-        this.load.image(MENU_CONFIG.title.texture, MENU_CONFIG.title.path);
-        this.load.image(MENU_CONFIG.background.texture, MENU_CONFIG.background.path);
+        for (const { title, backgrounds } of Object.values(MENU_CONFIG.layouts)) {
+            this.load.image(title.texture, title.path);
+            backgrounds.forEach(({ texture, path }) => this.load.image(texture, path));
+        }
 
         this.load.image(HUD_CONFIG.heart.texture, HUD_CONFIG.heart.path);
         this.load.image(

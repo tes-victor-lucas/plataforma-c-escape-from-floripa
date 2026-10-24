@@ -1,6 +1,8 @@
 import { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
-import { MENU_CONFIG } from '../config/menu';
+import { getMenuLayout, MENU_CONFIG } from '../config/menu';
+
+const MENU_LAYOUT = getMenuLayout();
 
 export type MainMenuViewOptions = {
     onNewGame: () => void;
@@ -79,23 +81,51 @@ export class MainMenuView {
     ) {}
 
     create() {
+        this.createBackgrounds();
         this.scene.add
-            .image(GAME_WIDTH / 2, GAME_HEIGHT / 2, MENU_CONFIG.background.texture)
-            .setDisplaySize(GAME_WIDTH, GAME_HEIGHT)
-            .setScrollFactor(0);
-        this.scene.add
-            .image(MENU_CONFIG.title.x, MENU_CONFIG.title.y, MENU_CONFIG.title.texture)
-            .setScale(MENU_CONFIG.title.scale)
+            .image(MENU_LAYOUT.titleX, MENU_LAYOUT.titleY, MENU_LAYOUT.title.texture)
+            .setOrigin(MENU_LAYOUT.titleOriginX, 0.5)
+            .setScale(MENU_LAYOUT.title.scale)
             .setScrollFactor(0);
 
         this.showMainMenu();
         this.addKeyboardNavigation();
-        this.statusText = this.scene.add.text(GAME_WIDTH / 2, 340, '', {
+        this.statusText = this.scene.add.text(MENU_LAYOUT.menuX, 340, '', {
             color: '#ffffff',
             fontFamily: ACTION_FONT,
             fontSize: '12px',
             align: 'center'
         }).setOrigin(0.5).setScrollFactor(0).setResolution(2);
+    }
+
+    /** Alterna em crossfade os fundos do layout ativo. */
+    private createBackgrounds() {
+        const backgrounds = MENU_LAYOUT.backgrounds.map(({ texture }, index) => this.scene.add
+            .image(GAME_WIDTH / 2, GAME_HEIGHT / 2, texture)
+            .setDisplaySize(GAME_WIDTH, GAME_HEIGHT)
+            .setScrollFactor(0)
+            .setAlpha(index === 0 ? 1 : 0));
+        if (backgrounds.length < 2) return;
+        let current = 0;
+        this.scene.time.addEvent({
+            delay: MENU_CONFIG.backgroundHoldMs,
+            loop: true,
+            callback: () => {
+                const previous = backgrounds[current];
+                current = (current + 1) % backgrounds.length;
+                const next = backgrounds[current];
+                // O próximo fundo sobe para o topo da pilha e aparece sobre o anterior.
+                this.scene.children.moveAbove(next, previous);
+                next.setAlpha(0);
+                this.scene.tweens.add({
+                    targets: next,
+                    alpha: 1,
+                    duration: MENU_CONFIG.backgroundFadeMs,
+                    ease: 'Sine.InOut',
+                    onComplete: () => previous.setAlpha(0)
+                });
+            }
+        });
     }
 
     setStatus(status: string) {
@@ -130,7 +160,7 @@ export class MainMenuView {
 
     private createAction(action: MenuAction, index: number) {
         const label = this.scene.add
-            .text(GAME_WIDTH / 2, action.y, action.label, {
+            .text(MENU_LAYOUT.menuX, action.y, action.label, {
                 color: action.enabled === false ? DISABLED_ACTION_COLOR : ACTION_COLOR,
                 fontFamily: ACTION_FONT,
                 fontSize: ACTION_FONT_SIZE
@@ -149,7 +179,7 @@ export class MainMenuView {
 
         const hitArea = this.scene.add
             .rectangle(
-                GAME_WIDTH / 2,
+                MENU_LAYOUT.menuX,
                 action.y,
                 ACTION_HIT_AREA_WIDTH,
                 // Altura igual ao espaçamento, para que itens vizinhos não disputem o mesmo ponteiro.
