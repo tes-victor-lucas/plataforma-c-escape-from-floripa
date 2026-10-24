@@ -12,6 +12,7 @@ export const MENU_CONFIG = {
             titleOriginX: 0.5,
             titleY: 139,
             menuX: GAME_WIDTH / 2,
+            actions: { color: '#0074df', disabledColor: '#6c7580', shadow: undefined, spacing: 25 },
             backgrounds: [
                 { texture: 'menu-background-bridge', path: 'assets/menu/background-bridge.png' }
             ]
@@ -21,10 +22,17 @@ export const MENU_CONFIG = {
             title: { texture: 'menu-title-side', path: 'assets/menu/title-side.png', scale: 1 },
             titleX: SIDE_MARGIN,
             titleOriginX: 0,
-            // Logo de 40px de altura terminando 22px acima da faixa do primeiro item (y=213).
+            // Logo de 40px de altura, encostado no bloco de opções logo abaixo.
             titleY: 171,
             // Centro do logo lateral, que tem 260px de largura.
             menuX: SIDE_MARGIN + 260 / 2,
+            // Tons frios das próprias cenas, para que só o vermelho do logo e do marcador chamem atenção.
+            actions: {
+                color: '#8fa3b8',
+                disabledColor: '#46525f',
+                shadow: { offsetX: 0, offsetY: 2, color: '#000000', blur: 0, fill: true },
+                spacing: 30
+            },
             backgrounds: [
                 { texture: 'menu-background-platform', path: 'assets/menu/background-platform.png' },
                 { texture: 'menu-background-bus', path: 'assets/menu/background-bus.png' },

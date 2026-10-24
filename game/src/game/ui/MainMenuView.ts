@@ -13,12 +13,10 @@ export type MainMenuViewOptions = {
 
 const ACTION_FONT = 'PixelGamer, monospace';
 const ACTION_FONT_SIZE = '18px';
-const ACTION_COLOR = '#0074df';
-const DISABLED_ACTION_COLOR = '#6c7580';
+const { color: ACTION_COLOR, disabledColor: DISABLED_ACTION_COLOR, spacing: ACTION_SPACING } = MENU_LAYOUT.actions;
 const SELECTED_ACTION_COLOR = '#ffffff';
 const SELECTED_MARKER_COLOR = 0xe90931;
 const MARKER_GAP = 8;
-const ACTION_SPACING = 25;
 const ACTION_HIT_AREA_WIDTH = 190;
 
 type MenuAction = {
@@ -163,7 +161,8 @@ export class MainMenuView {
             .text(MENU_LAYOUT.menuX, action.y, action.label, {
                 color: action.enabled === false ? DISABLED_ACTION_COLOR : ACTION_COLOR,
                 fontFamily: ACTION_FONT,
-                fontSize: ACTION_FONT_SIZE
+                fontSize: ACTION_FONT_SIZE,
+                shadow: MENU_LAYOUT.actions.shadow
             })
             .setOrigin(0.5)
             .setScrollFactor(0)
