@@ -6,6 +6,7 @@ import {
     toStairPassageArea,
     type StairPassageArea
 } from './StairPassage';
+import { createProceduralDungeon, type DungeonLayout } from './ProceduralDungeon';
 
 const LAYER_NAMES = [
     'floor',
@@ -38,6 +39,7 @@ export interface Room {
     map: Phaser.Tilemaps.Tilemap;
     collisionLayers: Phaser.Tilemaps.TilemapLayer[];
     stairPassage?: StairPassageArea;
+    dungeon?: DungeonLayout;
     openExit: () => void;
 }
 
@@ -53,7 +55,8 @@ export function isRoom2LampLayer(layerName: string) {
 }
 
 /** Cria as layers do mapa e habilita colisão somente nos tiles marcados no Tiled. */
-export function createRoom(scene: Scene, mapKey: string): Room | null {
+export function createRoom(scene: Scene, mapKey: string, dungeonSeed = Date.now()): Room | null {
+    if (mapKey === 'dungeon') return createProceduralDungeon(scene, dungeonSeed);
     if (mapKey === 'room2') return createRoom2(scene);
 
     const map = scene.make.tilemap({ key: mapKey });

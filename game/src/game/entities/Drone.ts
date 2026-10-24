@@ -7,7 +7,13 @@ import type { Player } from './Player';
 import { hasLineOfSight } from '../map/hasLineOfSight';
 import { playDroneExplosion } from '../effects/playDroneExplosion';
 
-type DroneSpawn = { x: number; y: number; patrolLeft: number; patrolRight: number };
+type DroneSpawn = {
+    x: number;
+    y: number;
+    patrolLeft: number;
+    patrolRight: number;
+    health?: number;
+};
 
 function createDroneId() {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -47,6 +53,9 @@ export class Drone {
             });
         }
         this.sprite.play('drone-hover');
+        if (spawn.health !== undefined) {
+            this.health.takeDamage(this.health.max - Math.max(1, spawn.health));
+        }
         this.healthBar = scene.add.graphics().setDepth(25);
         this.drawHealthBar();
     }

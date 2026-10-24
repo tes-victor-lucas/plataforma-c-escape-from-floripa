@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
 import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
 import { HUD_CONFIG } from '../config/hud';
+import { getMenuLayout } from '../config/menu';
 import { getRequestedRoomKey, ROOM_DEFINITIONS } from '../config/rooms';
 import { loadCampaignProgress } from '../progress/CampaignProgress';
 import { runTracker } from '../scoring/RunTracker';
@@ -10,7 +11,7 @@ export function getInitialSceneRoute(
     search = typeof window === 'undefined' ? '' : window.location.search
 ) {
     const roomKey = getRequestedRoomKey(search);
-    return roomKey === 'room2'
+    return roomKey !== 'room1'
         ? { key: 'RoomTransition', data: { roomKey } }
         : { key: 'MainMenu', data: undefined };
 }
@@ -21,10 +22,9 @@ export class Preloader extends Scene {
     }
 
     preload() {
-        this.load.image(
-            'menu-background',
-            'assets/menu-background.png'
-        );
+        const menuLayout = getMenuLayout();
+        this.load.image(menuLayout.title.texture, menuLayout.title.path);
+        menuLayout.backgrounds.forEach(({ texture, path }) => this.load.image(texture, path));
 
         this.load.image(HUD_CONFIG.heart.texture, HUD_CONFIG.heart.path);
         this.load.image(
@@ -38,7 +38,7 @@ export class Preloader extends Scene {
 
         const loadedTextures = new Set<string>();
         for (const room of Object.values(ROOM_DEFINITIONS)) {
-            this.load.tilemapTiledJSON(room.mapKey, room.mapPath);
+            if (room.mapPath) this.load.tilemapTiledJSON(room.mapKey, room.mapPath);
             for (const tileset of room.tilesets) {
                 if (loadedTextures.has(tileset.textureKey)) continue;
                 loadedTextures.add(tileset.textureKey);

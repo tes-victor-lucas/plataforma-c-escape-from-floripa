@@ -1,4 +1,4 @@
-export type RoomKey = 'room1' | 'room2';
+export type RoomKey = 'room1' | 'room2' | 'dungeon';
 
 export interface RoomTilesetDefinition {
     mapName: string;
@@ -8,7 +8,7 @@ export interface RoomTilesetDefinition {
 
 export interface RoomDefinition {
     mapKey: RoomKey;
-    mapPath: string;
+    mapPath?: string;
     title: string;
     spawn: Readonly<{ x: number; y: number }>;
     tilesets: readonly RoomTilesetDefinition[];
@@ -123,6 +123,24 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
                 path: 'assets/tilesets/curva-faixa-rua-256.png'
             }
         ]
+    },
+    dungeon: {
+        mapKey: 'dungeon',
+        title: 'Subsolo do Terminal',
+        // A primeira sala procedural sempre é escavada ao redor deste ponto.
+        spawn: { x: 88, y: 328 },
+        tilesets: [
+            {
+                mapName: 'neo-zero-dungeon-tiles',
+                textureKey: 'neo-zero-dungeon-tiles',
+                path: 'assets/tilesets/neo-zero-dungeon-tiles.png'
+            },
+            {
+                mapName: 'neo-zero-dungeon-props',
+                textureKey: 'neo-zero-dungeon-props',
+                path: 'assets/tilesets/neo-zero-dungeon-props.png'
+            }
+        ]
     }
 };
 
@@ -130,13 +148,14 @@ export function getRequestedRoomKey(
     search = typeof window === 'undefined' ? '' : window.location.search
 ): RoomKey {
     const requestedRoom = new URLSearchParams(search).get('room');
+    if (requestedRoom === 'dungeon') return 'dungeon';
     return requestedRoom === '2' || requestedRoom === 'room2' ? 'room2' : 'room1';
 }
 
 export function getRoomSearch(roomKey: RoomKey, search = '') {
     const parameters = new URLSearchParams(search);
     if (roomKey === 'room1') parameters.delete('room');
-    else parameters.set('room', '2');
+    else parameters.set('room', roomKey === 'room2' ? '2' : roomKey);
     const serialized = parameters.toString();
     return serialized ? `?${serialized}` : '';
 }

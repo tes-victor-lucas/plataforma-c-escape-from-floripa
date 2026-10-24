@@ -63,6 +63,7 @@ const {
     createMainMenuActions,
     createPlayMenuActions
 } = load('../src/game/ui/MainMenuView.ts');
+const { MENU_CONFIG, getMenuLayout } = load('../src/game/config/menu.ts');
 const { getHeartFillLevels } = load('../src/game/ui/HeartHealthView.ts');
 const { MusicDirector } = load('../src/game/audio/MusicDirector.ts');
 const {
@@ -81,8 +82,21 @@ const {
 } = load('../src/game/config/rooms.ts');
 const {
     isInsideRoomGateway,
-    ROOM1_TO_ROOM2_GATEWAY
+    isTouchingDungeonReturn,
+    isTouchingSecretDungeonEntrance,
+    ROOM1_TO_ROOM2_GATEWAY,
+    ROOM2_TO_DUNGEON_GATEWAY
 } = load('../src/game/config/roomGateway.ts');
+const {
+    generateDungeonLayout,
+    getDungeonObstacleTiles,
+    isDungeonBoundaryWall,
+    isDungeonWall
+} = load('../src/game/map/ProceduralDungeon.ts');
+const {
+    createDungeonSessionState,
+    DUNGEON_WAVE_ENEMY_COUNT
+} = load('../src/game/config/dungeon.ts');
 const { ROOM_EXIT_LIGHT_STYLE } = load('../src/game/map/RoomExitPortal.ts');
 const { LAMP_LIGHT_TEXTURE } = load('../src/game/map/createLampLights.ts');
 const { ROOM1_CLEAR_CODE, SecretCodeMatcher } = load('../src/game/config/secretCodes.ts');
@@ -203,6 +217,130 @@ test('portal ocupa somente o corredor liberado no topo da room1', () => {
     assert.equal(isInsideRoomGateway(area.left - 1, portal.y), false);
     assert.equal(isInsideRoomGateway(area.right + 1, portal.y), false);
     assert.equal(isInsideRoomGateway(portal.x, area.bottom + 1), false);
+});
+
+test('entrada secreta exige encostar na parede final do Terminal Velho', () => {
+    const { area } = ROOM2_TO_DUNGEON_GATEWAY;
+    const x = (area.left + area.right) / 2;
+    const y = (area.top + area.bottom) / 2;
+    assert.equal(isTouchingSecretDungeonEntrance(x, y, false), false);
+    assert.equal(isTouchingSecretDungeonEntrance(x, y, true), true);
+    assert.equal(isTouchingSecretDungeonEntrance(area.left - 1, y, true), false);
+    assert.equal(isTouchingSecretDungeonEntrance(x, area.bottom + 1, true), false);
+});
+
+test('dungeon procedural é determinística, cercada e mantém a entrada conectada', () => {
+    const first = generateDungeonLayout(0x12345678);
+    const second = generateDungeonLayout(0x12345678);
+    const variation = generateDungeonLayout(0x87654321);
+    assert.deepEqual(first.walls, second.walls);
+    assert.deepEqual(first.obstacles, second.obstacles);
+    assert.notDeepEqual(first.walls, variation.walls);
+    assert.equal(first.obstacles.length, 12);
+    assert.ok(first.obstacles.every(({ x, y, variant }) =>
+        !isDungeonWall(first, x, y) && variant >= 0 && variant < 8));
+    assert.ok(first.obstacles.every((obstacle, index) =>
+        first.obstacles.slice(index + 1).every((other) =>
+            Math.hypot(obstacle.x - other.x, obstacle.y - other.y) >= 3)));
+    assert.ok(first.obstacles.some((obstacle) => getDungeonObstacleTiles(obstacle).length > 1));
+    assert.ok(first.obstacles.every((obstacle) => getDungeonObstacleTiles(obstacle).every(({ x, y }) =>
+        !isDungeonWall(first, x, y))));
+
+    for (let x = 0; x < first.width; x += 1) {
+        assert.equal(isDungeonWall(first, x, 0), true);
+        assert.equal(isDungeonWall(first, x, first.height - 1), true);
+    }
+    for (let y = 0; y < first.height; y += 1) {
+        assert.equal(isDungeonWall(first, 0, y), true);
+        assert.equal(isDungeonWall(first, first.width - 1, y), true);
+    }
+
+    const start = {
+        x: Math.floor(first.spawn.x / 16),
+        y: Math.floor(first.spawn.y / 16)
+    };
+    const visited = new Set([start.y * first.width + start.x]);
+    const pending = [start];
+    for (let index = 0; index < pending.length; index += 1) {
+        const current = pending[index];
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const x = current.x + dx;
+            const y = current.y + dy;
+            const key = y * first.width + x;
+            if (visited.has(key) || isDungeonWall(first, x, y)) continue;
+            visited.add(key);
+            pending.push({ x, y });
+        }
+    }
+    assert.ok(visited.size > 300);
+    assert.ok([...visited].some((key) => key % first.width >= first.width - 6));
+    const renderedWalls = [];
+    for (let y = 0; y < first.height; y += 1) {
+        for (let x = 0; x < first.width; x += 1) {
+            if (isDungeonBoundaryWall(first, x, y)) renderedWalls.push({ x, y });
+        }
+    }
+    assert.ok(renderedWalls.length > 0);
+    assert.ok(renderedWalls.length < first.walls.filter(Boolean).length);
+    assert.ok(renderedWalls.every(({ x, y }) => isDungeonWall(first, x, y)));
+    assert.equal(isTouchingDungeonReturn(
+        first.returnArea.left,
+        (first.returnArea.top + first.returnArea.bottom) / 2,
+        first.returnArea
+    ), true);
+});
+
+test('dungeon sempre oferece pontos alcançáveis para sua onda', () => {
+    // As três primeiras seeds tinham um corredor fechado por obstáculo e não criavam a onda.
+    const seeds = [399851389, 217003655, 3393303098, ...Array.from({ length: 32 }, (_, index) => (index + 1) * 7919)];
+    for (const seed of seeds) {
+        const layout = generateDungeonLayout(seed);
+        const grid = {
+            width: layout.width,
+            height: layout.height,
+            tileWidth: 16,
+            tileHeight: 16
+        };
+        const obstacleTiles = new Set(layout.obstacles.flatMap(getDungeonObstacleTiles)
+            .map(({ x, y }) => y * layout.width + x));
+        const spawns = createReachableDroneSpawns(
+            grid,
+            (x, y) => isDungeonWall(layout, x, y)
+                || obstacleTiles.has(y * layout.width + x),
+            layout.spawn
+        );
+        assert.doesNotThrow(() => selectDroneSpawns(
+            DUNGEON_WAVE_ENEMY_COUNT,
+            layout.spawn,
+            spawns
+        ), `seed ${seed}`);
+    }
+});
+
+test('sair pela rota secreta guarda drones vivos, ondas restantes e o item do bar', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const waves = new DroneWaves(() => {}, () => {}, (resume) => resume(), [10, 20]);
+    waves.update([]);
+    const alive = fighter(100, 200, 60);
+    Object.assign(alive.sprite, { x: 100, y: 200 });
+    alive.takeDamage(20);
+    const dead = fighter(300, 200, 60);
+    dead.takeDamage(60);
+    world.activeRoomKey = 'room2';
+    world.dungeonState = createDungeonSessionState(0x12345678);
+    world.drones = [alive, dead];
+    world.waves = waves;
+    world.hasSelectedPiranhasItem = true;
+
+    world.rememberCombatProgress();
+
+    assert.equal(world.dungeonState.seed, 0x12345678);
+    assert.equal(world.dungeonState.piranhasItemConsumed, true);
+    assert.deepEqual(world.dungeonState.savedCombat.room2, {
+        enemies: [{ x: 100, y: 200, health: 40, patrolLeft: 84, patrolRight: 116 }],
+        pendingWaves: [20]
+    });
 });
 
 test('saida da room1 usa um halo circular centralizado e exige entrar no corredor', () => {
@@ -755,6 +893,29 @@ test('segunda onda aguarda o fim da vinheta sem dispará-la mais de uma vez', ()
     assert.equal(intermissions, 1);
     resumeWave();
     assert.deepEqual(counts, [10, 20]);
+});
+
+test('dungeon configura somente uma onda e respeita inimigos restantes', () => {
+    const counts = [];
+    const drones = [];
+    let completed = 0;
+    const remainingEnemies = 4;
+    const waves = new DroneWaves(
+        (count) => {
+            counts.push(count);
+            drones.push(...Array.from({ length: count }, () => fighter(0, 0, 60)));
+        },
+        () => { completed += 1; },
+        (resume) => resume(),
+        [remainingEnemies]
+    );
+    waves.update(drones);
+    assert.deepEqual(counts, [remainingEnemies]);
+    for (const drone of drones) drone.takeDamage(60);
+    waves.update(drones);
+    waves.update(drones);
+    assert.deepEqual(counts, [remainingEnemies]);
+    assert.equal(completed, 1);
 });
 
 test('novos drones entram no combate com tiros, dano e atraso inicial', () => {
@@ -1627,4 +1788,14 @@ test('diretor força o GainNode real para zero antes de iniciar a música', () =
     assert.equal(sounds[0].isPlaying, true);
     assert.equal(gain.value, 0, 'o nó de áudio não pode ser liberado no ganho padrão 1');
     assert.equal(transitions.length, 1);
+});
+
+test('menu usa o layout central, e o lateral somente com ?telas', () => {
+    assert.equal(getMenuLayout(''), MENU_CONFIG.layouts.center);
+    assert.equal(getMenuLayout('?room=2'), MENU_CONFIG.layouts.center);
+    assert.equal(getMenuLayout('?telas'), MENU_CONFIG.layouts.side);
+    assert.equal(getMenuLayout('?room=2&telas'), MENU_CONFIG.layouts.side);
+    const textures = Object.values(MENU_CONFIG.layouts)
+        .flatMap((layout) => layout.backgrounds.map(({ texture }) => texture));
+    assert.equal(new Set(textures).size, textures.length);
 });

@@ -24,12 +24,13 @@ export class DroneWaves {
     constructor(
         private readonly spawn: (count: number) => void,
         private readonly onComplete: () => void = () => {},
-        private readonly playIntermission: (resume: () => void) => void = (resume) => resume()
+        private readonly playIntermission: (resume: () => void) => void = (resume) => resume(),
+        private readonly waveCounts: readonly number[] = COMBAT_CONFIG.waves
     ) {}
 
     update(drones: ReadonlyArray<{ health: { isAlive: boolean } }>) {
         if (this.completed || this.waitingForIntermission || drones.some((drone) => drone.health.isAlive)) return;
-        const count = COMBAT_CONFIG.waves[this.nextWave];
+        const count = this.waveCounts[this.nextWave];
         if (count === undefined) {
             this.completed = true;
             this.onComplete();
@@ -46,6 +47,11 @@ export class DroneWaves {
             });
         }
         this.nextWave += 1;
+    }
+
+    /** Ondas que ainda não começaram, para retomar a sala em outra visita. */
+    pendingWaves() {
+        return this.waveCounts.slice(this.nextWave);
     }
 }
 
