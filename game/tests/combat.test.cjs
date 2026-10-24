@@ -317,26 +317,30 @@ test('dungeon sempre oferece pontos alcançáveis para sua onda', () => {
     }
 });
 
-test('sessão da dungeon mantém seed e inimigos restantes entre visitas', () => {
-    const session = createDungeonSessionState(0x12345678);
-    assert.deepEqual(session, {
-        seed: 0x12345678,
-        remainingEnemies: DUNGEON_WAVE_ENEMY_COUNT,
-        rewardClaimed: false
+test('sair pela rota secreta guarda drones vivos, ondas restantes e o item do bar', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const waves = new DroneWaves(() => {}, () => {}, (resume) => resume(), [10, 20]);
+    waves.update([]);
+    const alive = fighter(100, 200, 60);
+    Object.assign(alive.sprite, { x: 100, y: 200 });
+    alive.takeDamage(20);
+    const dead = fighter(300, 200, 60);
+    dead.takeDamage(60);
+    world.activeRoomKey = 'room2';
+    world.dungeonState = createDungeonSessionState(0x12345678);
+    world.drones = [alive, dead];
+    world.waves = waves;
+    world.hasSelectedPiranhasItem = true;
+
+    world.rememberCombatProgress();
+
+    assert.equal(world.dungeonState.seed, 0x12345678);
+    assert.equal(world.dungeonState.piranhasItemConsumed, true);
+    assert.deepEqual(world.dungeonState.savedCombat.room2, {
+        enemies: [{ x: 100, y: 200, health: 40, patrolLeft: 84, patrolRight: 116 }],
+        pendingWaves: [20]
     });
-    session.remainingEnemies = 4;
-    session.enemies = [{
-        x: 128,
-        y: 256,
-        health: 20,
-        patrolLeft: 112,
-        patrolRight: 144
-    }];
-    assert.deepEqual(generateDungeonLayout(session.seed).walls, generateDungeonLayout(session.seed).walls);
-    assert.equal(session.remainingEnemies, 4);
-    assert.equal(session.enemies[0].health, 20);
-    session.rewardClaimed = true;
-    assert.equal(session.rewardClaimed, true);
 });
 
 test('saida da room1 usa um halo circular centralizado e exige entrar no corredor', () => {

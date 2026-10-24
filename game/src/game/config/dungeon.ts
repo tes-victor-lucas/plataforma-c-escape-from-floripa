@@ -1,3 +1,5 @@
+import type { RoomKey } from './rooms';
+
 export const DUNGEON_WAVE_ENEMY_COUNT = 10;
 
 export type DungeonEnemyState = Readonly<{
@@ -8,12 +10,18 @@ export type DungeonEnemyState = Readonly<{
     patrolRight: number;
 }>;
 
+/** Combate interrompido ao sair de uma sala; é retomado na próxima visita. */
+export type SavedRoomCombat = Readonly<{
+    enemies: readonly DungeonEnemyState[];
+    pendingWaves: readonly number[];
+}>;
+
 /** Estado carregado entre a dungeon e a fase 2 durante a mesma partida. */
 export type DungeonSessionState = {
     seed: number;
-    remainingEnemies: number;
     rewardClaimed: boolean;
-    enemies?: DungeonEnemyState[];
+    piranhasItemConsumed: boolean;
+    savedCombat: Partial<Record<RoomKey, SavedRoomCombat>>;
 };
 
 export function createDungeonSessionState(
@@ -21,7 +29,8 @@ export function createDungeonSessionState(
 ): DungeonSessionState {
     return {
         seed: seed >>> 0,
-        remainingEnemies: DUNGEON_WAVE_ENEMY_COUNT,
-        rewardClaimed: false
+        rewardClaimed: false,
+        piranhasItemConsumed: false,
+        savedCombat: {}
     };
 }

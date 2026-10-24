@@ -48,6 +48,11 @@ export class DroneWaves {
         }
         this.nextWave += 1;
     }
+
+    /** Ondas que ainda não começaram, para retomar a sala em outra visita. */
+    pendingWaves() {
+        return this.waveCounts.slice(this.nextWave);
+    }
 }
 
 /** Distribui a onda fora do início protegido e longe da posição atual do jogador. */

@@ -57,6 +57,8 @@ import {
 import { runTracker } from '../scoring/RunTracker';
 import {
     createDungeonSessionState,
+    DUNGEON_WAVE_ENEMY_COUNT,
+    type DungeonEnemyState,
     type DungeonSessionState
 } from '../config/dungeon';
 import { createLampLight } from '../map/createLampLights';
@@ -123,6 +125,7 @@ export class World extends Scene {
     private completeRoomCombat?: () => void;
     private dungeonReturnArea?: Readonly<{ left: number; right: number; top: number; bottom: number }>;
     private dungeonState?: DungeonSessionState;
+    private savedEnemies?: readonly DungeonEnemyState[];
 
     constructor() {
         super('World');
@@ -132,7 +135,6 @@ export class World extends Scene {
         this.isPauseMenuOpen = false;
         this.isWaveIntermissionOpen = false;
         this.isPiranhasMenuOpen = false;
-        this.hasSelectedPiranhasItem = false;
         this.isGameOver = false;
         this.isGameplayReady = false;
         this.isRoomExitOpen = false;
@@ -152,6 +154,9 @@ export class World extends Scene {
         if (roomKey === 'dungeon' && !this.dungeonState) {
             this.dungeonState = createDungeonSessionState();
         }
+        this.hasSelectedPiranhasItem = this.dungeonState?.piranhasItemConsumed ?? false;
+        const savedCombat = this.dungeonState?.savedCombat[roomKey];
+        this.savedEnemies = savedCombat?.enemies;
         const room = createRoom(this, roomKey, this.dungeonState?.seed);
         if (!room) return;
         this.dungeonReturnArea = room.dungeon?.returnArea;
@@ -216,11 +221,7 @@ export class World extends Scene {
             room.openExit();
             this.player?.clearBlockedDirection();
             if (roomKey === ROOM1_TO_ROOM2_GATEWAY.from) this.activateRoomExit();
-            if (roomKey === 'dungeon' && this.dungeonState) {
-                this.dungeonState.remainingEnemies = 0;
-                this.dungeonState.enemies = [];
-                if (!this.dungeonState.rewardClaimed) this.playDungeonReward();
-            }
+            if (roomKey === 'dungeon') this.playDungeonReward();
             if (roomKey === 'room2') {
                 this.isGameOver = true;
                 this.combat?.clear();
@@ -228,17 +229,21 @@ export class World extends Scene {
                 void runTracker.win();
             }
         };
-        this.waves = new DroneWaves(
-            (count) => this.spawnDrones(count),
-            () => {
-                this.completeRoomCombat?.();
-            },
-            (resume) => this.playWaveIntermission(resume),
-            roomKey === 'dungeon'
-                ? [this.dungeonState?.remainingEnemies ?? 0]
-                : COMBAT_CONFIG.waves
-        );
-        this.waves.update(this.drones);
+        // Ao voltar, os drones vivos formam a primeira onda; uma sala já limpa não tem combate.
+        const waveCounts = savedCombat
+            ? [savedCombat.enemies.length, ...savedCombat.pendingWaves]
+            : roomKey === 'dungeon' ? [DUNGEON_WAVE_ENEMY_COUNT] : COMBAT_CONFIG.waves;
+        this.waves = waveCounts.some((count) => count > 0)
+            ? new DroneWaves(
+                (count) => this.spawnDrones(count),
+                () => {
+                    this.completeRoomCombat?.();
+                },
+                (resume) => this.playWaveIntermission(resume),
+                waveCounts
+            )
+            : undefined;
+        this.waves?.update(this.drones);
 
         configureWorldCamera(this, room.map, this.player.sprite);
         this.normalCameraZoom = this.cameras.main.zoom;
@@ -316,10 +321,7 @@ export class World extends Scene {
         if (!this.player || !this.combat || this.isRoomCombatComplete) return;
         const shouldSpawnStairGuards = this.activeRoomKey === 'room2'
             && !this.hasSpawnedRoom2Guards;
-        const savedDungeonEnemies = this.activeRoomKey === 'dungeon'
-            ? this.dungeonState?.enemies
-            : undefined;
-        const spawns = savedDungeonEnemies ?? (shouldSpawnStairGuards
+        const spawns = this.savedEnemies ?? (shouldSpawnStairGuards
             ? selectDroneSpawnsWithPriority(
                 count,
                 this.player.sprite,
@@ -330,6 +332,7 @@ export class World extends Scene {
             )
             : selectDroneSpawns(count, this.player.sprite, this.droneSpawnPoints));
         if (shouldSpawnStairGuards) this.hasSpawnedRoom2Guards = true;
+        this.savedEnemies = undefined;
         this.combat.clear();
         for (const spawn of spawns) {
             const drone = new Drone(this, spawn, this.collisionLayers);
@@ -400,7 +403,6 @@ export class World extends Scene {
                 this.dungeonReturnArea
             )
         ) {
-            this.rememberDungeonProgress();
             this.transitionToRoom('room2', {
                 spawn: DUNGEON_RETURN_SPAWN,
                 dungeonState: this.dungeonState
@@ -425,6 +427,7 @@ export class World extends Scene {
     ) {
         if (!this.player || this.isRoomTransitioning) return;
 
+        this.rememberCombatProgress();
         this.isRoomTransitioning = true;
         this.player.stopMovement();
         this.combat?.clear();
@@ -443,8 +446,9 @@ export class World extends Scene {
         this.scene.bringToTop('RoomTransition');
     }
 
-    private rememberDungeonProgress() {
-        if (this.activeRoomKey !== 'dungeon' || !this.dungeonState) return;
+    /** Guarda drones vivos e ondas restantes para retomar a sala na próxima visita. */
+    private rememberCombatProgress() {
+        if (!this.dungeonState) return;
         const enemies = this.drones.flatMap((drone) => {
             if (!drone.health.isAlive) return [];
             return [{
@@ -455,8 +459,11 @@ export class World extends Scene {
                 patrolRight: drone.sprite.x + 16
             }];
         });
-        this.dungeonState.enemies = enemies;
-        this.dungeonState.remainingEnemies = enemies.length;
+        this.dungeonState.piranhasItemConsumed = this.hasSelectedPiranhasItem;
+        this.dungeonState.savedCombat[this.activeRoomKey] = {
+            enemies,
+            pendingWaves: this.waves?.pendingWaves() ?? []
+        };
     }
 
     /** Uma fissura discreta indica a parede correta sem transformar a entrada em portal visível. */
@@ -666,6 +673,7 @@ export class World extends Scene {
         this.droneSpawnPoints = COMBAT_CONFIG.droneSpawns;
         this.dungeonReturnArea = undefined;
         this.dungeonState = undefined;
+        this.savedEnemies = undefined;
         this.stairClimbEffect?.destroy();
         this.stairClimbEffect = undefined;
         this.roomExitPortal?.destroy();
