@@ -63,6 +63,7 @@ const {
     createMainMenuActions,
     createPlayMenuActions
 } = load('../src/game/ui/MainMenuView.ts');
+const { MENU_CONFIG, getMenuLayout } = load('../src/game/config/menu.ts');
 const { getHeartFillLevels } = load('../src/game/ui/HeartHealthView.ts');
 const { MusicDirector } = load('../src/game/audio/MusicDirector.ts');
 const {
@@ -1787,4 +1788,14 @@ test('diretor força o GainNode real para zero antes de iniciar a música', () =
     assert.equal(sounds[0].isPlaying, true);
     assert.equal(gain.value, 0, 'o nó de áudio não pode ser liberado no ganho padrão 1');
     assert.equal(transitions.length, 1);
+});
+
+test('menu usa o layout central, e o lateral somente com ?telas', () => {
+    assert.equal(getMenuLayout(''), MENU_CONFIG.layouts.center);
+    assert.equal(getMenuLayout('?room=2'), MENU_CONFIG.layouts.center);
+    assert.equal(getMenuLayout('?telas'), MENU_CONFIG.layouts.side);
+    assert.equal(getMenuLayout('?room=2&telas'), MENU_CONFIG.layouts.side);
+    const textures = Object.values(MENU_CONFIG.layouts)
+        .flatMap((layout) => layout.backgrounds.map(({ texture }) => texture));
+    assert.equal(new Set(textures).size, textures.length);
 });
