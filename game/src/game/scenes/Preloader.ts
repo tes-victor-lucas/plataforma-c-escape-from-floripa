@@ -2,7 +2,7 @@ import { Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
 import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
 import { HUD_CONFIG } from '../config/hud';
-import { MENU_CONFIG } from '../config/menu';
+import { getMenuLayout } from '../config/menu';
 import { getRequestedRoomKey, ROOM_DEFINITIONS } from '../config/rooms';
 import { loadCampaignProgress } from '../progress/CampaignProgress';
 import { runTracker } from '../scoring/RunTracker';
@@ -22,10 +22,9 @@ export class Preloader extends Scene {
     }
 
     preload() {
-        for (const { title, backgrounds } of Object.values(MENU_CONFIG.layouts)) {
-            this.load.image(title.texture, title.path);
-            backgrounds.forEach(({ texture, path }) => this.load.image(texture, path));
-        }
+        const menuLayout = getMenuLayout();
+        this.load.image(menuLayout.title.texture, menuLayout.title.path);
+        menuLayout.backgrounds.forEach(({ texture, path }) => this.load.image(texture, path));
 
         this.load.image(HUD_CONFIG.heart.texture, HUD_CONFIG.heart.path);
         this.load.image(
