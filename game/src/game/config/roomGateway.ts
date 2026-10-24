@@ -52,7 +52,6 @@ export function isTouchingSecretDungeonEntrance(
 export function isTouchingDungeonReturn(
     x: number,
     y: number,
-    _isBlockedOnLeft: boolean,
     area: Readonly<{ left: number; right: number; top: number; bottom: number }>
 ) {
     return x >= area.left && x <= area.right

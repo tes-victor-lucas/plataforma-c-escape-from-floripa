@@ -396,12 +396,7 @@ export class World extends Scene {
         }
         if (
             this.activeRoomKey === 'dungeon' && this.dungeonReturnArea
-            && isTouchingDungeonReturn(
-                center.x,
-                center.y,
-                body instanceof Phaser.Physics.Arcade.Body && body.blocked.left,
-                this.dungeonReturnArea
-            )
+            && isTouchingDungeonReturn(center.x, center.y, this.dungeonReturnArea)
         ) {
             this.transitionToRoom('room2', {
                 spawn: DUNGEON_RETURN_SPAWN,

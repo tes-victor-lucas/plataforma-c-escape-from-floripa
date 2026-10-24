@@ -285,7 +285,6 @@ test('dungeon procedural é determinística, cercada e mantém a entrada conecta
     assert.equal(isTouchingDungeonReturn(
         first.returnArea.left,
         (first.returnArea.top + first.returnArea.bottom) / 2,
-        true,
         first.returnArea
     ), true);
 });
