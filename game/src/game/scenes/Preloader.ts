@@ -10,7 +10,7 @@ export function getInitialSceneRoute(
     search = typeof window === 'undefined' ? '' : window.location.search
 ) {
     const roomKey = getRequestedRoomKey(search);
-    return roomKey === 'room2'
+    return roomKey !== 'room1'
         ? { key: 'RoomTransition', data: { roomKey } }
         : { key: 'MainMenu', data: undefined };
 }
@@ -38,7 +38,7 @@ export class Preloader extends Scene {
 
         const loadedTextures = new Set<string>();
         for (const room of Object.values(ROOM_DEFINITIONS)) {
-            this.load.tilemapTiledJSON(room.mapKey, room.mapPath);
+            if (room.mapPath) this.load.tilemapTiledJSON(room.mapKey, room.mapPath);
             for (const tileset of room.tilesets) {
                 if (loadedTextures.has(tileset.textureKey)) continue;
                 loadedTextures.add(tileset.textureKey);

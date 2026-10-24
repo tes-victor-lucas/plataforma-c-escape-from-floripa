@@ -34,7 +34,14 @@ import {
     PIRANHAS_BAR_ITEMS,
     type PiranhasBarItem
 } from '../config/piranhasBar';
-import { isInsideRoomGateway, ROOM1_TO_ROOM2_GATEWAY } from '../config/roomGateway';
+import {
+    DUNGEON_RETURN_SPAWN,
+    isInsideRoomGateway,
+    isTouchingDungeonReturn,
+    isTouchingSecretDungeonEntrance,
+    ROOM1_TO_ROOM2_GATEWAY,
+    ROOM2_TO_DUNGEON_GATEWAY
+} from '../config/roomGateway';
 import { RoomExitPortal } from '../map/RoomExitPortal';
 import { ROOM1_CLEAR_CODE, SecretCodeMatcher } from '../config/secretCodes';
 import {
@@ -48,6 +55,11 @@ import {
     saveCampaignProgress
 } from '../progress/CampaignProgress';
 import { runTracker } from '../scoring/RunTracker';
+import {
+    createDungeonSessionState,
+    type DungeonSessionState
+} from '../config/dungeon';
+import { createLampLight } from '../map/createLampLights';
 
 const ROOM2_WALKABLE_LAYERS = [
     'floor',
@@ -68,6 +80,7 @@ type WorldSceneData = {
     roomKey?: RoomKey;
     spawn?: Readonly<{ x: number; y: number }>;
     playerProgress?: PlayerProgress;
+    dungeonState?: DungeonSessionState;
 };
 
 export function isRoom2WalkableLayer(layerName: string) {
@@ -108,6 +121,8 @@ export class World extends Scene {
     private multiplayerSyncElapsed = 0;
     private readonly room1SecretCode = new SecretCodeMatcher(ROOM1_CLEAR_CODE);
     private completeRoomCombat?: () => void;
+    private dungeonReturnArea?: Readonly<{ left: number; right: number; top: number; bottom: number }>;
+    private dungeonState?: DungeonSessionState;
 
     constructor() {
         super('World');
@@ -133,19 +148,26 @@ export class World extends Scene {
         const spawn = data.spawn ?? ROOM_DEFINITIONS[roomKey].spawn;
         this.activeRoomKey = roomKey;
         this.activeSpawn = spawn;
-        const room = createRoom(this, roomKey);
+        this.dungeonState = data.dungeonState;
+        if (roomKey === 'dungeon' && !this.dungeonState) {
+            this.dungeonState = createDungeonSessionState();
+        }
+        const room = createRoom(this, roomKey, this.dungeonState?.seed);
         if (!room) return;
+        this.dungeonReturnArea = room.dungeon?.returnArea;
         const walkableRoom2Layers = room.map.layers.filter((layer) =>
             isRoom2WalkableLayer(layer.name));
 
-        this.droneSpawnPoints = roomKey === 'room2'
+        this.droneSpawnPoints = roomKey !== 'room1'
             ? createReachableDroneSpawns(
                 room.map,
                 (tileX, tileY) => room.collisionLayers.some((layer) =>
                     layer.getTileAt(tileX, tileY)?.collides ?? false),
                 spawn,
-                (tileX, tileY) => walkableRoom2Layers.some((layer) =>
-                    room.map.hasTileAt(tileX, tileY, layer.name))
+                roomKey === 'room2'
+                    ? (tileX, tileY) => walkableRoom2Layers.some((layer) =>
+                        room.map.hasTileAt(tileX, tileY, layer.name))
+                    : () => true
             )
             : COMBAT_CONFIG.droneSpawns;
 
@@ -172,6 +194,7 @@ export class World extends Scene {
             this.persistContinuationCheckpoint();
         });
         if (roomKey === 'room2') this.createPiranhasBarPrompt();
+        if (roomKey === 'room2') this.createSecretEntranceHint();
         this.stairClimbEffect = room.stairPassage
             ? new StairClimbEffect(this, this.player.sprite, room.stairPassage)
             : undefined;
@@ -193,6 +216,11 @@ export class World extends Scene {
             room.openExit();
             this.player?.clearBlockedDirection();
             if (roomKey === ROOM1_TO_ROOM2_GATEWAY.from) this.activateRoomExit();
+            if (roomKey === 'dungeon' && this.dungeonState) {
+                this.dungeonState.remainingEnemies = 0;
+                this.dungeonState.enemies = [];
+                if (!this.dungeonState.rewardClaimed) this.playDungeonReward();
+            }
             if (roomKey === 'room2') {
                 this.isGameOver = true;
                 this.combat?.clear();
@@ -205,7 +233,10 @@ export class World extends Scene {
             () => {
                 this.completeRoomCombat?.();
             },
-            (resume) => this.playWaveIntermission(resume)
+            (resume) => this.playWaveIntermission(resume),
+            roomKey === 'dungeon'
+                ? [this.dungeonState?.remainingEnemies ?? 0]
+                : COMBAT_CONFIG.waves
         );
         this.waves.update(this.drones);
 
@@ -285,7 +316,10 @@ export class World extends Scene {
         if (!this.player || !this.combat || this.isRoomCombatComplete) return;
         const shouldSpawnStairGuards = this.activeRoomKey === 'room2'
             && !this.hasSpawnedRoom2Guards;
-        const spawns = shouldSpawnStairGuards
+        const savedDungeonEnemies = this.activeRoomKey === 'dungeon'
+            ? this.dungeonState?.enemies
+            : undefined;
+        const spawns = savedDungeonEnemies ?? (shouldSpawnStairGuards
             ? selectDroneSpawnsWithPriority(
                 count,
                 this.player.sprite,
@@ -294,7 +328,7 @@ export class World extends Scene {
                         spawnPoint.x === prioritySpawn.x && spawnPoint.y === prioritySpawn.y)),
                 this.droneSpawnPoints
             )
-            : selectDroneSpawns(count, this.player.sprite, this.droneSpawnPoints);
+            : selectDroneSpawns(count, this.player.sprite, this.droneSpawnPoints));
         if (shouldSpawnStairGuards) this.hasSpawnedRoom2Guards = true;
         this.combat.clear();
         for (const spawn of spawns) {
@@ -336,9 +370,60 @@ export class World extends Scene {
     }
 
     private updateRoomGateway() {
-        if (!this.player || !this.isRoomExitOpen || this.isRoomTransitioning) return;
-        const center = this.player.sprite.body?.center ?? this.player.sprite;
-        if (!isInsideRoomGateway(center.x, center.y)) return;
+        if (!this.player || this.isRoomTransitioning) return;
+        if (this.activeRoomKey === 'room1' && !this.isRoomExitOpen) return;
+        const sprite = this.player.sprite;
+        if (!sprite) return;
+        const center = sprite.body?.center ?? sprite;
+        const body = sprite.body;
+
+        if (
+            this.activeRoomKey === 'room2'
+            && isTouchingSecretDungeonEntrance(
+                center.x,
+                center.y,
+                body instanceof Phaser.Physics.Arcade.Body && body.blocked.right
+            )
+        ) {
+            this.dungeonState ??= createDungeonSessionState();
+            this.transitionToRoom(ROOM2_TO_DUNGEON_GATEWAY.to, {
+                dungeonState: this.dungeonState
+            });
+            return;
+        }
+        if (
+            this.activeRoomKey === 'dungeon' && this.dungeonReturnArea
+            && isTouchingDungeonReturn(
+                center.x,
+                center.y,
+                body instanceof Phaser.Physics.Arcade.Body && body.blocked.left,
+                this.dungeonReturnArea
+            )
+        ) {
+            this.rememberDungeonProgress();
+            this.transitionToRoom('room2', {
+                spawn: DUNGEON_RETURN_SPAWN,
+                dungeonState: this.dungeonState
+            });
+            return;
+        }
+        if (
+            this.activeRoomKey !== ROOM1_TO_ROOM2_GATEWAY.from
+            || !this.isRoomExitOpen
+            || !isInsideRoomGateway(center.x, center.y)
+        ) return;
+
+        this.transitionToRoom(ROOM1_TO_ROOM2_GATEWAY.to);
+    }
+
+    private transitionToRoom(
+        roomKey: RoomKey,
+        options: {
+            spawn?: Readonly<{ x: number; y: number }>;
+            dungeonState?: DungeonSessionState;
+        } = {}
+    ) {
+        if (!this.player || this.isRoomTransitioning) return;
 
         this.isRoomTransitioning = true;
         this.player.stopMovement();
@@ -346,18 +431,48 @@ export class World extends Scene {
         this.physics.pause();
         const playerProgress = capturePlayerProgress(this.player, this.upgrades);
         if (!this.isMultiplayerEnabled()) {
-            saveCampaignProgress({
-                roomKey: ROOM1_TO_ROOM2_GATEWAY.to,
-                playerProgress,
-                run: runTracker.checkpoint()
-            });
+            // O checkpoint oficial continua sendo a fase 2; a dungeon é uma rota secreta.
+            saveCampaignProgress({ roomKey: 'room2', playerProgress, run: runTracker.checkpoint() });
         }
         this.scene.launch('RoomTransition', {
-            roomKey: ROOM1_TO_ROOM2_GATEWAY.to,
+            roomKey,
             source: 'world',
-            playerProgress
+            playerProgress,
+            ...options
         });
         this.scene.bringToTop('RoomTransition');
+    }
+
+    private rememberDungeonProgress() {
+        if (this.activeRoomKey !== 'dungeon' || !this.dungeonState) return;
+        const enemies = this.drones.flatMap((drone) => {
+            if (!drone.health.isAlive) return [];
+            return [{
+                x: drone.sprite.x,
+                y: drone.sprite.y,
+                health: drone.health.current,
+                patrolLeft: drone.sprite.x - 16,
+                patrolRight: drone.sprite.x + 16
+            }];
+        });
+        this.dungeonState.enemies = enemies;
+        this.dungeonState.remainingEnemies = enemies.length;
+    }
+
+    /** Uma fissura discreta indica a parede correta sem transformar a entrada em portal visível. */
+    private createSecretEntranceHint() {
+        const { portal } = ROOM2_TO_DUNGEON_GATEWAY;
+        createLampLight(this, portal.x - 4, portal.y, 18, 0.07).setScale(0.52);
+        const glow = this.add.rectangle(portal.x, portal.y, 2, 19, 0x54d8df, 0.14)
+            .setDepth(19);
+        this.tweens.add({
+            targets: glow,
+            alpha: { from: 0.08, to: 0.2 },
+            duration: 1450,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut'
+        });
     }
 
     /** Atualiza um checkpoint já desbloqueado sem liberar salas por acesso direto. */
@@ -394,6 +509,32 @@ export class World extends Scene {
                 if (this.isGameplayReady && !this.isGameOver) this.physics.resume();
                 resume();
             });
+        });
+    }
+
+    /** Entrega uma única carta ao limpar a única onda da dungeon. */
+    private playDungeonReward() {
+        if (!this.player || !this.dungeonState || this.dungeonState.rewardClaimed) return;
+        this.combat?.clear();
+        this.physics.pause();
+        this.isWaveIntermissionOpen = true;
+
+        const overlayScene = this.scene.get('CombatHud') as Scene;
+        new UpgradeSelectionView(
+            overlayScene,
+            drawUpgradeCards(undefined, this.upgrades.availableCards()),
+            {
+                title: 'DUNGEON CONCLUÍDA',
+                hint: 'Escolha sua recompensa',
+                footer: 'CLIQUE PARA RECEBER'
+            }
+        ).play((selected) => {
+            this.acquireUpgrade(selected);
+            if (this.dungeonState) this.dungeonState.rewardClaimed = true;
+            this.isWaveIntermissionOpen = false;
+            if (this.isGameplayReady && !this.isGameOver && !this.isPauseMenuOpen) {
+                this.physics.resume();
+            }
         });
     }
 
@@ -523,6 +664,8 @@ export class World extends Scene {
         this.drones = [];
         this.droneBodies = undefined;
         this.droneSpawnPoints = COMBAT_CONFIG.droneSpawns;
+        this.dungeonReturnArea = undefined;
+        this.dungeonState = undefined;
         this.stairClimbEffect?.destroy();
         this.stairClimbEffect = undefined;
         this.roomExitPortal?.destroy();

@@ -24,12 +24,13 @@ export class DroneWaves {
     constructor(
         private readonly spawn: (count: number) => void,
         private readonly onComplete: () => void = () => {},
-        private readonly playIntermission: (resume: () => void) => void = (resume) => resume()
+        private readonly playIntermission: (resume: () => void) => void = (resume) => resume(),
+        private readonly waveCounts: readonly number[] = COMBAT_CONFIG.waves
     ) {}
 
     update(drones: ReadonlyArray<{ health: { isAlive: boolean } }>) {
         if (this.completed || this.waitingForIntermission || drones.some((drone) => drone.health.isAlive)) return;
-        const count = COMBAT_CONFIG.waves[this.nextWave];
+        const count = this.waveCounts[this.nextWave];
         if (count === undefined) {
             this.completed = true;
             this.onComplete();

@@ -17,6 +17,21 @@ export const ROOM1_TO_ROOM2_GATEWAY: RoomGatewayDefinition = {
     portal: { x: 11 * 16, y: 0.25 * 16 }
 };
 
+/** Fresta escondida na última parede, e não em toda a lateral do Terminal Velho. */
+export const ROOM2_TO_DUNGEON_GATEWAY: RoomGatewayDefinition = {
+    from: 'room2',
+    to: 'dungeon',
+    area: {
+        left: 44 * 16,
+        right: 45 * 16,
+        top: 27 * 16,
+        bottom: 29 * 16
+    },
+    portal: { x: 45 * 16 - 2, y: 28 * 16 }
+};
+
+export const DUNGEON_RETURN_SPAWN = { x: 43.5 * 16, y: 28 * 16 } as const;
+
 export function isInsideRoomGateway(
     x: number,
     y: number,
@@ -24,4 +39,22 @@ export function isInsideRoomGateway(
 ) {
     const { area } = gateway;
     return x >= area.left && x <= area.right && y >= area.top && y <= area.bottom;
+}
+
+export function isTouchingSecretDungeonEntrance(
+    x: number,
+    y: number,
+    isBlockedOnRight: boolean
+) {
+    return isBlockedOnRight && isInsideRoomGateway(x, y, ROOM2_TO_DUNGEON_GATEWAY);
+}
+
+export function isTouchingDungeonReturn(
+    x: number,
+    y: number,
+    _isBlockedOnLeft: boolean,
+    area: Readonly<{ left: number; right: number; top: number; bottom: number }>
+) {
+    return x >= area.left && x <= area.right
+        && y >= area.top && y <= area.bottom;
 }
