@@ -12,7 +12,7 @@ export const MENU_CONFIG = {
             titleOriginX: 0.5,
             titleY: 139,
             menuX: GAME_WIDTH / 2,
-            actions: { color: '#0074df', disabledColor: '#6c7580', shadow: undefined, spacing: 25 },
+            actions: { color: '#0074df', disabledColor: '#6c7580', shadow: undefined, spacing: 25, markerSlide: 0 },
             backgrounds: [
                 { texture: 'menu-background-bridge', path: 'assets/menu/background-bridge.png' }
             ]
@@ -31,7 +31,8 @@ export const MENU_CONFIG = {
                 color: '#8fa3b8',
                 disabledColor: '#46525f',
                 shadow: { offsetX: 0, offsetY: 2, color: '#000000', blur: 0, fill: true },
-                spacing: 30
+                spacing: 30,
+                markerSlide: 4
             },
             backgrounds: [
                 { texture: 'menu-background-platform', path: 'assets/menu/background-platform.png' },

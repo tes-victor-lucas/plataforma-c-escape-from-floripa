@@ -61,6 +61,7 @@ export function createPlayMenuActions(
 
 type RenderedAction = {
     marker: Phaser.GameObjects.Graphics;
+    markerX: number;
     label: Phaser.GameObjects.Text;
     hitArea: Phaser.GameObjects.Rectangle;
 };
@@ -145,6 +146,7 @@ export class MainMenuView {
 
     private renderActions(actions: MenuAction[]) {
         this.renderedActions.forEach(({ marker, label, hitArea }) => {
+            this.scene.tweens.killTweensOf(marker);
             marker.destroy();
             label.destroy();
             hitArea.destroy();
@@ -199,7 +201,7 @@ export class MainMenuView {
             hitArea.on('pointerup', action.onSelect);
         }
 
-        this.renderedActions.push({ marker, label, hitArea });
+        this.renderedActions.push({ marker, markerX, label, hitArea });
     }
 
     private addKeyboardNavigation() {
@@ -242,11 +244,20 @@ export class MainMenuView {
     }
 
     private updateSelection() {
-        this.renderedActions.forEach(({ marker, label }, index) => {
+        this.renderedActions.forEach(({ marker, markerX, label }, index) => {
             const action = this.currentActions[index];
             const isEnabled = action.enabled !== false;
             const isSelected = isEnabled && index === this.selectedAction;
-            marker.setVisible(isSelected);
+            this.scene.tweens.killTweensOf(marker);
+            marker.setVisible(isSelected).setX(markerX);
+            if (isSelected && MENU_LAYOUT.actions.markerSlide > 0) {
+                this.scene.tweens.add({
+                    targets: marker,
+                    x: { from: markerX - MENU_LAYOUT.actions.markerSlide, to: markerX },
+                    duration: 140,
+                    ease: 'Cubic.Out'
+                });
+            }
             label.setColor(
                 isSelected
                     ? SELECTED_ACTION_COLOR
