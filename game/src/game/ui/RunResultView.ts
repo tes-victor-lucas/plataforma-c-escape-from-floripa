@@ -57,11 +57,20 @@ export class RunResultView {
     private createButton(label: string, y: number, action: () => void) {
         const background = this.scene.add.rectangle(GAME_WIDTH / 2, y, 300, 44, 0x002b33)
             .setStrokeStyle(2, 0x008fa5).setDepth(DEPTH + 2);
-        this.scene.add.text(GAME_WIDTH / 2, y, label, {
+        const text = this.scene.add.text(GAME_WIDTH / 2, y, label, {
             fontFamily: 'PixelGamer, monospace', fontSize: '22px', color: '#f7f7f7'
         }).setOrigin(0.5).setDepth(DEPTH + 3);
         let activated = false;
-        background.setInteractive({ useHandCursor: true }).once('pointerdown', () => {
+        background.setInteractive({ useHandCursor: true });
+        background.on('pointerover', () => {
+            background.setFillStyle(0x005260);
+            text.setColor('#5ce5f1');
+        });
+        background.on('pointerout', () => {
+            background.setFillStyle(0x002b33);
+            text.setColor('#f7f7f7');
+        });
+        background.once('pointerdown', () => {
             if (activated) return;
             activated = true;
             background.disableInteractive();
