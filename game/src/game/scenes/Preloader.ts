@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
 import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
 import { HUD_CONFIG } from '../config/hud';
+import { MENU_CONFIG } from '../config/menu';
 import { getRequestedRoomKey, ROOM_DEFINITIONS } from '../config/rooms';
 import { loadCampaignProgress } from '../progress/CampaignProgress';
 import { runTracker } from '../scoring/RunTracker';
@@ -21,10 +22,8 @@ export class Preloader extends Scene {
     }
 
     preload() {
-        this.load.image(
-            'menu-background',
-            'assets/menu-background.png'
-        );
+        this.load.image(MENU_CONFIG.title.texture, MENU_CONFIG.title.path);
+        this.load.image(MENU_CONFIG.background.texture, MENU_CONFIG.background.path);
 
         this.load.image(HUD_CONFIG.heart.texture, HUD_CONFIG.heart.path);
         this.load.image(

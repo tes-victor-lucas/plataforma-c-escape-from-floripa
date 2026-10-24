@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
+import { MENU_CONFIG } from '../config/menu';
 
 export type MainMenuViewOptions = {
     onNewGame: () => void;
@@ -81,8 +82,12 @@ export class MainMenuView {
 
     create() {
         this.scene.add
-            .image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'menu-background')
+            .image(GAME_WIDTH / 2, GAME_HEIGHT / 2, MENU_CONFIG.background.texture)
             .setDisplaySize(GAME_WIDTH, GAME_HEIGHT)
+            .setScrollFactor(0);
+        this.scene.add
+            .image(MENU_CONFIG.title.x, MENU_CONFIG.title.y, MENU_CONFIG.title.texture)
+            .setScale(MENU_CONFIG.title.scale)
             .setScrollFactor(0);
 
         this.showMainMenu();
