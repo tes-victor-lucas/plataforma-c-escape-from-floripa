@@ -24,9 +24,8 @@ export class RunResultView {
             .setStrokeStyle(3, won ? 0x39ff14 : 0xe90931)
             .setDepth(DEPTH + 1);
         this.scene.add.text(GAME_WIDTH / 2, 48, won ? 'RUN CONCLUIDA' : 'VOCE FOI DERROTADO', {
-            fontFamily: 'Arial Black, Arial, sans-serif',
+            fontFamily: 'PixelGamer, monospace',
             fontSize: '30px',
-            fontStyle: 'bold',
             color: won ? '#75ff91' : '#ff5c74'
         }).setOrigin(0.5).setDepth(DEPTH + 2);
 
@@ -43,10 +42,11 @@ export class RunResultView {
         rows.forEach(([label, value], index) => {
             const y = 100 + index * 34;
             this.scene.add.text(260, y, label, {
-                fontFamily: 'Arial, sans-serif', fontSize: '18px', fontStyle: 'bold', color: '#b9dce1'
+                fontFamily: 'PixelGamer, monospace', fontSize: '18px', color: '#b9dce1'
             }).setDepth(DEPTH + 2);
+            // PixelGamer é uma versão demo sem dígitos; números usam a Pixeboy, como no HUD.
             this.scene.add.text(625, y, value, {
-                fontFamily: 'Arial, sans-serif', fontSize: '18px', fontStyle: 'bold', color: '#ffffff'
+                fontFamily: 'Pixeboy, monospace', fontSize: '18px', color: '#ffffff'
             }).setOrigin(1, 0).setDepth(DEPTH + 2);
         });
 
@@ -58,7 +58,7 @@ export class RunResultView {
         const background = this.scene.add.rectangle(GAME_WIDTH / 2, y, 300, 44, 0x002b33)
             .setStrokeStyle(2, 0x008fa5).setDepth(DEPTH + 2);
         this.scene.add.text(GAME_WIDTH / 2, y, label, {
-            fontFamily: 'Arial Black, Arial, sans-serif', fontSize: '18px', color: '#f7f7f7'
+            fontFamily: 'PixelGamer, monospace', fontSize: '22px', color: '#f7f7f7'
         }).setOrigin(0.5).setDepth(DEPTH + 3);
         let activated = false;
         background.setInteractive({ useHandCursor: true }).once('pointerdown', () => {
