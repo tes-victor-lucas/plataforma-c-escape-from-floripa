@@ -291,8 +291,10 @@ test('dungeon procedural é determinística, cercada e mantém a entrada conecta
 });
 
 test('dungeon sempre oferece pontos alcançáveis para sua onda', () => {
-    for (let seed = 1; seed <= 32; seed += 1) {
-        const layout = generateDungeonLayout(seed * 7919);
+    // As três primeiras seeds tinham um corredor fechado por obstáculo e não criavam a onda.
+    const seeds = [399851389, 217003655, 3393303098, ...Array.from({ length: 32 }, (_, index) => (index + 1) * 7919)];
+    for (const seed of seeds) {
+        const layout = generateDungeonLayout(seed);
         const grid = {
             width: layout.width,
             height: layout.height,
