@@ -162,11 +162,38 @@ export function generateDungeonLayout(seed: number): DungeonLayout {
             obstacleCandidates[index]
         ];
     }
+    // Um prop de três blocos pode fechar um corredor de três; a busca recusa esse caso.
+    const blocked = walls.slice();
+    const countReachableFloor = () => {
+        const start = centers[0];
+        const visited = new Set([start.y * DUNGEON_WIDTH + start.x]);
+        const pending = [start];
+        for (let index = 0; index < pending.length; index += 1) {
+            const { x, y } = pending[index];
+            for (const next of [{ x: x + 1, y }, { x: x - 1, y }, { x, y: y + 1 }, { x, y: y - 1 }]) {
+                const key = next.y * DUNGEON_WIDTH + next.x;
+                if (blocked[key] || visited.has(key)) continue;
+                visited.add(key);
+                pending.push(next);
+            }
+        }
+        return visited.size;
+    };
+    let reachableFloor = countReachableFloor();
     const obstacles: Array<{ x: number; y: number; variant: number }> = [];
     for (const candidate of obstacleCandidates) {
         if (obstacles.some((obstacle) =>
             Math.hypot(candidate.x - obstacle.x, candidate.y - obstacle.y) < 3)) continue;
-        obstacles.push({ ...candidate, variant: Math.floor(random() * 8) });
+        const obstacle = { ...candidate, variant: Math.floor(random() * 8) };
+        const tiles = getDungeonObstacleTiles(obstacle).map(({ x, y }) => y * DUNGEON_WIDTH + x);
+        for (const tile of tiles) blocked[tile] = true;
+        const reachable = countReachableFloor();
+        if (reachable !== reachableFloor - tiles.length) {
+            for (const tile of tiles) blocked[tile] = false;
+            continue;
+        }
+        reachableFloor = reachable;
+        obstacles.push(obstacle);
         if (obstacles.length === DUNGEON_OBSTACLE_COUNT) break;
     }
 
