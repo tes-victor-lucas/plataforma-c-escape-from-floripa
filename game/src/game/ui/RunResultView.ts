@@ -53,7 +53,8 @@ export class RunResultView {
             this.addRow(label, String(value), 112 + index * 30, '16px', '22px', '#ffffff'));
 
         const divider = this.scene.add.graphics();
-        divider.fillStyle(BUTTON_FRAME_COLOR, 1).fillRect(LABEL_X, 266, VALUE_X - LABEL_X, 2);
+        // No meio do vão entre a última parcela (y=232) e o TOTAL (y=280), mais discreto que o total.
+        divider.fillStyle(BUTTON_FRAME_COLOR, 0.7).fillRect(LABEL_X, 254, VALUE_X - LABEL_X, 2);
         this.root.add(divider);
         this.addRow('TOTAL', String(score.total), 280, '22px', '30px', '#5ce5f1');
         this.addRow('TEMPO FINAL', formatElapsedTime(this.options.result.elapsedTimeMs), 318, '14px', '20px', '#b9dce1');
