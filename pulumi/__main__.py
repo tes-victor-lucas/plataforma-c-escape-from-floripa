@@ -153,6 +153,133 @@ if pulumi.get_stack() == "prod":
     )
     pulumi.export("ns_escape", zone.name_servers)
 
+    # CloudFront só aceita certificados emitidos em us-east-1.
+    us_east_1 = aws.Provider("us-east-1", region="us-east-1")
+    certificate = aws.acm.Certificate(
+        "site-certificate",
+        domain_name=zone.name,
+        validation_method="DNS",
+        opts=pulumi.ResourceOptions(provider=us_east_1),
+    )
+    validation_option = certificate.domain_validation_options[0]
+    validation_record = aws.route53.Record(
+        "site-certificate-validation",
+        zone_id=zone.zone_id,
+        name=validation_option.resource_record_name,
+        type=validation_option.resource_record_type,
+        records=[validation_option.resource_record_value],
+        ttl=300,
+    )
+    certificate_validation = aws.acm.CertificateValidation(
+        "site-certificate-validation",
+        certificate_arn=certificate.arn,
+        validation_record_fqdns=[validation_record.fqdn],
+        opts=pulumi.ResourceOptions(provider=us_east_1),
+    )
+
+    site_bucket = aws.s3.Bucket("site", force_destroy=True)
+    origin_access = aws.cloudfront.OriginAccessControl(
+        "site-origin-access",
+        origin_access_control_origin_type="s3",
+        signing_behavior="always",
+        signing_protocol="sigv4",
+    )
+    # O jogo chama a API em /api (ScoreApi.ts), mas as rotas do API Gateway não têm esse prefixo.
+    strip_api_prefix = aws.cloudfront.Function(
+        "strip-api-prefix",
+        runtime="cloudfront-js-2.0",
+        code="""function handler(event) {
+    var request = event.request;
+    request.uri = request.uri.replace(/^\\/api/, '') || '/';
+    return request;
+}""",
+    )
+
+    distribution = aws.cloudfront.Distribution(
+        "site",
+        enabled=True,
+        aliases=[zone.name],
+        default_root_object="index.html",
+        price_class="PriceClass_All",
+        origins=[
+            aws.cloudfront.DistributionOriginArgs(
+                origin_id="site",
+                domain_name=site_bucket.bucket_regional_domain_name,
+                origin_access_control_id=origin_access.id,
+            ),
+            aws.cloudfront.DistributionOriginArgs(
+                origin_id="score-api",
+                domain_name=api.api_endpoint.apply(lambda url: url.removeprefix("https://")),
+                custom_origin_config=aws.cloudfront.DistributionOriginCustomOriginConfigArgs(
+                    http_port=80,
+                    https_port=443,
+                    origin_protocol_policy="https-only",
+                    origin_ssl_protocols=["TLSv1.2"],
+                ),
+            ),
+        ],
+        default_cache_behavior=aws.cloudfront.DistributionDefaultCacheBehaviorArgs(
+            target_origin_id="site",
+            viewer_protocol_policy="redirect-to-https",
+            allowed_methods=["GET", "HEAD"],
+            cached_methods=["GET", "HEAD"],
+            compress=True,
+            cache_policy_id="658327ea-f89d-4fab-a63d-7e88639e58f6",  # Managed-CachingOptimized
+        ),
+        ordered_cache_behaviors=[
+            aws.cloudfront.DistributionOrderedCacheBehaviorArgs(
+                path_pattern="/api/*",
+                target_origin_id="score-api",
+                viewer_protocol_policy="redirect-to-https",
+                allowed_methods=["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"],
+                cached_methods=["GET", "HEAD"],
+                cache_policy_id="4135ea2d-6df8-44a3-9df3-4b5a84be39ad",  # Managed-CachingDisabled
+                origin_request_policy_id="b689b0a8-53d0-40ab-baf2-68738e2966ac",  # Managed-AllViewerExceptHostHeader
+                function_associations=[aws.cloudfront.DistributionOrderedCacheBehaviorFunctionAssociationArgs(
+                    event_type="viewer-request",
+                    function_arn=strip_api_prefix.arn,
+                )],
+            ),
+        ],
+        restrictions=aws.cloudfront.DistributionRestrictionsArgs(
+            geo_restriction=aws.cloudfront.DistributionRestrictionsGeoRestrictionArgs(restriction_type="none"),
+        ),
+        viewer_certificate=aws.cloudfront.DistributionViewerCertificateArgs(
+            acm_certificate_arn=certificate_validation.certificate_arn,
+            ssl_support_method="sni-only",
+            minimum_protocol_version="TLSv1.2_2021",
+        ),
+    )
+
+    aws.s3.BucketPolicy(
+        "site",
+        bucket=site_bucket.id,
+        policy=pulumi.Output.all(site_bucket.arn, distribution.arn).apply(lambda arns: json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Principal": {"Service": "cloudfront.amazonaws.com"},
+                "Action": "s3:GetObject",
+                "Resource": f"{arns[0]}/*",
+                "Condition": {"StringEquals": {"AWS:SourceArn": arns[1]}},
+            }],
+        })),
+    )
+    aws.route53.Record(
+        "site",
+        zone_id=zone.zone_id,
+        name=zone.name,
+        type="A",
+        aliases=[aws.route53.RecordAliasArgs(
+            name=distribution.domain_name,
+            zone_id=distribution.hosted_zone_id,
+            evaluate_target_health=False,
+        )],
+    )
+    pulumi.export("site_bucket", site_bucket.bucket)
+    pulumi.export("site_distribution_id", distribution.id)
+    pulumi.export("site_url", pulumi.Output.concat("https://", zone.name))
+
 pulumi.export("score_api_url", api.api_endpoint)
 pulumi.export("score_table_name", score_table.name)
 pulumi.export("score_api_stage", stage.name)
