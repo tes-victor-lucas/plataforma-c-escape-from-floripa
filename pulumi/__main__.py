@@ -5,7 +5,7 @@ import pulumi
 import pulumi_aws as aws
 
 config = pulumi.Config()
-require_authentication = (config.get_bool("requireAuthentication") or False) or pulumi.get_stack() == "prod"
+require_authentication = config.get_bool("requireAuthentication") or False
 root = Path(__file__).resolve().parent.parent
 
 score_table = aws.dynamodb.Table(
@@ -150,6 +150,8 @@ if pulumi.get_stack() == "prod":
     zone = aws.route53.Zone(
         "escape-from-floripa",
         name="escape-from-floripa.negoci.online",
+        # Recriar a zona troca os NS que estão delegados em negoci.online.
+        opts=pulumi.ResourceOptions(protect=True),
     )
     pulumi.export("ns_escape", zone.name_servers)
 

@@ -34,3 +34,7 @@ aws cloudfront create-invalidation --distribution-id "$(pulumi stack output site
 ```
 
 Para publicar uma nova versão do jogo, repita o build, o `sync` e a invalidação. O `pulumi up` só é necessário quando a infraestrutura muda.
+
+A delegação de `escape-from-floripa.negoci.online` é feita fora desta conta, na zona `negoci.online`, com os valores de `pulumi stack output ns_escape`. A zona está com `protect` para não ser recriada. Se for recriada mesmo assim, os NS mudam e a delegação precisa ser refeita antes do `pulumi up`, senão a validação do certificado ACM fica presa.
+
+No MVP, o `prod` não exige autenticação: o jogo ainda não tem login no Cognito, então qualquer cliente consegue registrar runs. Para exigir JWT, use `pulumi config set requireAuthentication true` depois que o frontend enviar `accessToken`.
