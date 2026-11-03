@@ -1,20 +1,14 @@
 import { Scene } from 'phaser';
-import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
+import { CleanOverlayMenu } from './CleanOverlayMenu';
 
 type DefeatViewOptions = {
     onRestart: () => void;
     onQuit: () => void;
 };
 
-const DEPTH = 200;
-const FRAME_COLOR = 0x008fa5;
-const PANEL_COLOR = 0x00171b;
-const BUTTON_COLOR = 0x002b33;
-const BUTTON_HOVER_COLOR = 0x005260;
-const BUTTON_WIDTH = 300;
-const BUTTON_HEIGHT = 52;
+const PANEL = { x: 234, y: 118, width: 421, height: 270 };
 
-/** Tela apresentada quando a vida do jogador chega a zero. */
+/** Compatibilidade para fluxos que exibem uma derrota sem estatísticas da run. */
 export class DefeatView {
     constructor(
         private readonly scene: Scene,
@@ -22,69 +16,27 @@ export class DefeatView {
     ) {}
 
     create() {
-        this.scene.add
-            .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.72)
-            .setDepth(DEPTH);
-        this.scene.add
-            .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 400, 250, PANEL_COLOR)
-            .setStrokeStyle(3, FRAME_COLOR)
-            .setDepth(DEPTH + 1);
-        this.scene.add
-            .text(GAME_WIDTH / 2, 178, 'Você foi derrotado', {
-                fontFamily: 'PixelGamer, monospace',
-                fontSize: '36px',
-                color: '#ff2d2d'
-            })
-            .setOrigin(0.5)
-            .setDepth(DEPTH + 2);
-
-        this.createButton('Tentar novamente', 260, this.options.onRestart);
-        this.createButton('Voltar ao menu', 324, this.options.onQuit);
-    }
-
-    private createButton(label: string, y: number, action: () => void) {
-        const x = (GAME_WIDTH - BUTTON_WIDTH) / 2;
-        const background = this.scene.add.graphics().setDepth(DEPTH + 2);
-        const text = this.scene.add
-            .text(GAME_WIDTH / 2, y, label, {
-                fontFamily: 'PixelGamer, monospace',
-                fontSize: '24px',
-                color: '#f7f7f7'
-            })
-            .setOrigin(0.5)
-            .setDepth(DEPTH + 3);
-        const hitArea = this.scene.add
-            .rectangle(GAME_WIDTH / 2, y, BUTTON_WIDTH, BUTTON_HEIGHT, 0x000000, 0)
-            .setDepth(DEPTH + 4)
-            .setInteractive({ useHandCursor: true });
-        let activated = false;
-        const activate = () => {
-            if (activated) return;
-            activated = true;
-            hitArea.disableInteractive();
-            action();
-        };
-
-        const drawButton = (isHovered: boolean) => {
-            background.clear();
-            background
-                .fillStyle(isHovered ? BUTTON_HOVER_COLOR : BUTTON_COLOR, 1)
-                .fillRect(x, y - BUTTON_HEIGHT / 2, BUTTON_WIDTH, BUTTON_HEIGHT);
-            background
-                .lineStyle(2, FRAME_COLOR, 1)
-                .strokeRect(x, y - BUTTON_HEIGHT / 2, BUTTON_WIDTH, BUTTON_HEIGHT);
-        };
-
-        drawButton(false);
-        hitArea.on('pointerover', () => {
-            drawButton(true);
-            text.setColor('#5ce5f1');
+        const menu = new CleanOverlayMenu(this.scene, {
+            bounds: PANEL,
+            dimAlpha: 0.72
         });
-        hitArea.on('pointerout', () => {
-            drawButton(false);
-            text.setColor('#f7f7f7');
+        menu.addTitle('VOCE FOI DERROTADO', 166, 'defeat', 'danger');
+        menu.addButton('TENTAR NOVAMENTE', 237, this.options.onRestart, {
+            width: 330,
+            height: 42,
+            fontSize: '20px',
+            tone: 'danger'
         });
-        // pointerdown é mais confiável quando a própria ação encerra esta cena.
-        hitArea.once('pointerdown', activate);
+        menu.addButton('VOLTAR AO MENU', 292, this.options.onQuit, {
+            width: 330,
+            height: 42,
+            fontSize: '20px'
+        });
+        menu.addControlHints([
+            { key: 'ENTER', label: 'SELECIONAR' },
+            { key: 'ESC', label: 'VOLTAR' }
+        ], 360);
+        menu.enableKeyboardNavigation({ onCancel: this.options.onQuit });
+        menu.fadeIn();
     }
 }

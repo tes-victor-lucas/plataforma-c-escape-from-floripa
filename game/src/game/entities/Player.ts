@@ -4,6 +4,7 @@ import { AUDIO_CONFIG } from '../config/audio';
 import { WORLD_CONFIG } from '../config/world';
 import { COMBAT_CONFIG } from '../config/combat';
 import { Health } from '../combat/Health';
+import { DashState } from './DashState';
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
@@ -26,6 +27,11 @@ export class Player {
 
     private readonly cursors: Phaser.Types.Input.Keyboard.CursorKeys;
     private readonly wasd: MovementKeys;
+    private readonly dashKey: Phaser.Input.Keyboard.Key;
+    private readonly dash = new DashState(
+        WORLD_CONFIG.player.dash.duration,
+        WORLD_CONFIG.player.dash.cooldown
+    );
     private readonly footsteps: FootstepAudio;
     private facing: Direction = 'down';
     private movementSpeedMultiplier = 1;
@@ -69,15 +75,30 @@ export class Player {
             left: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
             right: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D)
         };
+        this.dashKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
         this.footsteps = new FootstepAudio(scene);
         scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.footsteps.destroy());
     }
 
     update(delta: number) {
         if (!this.health.isAlive) return;
+        if (this.dash.tick(delta)) this.finishDash();
+
         const direction = this.getMovementDirection();
         const { x, y } = direction;
         const isReceivingMovementInput = x !== 0 || y !== 0;
+
+        if (Phaser.Input.Keyboard.JustDown(this.dashKey)) {
+            const dashDirection = isReceivingMovementInput
+                ? direction
+                : this.getFacingVector();
+            if (this.dash.tryStart(dashDirection)) this.startDash();
+        }
+
+        if (this.dash.isActive) {
+            this.updateDashVelocity();
+            return;
+        }
 
         if (!isReceivingMovementInput) {
             this.blockedDirection = undefined;
@@ -135,12 +156,18 @@ export class Player {
         return this.movementSpeedMultiplier;
     }
 
+    getDashCharge() {
+        return this.dash.charge;
+    }
+
     setControlsInverted(inverted: boolean) {
         this.controlsInverted = inverted;
         this.clearBlockedDirection();
     }
 
     stopMovement() {
+        this.dash.cancel();
+        this.finishDash();
         this.sprite.setVelocity(0, 0);
         this.footsteps.stop();
         this.stopWalkingAnimation();
@@ -162,6 +189,8 @@ export class Player {
             if (this.sprite.active && this.health.isAlive) this.sprite.clearTint();
         });
         if (!this.health.isAlive) {
+            this.dash.cancel();
+            this.finishDash();
             this.sprite.setVelocity(0, 0);
             this.sprite.anims.stop();
             this.footsteps.stop();
@@ -216,6 +245,26 @@ export class Player {
             Phaser.Math.Linear(body.velocity.x, targetX, interpolation),
             Phaser.Math.Linear(body.velocity.y, targetY, interpolation)
         );
+    }
+
+    private startDash() {
+        const { x, y } = this.dash.direction;
+        this.blockedDirection = undefined;
+        this.facing = this.getFacingDirection(x, y);
+        this.sprite.setAlpha(WORLD_CONFIG.player.dash.alpha);
+        this.updateDashVelocity();
+    }
+
+    private finishDash() {
+        if (this.sprite.active) this.sprite.setAlpha(1);
+    }
+
+    private updateDashVelocity() {
+        const { x, y } = this.dash.direction;
+        const speed = WORLD_CONFIG.player.dash.speed * this.movementSpeedMultiplier;
+        this.sprite.setVelocity(x * speed, y * speed);
+        this.footsteps.stop();
+        this.stopWalkingAnimation();
     }
 
     private getCurrentSpeed() {
@@ -275,6 +324,15 @@ export class Player {
         }
 
         return this.facing;
+    }
+
+    private getFacingVector(): MovementDirection {
+        switch (this.facing) {
+            case 'up': return { x: 0, y: -1 };
+            case 'down': return { x: 0, y: 1 };
+            case 'left': return { x: -1, y: 0 };
+            case 'right': return { x: 1, y: 0 };
+        }
     }
 
     private playWalkAnimation(animationKey: string) {

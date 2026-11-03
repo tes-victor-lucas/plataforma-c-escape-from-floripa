@@ -1,8 +1,16 @@
 import { Scene } from 'phaser';
 import { configureWorldCamera } from '../camera/configureWorldCamera';
-import { COMBAT_CONFIG, ROOM2_STAIR_GUARD_SPAWNS } from '../config/combat';
+import {
+    COMBAT_CONFIG,
+    getWaveEnemyKinds,
+    ROOM2_STAIR_GUARD_SPAWNS,
+    type EnemyKind
+} from '../config/combat';
 import { WORLD_CONFIG } from '../config/world';
 import { Drone } from '../entities/Drone';
+import { Patinete } from '../entities/Patinete';
+import { GuardaCyber } from '../entities/GuardaCyber';
+import type { CombatEnemy, EnemySpawn } from '../entities/CombatEnemy';
 import { Player } from '../entities/Player';
 import { createRoom } from '../map/createRoom';
 import { CombatSystem } from '../combat/CombatSystem';
@@ -34,7 +42,14 @@ import {
     PIRANHAS_BAR_ITEMS,
     type PiranhasBarItem
 } from '../config/piranhasBar';
-import { isInsideRoomGateway, ROOM1_TO_ROOM2_GATEWAY } from '../config/roomGateway';
+import {
+    DUNGEON_RETURN_SPAWN,
+    isInsideRoomGateway,
+    isTouchingDungeonReturn,
+    isTouchingSecretDungeonEntrance,
+    ROOM1_TO_ROOM2_GATEWAY,
+    ROOM2_TO_DUNGEON_GATEWAY
+} from '../config/roomGateway';
 import { RoomExitPortal } from '../map/RoomExitPortal';
 import { ROOM1_CLEAR_CODE, SecretCodeMatcher } from '../config/secretCodes';
 import {
@@ -48,6 +63,13 @@ import {
     saveCampaignProgress
 } from '../progress/CampaignProgress';
 import { runTracker } from '../scoring/RunTracker';
+import {
+    createDungeonSessionState,
+    DUNGEON_WAVE_ENEMY_COUNT,
+    type DungeonEnemyState,
+    type DungeonSessionState
+} from '../config/dungeon';
+import { createLampLight } from '../map/createLampLights';
 
 const ROOM2_WALKABLE_LAYERS = [
     'floor',
@@ -68,11 +90,16 @@ type WorldSceneData = {
     roomKey?: RoomKey;
     spawn?: Readonly<{ x: number; y: number }>;
     playerProgress?: PlayerProgress;
+    dungeonState?: DungeonSessionState;
 };
 
 export function isRoom2WalkableLayer(layerName: string) {
     const localName = layerName.split('/').pop();
     return ROOM2_WALKABLE_LAYERS.some((name) => name === localName);
+}
+
+export function shouldOfferRoomCompletionUpgrade(roomKey: RoomKey) {
+    return roomKey === 'room1';
 }
 
 export class World extends Scene {
@@ -81,7 +108,7 @@ export class World extends Scene {
     private piranhasBarPrompt?: Phaser.GameObjects.Text;
     private stairClimbEffect?: StairClimbEffect;
     private roomExitPortal?: RoomExitPortal;
-    private drones: Drone[] = [];
+    private drones: CombatEnemy[] = [];
     private droneBodies?: Phaser.Physics.Arcade.Group;
     private combat?: CombatSystem;
     private waves?: DroneWaves;
@@ -95,6 +122,7 @@ export class World extends Scene {
     private isRoomExitOpen = false;
     private isRoomTransitioning = false;
     private hasSpawnedRoom2Guards = false;
+    private waveIndex = 0;
     private isRoomCombatComplete = false;
     private nauseaEndsAt = 0;
     private normalCameraZoom: number = WORLD_CONFIG.camera.zoom;
@@ -108,6 +136,13 @@ export class World extends Scene {
     private multiplayerSyncElapsed = 0;
     private readonly room1SecretCode = new SecretCodeMatcher(ROOM1_CLEAR_CODE);
     private completeRoomCombat?: () => void;
+    private dungeonReturnArea?: Readonly<{ left: number; right: number; top: number; bottom: number }>;
+    private dungeonState?: DungeonSessionState;
+    private savedEnemies?: readonly DungeonEnemyState[];
+    private isHitStopActive = false;
+    private hitStopTimer?: Phaser.Time.TimerEvent;
+    private lowHealthFilter?: Phaser.Filters.ColorMatrix;
+    private lowHealthDesaturation = -1;
 
     constructor() {
         super('World');
@@ -117,13 +152,17 @@ export class World extends Scene {
         this.isPauseMenuOpen = false;
         this.isWaveIntermissionOpen = false;
         this.isPiranhasMenuOpen = false;
-        this.hasSelectedPiranhasItem = false;
         this.isGameOver = false;
         this.isGameplayReady = false;
         this.isRoomExitOpen = false;
         this.isRoomTransitioning = false;
         this.hasSpawnedRoom2Guards = false;
+        this.waveIndex = 0;
         this.isRoomCombatComplete = false;
+        this.isHitStopActive = false;
+        this.hitStopTimer = undefined;
+        this.lowHealthFilter = undefined;
+        this.lowHealthDesaturation = -1;
         this.room1SecretCode.reset();
         this.nauseaEndsAt = 0;
         this.multiplayerSyncElapsed = 0;
@@ -133,19 +172,29 @@ export class World extends Scene {
         const spawn = data.spawn ?? ROOM_DEFINITIONS[roomKey].spawn;
         this.activeRoomKey = roomKey;
         this.activeSpawn = spawn;
-        const room = createRoom(this, roomKey);
+        this.dungeonState = data.dungeonState;
+        if (roomKey === 'dungeon' && !this.dungeonState) {
+            this.dungeonState = createDungeonSessionState();
+        }
+        this.hasSelectedPiranhasItem = this.dungeonState?.piranhasItemConsumed ?? false;
+        const savedCombat = this.dungeonState?.savedCombat[roomKey];
+        this.savedEnemies = savedCombat?.enemies;
+        const room = createRoom(this, roomKey, this.dungeonState?.seed);
         if (!room) return;
+        this.dungeonReturnArea = room.dungeon?.returnArea;
         const walkableRoom2Layers = room.map.layers.filter((layer) =>
             isRoom2WalkableLayer(layer.name));
 
-        this.droneSpawnPoints = roomKey === 'room2'
+        this.droneSpawnPoints = roomKey !== 'room1'
             ? createReachableDroneSpawns(
                 room.map,
                 (tileX, tileY) => room.collisionLayers.some((layer) =>
                     layer.getTileAt(tileX, tileY)?.collides ?? false),
                 spawn,
-                (tileX, tileY) => walkableRoom2Layers.some((layer) =>
-                    room.map.hasTileAt(tileX, tileY, layer.name))
+                roomKey === 'room2'
+                    ? (tileX, tileY) => walkableRoom2Layers.some((layer) =>
+                        room.map.hasTileAt(tileX, tileY, layer.name))
+                    : () => true
             )
             : COMBAT_CONFIG.droneSpawns;
 
@@ -172,6 +221,7 @@ export class World extends Scene {
             this.persistContinuationCheckpoint();
         });
         if (roomKey === 'room2') this.createPiranhasBarPrompt();
+        if (roomKey === 'room2') this.createSecretEntranceHint();
         this.stairClimbEffect = room.stairPassage
             ? new StairClimbEffect(this, this.player.sprite, room.stairPassage)
             : undefined;
@@ -184,11 +234,16 @@ export class World extends Scene {
         for (const layer of room.collisionLayers) {
             this.physics.add.collider(this.player.sprite, layer);
         }
-        this.combat = new CombatSystem(this, this.player, this.drones, room.collisionLayers, this.upgrades);
-        this.completeRoomCombat = () => {
-            if (this.isRoomCombatComplete) return;
-            this.isRoomCombatComplete = true;
-            this.waves = undefined;
+        this.combat = new CombatSystem(
+            this,
+            this.player,
+            this.drones,
+            room.collisionLayers,
+            this.upgrades,
+            runTracker,
+            () => this.playHitStop()
+        );
+        const finishRoomCombat = () => {
             if (this.player) this.upgrades.repairAfterRoom(this.player.health);
             room.openExit();
             this.player?.clearBlockedDirection();
@@ -200,17 +255,41 @@ export class World extends Scene {
                 void runTracker.win();
             }
         };
-        this.waves = new DroneWaves(
-            (count) => this.spawnDrones(count),
-            () => {
-                this.completeRoomCombat?.();
-            },
-            (resume) => this.playWaveIntermission(resume)
-        );
-        this.waves.update(this.drones);
+        this.completeRoomCombat = () => {
+            if (this.isRoomCombatComplete) return;
+            this.isRoomCombatComplete = true;
+            this.waves = undefined;
+            if (shouldOfferRoomCompletionUpgrade(roomKey)) {
+                this.playRoom1CompletionReward(finishRoomCombat);
+                return;
+            }
+            if (roomKey === 'dungeon') {
+                this.playDungeonReward(finishRoomCombat);
+                return;
+            }
+            finishRoomCombat();
+        };
+        // Ao voltar, os drones vivos formam a primeira onda; uma sala já limpa não tem combate.
+        const waveCounts = savedCombat
+            ? [savedCombat.enemies.length, ...savedCombat.pendingWaves]
+            : roomKey === 'dungeon'
+                ? [DUNGEON_WAVE_ENEMY_COUNT]
+                : COMBAT_CONFIG.wavesByRoom[roomKey];
+        this.waves = waveCounts.some((count) => count > 0)
+            ? new DroneWaves(
+                (count) => this.spawnDrones(count),
+                () => {
+                    this.completeRoomCombat?.();
+                },
+                (resume) => this.playWaveIntermission(resume),
+                waveCounts
+            )
+            : undefined;
+        this.waves?.update(this.drones);
 
         configureWorldCamera(this, room.map, this.player.sprite);
         this.normalCameraZoom = this.cameras.main.zoom;
+        this.lowHealthFilter = this.cameras.main.filters.internal.addColorMatrix();
         this.input.keyboard?.on('keydown-P', this.openPauseMenu, this);
         this.input.keyboard?.on('keydown-G', this.openPiranhasMenu, this);
         this.input.keyboard?.on('keydown', this.handleSecretCodeKey, this);
@@ -260,6 +339,7 @@ export class World extends Scene {
 
     update(_time: number, delta: number) {
         this.updatePlayerRangeIndicator();
+        this.updateLowHealthEffect();
         if (!this.isGameplayReady || this.isGameOver) return;
         if (this.player && !this.player.health.isAlive) {
             this.isGameOver = true;
@@ -268,15 +348,16 @@ export class World extends Scene {
             runTracker.lose();
             return;
         }
+        if (this.isHitStopActive) return;
         this.updatePiranhasBarInteraction();
         this.updateNauseaEffect();
-        if (this.isPiranhasMenuOpen) return;
+        if (this.isPiranhasMenuOpen || this.isWaveIntermissionOpen) return;
         this.player?.update(delta);
         this.updateMultiplayer(delta);
         this.updateRoomGateway();
         if (this.isRoomTransitioning) return;
         this.stairClimbEffect?.update();
-        for (const drone of this.drones) drone.update(this.player);
+        for (const enemy of this.drones) enemy.update(this.player, delta);
         this.combat?.update(delta);
         this.waves?.update(this.drones);
     }
@@ -285,7 +366,8 @@ export class World extends Scene {
         if (!this.player || !this.combat || this.isRoomCombatComplete) return;
         const shouldSpawnStairGuards = this.activeRoomKey === 'room2'
             && !this.hasSpawnedRoom2Guards;
-        const spawns = shouldSpawnStairGuards
+        const savedEnemies = this.savedEnemies;
+        const spawns = savedEnemies ?? (shouldSpawnStairGuards
             ? selectDroneSpawnsWithPriority(
                 count,
                 this.player.sprite,
@@ -294,16 +376,32 @@ export class World extends Scene {
                         spawnPoint.x === prioritySpawn.x && spawnPoint.y === prioritySpawn.y)),
                 this.droneSpawnPoints
             )
-            : selectDroneSpawns(count, this.player.sprite, this.droneSpawnPoints);
+            : selectDroneSpawns(count, this.player.sprite, this.droneSpawnPoints));
+        const kinds = savedEnemies
+            ? savedEnemies.map((enemy) => enemy.kind ?? 'drone')
+            : getWaveEnemyKinds(this.activeRoomKey, this.waveIndex, spawns.length);
+        this.waveIndex += 1;
         if (shouldSpawnStairGuards) this.hasSpawnedRoom2Guards = true;
+        this.savedEnemies = undefined;
         this.combat.clear();
-        for (const spawn of spawns) {
-            const drone = new Drone(this, spawn, this.collisionLayers);
-            for (const layer of this.collisionLayers) this.physics.add.collider(drone.sprite, layer);
-            this.physics.add.collider(this.player.sprite, drone.sprite);
-            this.droneBodies?.add(drone.sprite);
-            this.drones.push(drone);
-            this.combat.registerDrone(drone);
+        for (const [index, spawn] of spawns.entries()) {
+            const enemy = this.createEnemy(kinds[index], spawn);
+            for (const layer of this.collisionLayers) this.physics.add.collider(enemy.sprite, layer);
+            this.physics.add.collider(this.player.sprite, enemy.sprite);
+            this.droneBodies?.add(enemy.sprite);
+            this.drones.push(enemy);
+            this.combat.registerEnemy(enemy);
+        }
+    }
+
+    private createEnemy(kind: EnemyKind, spawn: EnemySpawn) {
+        switch (kind) {
+            case 'scooter':
+                return new Patinete(this, spawn, this.collisionLayers);
+            case 'guard':
+                return new GuardaCyber(this, spawn, this.collisionLayers);
+            case 'drone':
+                return new Drone(this, spawn, this.collisionLayers);
         }
     }
 
@@ -316,8 +414,8 @@ export class World extends Scene {
 
         this.combat?.clear();
         this.waves = undefined;
-        for (const drone of this.drones) {
-            if (drone.health.isAlive) drone.takeDamage(drone.health.current);
+        for (const enemy of this.drones) {
+            if (enemy.health.isAlive) enemy.takeDamage(enemy.health.current);
         }
         this.completeRoomCombat?.();
     }
@@ -336,28 +434,109 @@ export class World extends Scene {
     }
 
     private updateRoomGateway() {
-        if (!this.player || !this.isRoomExitOpen || this.isRoomTransitioning) return;
-        const center = this.player.sprite.body?.center ?? this.player.sprite;
-        if (!isInsideRoomGateway(center.x, center.y)) return;
+        if (!this.player || this.isRoomTransitioning) return;
+        if (this.activeRoomKey === 'room1' && !this.isRoomExitOpen) return;
+        const sprite = this.player.sprite;
+        if (!sprite) return;
+        const center = sprite.body?.center ?? sprite;
+        const body = sprite.body;
 
+        if (
+            this.activeRoomKey === 'room2'
+            && isTouchingSecretDungeonEntrance(
+                center.x,
+                center.y,
+                body instanceof Phaser.Physics.Arcade.Body && body.blocked.right
+            )
+        ) {
+            this.dungeonState ??= createDungeonSessionState();
+            this.transitionToRoom(ROOM2_TO_DUNGEON_GATEWAY.to, {
+                dungeonState: this.dungeonState
+            });
+            return;
+        }
+        if (
+            this.activeRoomKey === 'dungeon' && this.dungeonReturnArea
+            && isTouchingDungeonReturn(center.x, center.y, this.dungeonReturnArea)
+        ) {
+            this.transitionToRoom('room2', {
+                spawn: DUNGEON_RETURN_SPAWN,
+                dungeonState: this.dungeonState
+            });
+            return;
+        }
+        if (
+            this.activeRoomKey !== ROOM1_TO_ROOM2_GATEWAY.from
+            || !this.isRoomExitOpen
+            || !isInsideRoomGateway(center.x, center.y)
+        ) return;
+
+        this.transitionToRoom(ROOM1_TO_ROOM2_GATEWAY.to);
+    }
+
+    private transitionToRoom(
+        roomKey: RoomKey,
+        options: {
+            spawn?: Readonly<{ x: number; y: number }>;
+            dungeonState?: DungeonSessionState;
+        } = {}
+    ) {
+        if (!this.player || this.isRoomTransitioning) return;
+
+        this.rememberCombatProgress();
         this.isRoomTransitioning = true;
         this.player.stopMovement();
         this.combat?.clear();
         this.physics.pause();
         const playerProgress = capturePlayerProgress(this.player, this.upgrades);
         if (!this.isMultiplayerEnabled()) {
-            saveCampaignProgress({
-                roomKey: ROOM1_TO_ROOM2_GATEWAY.to,
-                playerProgress,
-                run: runTracker.checkpoint()
-            });
+            // O checkpoint oficial continua sendo a fase 2; a dungeon é uma rota secreta.
+            saveCampaignProgress({ roomKey: 'room2', playerProgress, run: runTracker.checkpoint() });
         }
         this.scene.launch('RoomTransition', {
-            roomKey: ROOM1_TO_ROOM2_GATEWAY.to,
+            roomKey,
             source: 'world',
-            playerProgress
+            playerProgress,
+            ...options
         });
         this.scene.bringToTop('RoomTransition');
+    }
+
+    /** Guarda inimigos vivos e ondas restantes para retomar a sala na próxima visita. */
+    private rememberCombatProgress() {
+        if (!this.dungeonState) return;
+        const enemies = this.drones.flatMap((enemy) => {
+            if (!enemy.health.isAlive) return [];
+            return [{
+                kind: enemy.kind ?? 'drone',
+                x: enemy.sprite.x,
+                y: enemy.sprite.y,
+                health: enemy.health.current,
+                patrolLeft: enemy.sprite.x - 16,
+                patrolRight: enemy.sprite.x + 16
+            }];
+        });
+        this.dungeonState.piranhasItemConsumed = this.hasSelectedPiranhasItem;
+        this.dungeonState.savedCombat[this.activeRoomKey] = {
+            enemies,
+            pendingWaves: this.waves?.pendingWaves() ?? []
+        };
+    }
+
+    /** Uma fissura discreta indica a parede correta sem transformar a entrada em portal visível. */
+    private createSecretEntranceHint() {
+        const { portal } = ROOM2_TO_DUNGEON_GATEWAY;
+        createLampLight(this, portal.x - 4, portal.y, 18, 0.07).setScale(0.52);
+        const glow = this.add.rectangle(portal.x, portal.y, 2, 19, 0x54d8df, 0.14)
+            .setDepth(19);
+        this.tweens.add({
+            targets: glow,
+            alpha: { from: 0.08, to: 0.2 },
+            duration: 1450,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut'
+        });
     }
 
     /** Atualiza um checkpoint já desbloqueado sem liberar salas por acesso direto. */
@@ -394,6 +573,60 @@ export class World extends Scene {
                 if (this.isGameplayReady && !this.isGameOver) this.physics.resume();
                 resume();
             });
+        });
+    }
+
+    /** Oferece uma segunda escolha depois da onda final e só então libera a Sala II. */
+    private playRoom1CompletionReward(onComplete: () => void) {
+        this.combat?.clear();
+        this.physics.pause();
+        this.isWaveIntermissionOpen = true;
+        this.piranhasBarPrompt?.setVisible(false);
+
+        const overlayScene = this.scene.get('CombatHud') as Scene;
+        new UpgradeSelectionView(
+            overlayScene,
+            drawUpgradeCards(undefined, this.upgrades.availableCards()),
+            {
+                title: 'SALA I CONCLUÍDA',
+                hint: 'Escolha uma recompensa'
+            }
+        ).play((selected) => {
+            this.acquireUpgrade(selected);
+            this.isWaveIntermissionOpen = false;
+            onComplete();
+            if (this.isGameplayReady && !this.isGameOver && !this.isPauseMenuOpen) {
+                this.physics.resume();
+            }
+        });
+    }
+
+    /** Entrega uma única carta ao limpar a única onda da dungeon. */
+    private playDungeonReward(onComplete: () => void) {
+        if (!this.player || !this.dungeonState || this.dungeonState.rewardClaimed) {
+            onComplete();
+            return;
+        }
+        this.combat?.clear();
+        this.physics.pause();
+        this.isWaveIntermissionOpen = true;
+
+        const overlayScene = this.scene.get('CombatHud') as Scene;
+        new UpgradeSelectionView(
+            overlayScene,
+            drawUpgradeCards(undefined, this.upgrades.availableCards()),
+            {
+                title: 'DUNGEON CONCLUÍDA',
+                hint: 'Escolha sua recompensa'
+            }
+        ).play((selected) => {
+            this.acquireUpgrade(selected);
+            if (this.dungeonState) this.dungeonState.rewardClaimed = true;
+            this.isWaveIntermissionOpen = false;
+            onComplete();
+            if (this.isGameplayReady && !this.isGameOver && !this.isPauseMenuOpen) {
+                this.physics.resume();
+            }
         });
     }
 
@@ -443,7 +676,6 @@ export class World extends Scene {
         new UpgradeSelectionView(overlayScene, PIRANHAS_BAR_ITEMS, {
             title: 'CARDÁPIO DO PIRANHAS BAR',
             hint: 'Escolha um item para consumir',
-            footer: 'CLIQUE PARA CONSUMIR',
             cardCenterDistance: 220
         }).play((item) => this.consumePiranhasItem(item));
     }
@@ -489,6 +721,38 @@ export class World extends Scene {
             ));
     }
 
+    private playHitStop() {
+        if (this.isHitStopActive || !this.isGameplayReady || this.isGameOver) return;
+        this.isHitStopActive = true;
+        this.physics.pause();
+        this.hitStopTimer = this.time.delayedCall(WORLD_CONFIG.feedback.hitStopDuration, () => {
+            this.hitStopTimer = undefined;
+            this.isHitStopActive = false;
+            if (
+                this.isGameplayReady && !this.isGameOver && !this.isPauseMenuOpen
+                && !this.isPiranhasMenuOpen && !this.isWaveIntermissionOpen
+                && !this.isRoomTransitioning
+            ) {
+                this.physics.resume();
+            }
+        });
+    }
+
+    private updateLowHealthEffect() {
+        if (!this.player || !this.lowHealthFilter) return;
+        const { threshold, maxDesaturation } = WORLD_CONFIG.feedback.lowHealth;
+        const healthRatio = this.player.health.max > 0
+            ? this.player.health.current / this.player.health.max
+            : 0;
+        const desaturation = healthRatio >= threshold
+            ? 0
+            : Math.min(1, (threshold - healthRatio) / threshold) * maxDesaturation;
+        if (Math.abs(desaturation - this.lowHealthDesaturation) < 0.001) return;
+
+        this.lowHealthDesaturation = desaturation;
+        this.lowHealthFilter.colorMatrix.reset().saturate(-desaturation);
+    }
+
     private createPlayerRangeIndicator() {
         const { range } = COMBAT_CONFIG.player;
         const { color, fillAlpha, strokeAlpha, strokeWidth } = COMBAT_CONFIG.rangeIndicator;
@@ -511,7 +775,11 @@ export class World extends Scene {
         this.isRoomExitOpen = false;
         this.isRoomTransitioning = false;
         this.hasSpawnedRoom2Guards = false;
+        this.waveIndex = 0;
         this.isRoomCombatComplete = false;
+        this.isHitStopActive = false;
+        this.hitStopTimer?.remove(false);
+        this.hitStopTimer = undefined;
         this.room1SecretCode.reset();
         this.scene.stop('CombatHud');
         this.combat?.clear();
@@ -523,6 +791,9 @@ export class World extends Scene {
         this.drones = [];
         this.droneBodies = undefined;
         this.droneSpawnPoints = COMBAT_CONFIG.droneSpawns;
+        this.dungeonReturnArea = undefined;
+        this.dungeonState = undefined;
+        this.savedEnemies = undefined;
         this.stairClimbEffect?.destroy();
         this.stairClimbEffect = undefined;
         this.roomExitPortal?.destroy();
@@ -531,6 +802,8 @@ export class World extends Scene {
         // No SHUTDOWN o Phaser pode remover a câmera antes de notificar a cena.
         // A limpeza não pode interromper a fila de restart/start do SceneManager.
         this.cameras.main?.setRotation(0).setZoom(this.normalCameraZoom);
+        this.lowHealthFilter = undefined;
+        this.lowHealthDesaturation = -1;
         this.piranhasBarPrompt = undefined;
         this.player = undefined;
         this.playerRangeIndicator = undefined;
@@ -554,7 +827,7 @@ export class World extends Scene {
         ) return;
 
         this.isPauseMenuOpen = true;
-        this.scene.launch('PauseMenu');
+        this.scene.launch('PauseMenu', { upgrades: this.upgrades.exportProgress() });
         this.scene.bringToTop('PauseMenu');
         this.scene.pause('World');
     }

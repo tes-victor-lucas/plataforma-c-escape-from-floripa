@@ -13,11 +13,14 @@ import {
 } from '../config/rooms';
 import type { World } from './World';
 import type { PlayerProgress } from '../progress/PlayerProgress';
+import type { DungeonSessionState } from '../config/dungeon';
 
 export type RoomTransitionData = {
     roomKey?: RoomKey;
     source?: 'main-menu' | 'world';
     playerProgress?: PlayerProgress;
+    spawn?: Readonly<{ x: number; y: number }>;
+    dungeonState?: DungeonSessionState;
 };
 
 /** Orchestrates the transition from the main menu to Room 1. */
@@ -40,7 +43,9 @@ export class RoomTransition extends Scene {
                 this.startWorldUnderTransition(
                     roomKey,
                     data.source ?? 'main-menu',
-                    data.playerProgress
+                    data.playerProgress,
+                    data.spawn,
+                    data.dungeonState
                 );
             },
             onComplete: () => {
@@ -55,7 +60,9 @@ export class RoomTransition extends Scene {
     private startWorldUnderTransition(
         roomKey: RoomKey,
         source: 'main-menu' | 'world' = 'main-menu',
-        playerProgress?: PlayerProgress
+        playerProgress?: PlayerProgress,
+        spawn?: Readonly<{ x: number; y: number }>,
+        dungeonState?: DungeonSessionState
     ) {
         const roomDefinition = ROOM_DEFINITIONS[roomKey];
         replaceRequestedRoomKey(roomKey);
@@ -63,8 +70,9 @@ export class RoomTransition extends Scene {
         const worldData = {
             waitForReveal: true,
             roomKey,
-            spawn: roomDefinition.spawn,
-            ...(playerProgress ? { playerProgress } : {})
+            spawn: spawn ?? roomDefinition.spawn,
+            ...(playerProgress ? { playerProgress } : {}),
+            ...(dungeonState ? { dungeonState } : {})
         };
         if (source === 'world') {
             const world = this.scene.get('World') as World;

@@ -13,7 +13,7 @@
     <main id="app">
         <section id="game-player" class="game-player" aria-label="Escape From Floripa">
             <div class="game-stage">
-                <div id="game-container"></div>
+                <div id="game-container" tabindex="-1" aria-label="Área do jogo"></div>
 
                 <button
                     id="controls-backdrop"
@@ -65,6 +65,10 @@
 
                     <div class="control-section">
                         <h3>Ações</h3>
+                        <div class="control-row">
+                            <kbd class="key--space">ESPAÇO</kbd>
+                            <span>Executar dash</span>
+                        </div>
                         <div class="control-row">
                             <kbd>P</kbd>
                             <span>Pausar ou continuar</span>

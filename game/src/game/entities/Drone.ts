@@ -6,8 +6,7 @@ import { Health } from '../combat/Health';
 import type { Player } from './Player';
 import { hasLineOfSight } from '../map/hasLineOfSight';
 import { playDroneExplosion } from '../effects/playDroneExplosion';
-
-type DroneSpawn = { x: number; y: number; patrolLeft: number; patrolRight: number };
+import type { CombatEnemy, EnemySpawn } from './CombatEnemy';
 
 function createDroneId() {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -17,7 +16,8 @@ function createDroneId() {
 }
 
 /** Exibe e movimenta o drone inimigo na sala. */
-export class Drone {
+export class Drone implements CombatEnemy {
+    readonly kind = 'drone' as const;
     readonly id = createDroneId();
     readonly sprite: Phaser.Physics.Arcade.Sprite;
     readonly health = new Health(COMBAT_CONFIG.drone.maxHealth);
@@ -25,10 +25,12 @@ export class Drone {
     private direction = 1;
     private isChasing = false;
     private readonly healthBar: Phaser.GameObjects.Graphics;
+    private knockbackRemaining = 0;
+    private hitFlashSequence = 0;
 
     constructor(
         private readonly scene: Scene,
-        private readonly spawn: DroneSpawn,
+        private readonly spawn: EnemySpawn,
         private readonly walls: Phaser.Tilemaps.TilemapLayer[]
     ) {
         const { drone } = WORLD_CONFIG;
@@ -47,16 +49,25 @@ export class Drone {
             });
         }
         this.sprite.play('drone-hover');
+        if (spawn.health !== undefined) {
+            this.health.takeDamage(this.health.max - Math.max(1, spawn.health));
+        }
         this.healthBar = scene.add.graphics().setDepth(25);
         this.drawHealthBar();
     }
 
-    update(player?: Player) {
+    update(player?: Player, delta = 0) {
         if (!this.health.isAlive) return;
         const { drone } = WORLD_CONFIG;
         const body = this.sprite.body;
 
         if (!(body instanceof Physics.Arcade.Body)) {
+            return;
+        }
+
+        this.knockbackRemaining = Math.max(0, this.knockbackRemaining - Math.max(0, delta));
+        if (this.knockbackRemaining > 0) {
+            this.drawHealthBar();
             return;
         }
 
@@ -100,25 +111,61 @@ export class Drone {
         this.drawHealthBar();
     }
 
-    takeDamage(amount: number) {
-        if (!this.health.isAlive) return;
+    takeDamage(amount: number, impactDirection?: Readonly<{ x: number; y: number }>) {
+        if (!this.health.isAlive) return 0;
+        const previousHealth = this.health.current;
         this.health.takeDamage(amount);
+        const damage = previousHealth - this.health.current;
+        this.applyHitFeedback(impactDirection);
         if (!this.health.isAlive) {
-            const position = this.sprite.body?.center ?? this.sprite;
-            const sound = AUDIO_CONFIG.effects.droneExplosion;
-            const shake = COMBAT_CONFIG.drone.deathShake;
-            this.scene.cameras.main.shake(shake.duration, shake.intensity);
-            this.scene.sound.play(sound.key, { volume: sound.volume });
-            playDroneExplosion(this.scene, position.x, position.y);
-            this.sprite.disableBody(true, true);
             this.healthBar.clear();
-            return;
+            if (impactDirection) {
+                // Mantém o quadro branco visível durante o hit-stop antes da explosão.
+                this.scene.time.delayedCall(
+                    WORLD_CONFIG.feedback.hitStopDuration,
+                    () => this.finishDeath()
+                );
+            } else {
+                this.finishDeath();
+            }
+            return damage;
         }
         this.drawHealthBar();
-        this.sprite.setTint(0xffaaaa);
-        this.scene.time.delayedCall(120, () => {
-            if (this.sprite.active) this.sprite.clearTint();
+        return damage;
+    }
+
+    private finishDeath() {
+        if (!this.sprite.active) return;
+        const position = this.sprite.body?.center ?? this.sprite;
+        const sound = AUDIO_CONFIG.effects.droneExplosion;
+        const shake = COMBAT_CONFIG.drone.deathShake;
+        this.scene.cameras.main.shake(shake.duration, shake.intensity);
+        this.scene.sound.play(sound.key, { volume: sound.volume });
+        playDroneExplosion(this.scene, position.x, position.y);
+        this.sprite.disableBody(true, true);
+    }
+
+    private applyHitFeedback(impactDirection?: Readonly<{ x: number; y: number }>) {
+        const feedback = WORLD_CONFIG.feedback;
+        const flashSequence = ++this.hitFlashSequence;
+        this.sprite.setTint(0xffffff);
+        this.sprite.setTintMode?.(Phaser.TintModes.FILL);
+        this.scene.time.delayedCall(feedback.enemyHitFlashDuration, () => {
+            if (this.sprite.active && flashSequence === this.hitFlashSequence) {
+                this.sprite.clearTint();
+            }
         });
+
+        const body = this.sprite.body;
+        if (!impactDirection || !(body instanceof Physics.Arcade.Body)) return;
+        const length = Math.hypot(impactDirection.x, impactDirection.y);
+        if (length === 0) return;
+
+        this.knockbackRemaining = feedback.enemyKnockbackDuration;
+        body.setVelocity(
+            impactDirection.x / length * feedback.enemyKnockbackSpeed,
+            impactDirection.y / length * feedback.enemyKnockbackSpeed
+        );
     }
 
     private drawHealthBar() {

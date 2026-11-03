@@ -5,6 +5,7 @@ import type { Player } from '../entities/Player';
 import { RunStatsHudView } from '../ui/RunStatsHudView';
 import { RunResultView } from '../ui/RunResultView';
 import { runTracker } from '../scoring/RunTracker';
+import { DashCooldownView } from '../ui/DashCooldownView';
 
 type HudData = {
     player: Player;
@@ -19,6 +20,7 @@ export class CombatHud extends Scene {
     private hearts: HeartHealthView;
     private resultShown = false;
     private runStats: RunStatsHudView;
+    private dashCooldown: DashCooldownView;
 
     constructor() {
         super('CombatHud');
@@ -31,6 +33,7 @@ export class CombatHud extends Scene {
         gameContainer?.classList.add('gameplay-active');
         this.hearts = new HeartHealthView(this, 20, 32);
         this.runStats = new RunStatsHudView(this);
+        this.dashCooldown = new DashCooldownView(this, 20, 84);
         new PauseButtonView(this, data.onPause).create();
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
             gameContainer?.classList.remove('gameplay-active'));
@@ -41,6 +44,7 @@ export class CombatHud extends Scene {
         const { player } = this.dataSource;
         this.hearts.update(player.health.current, player.health.max);
         this.runStats.update();
+        this.dashCooldown.update(player.getDashCharge());
 
         const result = runTracker.snapshot();
         if (!this.resultShown && (result.status === 'WON' || result.status === 'LOST')) {

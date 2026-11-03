@@ -10,6 +10,12 @@ export const WORLD_CONFIG = {
         velocityResponsiveness: 14,
         stopThreshold: 2,
         directionThreshold: 0.15,
+        dash: {
+            speed: 360,
+            duration: 130,
+            cooldown: 700,
+            alpha: 0.68
+        },
         hitbox: {
             width: 8,
             height: 5,
@@ -27,10 +33,30 @@ export const WORLD_CONFIG = {
         stopDistance: 64,
         hitbox: { width: 18, height: 21, offsetX: 6, offsetY: 8 }
     },
+    scooter: {
+        texture: 'scooter-drive',
+        scale: 0.9,
+        hitbox: { width: 18, height: 13, offsetX: 7, offsetY: 13 }
+    },
+    guard: {
+        texture: 'cyber-guard-walk',
+        scale: 0.92,
+        hitbox: { width: 18, height: 16, offsetX: 7, offsetY: 14 }
+    },
     camera: {
         // Mantém a mesma área vertical visível após a mudança para 16:9.
         zoom: 1.75,
         lerpX: 0.15,
         lerpY: 0.15
+    },
+    feedback: {
+        hitStopDuration: 45,
+        enemyHitFlashDuration: 90,
+        enemyKnockbackDuration: 85,
+        enemyKnockbackSpeed: 130,
+        lowHealth: {
+            threshold: 0.4,
+            maxDesaturation: 0.45
+        }
     }
 } as const;

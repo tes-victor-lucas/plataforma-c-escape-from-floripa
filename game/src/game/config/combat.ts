@@ -3,22 +3,59 @@ export const ROOM2_STAIR_GUARD_SPAWNS = [
     { x: 240, y: 352, patrolLeft: 232, patrolRight: 248 }
 ] as const;
 
+export type EnemyKind = 'drone' | 'scooter' | 'guard';
+
 /** Distâncias em pixels do mundo; intervalos e duração em milissegundos. */
+const PLAYER_COMBAT_STATS = {
+    maxHealth: 4,
+    range: 100,
+    fireInterval: 600,
+    damage: 2,
+    projectileSpeed: 180
+} as const;
+
 export const COMBAT_CONFIG = {
-    player: { maxHealth: 4, healthPerHeart: 2, range: 100, fireInterval: 600, damage: 20, projectileSpeed: 180, color: 0x5ce5f1 },
+    player: { ...PLAYER_COMBAT_STATS, healthPerHeart: 2, color: 0x5ce5f1 },
     drone: {
-        maxHealth: 60,
-        range: 200,
-        fireInterval: 1100,
-        damage: 1,
-        projectileSpeed: 130,
+        ...PLAYER_COMBAT_STATS,
+        damage: PLAYER_COMBAT_STATS.damage / 2,
         color: 0xff3030,
         deathShake: { duration: 100, intensity: 0.003 }
     },
+    scooter: {
+        maxHealth: 3,
+        contactDamage: 1,
+        detectionRadius: 230,
+        chargeRange: 150,
+        chargeWindup: 520,
+        chargeDuration: 430,
+        chargeSpeed: 260,
+        approachSpeed: 78,
+        recoveryDuration: 680,
+        impactDistance: 24
+    },
+    guard: {
+        maxHealth: 6,
+        meleeDamage: 2,
+        detectionRadius: 210,
+        movementSpeed: 38,
+        stopDistance: 28,
+        meleeRange: 34,
+        attackWindup: 520,
+        attackRecovery: 360,
+        attackCooldown: 1_150,
+        shieldDamageMultiplier: 0.25,
+        shieldArcDot: -0.55
+    },
     projectile: { width: 6, height: 3, cornerRadius: 1, scale: 0.85, lifetime: 2200 },
     rangeIndicator: { color: 0xff4d4d, fillAlpha: 0.06, strokeAlpha: 0.22, strokeWidth: 1 },
-    waves: [10, 20],
-    spawnDistanceFromPlayer: 120,
+    waves: [10, 8],
+    wavesByRoom: {
+        room1: [10, 8],
+        room2: [10],
+        dungeon: [10]
+    },
+    spawnDistanceFromPlayer: 180,
     // Pontos livres do mapa Sala I; nenhum fica na área inicial protegida.
     droneSpawns: [
         ...[112, 176, 240].flatMap((y) =>
@@ -28,3 +65,28 @@ export const COMBAT_CONFIG = {
         ...[160, 208, 592, 656].map((x) => ({ x, y: 312, patrolLeft: x - 16, patrolRight: x + 16 }))
     ]
 } as const;
+
+const WAVE_PATTERNS: Record<'room1' | 'room2' | 'dungeon', readonly (readonly EnemyKind[])[]> = {
+    room1: [
+        ['drone'],
+        ['drone', 'scooter', 'drone', 'guard', 'drone', 'scooter', 'drone', 'drone', 'scooter', 'guard']
+    ],
+    room2: [
+        ['guard', 'guard', 'drone', 'scooter', 'drone'],
+        ['drone', 'scooter', 'guard', 'drone', 'scooter']
+    ],
+    dungeon: [
+        ['scooter', 'drone', 'guard', 'drone', 'scooter']
+    ]
+};
+
+/** Composição determinística: mantém a quantidade da onda e mistura papéis. */
+export function getWaveEnemyKinds(
+    roomKey: 'room1' | 'room2' | 'dungeon',
+    waveIndex: number,
+    count: number
+) {
+    const roomPatterns = WAVE_PATTERNS[roomKey];
+    const pattern = roomPatterns[Math.min(Math.max(0, waveIndex), roomPatterns.length - 1)];
+    return Array.from({ length: count }, (_, index) => pattern[index % pattern.length]);
+}

@@ -14,7 +14,9 @@ export class PlayerUpgradeState {
     projectileCount = 1;
     piercingTargets = 0;
     companionCount = 0;
-    emergencyRepairRatio = 0;
+    companionStatRatio = 0;
+    companionDamageRatio = 0;
+    emergencyRepairAmount = 0;
 
     reset() {
         this.levels.clear();
@@ -26,7 +28,9 @@ export class PlayerUpgradeState {
         this.projectileCount = 1;
         this.piercingTargets = 0;
         this.companionCount = 0;
-        this.emergencyRepairRatio = 0;
+        this.companionStatRatio = 0;
+        this.companionDamageRatio = 0;
+        this.emergencyRepairAmount = 0;
     }
 
     exportProgress(): UpgradeProgress {
@@ -54,6 +58,9 @@ export class PlayerUpgradeState {
             case 'multiply-stat':
                 this.multiplyStat(effect.stat, effect.multiplier);
                 break;
+            case 'add-stat':
+                this.damage += effect.amount;
+                break;
             case 'parallel-projectiles':
                 this.projectileCount = Math.max(this.projectileCount, effect.projectileCount);
                 break;
@@ -68,14 +75,22 @@ export class PlayerUpgradeState {
                     effect.maxCompanions,
                     this.companionCount + 1
                 );
+                this.companionStatRatio = Math.max(
+                    this.companionStatRatio,
+                    effect.statRatio
+                );
+                this.companionDamageRatio = Math.max(
+                    this.companionDamageRatio,
+                    effect.damageRatio
+                );
                 break;
             case 'increase-max-health':
                 this.maxHealth += effect.amount;
                 break;
             case 'heal-on-room-complete':
-                this.emergencyRepairRatio = Math.max(
-                    this.emergencyRepairRatio,
-                    effect.maxHealthRatio
+                this.emergencyRepairAmount = Math.max(
+                    this.emergencyRepairAmount,
+                    effect.amount
                 );
                 break;
         }
@@ -90,8 +105,7 @@ export class PlayerUpgradeState {
     }
 
     repairAfterRoom(health: Health) {
-        if (this.emergencyRepairRatio === 0) return;
-        health.heal(Math.ceil(health.max * this.emergencyRepairRatio));
+        health.heal(this.emergencyRepairAmount);
     }
 
     private multiplyStat(stat: StatName, multiplier: number) {

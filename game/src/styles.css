@@ -77,6 +77,8 @@ button {
     inset: 0;
 }
 
+#game-container:focus { outline: none; }
+
 canvas {
     display: block;
     image-rendering: pixelated;
@@ -312,6 +314,8 @@ kbd {
     font: 700 0.75rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
     box-shadow: 0 5px 12px rgba(0, 0, 0, 0.18);
 }
+
+.key--space { width: 96px; }
 
 .control-note {
     margin-top: 16px !important;

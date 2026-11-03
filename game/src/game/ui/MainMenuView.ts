@@ -1,5 +1,8 @@
 import { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
+import { getMenuLayout, MENU_CONFIG } from '../config/menu';
+
+const MENU_LAYOUT = getMenuLayout();
 
 export type MainMenuViewOptions = {
     onNewGame: () => void;
@@ -10,14 +13,11 @@ export type MainMenuViewOptions = {
 
 const ACTION_FONT = 'PixelGamer, monospace';
 const ACTION_FONT_SIZE = '18px';
-const ACTION_COLOR = '#0074df';
-const DISABLED_ACTION_COLOR = '#6c7580';
-const SELECTED_ACTION_COLOR = '#00162e';
-const SELECTED_BACKGROUND_COLOR = 0xe90931;
-const ACTION_WIDTH = 165;
-const ACTION_HEIGHT = 27;
+const { color: ACTION_COLOR, disabledColor: DISABLED_ACTION_COLOR, spacing: ACTION_SPACING } = MENU_LAYOUT.actions;
+const SELECTED_ACTION_COLOR = '#ffffff';
+const SELECTED_MARKER_COLOR = 0xe90931;
+const MARKER_GAP = 8;
 const ACTION_HIT_AREA_WIDTH = 190;
-const ACTION_HIT_AREA_HEIGHT = 30;
 
 type MenuAction = {
     label: string;
@@ -27,10 +27,9 @@ type MenuAction = {
 };
 
 function positionActions(actions: Omit<MenuAction, 'y'>[]): MenuAction[] {
-    const spacing = 25;
     const centerY = 264;
-    const firstY = centerY - (actions.length - 1) * spacing / 2;
-    return actions.map((action, index) => ({ ...action, y: firstY + index * spacing }));
+    const firstY = centerY - (actions.length - 1) * ACTION_SPACING / 2;
+    return actions.map((action, index) => ({ ...action, y: firstY + index * ACTION_SPACING }));
 }
 
 export function createMainMenuActions(
@@ -61,7 +60,8 @@ export function createPlayMenuActions(
 }
 
 type RenderedAction = {
-    background: Phaser.GameObjects.Rectangle;
+    marker: Phaser.GameObjects.Graphics;
+    markerX: number;
     label: Phaser.GameObjects.Text;
     hitArea: Phaser.GameObjects.Rectangle;
 };
@@ -80,19 +80,51 @@ export class MainMenuView {
     ) {}
 
     create() {
+        this.createBackgrounds();
         this.scene.add
-            .image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'menu-background')
-            .setDisplaySize(GAME_WIDTH, GAME_HEIGHT)
+            .image(MENU_LAYOUT.titleX, MENU_LAYOUT.titleY, MENU_LAYOUT.title.texture)
+            .setOrigin(MENU_LAYOUT.titleOriginX, 0.5)
+            .setScale(MENU_LAYOUT.title.scale)
             .setScrollFactor(0);
 
         this.showMainMenu();
         this.addKeyboardNavigation();
-        this.statusText = this.scene.add.text(GAME_WIDTH / 2, 340, '', {
+        this.statusText = this.scene.add.text(MENU_LAYOUT.menuX, 340, '', {
             color: '#ffffff',
             fontFamily: ACTION_FONT,
             fontSize: '12px',
             align: 'center'
         }).setOrigin(0.5).setScrollFactor(0).setResolution(2);
+    }
+
+    /** Alterna em crossfade os fundos do layout ativo. */
+    private createBackgrounds() {
+        const backgrounds = MENU_LAYOUT.backgrounds.map(({ texture }, index) => this.scene.add
+            .image(GAME_WIDTH / 2, GAME_HEIGHT / 2, texture)
+            .setDisplaySize(GAME_WIDTH, GAME_HEIGHT)
+            .setScrollFactor(0)
+            .setAlpha(index === 0 ? 1 : 0));
+        if (backgrounds.length < 2) return;
+        let current = 0;
+        this.scene.time.addEvent({
+            delay: MENU_CONFIG.backgroundHoldMs,
+            loop: true,
+            callback: () => {
+                const previous = backgrounds[current];
+                current = (current + 1) % backgrounds.length;
+                const next = backgrounds[current];
+                // O próximo fundo sobe para o topo da pilha e aparece sobre o anterior.
+                this.scene.children.moveAbove(next, previous);
+                next.setAlpha(0);
+                this.scene.tweens.add({
+                    targets: next,
+                    alpha: 1,
+                    duration: MENU_CONFIG.backgroundFadeMs,
+                    ease: 'Sine.InOut',
+                    onComplete: () => previous.setAlpha(0)
+                });
+            }
+        });
     }
 
     setStatus(status: string) {
@@ -113,8 +145,9 @@ export class MainMenuView {
     }
 
     private renderActions(actions: MenuAction[]) {
-        this.renderedActions.forEach(({ background, label, hitArea }) => {
-            background.destroy();
+        this.renderedActions.forEach(({ marker, label, hitArea }) => {
+            this.scene.tweens.killTweensOf(marker);
+            marker.destroy();
             label.destroy();
             hitArea.destroy();
         });
@@ -126,32 +159,32 @@ export class MainMenuView {
     }
 
     private createAction(action: MenuAction, index: number) {
-        const background = this.scene.add
-            .rectangle(
-                GAME_WIDTH / 2,
-                action.y,
-                ACTION_WIDTH,
-                ACTION_HEIGHT,
-                SELECTED_BACKGROUND_COLOR
-            )
-            .setScrollFactor(0);
-
         const label = this.scene.add
-            .text(GAME_WIDTH / 2, action.y, action.label, {
+            .text(MENU_LAYOUT.menuX, action.y, action.label, {
                 color: action.enabled === false ? DISABLED_ACTION_COLOR : ACTION_COLOR,
                 fontFamily: ACTION_FONT,
-                fontSize: ACTION_FONT_SIZE
+                fontSize: ACTION_FONT_SIZE,
+                shadow: MENU_LAYOUT.actions.shadow
             })
             .setOrigin(0.5)
             .setScrollFactor(0)
             .setResolution(2);
 
+        const markerX = Math.round(label.x - label.width / 2 - MARKER_GAP);
+        const marker = this.scene.add.graphics({ x: markerX, y: Math.round(action.y) }).setScrollFactor(0);
+        // Seta em degraus de 2px, com a ponta na origem, no mesmo traço pixel art do logo.
+        marker.fillStyle(0x000000, 1);
+        [10, 8, 6, 4, 2].forEach((height, step) => marker.fillRect(step * 2 - 10, 2 - height / 2, 2, height));
+        marker.fillStyle(SELECTED_MARKER_COLOR, 1);
+        [10, 8, 6, 4, 2].forEach((height, step) => marker.fillRect(step * 2 - 10, -height / 2, 2, height));
+
         const hitArea = this.scene.add
             .rectangle(
-                GAME_WIDTH / 2,
+                MENU_LAYOUT.menuX,
                 action.y,
                 ACTION_HIT_AREA_WIDTH,
-                ACTION_HIT_AREA_HEIGHT,
+                // Altura igual ao espaçamento, para que itens vizinhos não disputem o mesmo ponteiro.
+                ACTION_SPACING,
                 0x000000,
                 0
             )
@@ -168,7 +201,7 @@ export class MainMenuView {
             hitArea.on('pointerup', action.onSelect);
         }
 
-        this.renderedActions.push({ background, label, hitArea });
+        this.renderedActions.push({ marker, markerX, label, hitArea });
     }
 
     private addKeyboardNavigation() {
@@ -211,11 +244,20 @@ export class MainMenuView {
     }
 
     private updateSelection() {
-        this.renderedActions.forEach(({ background, label }, index) => {
+        this.renderedActions.forEach(({ marker, markerX, label }, index) => {
             const action = this.currentActions[index];
             const isEnabled = action.enabled !== false;
             const isSelected = isEnabled && index === this.selectedAction;
-            background.setVisible(isSelected);
+            this.scene.tweens.killTweensOf(marker);
+            marker.setVisible(isSelected).setX(markerX);
+            if (isSelected && MENU_LAYOUT.actions.markerSlide > 0) {
+                this.scene.tweens.add({
+                    targets: marker,
+                    x: { from: markerX - MENU_LAYOUT.actions.markerSlide, to: markerX },
+                    duration: 140,
+                    ease: 'Cubic.Out'
+                });
+            }
             label.setColor(
                 isSelected
                     ? SELECTED_ACTION_COLOR

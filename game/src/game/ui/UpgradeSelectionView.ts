@@ -1,47 +1,40 @@
 import { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 import type { UpgradeCardDefinition } from '../upgrades';
+import { createUpgradeIcon } from './UpgradeIcon';
 
 const DEPTH = 180;
-const CARD_WIDTH = 178;
-const CARD_HEIGHT = 220;
-const CARD_Y = 282;
-const DEFAULT_CARD_CENTER_DISTANCE = GAME_WIDTH / 2 - 248;
+const CARD_WIDTH = 176;
+const CARD_HEIGHT = 246;
+const CARD_Y = 286;
+const DEFAULT_CARD_CENTER_DISTANCE = 210;
+const CARD_BACKGROUND = 0x0c1219;
+const CARD_HOVER_BACKGROUND = 0x121b25;
 
 const PALETTES = {
     stat: {
-        background: 0x082b50,
-        hover: 0x0d3f75,
-        border: 0x3189ff,
-        accent: '#65b0ff',
+        border: 0x78dce8,
+        accent: '#78dce8',
         label: 'UPGRADE'
     },
     ability: {
-        background: 0x2f154d,
-        hover: 0x48206f,
-        border: 0xa855f7,
-        accent: '#d99aff',
+        border: 0xa98bfa,
+        accent: '#a98bfa',
         label: 'HABILIDADE'
     },
     yellow: {
-        background: 0x46360b,
-        hover: 0x6a520f,
-        border: 0xffc928,
-        accent: '#ffe071',
+        border: 0xf6c85f,
+        accent: '#f6c85f',
         label: 'BEBIDA'
     },
     red: {
-        background: 0x4b1420,
-        hover: 0x711d2f,
-        border: 0xff405d,
-        accent: '#ff91a2',
+        border: 0xff7b7b,
+        accent: '#ff7b7b',
         label: 'BEBIDA'
     },
     mystery: {
-        background: 0x28143d,
-        hover: 0x41205f,
-        border: 0xb866ff,
-        accent: '#ddb0ff',
+        border: 0xa98bfa,
+        accent: '#a98bfa',
         label: 'COMIDA'
     }
 } as const;
@@ -51,7 +44,6 @@ type SelectionCard = Readonly<{
     kind: 'stat' | 'ability';
     title: string;
     description: string;
-    texture?: string;
     theme?: keyof typeof PALETTES;
     label?: string;
 }>;
@@ -59,7 +51,6 @@ type SelectionCard = Readonly<{
 type SelectionViewOptions = Readonly<{
     title?: string;
     hint?: string;
-    footer?: string;
     cardCenterDistance?: number;
 }>;
 
@@ -82,21 +73,32 @@ export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefini
             GAME_HEIGHT / 2,
             GAME_WIDTH,
             GAME_HEIGHT,
-            0x000000,
-            0.58
+            0x05080d,
+            0.88
         );
-        const title = this.scene.add.text(GAME_WIDTH / 2, 54, this.options.title ?? 'ESCOLHA UM APRIMORAMENTO', {
-            fontFamily: 'PixelGamer, monospace',
-            fontSize: '28px',
-            color: '#ffffff'
-        }).setOrigin(0.5);
-        const hint = this.scene.add.text(GAME_WIDTH / 2, 94, this.options.hint ?? 'Selecione uma carta para continuar', {
-            fontFamily: 'PixelGamer, monospace',
-            fontSize: '15px',
-            color: '#b8c3cc'
-        }).setOrigin(0.5);
+        const title = this.scene.add.text(
+            GAME_WIDTH / 2,
+            this.options.hint ? 52 : 62,
+            this.options.title ?? 'ESCOLHA UM APRIMORAMENTO',
+            {
+                fontFamily: 'PixelGamer, monospace',
+                fontSize: '27px',
+                color: '#f4f0e8',
+                align: 'center'
+            }
+        ).setOrigin(0.5);
 
-        this.root.add([dim, title, hint]);
+        this.root.add([dim, title]);
+
+        if (this.options.hint) {
+            const hint = this.scene.add.text(GAME_WIDTH / 2, 86, this.options.hint, {
+                fontFamily: 'PixelGamer, monospace',
+                fontSize: '11px',
+                color: '#8e99a6'
+            }).setOrigin(0.5);
+            this.root.add(hint);
+        }
+
         const centerDistance = this.options.cardCenterDistance ?? DEFAULT_CARD_CENTER_DISTANCE;
         const cardX = [
             GAME_WIDTH / 2 - centerDistance,
@@ -110,7 +112,7 @@ export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefini
                 this.scene.tweens.add({
                     targets: this.root,
                     alpha: 0,
-                    duration: 140,
+                    duration: 120,
                     onComplete: () => {
                         this.root.destroy(true);
                         onSelect(selected);
@@ -120,67 +122,55 @@ export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefini
         });
 
         this.root.setAlpha(0);
-        this.scene.tweens.add({ targets: this.root, alpha: 1, duration: 180, ease: 'Sine.Out' });
+        this.scene.tweens.add({ targets: this.root, alpha: 1, duration: 150, ease: 'Sine.Out' });
     }
 
-    private createCard(
-        card: Card,
-        x: number,
-        select: (card: Card) => void
-    ) {
+    private createCard(card: Card, x: number, select: (card: Card) => void) {
         const palette = PALETTES[card.theme ?? card.kind];
         const cardContainer = this.scene.add.container(x, CARD_Y);
         const background = this.scene.add
-            .rectangle(0, 0, CARD_WIDTH, CARD_HEIGHT, palette.background, 0.97)
-            .setStrokeStyle(3, palette.border)
+            .rectangle(0, 0, CARD_WIDTH, CARD_HEIGHT, CARD_BACKGROUND, 1)
+            .setStrokeStyle(2, palette.border)
             .setInteractive({ useHandCursor: true });
-        const kind = this.scene.add.text(0, -87, card.label ?? palette.label, {
+        const kind = this.scene.add.text(0, -99, card.label ?? palette.label, {
             fontFamily: 'PixelGamer, monospace',
-            fontSize: '13px',
-            color: palette.accent
+            fontSize: '12px',
+            color: palette.accent,
+            letterSpacing: 1
         }).setOrigin(0.5);
-        const title = this.scene.add.text(0, card.texture ? -61 : -53, card.title, {
-            fontFamily: 'monospace',
-            fontStyle: 'bold',
-            fontSize: '18px',
-            color: '#ffffff',
+        const icon = createUpgradeIcon(this.scene, card.id, palette.border, CARD_BACKGROUND)
+            .setPosition(0, -38);
+        const title = this.scene.add.text(0, 29, card.title.toUpperCase(), {
+            fontFamily: 'PixelGamer, monospace',
+            fontSize: '16px',
+            color: '#f4f0e8',
             align: 'center',
+            lineSpacing: 1,
             wordWrap: { width: CARD_WIDTH - 22, useAdvancedWrap: true }
         }).setOrigin(0.5);
-        const description = this.scene.add.text(0, card.texture ? 49 : 10, card.description, {
+        const description = this.scene.add.text(0, 76, card.description, {
             fontFamily: 'monospace',
-            fontSize: '13px',
-            color: '#e6edf3',
+            fontSize: '11px',
+            color: '#c8ced6',
             align: 'center',
-            lineSpacing: 3,
+            lineSpacing: 2,
             wordWrap: { width: CARD_WIDTH - 24, useAdvancedWrap: true }
         }).setOrigin(0.5);
-        const footer = this.scene.add.text(0, 88, this.options.footer ?? 'CLIQUE PARA ESCOLHER', {
-            fontFamily: 'PixelGamer, monospace',
-            fontSize: '10px',
-            color: palette.accent
-        }).setOrigin(0.5);
 
-        const contents: Phaser.GameObjects.GameObject[] = [background, kind, title, description, footer];
-        if (card.texture) {
-            const image = this.scene.add.image(0, -9, card.texture);
-            const scale = Math.min(58 / image.width, 58 / image.height);
-            image.setScale(scale);
-            contents.push(image);
-        }
-        cardContainer.add(contents);
+        cardContainer.add([background, kind, icon, title, description]);
         background.on('pointerover', () => {
-            background.setFillStyle(palette.hover, 1);
+            background.setFillStyle(CARD_HOVER_BACKGROUND, 1).setStrokeStyle(3, palette.border);
             this.scene.tweens.killTweensOf(cardContainer);
-            this.scene.tweens.add({ targets: cardContainer, scale: 1.025, duration: 90 });
+            this.scene.tweens.add({ targets: cardContainer, scale: 1.015, duration: 80 });
         });
         background.on('pointerout', () => {
-            background.setFillStyle(palette.background, 0.97);
+            background.setFillStyle(CARD_BACKGROUND, 1).setStrokeStyle(2, palette.border);
             this.scene.tweens.killTweensOf(cardContainer);
-            this.scene.tweens.add({ targets: cardContainer, scale: 1, duration: 90 });
+            this.scene.tweens.add({ targets: cardContainer, scale: 1, duration: 80 });
         });
         background.once('pointerup', () => select(card));
 
         return cardContainer;
     }
+
 }
