@@ -541,6 +541,13 @@ test('corações representam vida cheia, meia vida e vida perdida', () => {
     assert.deepEqual(getHeartFillLevels(5, 6), [1, 1, 0.5]);
 });
 
+test('drone usa os atributos padrão do personagem com metade do dano', () => {
+    for (const stat of ['maxHealth', 'range', 'fireInterval', 'projectileSpeed']) {
+        assert.equal(COMBAT_CONFIG.drone[stat], COMBAT_CONFIG.player[stat]);
+    }
+    assert.equal(COMBAT_CONFIG.drone.damage, COMBAT_CONFIG.player.damage / 2);
+});
+
 test('botoes da derrota disparam somente a primeira acao selecionada', () => {
     const { DefeatView } = load('../src/game/ui/DefeatView.ts');
     const interactiveObjects = [];
@@ -594,11 +601,11 @@ test('nenhum personagem dispara fora de alcance', () => {
     assert.equal(groups[1].shots.length, 0);
 });
 
-test('cada personagem usa seu próprio raio; tiro inimigo é vermelho e aponta para o jogador', () => {
+test('drone respeita o raio padrão; seu tiro é vermelho e aponta para o jogador', () => {
     const upgrades = new PlayerUpgradeState();
-    upgrades.range = 180;
-    const { combat, groups } = setup([[300, 100]], [], upgrades);
-    combat.update(1100);
+    upgrades.range = COMBAT_CONFIG.player.range - 20;
+    const { combat, groups } = setup([[190, 100]], [], upgrades);
+    combat.update(COMBAT_CONFIG.drone.fireInterval);
     assert.equal(groups[0].shots.length, 0);
     assert.equal(groups[1].shots.length, 1);
     assert.equal(groups[1].shots[0].color, 0xff3030);
@@ -620,9 +627,9 @@ test('jogador escolhe o inimigo vivo mais próximo e respeita o intervalo entre 
 
 test('drones mantêm intervalos de disparo independentes', () => {
     const { combat, groups } = setup([[150, 100], [100, 150]]);
-    combat.update(1100);
+    combat.update(COMBAT_CONFIG.drone.fireInterval);
     assert.equal(groups[1].shots.length, 2);
-    combat.update(1099);
+    combat.update(COMBAT_CONFIG.drone.fireInterval - 1);
     assert.equal(groups[1].shots.length, 2);
     combat.update(1);
     assert.equal(groups[1].shots.length, 4);
@@ -632,37 +639,36 @@ test('parede entre os personagens impede disparos dos dois lados', () => {
     const { combat, groups } = setup([[150, 100]], [
         { getLeft: () => 120, getTop: () => 90, width: 16, height: 32 }
     ]);
-    combat.update(1100);
+    combat.update(COMBAT_CONFIG.drone.fireInterval);
     assert.equal(groups[0].shots.length, 0);
     assert.equal(groups[1].shots.length, 0);
 });
 
-test('projétil causa dano apenas uma vez e três acertos derrotam o drone', () => {
+test('projétil causa dano apenas uma vez e derrota o drone com o dano padrão', () => {
     const { combat, groups, overlaps, drones } = setup();
-    for (let i = 0; i < 3; i++) {
-        combat.update(COMBAT_CONFIG.player.fireInterval);
-        const shot = groups[0].shots[i];
-        overlaps[0].hit(shot);
-        overlaps[0].hit(shot);
-        assert.equal(shot.active, false);
-        assert.equal(drones[0].sprite.active, true, 'O callback deve remover o projétil, não destruir o alvo');
-        assert.ok(drones[0].sprite.body);
-        assert.equal(drones[0].health.current, 60 - (i + 1) * 20);
-    }
-    combat.update(1100);
-    assert.equal(groups[0].shots.length, 3);
+    combat.update(COMBAT_CONFIG.player.fireInterval);
+    const shot = groups[0].shots[0];
+    overlaps[0].hit(shot);
+    overlaps[0].hit(shot);
+    assert.equal(shot.active, false);
+    assert.equal(drones[0].sprite.active, true, 'O callback deve remover o projétil, não destruir o alvo');
+    assert.ok(drones[0].sprite.body);
+    assert.equal(drones[0].health.current, 0);
     assert.equal(drones[0].health.isAlive, false);
 });
 
 test('tiro inimigo reduz a vida do jogador e jogador morto interrompe o combate', () => {
     const { combat, groups, overlaps, player } = setup();
-    combat.update(1100);
+    combat.update(COMBAT_CONFIG.drone.fireInterval);
     overlaps[1].hit(groups[1].shots[0]);
-    assert.equal(player.health.current, COMBAT_CONFIG.player.maxHealth - COMBAT_CONFIG.drone.damage);
+    assert.equal(player.health.current, Math.max(
+        0,
+        COMBAT_CONFIG.player.maxHealth - COMBAT_CONFIG.drone.damage
+    ));
     assert.equal(player.sprite.active, true);
     assert.ok(player.sprite.body);
     player.takeDamage(COMBAT_CONFIG.player.maxHealth);
-    combat.update(1100);
+    combat.update(COMBAT_CONFIG.drone.fireInterval);
     assert.equal(groups[0].shots.length, 1);
     assert.equal(groups[1].shots.length, 1);
 });
@@ -687,7 +693,7 @@ test('projéteis são removidos ao colidir com o mapa, expirar ou sair do mundo'
 
 test('limpeza de combate remove projéteis dos dois lados e pode ser repetida', () => {
     const { combat, groups } = setup();
-    combat.update(1100);
+    combat.update(COMBAT_CONFIG.drone.fireInterval);
     combat.clear();
     combat.clear();
     assert.ok(groups.every((group) => group.shots.every((shot) => !shot.active)));
@@ -844,10 +850,8 @@ test('morte causada pelo projétil soma pontos à run ativa exatamente uma vez',
     tracker.startNew('SINGLE_PLAYER', new Date('2026-01-01T00:00:00.000Z'));
     const { combat, groups, overlaps } = setup([[150, 100]], [], new PlayerUpgradeState(), tracker);
 
-    for (let index = 0; index < 3; index++) {
-        combat.update(COMBAT_CONFIG.player.fireInterval);
-        overlaps[0].hit(groups[0].shots[index]);
-    }
+    combat.update(COMBAT_CONFIG.player.fireInterval);
+    overlaps[0].hit(groups[0].shots[0]);
 
     assert.equal(tracker.snapshot(Date.parse('2026-01-01T00:00:05.000Z')).enemiesDefeated, 1);
     assert.equal(tracker.snapshot(Date.parse('2026-01-01T00:00:05.000Z')).score.total, 100);
@@ -945,7 +949,10 @@ test('novos drones entram no combate com tiros, dano e atraso inicial', () => {
     combat.update(COMBAT_CONFIG.drone.fireInterval);
     assert.equal(groups[1].shots.length, 1);
     overlaps[0].hit(groups[1].shots[0]);
-    assert.equal(player.health.current, COMBAT_CONFIG.player.maxHealth - COMBAT_CONFIG.drone.damage);
+    assert.equal(player.health.current, Math.max(
+        0,
+        COMBAT_CONFIG.player.maxHealth - COMBAT_CONFIG.drone.damage
+    ));
 });
 
 test('projéteis menores acompanham a direção do tiro e a colisão retangular', () => {
@@ -974,11 +981,21 @@ test('tiro duplo, dano aumentado e perfuração afetam o combate real', () => {
     const shot = groups[0].shots[0];
     overlaps[0].hit(shot);
     assert.equal(shot.active, true);
-    assert.equal(drones[0].health.current, 36);
+    assert.equal(drones[0].health.current, Math.max(
+        0,
+        COMBAT_CONFIG.drone.maxHealth - upgrades.damage
+    ));
     overlaps[1].hit(shot);
     assert.equal(shot.active, false);
-    assert.equal(drones[1].health.current, 36);
-    assert.deepEqual(damageLabels.map((label) => label.text), ['-24', '-24']);
+    assert.equal(drones[1].health.current, Math.max(
+        0,
+        COMBAT_CONFIG.drone.maxHealth - upgrades.damage
+    ));
+    const displayedDamage = Math.min(COMBAT_CONFIG.drone.maxHealth, upgrades.damage);
+    assert.deepEqual(damageLabels.map((label) => label.text), [
+        `-${displayedDamage}`,
+        `-${displayedDamage}`
+    ]);
 });
 
 test('drone companheiro nasce e dispara com atributos reduzidos', () => {
@@ -1208,9 +1225,9 @@ test('corpo do drone não é empurrável, mas permanece separável pelo motor f�
 test('drone explode uma única vez ao morrer, usando a sequência pedida e removendo o efeito ao terminar', () => {
     const { drone, sprite, explosions, cameraShakes, animations, scene } = chasingDrone();
     const { DRONE_EXPLOSION, playDroneExplosion } = load('../src/game/effects/playDroneExplosion.ts');
-    drone.takeDamage(20);
+    drone.takeDamage(COMBAT_CONFIG.drone.maxHealth - 1);
     assert.equal(explosions.length, 0);
-    drone.takeDamage(40);
+    drone.takeDamage(1);
     drone.takeDamage(100);
     assert.equal(explosions.length, 1);
     assert.deepEqual(cameraShakes, [[

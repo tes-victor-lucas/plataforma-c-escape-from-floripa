@@ -4,14 +4,19 @@ export const ROOM2_STAIR_GUARD_SPAWNS = [
 ] as const;
 
 /** Distâncias em pixels do mundo; intervalos e duração em milissegundos. */
+const PLAYER_COMBAT_STATS = {
+    maxHealth: 4,
+    range: 100,
+    fireInterval: 600,
+    damage: 20,
+    projectileSpeed: 180
+} as const;
+
 export const COMBAT_CONFIG = {
-    player: { maxHealth: 4, healthPerHeart: 2, range: 1000, fireInterval: 10, damage: 60, projectileSpeed: 180, color: 0x5ce5f1 },
+    player: { ...PLAYER_COMBAT_STATS, healthPerHeart: 2, color: 0x5ce5f1 },
     drone: {
-        maxHealth: 60,
-        range: 200,
-        fireInterval: 1100,
-        damage: 1,
-        projectileSpeed: 130,
+        ...PLAYER_COMBAT_STATS,
+        damage: PLAYER_COMBAT_STATS.damage / 2,
         color: 0xff3030,
         deathShake: { duration: 100, intensity: 0.003 }
     },
