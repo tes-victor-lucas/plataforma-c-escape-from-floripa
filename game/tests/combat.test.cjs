@@ -541,16 +541,22 @@ test('corações representam vida cheia, meia vida e vida perdida', () => {
     assert.deepEqual(getHeartFillLevels(5, 6), [1, 1, 0.5]);
 });
 
-test('botoes da derrota disparam uma unica acao ao pressionar', () => {
+test('botoes da derrota disparam somente a primeira acao selecionada', () => {
     const { DefeatView } = load('../src/game/ui/DefeatView.ts');
     const interactiveObjects = [];
     const graphic = () => {
         const object = { listeners: {} };
         for (const method of [
             'setDepth', 'setStrokeStyle', 'setOrigin', 'setInteractive', 'disableInteractive',
-            'clear', 'fillStyle', 'fillRect', 'lineStyle', 'strokeRect', 'setColor'
+            'setScrollFactor', 'setAlpha', 'setResolution', 'setVisible', 'setX', 'clear', 'fillStyle',
+            'fillRect', 'lineStyle', 'strokeRect', 'setColor'
         ]) object[method] = () => object;
-        object.on = (event, callback) => { object.listeners[event] = callback; return object; };
+        object.add = () => object;
+        object.on = (event, callback) => {
+            object.listeners[event] = callback;
+            if (event === 'pointerdown') interactiveObjects.push(object);
+            return object;
+        };
         object.once = (event, callback) => {
             object.listeners[event] = callback;
             if (event === 'pointerdown') interactiveObjects.push(object);
@@ -560,19 +566,24 @@ test('botoes da derrota disparam uma unica acao ao pressionar', () => {
     };
     let restarts = 0;
     let quits = 0;
-    const view = new DefeatView({
-        add: { rectangle: graphic, graphics: graphic, text: graphic }
-    }, {
+    const scene = {
+        add: { container: graphic, rectangle: graphic, graphics: graphic, text: graphic },
+        tweens: { add() {} }
+    };
+    const actions = {
         onRestart: () => { restarts++; },
         onQuit: () => { quits++; }
-    });
+    };
 
-    view.create();
+    new DefeatView(scene, actions).create();
     interactiveObjects[0].listeners.pointerdown();
     interactiveObjects[0].listeners.pointerdown();
-    interactiveObjects[1].listeners.pointerdown();
-
     assert.equal(restarts, 1);
+    assert.equal(quits, 0);
+
+    new DefeatView(scene, actions).create();
+    interactiveObjects[3].listeners.pointerdown();
+    interactiveObjects[3].listeners.pointerdown();
     assert.equal(quits, 1);
 });
 
