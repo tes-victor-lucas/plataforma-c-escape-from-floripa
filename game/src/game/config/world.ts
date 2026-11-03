@@ -33,6 +33,16 @@ export const WORLD_CONFIG = {
         stopDistance: 64,
         hitbox: { width: 18, height: 21, offsetX: 6, offsetY: 8 }
     },
+    scooter: {
+        texture: 'scooter-drive',
+        scale: 0.9,
+        hitbox: { width: 18, height: 13, offsetX: 7, offsetY: 13 }
+    },
+    guard: {
+        texture: 'cyber-guard-walk',
+        scale: 0.92,
+        hitbox: { width: 18, height: 16, offsetX: 7, offsetY: 14 }
+    },
     camera: {
         // Mantém a mesma área vertical visível após a mudança para 16:9.
         zoom: 1.75,

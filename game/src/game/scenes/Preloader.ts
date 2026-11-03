@@ -58,6 +58,18 @@ export class Preloader extends Scene {
             { frameWidth: 32, frameHeight: 32 }
         );
 
+        this.load.spritesheet(
+            'scooter-drive',
+            'assets/enemies/patinete-autonomo/patinete-autonomo.png',
+            { frameWidth: 32, frameHeight: 32 }
+        );
+
+        this.load.spritesheet(
+            'cyber-guard-walk',
+            'assets/enemies/guarda-municipal-cyber/guarda-municipal-cyber.png',
+            { frameWidth: 32, frameHeight: 32 }
+        );
+
         this.load.spritesheet(DRONE_EXPLOSION.texture, DRONE_EXPLOSION.path, {
             frameWidth: DRONE_EXPLOSION.frameWidth,
             frameHeight: DRONE_EXPLOSION.frameHeight

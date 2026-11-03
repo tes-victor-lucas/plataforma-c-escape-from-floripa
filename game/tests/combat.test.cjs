@@ -38,9 +38,14 @@ function load(relative) {
 }
 const { Health } = load('../src/game/combat/Health.ts');
 const { CombatSystem, createProjectileId } = load('../src/game/combat/CombatSystem.ts');
-const { COMBAT_CONFIG, ROOM2_STAIR_GUARD_SPAWNS } = load('../src/game/config/combat.ts');
+const {
+    COMBAT_CONFIG,
+    getWaveEnemyKinds,
+    ROOM2_STAIR_GUARD_SPAWNS
+} = load('../src/game/config/combat.ts');
 const { WORLD_CONFIG } = load('../src/game/config/world.ts');
 const { Drone } = load('../src/game/entities/Drone.ts');
+const { isShieldedHit } = load('../src/game/entities/GuardaCyber.ts');
 const {
     createReachableDroneSpawns,
     DroneWaves,
@@ -65,6 +70,7 @@ const {
 } = load('../src/game/ui/MainMenuView.ts');
 const { MENU_CONFIG, getMenuLayout } = load('../src/game/config/menu.ts');
 const { getHeartFillLevels } = load('../src/game/ui/HeartHealthView.ts');
+const { getPauseUpgradeEntries } = load('../src/game/ui/PauseMenuView.ts');
 const { MusicDirector } = load('../src/game/audio/MusicDirector.ts');
 const {
     getStairProgress,
@@ -338,9 +344,36 @@ test('sair pela rota secreta guarda drones vivos, ondas restantes e o item do ba
     assert.equal(world.dungeonState.seed, 0x12345678);
     assert.equal(world.dungeonState.piranhasItemConsumed, true);
     assert.deepEqual(world.dungeonState.savedCombat.room2, {
-        enemies: [{ x: 100, y: 200, health: 40, patrolLeft: 84, patrolRight: 116 }],
+        enemies: [{
+            kind: 'drone',
+            x: 100,
+            y: 200,
+            health: 40,
+            patrolLeft: 84,
+            patrolRight: 116
+        }],
         pendingWaves: [20]
     });
+});
+
+test('ondas misturam drones, patinetes e guardas sem alterar a quantidade', () => {
+    const room1FirstWave = getWaveEnemyKinds('room1', 0, 10);
+    const room1SecondWave = getWaveEnemyKinds('room1', 1, 20);
+    const room2FirstWave = getWaveEnemyKinds('room2', 0, 10);
+    const dungeonWave = getWaveEnemyKinds('dungeon', 0, DUNGEON_WAVE_ENEMY_COUNT);
+
+    assert.equal(room1FirstWave.length, 10);
+    assert.deepEqual(new Set(room1FirstWave), new Set(['drone']));
+    assert.deepEqual(new Set(room1SecondWave), new Set(['drone', 'scooter', 'guard']));
+    assert.deepEqual(room2FirstWave.slice(0, 2), ['guard', 'guard']);
+    assert.deepEqual(new Set(dungeonWave), new Set(['drone', 'scooter', 'guard']));
+});
+
+test('escudo do guarda reduz somente impactos recebidos pela frente', () => {
+    assert.equal(isShieldedHit('left', { x: 1, y: 0 }), true);
+    assert.equal(isShieldedHit('left', { x: -1, y: 0 }), false);
+    assert.equal(isShieldedHit('up', { x: 0, y: 1 }), true);
+    assert.equal(isShieldedHit('up', { x: 1, y: 0 }), false);
 });
 
 test('saida da room1 usa um halo circular centralizado e exige entrar no corredor', () => {
@@ -545,7 +578,13 @@ test('drone usa os atributos padrão do personagem com metade do dano', () => {
     for (const stat of ['maxHealth', 'range', 'fireInterval', 'projectileSpeed']) {
         assert.equal(COMBAT_CONFIG.drone[stat], COMBAT_CONFIG.player[stat]);
     }
+    assert.equal(COMBAT_CONFIG.player.maxHealth, 4);
+    assert.equal(COMBAT_CONFIG.player.damage, 2);
+    assert.equal(COMBAT_CONFIG.drone.maxHealth, 4);
+    assert.equal(COMBAT_CONFIG.drone.damage, 1);
     assert.equal(COMBAT_CONFIG.drone.damage, COMBAT_CONFIG.player.damage / 2);
+    assert.equal(COMBAT_CONFIG.scooter.maxHealth, 3);
+    assert.equal(COMBAT_CONFIG.guard.maxHealth, 6);
 });
 
 test('botoes da derrota disparam somente a primeira acao selecionada', () => {
@@ -635,6 +674,16 @@ test('drones mantêm intervalos de disparo independentes', () => {
     assert.equal(groups[1].shots.length, 4);
 });
 
+test('patinete e guarda são alvos do jogador, mas não disparam projéteis', () => {
+    for (const kind of ['scooter', 'guard']) {
+        const { combat, groups, drones } = setup([[150, 100]]);
+        drones[0].kind = kind;
+        combat.update(COMBAT_CONFIG.drone.fireInterval);
+        assert.equal(groups[0].shots.length, 1);
+        assert.equal(groups[1].shots.length, 0);
+    }
+});
+
 test('parede entre os personagens impede disparos dos dois lados', () => {
     const { combat, groups } = setup([[150, 100]], [
         { getLeft: () => 120, getTop: () => 90, width: 16, height: 32 }
@@ -644,15 +693,21 @@ test('parede entre os personagens impede disparos dos dois lados', () => {
     assert.equal(groups[1].shots.length, 0);
 });
 
-test('projétil causa dano apenas uma vez e derrota o drone com o dano padrão', () => {
+test('cada projétil causa dano uma vez e dois acertos derrotam o drone', () => {
     const { combat, groups, overlaps, drones } = setup();
     combat.update(COMBAT_CONFIG.player.fireInterval);
-    const shot = groups[0].shots[0];
-    overlaps[0].hit(shot);
-    overlaps[0].hit(shot);
-    assert.equal(shot.active, false);
+    const firstShot = groups[0].shots[0];
+    overlaps[0].hit(firstShot);
+    overlaps[0].hit(firstShot);
+    assert.equal(firstShot.active, false);
     assert.equal(drones[0].sprite.active, true, 'O callback deve remover o projétil, não destruir o alvo');
     assert.ok(drones[0].sprite.body);
+    assert.equal(drones[0].health.current, 2);
+    assert.equal(drones[0].health.isAlive, true);
+
+    combat.update(COMBAT_CONFIG.player.fireInterval);
+    const secondShot = groups[0].shots[1];
+    overlaps[0].hit(secondShot);
     assert.equal(drones[0].health.current, 0);
     assert.equal(drones[0].health.isAlive, false);
 });
@@ -665,6 +720,7 @@ test('tiro inimigo reduz a vida do jogador e jogador morto interrompe o combate'
         0,
         COMBAT_CONFIG.player.maxHealth - COMBAT_CONFIG.drone.damage
     ));
+    assert.equal(player.health.current, 3, 'O primeiro tiro do drone deve tirar apenas meio coração');
     assert.equal(player.sprite.active, true);
     assert.ok(player.sprite.body);
     player.takeDamage(COMBAT_CONFIG.player.maxHealth);
@@ -704,6 +760,7 @@ test('cartas alteram atributos, habilidades, limites e reparo do jogador', () =>
     upgrades.acquire(getUpgradeCard('attack-range'));
     upgrades.acquire(getUpgradeCard('projectile-speed'));
     upgrades.acquire(getUpgradeCard('projectile-damage'));
+    upgrades.acquire(getUpgradeCard('projectile-damage'));
     upgrades.acquire(getUpgradeCard('fire-rate'));
     upgrades.acquire(getUpgradeCard('double-shot'));
     for (let level = 0; level < 4; level++) upgrades.acquire(getUpgradeCard('piercing-shot'));
@@ -711,19 +768,33 @@ test('cartas alteram atributos, habilidades, limites e reparo do jogador', () =>
     upgrades.acquire(getUpgradeCard('emergency-repair'));
     upgrades.acquire(getUpgradeCard('max-health'));
 
-    assert.equal(upgrades.range, COMBAT_CONFIG.player.range * 1.1);
-    assert.equal(upgrades.projectileSpeed, COMBAT_CONFIG.player.projectileSpeed * 1.1);
-    assert.equal(upgrades.damage, COMBAT_CONFIG.player.damage * 1.2);
-    assert.equal(upgrades.fireInterval, COMBAT_CONFIG.player.fireInterval * 0.85);
+    assert.equal(upgrades.range, COMBAT_CONFIG.player.range * 1.2);
+    assert.equal(upgrades.projectileSpeed, COMBAT_CONFIG.player.projectileSpeed * 1.25);
+    assert.equal(upgrades.damage, COMBAT_CONFIG.player.damage + 2);
+    assert.equal(upgrades.fireInterval, COMBAT_CONFIG.player.fireInterval * 0.8);
     assert.equal(upgrades.projectileCount, 2);
     assert.equal(upgrades.piercingTargets, 3);
     assert.equal(upgrades.companionCount, 1);
+    assert.equal(upgrades.companionStatRatio, 0.75);
+    assert.equal(upgrades.companionDamageRatio, 0.5);
     assert.equal(upgrades.maxHealth, COMBAT_CONFIG.player.maxHealth + 2);
 
     const health = new Health(100);
     health.takeDamage(50);
     upgrades.repairAfterRoom(health);
-    assert.equal(health.current, 70);
+    assert.equal(health.current, 52);
+});
+
+test('upgrades de atributo acumulam no máximo três níveis', () => {
+    for (const id of ['attack-range', 'projectile-speed', 'projectile-damage', 'fire-rate']) {
+        const upgrades = new PlayerUpgradeState();
+        const card = getUpgradeCard(id);
+        assert.deepEqual(Array.from({ length: 4 }, () => upgrades.acquire(card)), [
+            true, true, true, false
+        ]);
+        assert.deepEqual(upgrades.exportProgress(), [[id, 3]]);
+        assert.equal(upgrades.availableCards().some((available) => available.id === id), false);
+    }
 });
 
 test('progresso entre salas preserva vida, habilidades e bônus permanentes', () => {
@@ -751,13 +822,60 @@ test('progresso entre salas preserva vida, habilidades e bônus permanentes', ()
     assert.equal(restoredHealth.max, 8);
     assert.equal(restoredSpeed, 1.2);
     assert.equal(restoredUpgrades.projectileCount, 2);
-    assert.equal(restoredUpgrades.damage, COMBAT_CONFIG.player.damage * 1.2);
+    assert.equal(restoredUpgrades.damage, COMBAT_CONFIG.player.damage + 1);
     assert.deepEqual(Object.keys(progress).sort(), [
         'currentHealth',
         'maxHealth',
         'movementSpeedMultiplier',
         'upgrades'
     ], 'náusea e controles invertidos não pertencem ao progresso permanente');
+});
+
+test('resumo da pausa lista upgrades escolhidos com seus níveis e descrições', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('projectile-damage'));
+    upgrades.acquire(getUpgradeCard('projectile-damage'));
+    upgrades.acquire(getUpgradeCard('companion-drone'));
+
+    const entries = getPauseUpgradeEntries(upgrades.exportProgress());
+    assert.deepEqual(entries.map(({ card, level }) => ({
+        id: card.id,
+        level,
+        description: card.description
+    })), [
+        {
+            id: 'projectile-damage',
+            level: 2,
+            description: 'Aumenta o dano dos projéteis em 1 por nível.'
+        },
+        {
+            id: 'companion-drone',
+            level: 1,
+            description: 'Drone: 75% de alcance, velocidade e cadência; 50% de dano arredondado (mín. 1).'
+        }
+    ]);
+});
+
+test('mundo envia os upgrades atuais ao abrir o menu de pausa', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const launches = [];
+    world.isGameplayReady = true;
+    world.player = { health: new Health(COMBAT_CONFIG.player.maxHealth) };
+    world.upgrades.acquire(getUpgradeCard('projectile-damage'));
+    world.upgrades.acquire(getUpgradeCard('projectile-damage'));
+    world.scene = {
+        launch(key, data) { launches.push({ key, data }); },
+        bringToTop() {},
+        pause() {}
+    };
+
+    world.openPauseMenu();
+
+    assert.deepEqual(launches, [{
+        key: 'PauseMenu',
+        data: { upgrades: [['projectile-damage', 2]] }
+    }]);
 });
 
 test('continuar só é liberado por checkpoint conquistado depois da room1', () => {
@@ -852,12 +970,16 @@ test('morte causada pelo projétil soma pontos à run ativa exatamente uma vez',
 
     combat.update(COMBAT_CONFIG.player.fireInterval);
     overlaps[0].hit(groups[0].shots[0]);
+    assert.equal(tracker.snapshot(Date.parse('2026-01-01T00:00:05.000Z')).enemiesDefeated, 0);
+
+    combat.update(COMBAT_CONFIG.player.fireInterval);
+    overlaps[0].hit(groups[0].shots[1]);
 
     assert.equal(tracker.snapshot(Date.parse('2026-01-01T00:00:05.000Z')).enemiesDefeated, 1);
     assert.equal(tracker.snapshot(Date.parse('2026-01-01T00:00:05.000Z')).score.total, 100);
 });
 
-test('ondas criam 10 drones e depois 20 apenas quando todos os anteriores morrerem', () => {
+test('Sala I cria 10 inimigos e depois 8 apenas quando todos os anteriores morrerem', () => {
     const counts = [];
     const drones = [];
     const waves = new DroneWaves((count) => {
@@ -871,13 +993,13 @@ test('ondas criam 10 drones e depois 20 apenas quando todos os anteriores morrer
     assert.deepEqual(counts, [10]);
     drones[9].takeDamage(60);
     waves.update(drones);
-    assert.deepEqual(counts, [10, 20]);
-    assert.equal(drones.length, 30);
+    assert.deepEqual(counts, [10, 8]);
+    assert.equal(drones.length, 18);
     waves.update(drones);
     for (const drone of drones) drone.takeDamage(60);
     waves.update(drones);
     waves.update(drones);
-    assert.deepEqual(counts, [10, 20], 'Não deve existir uma terceira onda');
+    assert.deepEqual(counts, [10, 8], 'Não deve existir uma terceira onda');
     const restartedCounts = [];
     new DroneWaves((count) => restartedCounts.push(count)).update([]);
     assert.deepEqual(restartedCounts, [10]);
@@ -907,7 +1029,110 @@ test('segunda onda aguarda o fim da vinheta sem dispará-la mais de uma vez', ()
     assert.deepEqual(counts, [10]);
     assert.equal(intermissions, 1);
     resumeWave();
-    assert.deepEqual(counts, [10, 20]);
+    assert.deepEqual(counts, [10, 8]);
+});
+
+test('somente a Sala I possui segunda onda', () => {
+    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room1], [10, 8]);
+    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room2], [10]);
+    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.dungeon], [10]);
+});
+
+test('somente a Sala I oferece outra seleção de upgrade ao ser concluída', () => {
+    const { shouldOfferRoomCompletionUpgrade } = load('../src/game/scenes/World.ts');
+    assert.equal(shouldOfferRoomCompletionUpgrade('room1'), true);
+    assert.equal(shouldOfferRoomCompletionUpgrade('room2'), false);
+    assert.equal(shouldOfferRoomCompletionUpgrade('dungeon'), false);
+});
+
+test('recompensa final da Sala I aplica a carta antes de liberar a saída', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { UpgradeSelectionView } = load('../src/game/ui/UpgradeSelectionView.ts');
+    const originalPlay = UpgradeSelectionView.prototype.play;
+    const world = new World();
+    let selectCard;
+    let selectionOptions;
+    let clears = 0;
+    let pauses = 0;
+    let resumes = 0;
+    let completions = 0;
+    const root = {
+        setDepth() { return this; },
+        setScrollFactor() { return this; }
+    };
+    const overlay = { add: { container: () => root } };
+    world.combat = { clear() { clears++; } };
+    world.physics = {
+        pause() { pauses++; },
+        resume() { resumes++; }
+    };
+    world.scene = { get: () => overlay };
+    world.isGameplayReady = true;
+
+    UpgradeSelectionView.prototype.play = function (onSelect) {
+        selectCard = onSelect;
+        selectionOptions = this.options;
+    };
+    try {
+        world.playRoom1CompletionReward(() => { completions++; });
+    } finally {
+        UpgradeSelectionView.prototype.play = originalPlay;
+    }
+
+    assert.equal(clears, 1);
+    assert.equal(pauses, 1);
+    assert.equal(completions, 0, 'A sala não deve ser liberada antes da escolha');
+    assert.equal(world.isWaveIntermissionOpen, true);
+    assert.deepEqual(selectionOptions, {
+        title: 'SALA I CONCLUÍDA',
+        hint: 'Escolha uma recompensa'
+    });
+
+    selectCard(getUpgradeCard('projectile-damage'));
+    assert.equal(world.upgrades.damage, COMBAT_CONFIG.player.damage + 1);
+    assert.equal(world.isWaveIntermissionOpen, false);
+    assert.equal(completions, 1);
+    assert.equal(resumes, 1);
+});
+
+test('reparo escolhido na recompensa da dungeon cura na própria conclusão', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { UpgradeSelectionView } = load('../src/game/ui/UpgradeSelectionView.ts');
+    const originalPlay = UpgradeSelectionView.prototype.play;
+    const world = new World();
+    const health = new Health(COMBAT_CONFIG.player.maxHealth);
+    health.takeDamage(3);
+    let selectCard;
+    let completions = 0;
+    const root = {
+        setDepth() { return this; },
+        setScrollFactor() { return this; }
+    };
+    world.player = { health };
+    world.dungeonState = createDungeonSessionState(123);
+    world.combat = { clear() {} };
+    world.physics = { pause() {}, resume() {} };
+    world.scene = { get: () => ({ add: { container: () => root } }) };
+    world.isGameplayReady = true;
+
+    UpgradeSelectionView.prototype.play = function (onSelect) {
+        selectCard = onSelect;
+    };
+    try {
+        world.playDungeonReward(() => {
+            completions++;
+            world.upgrades.repairAfterRoom(health);
+        });
+    } finally {
+        UpgradeSelectionView.prototype.play = originalPlay;
+    }
+
+    assert.equal(health.current, 1);
+    assert.equal(completions, 0);
+    selectCard(getUpgradeCard('emergency-repair'));
+    assert.equal(completions, 1);
+    assert.equal(health.current, 3, 'O reparo deve recuperar dois pontos de vida');
+    assert.equal(world.dungeonState.rewardClaimed, true);
 });
 
 test('dungeon configura somente uma onda e respeita inimigos restantes', () => {
@@ -935,7 +1160,7 @@ test('dungeon configura somente uma onda e respeita inimigos restantes', () => {
 
 test('novos drones entram no combate com tiros, dano e atraso inicial', () => {
     const { combat, player, drones, groups, overlaps, attachBody } = setup([]);
-    const drone = fighter(150, 100, 60);
+    const drone = fighter(150, 100, COMBAT_CONFIG.drone.maxHealth);
     attachBody(drone.sprite, 150, 100);
     drones.push(drone);
     combat.registerDrone(drone);
@@ -945,7 +1170,10 @@ test('novos drones entram no combate com tiros, dano e atraso inicial', () => {
     assert.equal(groups[0].shots.length, 1);
     assert.equal(groups[1].shots.length, 0);
     overlaps[1].hit(groups[0].shots[0]);
-    assert.equal(drone.health.current, 40);
+    assert.equal(
+        drone.health.current,
+        COMBAT_CONFIG.drone.maxHealth - COMBAT_CONFIG.player.damage
+    );
     combat.update(COMBAT_CONFIG.drone.fireInterval);
     assert.equal(groups[1].shots.length, 1);
     overlaps[0].hit(groups[1].shots[0]);
@@ -998,24 +1226,37 @@ test('tiro duplo, dano aumentado e perfuração afetam o combate real', () => {
     ]);
 });
 
-test('drone companheiro nasce e dispara com atributos reduzidos', () => {
+test('drone companheiro usa alcance útil, dano inteiro e cadência reduzida', () => {
     const upgrades = new PlayerUpgradeState();
     upgrades.acquire(getUpgradeCard('companion-drone'));
-    const { combat, groups, companions } = setup([[110, 100]], [], upgrades);
+    const { combat, groups, companions, drones, overlaps, damageLabels } = setup(
+        [[110, 100]],
+        [],
+        upgrades
+    );
     combat.update(0);
     assert.equal(companions.length, 1);
     const companionShot = groups[0].shots.find((shot) => shot.color === 0x39ff14);
     assert.ok(companionShot);
     assert.ok(Math.abs(Math.hypot(companionShot.velocity.x, companionShot.velocity.y)
-        - upgrades.projectileSpeed * 0.4) < 0.001);
+        - upgrades.projectileSpeed * upgrades.companionStatRatio) < 0.001);
+
+    overlaps[0].hit(companionShot);
+    assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth - 1);
+    assert.equal(damageLabels.at(-1).text, '-1');
+
+    combat.update(upgrades.fireInterval / upgrades.companionStatRatio - 1);
+    assert.equal(groups[0].shots.filter((shot) => shot.color === 0x39ff14).length, 1);
+    combat.update(1);
+    assert.equal(groups[0].shots.filter((shot) => shot.color === 0x39ff14).length, 2);
 });
 
-test('duas ondas têm posições suficientes, distintas e fora da área inicial e do jogador', () => {
+test('ondas têm posições suficientes, distintas e longe da área inicial e do jogador', () => {
     const { spawn, spawnSafeRadius } = WORLD_CONFIG.player;
     for (let y = 80; y <= 544; y += 16) {
         for (let x = 88; x <= 712; x += 16) {
-            const points = selectDroneSpawns(20, { x, y });
-            assert.equal(new Set(points).size, 20);
+            const points = selectDroneSpawns(10, { x, y });
+            assert.equal(new Set(points).size, 10);
             for (const point of points) {
                 assert.ok(Math.hypot(point.x - x, point.y - y) >= COMBAT_CONFIG.spawnDistanceFromPlayer);
                 const closestX = Math.max(point.patrolLeft, Math.min(spawn.x, point.patrolRight));
@@ -1026,7 +1267,7 @@ test('duas ondas têm posições suficientes, distintas e fora da área inicial 
     assert.equal(selectDroneSpawns(10, spawn).length, 10);
 });
 
-test('primeira onda da room2 reserva dois drones na base da escadaria', () => {
+test('onda única da room2 reserva dois guardas na base da escadaria', () => {
     const regularSpawns = Array.from({ length: 12 }, (_, index) => ({
         x: 320 + index * 16,
         y: 160,
@@ -1078,8 +1319,8 @@ test('room2 cria drones somente no setor alcançável pelo jogador', () => {
     for (let y = map.tileheight * 2; y < map.height * map.tileheight; y += map.tileheight * 2) {
         for (let x = map.tilewidth * 2; x < map.width * map.tilewidth; x += map.tilewidth * 2) {
             if (isBlocked(Math.floor(x / map.tilewidth), Math.floor(y / map.tileheight))) continue;
-            const selected = selectDroneSpawns(20, { x, y }, candidates);
-            assert.equal(new Set(selected).size, 20);
+            const selected = selectDroneSpawns(10, { x, y }, candidates);
+            assert.equal(new Set(selected).size, 10);
             assert.ok(selected.every((point) => !isBlocked(
                 Math.floor(point.x / map.tilewidth),
                 Math.floor(point.y / map.tileheight)

@@ -6,14 +6,7 @@ import { Health } from '../combat/Health';
 import type { Player } from './Player';
 import { hasLineOfSight } from '../map/hasLineOfSight';
 import { playDroneExplosion } from '../effects/playDroneExplosion';
-
-type DroneSpawn = {
-    x: number;
-    y: number;
-    patrolLeft: number;
-    patrolRight: number;
-    health?: number;
-};
+import type { CombatEnemy, EnemySpawn } from './CombatEnemy';
 
 function createDroneId() {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -23,7 +16,8 @@ function createDroneId() {
 }
 
 /** Exibe e movimenta o drone inimigo na sala. */
-export class Drone {
+export class Drone implements CombatEnemy {
+    readonly kind = 'drone' as const;
     readonly id = createDroneId();
     readonly sprite: Phaser.Physics.Arcade.Sprite;
     readonly health = new Health(COMBAT_CONFIG.drone.maxHealth);
@@ -36,7 +30,7 @@ export class Drone {
 
     constructor(
         private readonly scene: Scene,
-        private readonly spawn: DroneSpawn,
+        private readonly spawn: EnemySpawn,
         private readonly walls: Phaser.Tilemaps.TilemapLayer[]
     ) {
         const { drone } = WORLD_CONFIG;
@@ -118,8 +112,10 @@ export class Drone {
     }
 
     takeDamage(amount: number, impactDirection?: Readonly<{ x: number; y: number }>) {
-        if (!this.health.isAlive) return;
+        if (!this.health.isAlive) return 0;
+        const previousHealth = this.health.current;
         this.health.takeDamage(amount);
+        const damage = previousHealth - this.health.current;
         this.applyHitFeedback(impactDirection);
         if (!this.health.isAlive) {
             this.healthBar.clear();
@@ -132,9 +128,10 @@ export class Drone {
             } else {
                 this.finishDeath();
             }
-            return;
+            return damage;
         }
         this.drawHealthBar();
+        return damage;
     }
 
     private finishDeath() {

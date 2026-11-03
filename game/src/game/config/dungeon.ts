@@ -1,8 +1,10 @@
 import type { RoomKey } from './rooms';
+import type { EnemyKind } from './combat';
 
 export const DUNGEON_WAVE_ENEMY_COUNT = 10;
 
 export type DungeonEnemyState = Readonly<{
+    kind: EnemyKind;
     x: number;
     y: number;
     health: number;

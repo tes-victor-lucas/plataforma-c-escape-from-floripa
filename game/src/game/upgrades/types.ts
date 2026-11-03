@@ -22,6 +22,11 @@ export type UpgradeEffect =
         multiplier: number;
     }
     | {
+        type: 'add-stat';
+        stat: 'damage';
+        amount: number;
+    }
+    | {
         type: 'parallel-projectiles';
         projectileCount: number;
     }
@@ -32,7 +37,8 @@ export type UpgradeEffect =
     }
     | {
         type: 'companion-drone';
-        playerStatRatio: number;
+        statRatio: number;
+        damageRatio: number;
         maxCompanions: number;
     }
     | {
@@ -42,7 +48,7 @@ export type UpgradeEffect =
     }
     | {
         type: 'heal-on-room-complete';
-        maxHealthRatio: number;
+        amount: number;
     };
 
 /** Dados permanentes usados para montar uma carta e aplicar seu efeito futuramente. */

@@ -1,5 +1,10 @@
 import { Scene } from 'phaser';
 import { PauseMenuView } from '../ui/PauseMenuView';
+import type { UpgradeProgress } from '../upgrades';
+
+type PauseMenuData = {
+    upgrades?: UpgradeProgress;
+};
 
 /** Overlay scene that pauses Room 1 without destroying its state. */
 export class PauseMenu extends Scene {
@@ -9,11 +14,12 @@ export class PauseMenu extends Scene {
         super('PauseMenu');
     }
 
-    create() {
+    create(data: PauseMenuData = {}) {
         this.isLeaving = false;
         new PauseMenuView(this, {
             onContinue: () => this.continueGame(),
-            onQuit: () => this.quitToMainMenu()
+            onQuit: () => this.quitToMainMenu(),
+            upgrades: data.upgrades ?? []
         }).create();
 
         this.input.keyboard?.once('keydown-P', this.continueGame, this);
