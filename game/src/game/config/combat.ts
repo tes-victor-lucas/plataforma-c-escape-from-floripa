@@ -5,7 +5,7 @@ export const ROOM2_STAIR_GUARD_SPAWNS = [
 
 /** Distâncias em pixels do mundo; intervalos e duração em milissegundos. */
 export const COMBAT_CONFIG = {
-    player: { maxHealth: 4, healthPerHeart: 2, range: 100, fireInterval: 600, damage: 20, projectileSpeed: 180, color: 0x5ce5f1 },
+    player: { maxHealth: 4, healthPerHeart: 2, range: 1000, fireInterval: 10, damage: 60, projectileSpeed: 180, color: 0x5ce5f1 },
     drone: {
         maxHealth: 60,
         range: 200,

@@ -10,6 +10,12 @@ export const WORLD_CONFIG = {
         velocityResponsiveness: 14,
         stopThreshold: 2,
         directionThreshold: 0.15,
+        dash: {
+            speed: 360,
+            duration: 130,
+            cooldown: 700,
+            alpha: 0.68
+        },
         hitbox: {
             width: 8,
             height: 5,
@@ -32,5 +38,15 @@ export const WORLD_CONFIG = {
         zoom: 1.75,
         lerpX: 0.15,
         lerpY: 0.15
+    },
+    feedback: {
+        hitStopDuration: 45,
+        enemyHitFlashDuration: 90,
+        enemyKnockbackDuration: 85,
+        enemyKnockbackSpeed: 130,
+        lowHealth: {
+            threshold: 0.4,
+            maxDesaturation: 0.45
+        }
     }
 } as const;

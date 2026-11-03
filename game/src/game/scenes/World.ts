@@ -126,6 +126,10 @@ export class World extends Scene {
     private dungeonReturnArea?: Readonly<{ left: number; right: number; top: number; bottom: number }>;
     private dungeonState?: DungeonSessionState;
     private savedEnemies?: readonly DungeonEnemyState[];
+    private isHitStopActive = false;
+    private hitStopTimer?: Phaser.Time.TimerEvent;
+    private lowHealthFilter?: Phaser.Filters.ColorMatrix;
+    private lowHealthDesaturation = -1;
 
     constructor() {
         super('World');
@@ -141,6 +145,10 @@ export class World extends Scene {
         this.isRoomTransitioning = false;
         this.hasSpawnedRoom2Guards = false;
         this.isRoomCombatComplete = false;
+        this.isHitStopActive = false;
+        this.hitStopTimer = undefined;
+        this.lowHealthFilter = undefined;
+        this.lowHealthDesaturation = -1;
         this.room1SecretCode.reset();
         this.nauseaEndsAt = 0;
         this.multiplayerSyncElapsed = 0;
@@ -212,7 +220,15 @@ export class World extends Scene {
         for (const layer of room.collisionLayers) {
             this.physics.add.collider(this.player.sprite, layer);
         }
-        this.combat = new CombatSystem(this, this.player, this.drones, room.collisionLayers, this.upgrades);
+        this.combat = new CombatSystem(
+            this,
+            this.player,
+            this.drones,
+            room.collisionLayers,
+            this.upgrades,
+            runTracker,
+            () => this.playHitStop()
+        );
         this.completeRoomCombat = () => {
             if (this.isRoomCombatComplete) return;
             this.isRoomCombatComplete = true;
@@ -247,6 +263,7 @@ export class World extends Scene {
 
         configureWorldCamera(this, room.map, this.player.sprite);
         this.normalCameraZoom = this.cameras.main.zoom;
+        this.lowHealthFilter = this.cameras.main.filters.internal.addColorMatrix();
         this.input.keyboard?.on('keydown-P', this.openPauseMenu, this);
         this.input.keyboard?.on('keydown-G', this.openPiranhasMenu, this);
         this.input.keyboard?.on('keydown', this.handleSecretCodeKey, this);
@@ -296,6 +313,7 @@ export class World extends Scene {
 
     update(_time: number, delta: number) {
         this.updatePlayerRangeIndicator();
+        this.updateLowHealthEffect();
         if (!this.isGameplayReady || this.isGameOver) return;
         if (this.player && !this.player.health.isAlive) {
             this.isGameOver = true;
@@ -304,15 +322,16 @@ export class World extends Scene {
             runTracker.lose();
             return;
         }
+        if (this.isHitStopActive) return;
         this.updatePiranhasBarInteraction();
         this.updateNauseaEffect();
-        if (this.isPiranhasMenuOpen) return;
+        if (this.isPiranhasMenuOpen || this.isWaveIntermissionOpen) return;
         this.player?.update(delta);
         this.updateMultiplayer(delta);
         this.updateRoomGateway();
         if (this.isRoomTransitioning) return;
         this.stairClimbEffect?.update();
-        for (const drone of this.drones) drone.update(this.player);
+        for (const drone of this.drones) drone.update(this.player, delta);
         this.combat?.update(delta);
         this.waves?.update(this.drones);
     }
@@ -527,8 +546,7 @@ export class World extends Scene {
             drawUpgradeCards(undefined, this.upgrades.availableCards()),
             {
                 title: 'DUNGEON CONCLUÍDA',
-                hint: 'Escolha sua recompensa',
-                footer: 'CLIQUE PARA RECEBER'
+                hint: 'Escolha sua recompensa'
             }
         ).play((selected) => {
             this.acquireUpgrade(selected);
@@ -586,7 +604,6 @@ export class World extends Scene {
         new UpgradeSelectionView(overlayScene, PIRANHAS_BAR_ITEMS, {
             title: 'CARDÁPIO DO PIRANHAS BAR',
             hint: 'Escolha um item para consumir',
-            footer: 'CLIQUE PARA CONSUMIR',
             cardCenterDistance: 220
         }).play((item) => this.consumePiranhasItem(item));
     }
@@ -632,6 +649,38 @@ export class World extends Scene {
             ));
     }
 
+    private playHitStop() {
+        if (this.isHitStopActive || !this.isGameplayReady || this.isGameOver) return;
+        this.isHitStopActive = true;
+        this.physics.pause();
+        this.hitStopTimer = this.time.delayedCall(WORLD_CONFIG.feedback.hitStopDuration, () => {
+            this.hitStopTimer = undefined;
+            this.isHitStopActive = false;
+            if (
+                this.isGameplayReady && !this.isGameOver && !this.isPauseMenuOpen
+                && !this.isPiranhasMenuOpen && !this.isWaveIntermissionOpen
+                && !this.isRoomTransitioning
+            ) {
+                this.physics.resume();
+            }
+        });
+    }
+
+    private updateLowHealthEffect() {
+        if (!this.player || !this.lowHealthFilter) return;
+        const { threshold, maxDesaturation } = WORLD_CONFIG.feedback.lowHealth;
+        const healthRatio = this.player.health.max > 0
+            ? this.player.health.current / this.player.health.max
+            : 0;
+        const desaturation = healthRatio >= threshold
+            ? 0
+            : Math.min(1, (threshold - healthRatio) / threshold) * maxDesaturation;
+        if (Math.abs(desaturation - this.lowHealthDesaturation) < 0.001) return;
+
+        this.lowHealthDesaturation = desaturation;
+        this.lowHealthFilter.colorMatrix.reset().saturate(-desaturation);
+    }
+
     private createPlayerRangeIndicator() {
         const { range } = COMBAT_CONFIG.player;
         const { color, fillAlpha, strokeAlpha, strokeWidth } = COMBAT_CONFIG.rangeIndicator;
@@ -655,6 +704,9 @@ export class World extends Scene {
         this.isRoomTransitioning = false;
         this.hasSpawnedRoom2Guards = false;
         this.isRoomCombatComplete = false;
+        this.isHitStopActive = false;
+        this.hitStopTimer?.remove(false);
+        this.hitStopTimer = undefined;
         this.room1SecretCode.reset();
         this.scene.stop('CombatHud');
         this.combat?.clear();
@@ -677,6 +729,8 @@ export class World extends Scene {
         // No SHUTDOWN o Phaser pode remover a câmera antes de notificar a cena.
         // A limpeza não pode interromper a fila de restart/start do SceneManager.
         this.cameras.main?.setRotation(0).setZoom(this.normalCameraZoom);
+        this.lowHealthFilter = undefined;
+        this.lowHealthDesaturation = -1;
         this.piranhasBarPrompt = undefined;
         this.player = undefined;
         this.playerRangeIndicator = undefined;

@@ -19,6 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .finally(() => {
             setupControlsPanel();
+            const gameContainer = document.getElementById('game-container');
+            gameContainer?.addEventListener('pointerdown', () => gameContainer.focus());
             const game = StartGame('game-container');
             setupFullscreenButton(game);
         });

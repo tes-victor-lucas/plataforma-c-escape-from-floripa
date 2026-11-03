@@ -52,7 +52,8 @@ export class CombatSystem {
         private readonly drones: Drone[],
         private readonly walls: Phaser.Tilemaps.TilemapLayer[],
         private readonly playerStats: PlayerUpgradeState = new PlayerUpgradeState(),
-        private readonly tracker: RunTracker = runTracker
+        private readonly tracker: RunTracker = runTracker,
+        private readonly onEnemyKilled: () => void = () => undefined
     ) {
         const texture = 'combat-projectile-rounded';
         if (!scene.textures.exists(texture)) {
@@ -94,9 +95,13 @@ export class CombatSystem {
             const damage = Math.min(state.damage, drone.health.current);
             const center = this.getCenter(drone);
             const wasAlive = drone.health.isAlive;
-            drone.takeDamage(state.damage);
+            drone.takeDamage(state.damage, {
+                x: Math.cos(projectile.rotation),
+                y: Math.sin(projectile.rotation)
+            });
             if (wasAlive && !drone.health.isAlive) {
                 this.tracker.recordEnemyDeath(drone.id, state.id);
+                this.onEnemyKilled();
             }
             playDamageNumber(this.scene, center.x, center.y, damage);
             if (state.remainingPierces > 0) {
