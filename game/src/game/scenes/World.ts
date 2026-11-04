@@ -1044,6 +1044,7 @@ export class World extends Scene {
             return;
         }
         this.player.sprite.setAngle(90);
+        if (this.getRevivesLeft() === 0) return;
         const feet = this.player.sprite.body?.center ?? this.player.sprite;
         const isPartnerClose = [...this.remotePlayers.values()].some((partner) =>
             partner.isAlive && isWithinReviveRadius(feet, partner.feet));
@@ -1054,8 +1055,13 @@ export class World extends Scene {
         if (this.reviveElapsed >= COMBAT_CONFIG.multiplayer.reviveDuration) this.revivePlayer();
     }
 
+    private getRevivesLeft() {
+        return Math.max(0, COMBAT_CONFIG.multiplayer.maxRevives - multiplayerClient.revivesUsed);
+    }
+
     private revivePlayer() {
-        if (!this.player) return;
+        if (!this.player || this.getRevivesLeft() === 0) return;
+        multiplayerClient.revivesUsed += 1;
         const { max } = this.player.health;
         this.player.revive(Math.ceil(max * COMBAT_CONFIG.multiplayer.reviveHealthRatio));
         this.reviveElapsed = 0;
