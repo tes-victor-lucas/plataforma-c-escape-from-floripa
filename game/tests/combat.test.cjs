@@ -2225,3 +2225,75 @@ test('multiplayer: carta de vida não levanta quem está caído', () => {
     assert.equal(health.max, 4 + card.effect.amount);
     world.upgrades.reset();
 });
+
+function gauchoAt(callbacks) {
+    const { Gaucho } = load('../src/game/entities/Gaucho.ts');
+    const world = new ArcadeWorld({ sys: { scale: { width: 800, height: 640 } } }, {});
+    const sprite = {
+        x: 300, y: 208, active: true, body: new ArcadeBody(world),
+        setScale() { return this; }, setDepth() { return this; }, setCollideWorldBounds() { return this; },
+        play() {}, setTint() {}, clearTint() {},
+        disableBody() { this.active = false; this.body.enable = false; }
+    };
+    const graphics = { clear() { return this; }, fillStyle() { return this; }, fillRect() { return this; }, setDepth() { return this; } };
+    const scene = {
+        sound: { play() {} },
+        cameras: { main: { shake() {} } },
+        physics: { add: { sprite: () => sprite } },
+        anims: {
+            exists: () => true,
+            generateFrameNumbers: () => [],
+            create() {}
+        },
+        time: { delayedCall() {} },
+        add: {
+            graphics: () => graphics,
+            sprite: () => Object.assign(new (require('node:events').EventEmitter)(), {
+                setDepth() { return this; }, play() {}, destroy() {}
+            })
+        }
+    };
+    const gaucho = new Gaucho(
+        scene,
+        { x: 300, y: 208, patrolLeft: 260, patrolRight: 360 },
+        [{ getTilesWithinWorldXY: () => [] }],
+        callbacks
+    );
+    sprite.body.position.set(sprite.x - sprite.body.halfWidth, sprite.y - sprite.body.halfHeight);
+    sprite.body.updateCenter();
+    const playerAt = (dx) => fighter(sprite.body.center.x + dx, sprite.body.center.y, COMBAT_CONFIG.player.maxHealth);
+    return { gaucho, sprite, playerAt };
+}
+
+test('gaúcho bate de perto respeitando o intervalo e não acerta quem está longe', () => {
+    const strikes = [];
+    const { gaucho, playerAt } = gauchoAt({ onStrike: (target) => strikes.push(target) });
+    const far = playerAt(COMBAT_CONFIG.gaucho.range + 5);
+    gaucho.update(far, 16);
+    assert.equal(far.health.current, COMBAT_CONFIG.player.maxHealth);
+
+    const near = playerAt(COMBAT_CONFIG.gaucho.range - 5);
+    gaucho.update(near, 16);
+    assert.equal(near.health.current, COMBAT_CONFIG.player.maxHealth - COMBAT_CONFIG.gaucho.damage);
+    assert.deepEqual(strikes, [near]);
+
+    gaucho.update(near, COMBAT_CONFIG.gaucho.attackInterval / 2);
+    assert.equal(near.health.current, COMBAT_CONFIG.player.maxHealth - COMBAT_CONFIG.gaucho.damage);
+    gaucho.update(near, COMBAT_CONFIG.gaucho.attackInterval);
+    assert.equal(near.health.current, COMBAT_CONFIG.player.maxHealth - 2 * COMBAT_CONFIG.gaucho.damage);
+});
+
+test('gaúcho ignora jogador caído e avisa onde morreu', () => {
+    const defeats = [];
+    const { gaucho, sprite, playerAt } = gauchoAt({ onDefeated: (x, y) => defeats.push([x, y]) });
+    const down = playerAt(5);
+    down.takeDamage(down.health.current);
+    gaucho.update(down, 16);
+    assert.equal(sprite.body.velocity.y, 0);
+
+    gaucho.takeDamage(gaucho.health.current);
+    gaucho.takeDamage(1);
+    assert.deepEqual(defeats, [[sprite.body.center.x, sprite.body.center.y]]);
+    assert.equal(sprite.active, false);
+});
+
