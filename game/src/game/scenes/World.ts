@@ -613,7 +613,11 @@ export class World extends Scene {
             || !isInsideRoomGateway(center.x, center.y)
         ) return;
 
-        this.transitionToRoom(ROOM1_TO_ROOM2_GATEWAY.to);
+        // Leva o estado junto para os dois jogadores continuarem com a mesma semente.
+        this.transitionToRoom(
+            ROOM1_TO_ROOM2_GATEWAY.to,
+            this.dungeonState ? { dungeonState: this.dungeonState } : {}
+        );
     }
 
     private transitionToRoom(
@@ -1315,7 +1319,11 @@ export class World extends Scene {
                 }
                 break;
             case 'room.transition': {
-                if (event.seed !== undefined) this.dungeonState ??= createDungeonSessionState(event.seed);
+                // A semente do anfitrião vence a criada aqui ao pisar na entrada: o mapa precisa ser igual.
+                if (event.seed !== undefined) {
+                    this.dungeonState ??= createDungeonSessionState(event.seed);
+                    this.dungeonState.seed = event.seed;
+                }
                 this.beginRoomTransition(event.roomKey, {
                     ...(event.spawn ? { spawn: event.spawn } : {}),
                     ...(this.dungeonState ? { dungeonState: this.dungeonState } : {})

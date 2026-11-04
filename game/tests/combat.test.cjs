@@ -2385,3 +2385,19 @@ test('multiplayer: só o anfitrião sorteia o chimarrão e quem pega primeiro fi
     restore();
 });
 
+test('multiplayer: convidado adota a semente do anfitrião ao trocar de sala', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const transitions = [];
+    world.beginRoomTransition = (roomKey, options) => transitions.push({ roomKey, options });
+    world.dungeonState = createDungeonSessionState(111);
+
+    world.handleCoopEvent({ kind: 'room.transition', roomKey: 'gaucho-dungeon', seed: 222 });
+    assert.equal(world.dungeonState.seed, 222);
+    assert.equal(transitions[0].options.dungeonState, world.dungeonState);
+
+    world.dungeonState = undefined;
+    world.handleCoopEvent({ kind: 'room.transition', roomKey: 'dungeon', seed: 333 });
+    assert.equal(world.dungeonState.seed, 333);
+});
+
