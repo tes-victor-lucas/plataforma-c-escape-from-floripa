@@ -316,7 +316,9 @@ export class World extends Scene {
                 ? [DUNGEON_WAVE_ENEMY_COUNT]
                 : COMBAT_CONFIG.wavesByRoom[roomKey];
         // O convidado recebe ondas e inimigos prontos do anfitrião.
-        this.waves = !this.isMultiplayerGuest() && waveCounts.some((count) => count > 0)
+        // Uma sala salva sem inimigos e não vencida ainda precisa da onda vazia para concluir.
+        this.waves = !this.isMultiplayerGuest() && !savedCombat?.cleared
+            && (savedCombat !== undefined || waveCounts.some((count) => count > 0))
             ? new DroneWaves(
                 (count) => this.spawnDrones(count),
                 () => {
@@ -327,6 +329,12 @@ export class World extends Scene {
             )
             : undefined;
         if (this.isPartnerRoomReady()) this.waves?.update(this.drones);
+        if (savedCombat?.cleared) {
+            // Sala vencida numa visita anterior: reabre a saída sem repetir o reparo.
+            this.isRoomCombatComplete = true;
+            room.openExit();
+            this.activateRoomExit();
+        }
 
         configureWorldCamera(this, room.map, this.player.sprite);
         this.normalCameraZoom = this.cameras.main.zoom;
@@ -699,7 +707,8 @@ export class World extends Scene {
         this.dungeonState.piranhasItemConsumed = this.hasSelectedPiranhasItem;
         this.dungeonState.savedCombat[this.activeRoomKey] = {
             enemies,
-            pendingWaves: this.waves?.pendingWaves() ?? []
+            pendingWaves: this.waves?.pendingWaves() ?? [],
+            cleared: this.isRoomCombatComplete
         };
     }
 

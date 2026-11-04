@@ -353,7 +353,8 @@ test('sair pela rota secreta guarda drones vivos, ondas restantes e o item do ba
             patrolLeft: 84,
             patrolRight: 116
         }],
-        pendingWaves: [20]
+        pendingWaves: [20],
+        cleared: false
     });
 });
 
@@ -2399,5 +2400,16 @@ test('multiplayer: convidado adota a semente do anfitrião ao trocar de sala', (
     world.dungeonState = undefined;
     world.handleCoopEvent({ kind: 'room.transition', roomKey: 'dungeon', seed: 333 });
     assert.equal(world.dungeonState.seed, 333);
+});
+
+test('sala vencida fica marcada ao sair para reabrir a saída na volta', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    world.activeRoomKey = 'room1';
+    world.dungeonState = createDungeonSessionState(1);
+    world.drones = [];
+    world.isRoomCombatComplete = true;
+    world.rememberCombatProgress();
+    assert.deepEqual(world.dungeonState.savedCombat.room1, { enemies: [], pendingWaves: [], cleared: true });
 });
 
