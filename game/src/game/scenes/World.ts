@@ -785,7 +785,7 @@ export class World extends Scene {
 
     private openPiranhasMenu() {
         if (
-            !this.player || !this.piranhasBarPrompt?.visible
+            !this.player?.health.isAlive || !this.piranhasBarPrompt?.visible
             || !this.isGameplayReady || this.isGameOver
             || this.isPauseMenuOpen || this.isWaveIntermissionOpen
             || this.hasSelectedPiranhasItem || this.isPiranhasMenuOpen
