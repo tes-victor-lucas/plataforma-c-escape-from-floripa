@@ -65,7 +65,7 @@ test('estado inválido não é retransmitido', () => {
         clientId: 'p1',
         message: {
             type: 'player.state', sequence: 1, x: Infinity, y: 0, facing: 'down',
-            health: 4, maxHealth: 4, reviveProgress: 0
+            health: 4, maxHealth: 4, reviveProgress: 0, revivesLeft: 2
         }
     });
     assert.equal(messagesFor(sent, 'p2', 'player.state').length, 0);
@@ -112,7 +112,7 @@ test('vida acima do máximo invalida o estado do jogador', () => {
         clientId: 'p1',
         message: {
             type: 'player.state', sequence: 1, x: 0, y: 0, facing: 'down',
-            health: 5, maxHealth: 4, reviveProgress: 0
+            health: 5, maxHealth: 4, reviveProgress: 0, revivesLeft: 2
         }
     });
     assert.equal(messagesFor(sent, 'p2', 'player.state').length, 0);
