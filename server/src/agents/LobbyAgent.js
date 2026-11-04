@@ -1,4 +1,5 @@
 const MAX_PLAYERS = 2;
+const PUBLIC_ROOM = 'publica';
 
 /** Mantém salas e aplica o limite de dois jogadores por partida. */
 export class LobbyAgent {
@@ -34,7 +35,8 @@ export class LobbyAgent {
 
     join(clientId, requestedRoomId) {
         if (this.#clientRooms.has(clientId)) return;
-        const roomId = this.normalizeRoomId(requestedRoomId);
+        const normalizedRoomId = this.normalizeRoomId(requestedRoomId);
+        const roomId = normalizedRoomId === PUBLIC_ROOM ? this.findPublicRoomId() : normalizedRoomId;
         const room = this.#rooms.get(roomId) ?? { id: roomId, players: new Set(), ready: false, started: false };
 
         // Quem chega depois não teria inimigos: a partida em andamento segue só com quem ficou.
@@ -79,10 +81,19 @@ export class LobbyAgent {
         });
     }
 
+    /** Sem código de sala, cada dupla nova ganha a próxima sala livre em vez de ser recusada. */
+    findPublicRoomId() {
+        for (let index = 1; ; index += 1) {
+            const roomId = index === 1 ? PUBLIC_ROOM : `${PUBLIC_ROOM}-${index}`;
+            const room = this.#rooms.get(roomId);
+            if (!room || (room.players.size < MAX_PLAYERS && !room.started)) return roomId;
+        }
+    }
+
     normalizeRoomId(value) {
-        if (typeof value !== 'string') return 'publica';
+        if (typeof value !== 'string') return PUBLIC_ROOM;
         const normalized = value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
-        return normalized || 'publica';
+        return normalized || PUBLIC_ROOM;
     }
 
     broadcast(room, message, exceptClientId) {
