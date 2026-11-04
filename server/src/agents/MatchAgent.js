@@ -69,7 +69,7 @@ export class MatchAgent {
     }
 
     sanitizeState(message) {
-        const { sequence, x, y, facing, health, maxHealth, reviveProgress } = message;
+        const { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft } = message;
         if (
             !Number.isSafeInteger(sequence)
             || sequence < 0
@@ -86,8 +86,10 @@ export class MatchAgent {
             || !Number.isFinite(reviveProgress)
             || reviveProgress < 0
             || reviveProgress > 1
+            || !Number.isSafeInteger(revivesLeft)
+            || revivesLeft < 0
         ) return undefined;
 
-        return { sequence, x, y, facing, health, maxHealth, reviveProgress };
+        return { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft };
     }
 }
