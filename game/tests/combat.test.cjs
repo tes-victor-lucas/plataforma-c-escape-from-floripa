@@ -2226,6 +2226,14 @@ test('multiplayer: carta de vida não levanta quem está caído', () => {
     world.upgrades.reset();
 });
 
+test('esconderijo só tem gaúchos e a Sala II recebe um a cada cinco', () => {
+    assert.deepEqual(new Set(getWaveEnemyKinds('gaucho-dungeon', 0, 10)), new Set(['gaucho']));
+    const room2 = getWaveEnemyKinds('room2', 0, 10);
+    assert.deepEqual([room2[4], room2[9]], ['gaucho', 'gaucho']);
+    assert.equal(room2.filter((kind) => kind === 'gaucho').length, 2);
+    assert.equal(new Set(getWaveEnemyKinds('room1', 1, 20)).has('gaucho'), false);
+});
+
 function gauchoAt(callbacks) {
     const { Gaucho } = load('../src/game/entities/Gaucho.ts');
     const world = new ArcadeWorld({ sys: { scale: { width: 800, height: 640 } } }, {});

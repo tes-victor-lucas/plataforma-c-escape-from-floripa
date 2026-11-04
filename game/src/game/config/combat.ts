@@ -90,8 +90,9 @@ const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
         ['drone', 'scooter', 'drone', 'guard', 'drone', 'scooter', 'drone', 'drone', 'scooter', 'guard']
     ],
     room2: [
-        ['guard', 'guard', 'drone', 'scooter', 'drone'],
-        ['drone', 'scooter', 'guard', 'drone', 'scooter']
+        // Um a cada cinco inimigos da Sala II é um gaúcho.
+        ['guard', 'guard', 'drone', 'scooter', 'gaucho'],
+        ['drone', 'scooter', 'guard', 'drone', 'gaucho']
     ],
     dungeon: [
         ['scooter', 'drone', 'guard', 'drone', 'scooter']
