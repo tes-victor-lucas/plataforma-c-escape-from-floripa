@@ -2201,3 +2201,16 @@ test('multiplayer: corpo caído perde a física e volta ao reviver', () => {
     multiplayerClient.disconnect();
 });
 
+test('multiplayer: sem renascimentos o jogador permanece morto', () => {
+    const { world, health, body, multiplayerClient } = downedWorld();
+    multiplayerClient.revivesUsed = COMBAT_CONFIG.multiplayer.maxRevives;
+
+    world.updateRevive(COMBAT_CONFIG.multiplayer.reviveDuration * 2);
+    assert.equal(world.reviveElapsed, 0);
+    world.revivePlayer();
+    assert.equal(health.isAlive, false);
+    assert.equal(body.enable, false);
+    assert.equal(multiplayerClient.revivesUsed, COMBAT_CONFIG.multiplayer.maxRevives);
+    multiplayerClient.disconnect();
+});
+
