@@ -753,7 +753,11 @@ export class World extends Scene {
     private acquireUpgrade(card: UpgradeCardDefinition) {
         if (!this.upgrades.acquire(card)) return;
         if (card.effect.type === 'increase-max-health') {
-            this.player?.health.increaseMax(card.effect.amount, card.effect.healAmount);
+            // Quem está caído só volta pelo reviver, nunca pela cura da carta.
+            this.player?.health.increaseMax(
+                card.effect.amount,
+                this.player.health.isAlive ? card.effect.healAmount : 0
+            );
         }
         this.playerRangeIndicator?.setRadius(this.upgrades.range);
     }
