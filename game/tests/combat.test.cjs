@@ -2170,3 +2170,34 @@ test('multiplayer: anfitrião caído mantém inimigos atirando no parceiro', () 
     assert.equal(sent.length, 1);
     assert.ok(groups[1].shots[0].velocity.y > 0);
 });
+
+function downedWorld() {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { multiplayerClient } = load('../src/game/network/MultiplayerClient.ts');
+    const world = new World();
+    world.registry = { get: (key) => key === 'multiplayerEnabled' };
+    const health = new Health(4);
+    health.takeDamage(4);
+    const body = { enable: true, center: { x: 0, y: 0 } };
+    const sprite = { x: 0, y: 0, body, setAngle() { return this; } };
+    world.player = {
+        health, sprite,
+        revive(amount) { health.heal(amount); body.enable = true; }
+    };
+    world.remotePlayers.set('parceiro', { isAlive: true, feet: { x: 0, y: 0 } });
+    return { world, health, body, multiplayerClient };
+}
+
+test('multiplayer: corpo caído perde a física e volta ao reviver', () => {
+    const { world, health, body, multiplayerClient } = downedWorld();
+    multiplayerClient.revivesUsed = 0;
+
+    world.updateRevive(16);
+    assert.equal(body.enable, false);
+    world.updateRevive(COMBAT_CONFIG.multiplayer.reviveDuration);
+    assert.equal(health.isAlive, true);
+    assert.equal(body.enable, true);
+    assert.equal(multiplayerClient.revivesUsed, 1);
+    multiplayerClient.disconnect();
+});
+
