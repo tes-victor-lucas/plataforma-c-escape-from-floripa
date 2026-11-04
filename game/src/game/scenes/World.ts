@@ -272,9 +272,15 @@ export class World extends Scene {
             room.collisionLayers,
             this.upgrades,
             runTracker,
-            () => this.playHitStop()
+            () => this.playHitStop(),
+            roomKey === 'gaucho-dungeon'
         );
         this.connectCombatToPartner();
+        if (roomKey === 'gaucho-dungeon') {
+            // Cada jogador tem a sua espada, então o item só existe para quem ainda não pegou.
+            if (this.dungeonState?.swordCollected) this.combat.equipSword();
+            else this.createSwordPickup();
+        }
         const finishRoomCombat = () => {
             if (this.isCoopActive() && this.player && !this.player.health.isAlive) this.revivePlayer();
             if (this.player?.health.isAlive) this.upgrades.repairAfterRoom(this.player.health);
@@ -340,6 +346,8 @@ export class World extends Scene {
         this.normalCameraZoom = this.cameras.main.zoom;
         this.lowHealthFilter = this.cameras.main.filters.internal.addColorMatrix();
         this.input.keyboard?.on('keydown-P', this.openPauseMenu, this);
+        this.input.mouse?.disableContextMenu();
+        this.input.on('pointerdown', this.handleSwordPointer, this);
         this.input.keyboard?.on('keydown-G', this.openPiranhasMenu, this);
         this.input.keyboard?.on('keydown', this.handleSecretCodeKey, this);
         this.events.on(Phaser.Scenes.Events.RESUME, this.resetPauseMenuState, this);
@@ -516,6 +524,29 @@ export class World extends Scene {
         if (!hitLocal) return;
         const { duration, intensity } = COMBAT_CONFIG.gaucho.strikeShake;
         this.cameras.main.shake(duration, intensity);
+    }
+
+    /** Botão direito golpeia para onde o personagem olha; só tem efeito na sala corpo a corpo. */
+    private handleSwordPointer(pointer: Phaser.Input.Pointer) {
+        if (
+            !pointer.rightButtonDown() || !this.player || !this.isGameplayReady || this.isGameOver
+            || this.isPauseMenuOpen || this.isWaveIntermissionOpen
+        ) return;
+        this.combat?.swing();
+    }
+
+    /** A espada fica no chão logo ao lado de onde o jogador chega ao esconderijo. */
+    private createSwordPickup() {
+        if (!this.player) return;
+        // Perto dos pés, onde fica a hitbox do jogador; a primeira sala não tem obstáculos perto do centro.
+        const { x, y } = this.player.sprite;
+        const item = this.physics.add.image(x + 28, y + 8, 'sword').setDepth(9);
+        const pickup = this.physics.add.overlap(this.player.sprite, item, () => {
+            pickup.destroy();
+            item.destroy();
+            if (this.dungeonState) this.dungeonState.swordCollected = true;
+            this.combat?.equipSword();
+        });
     }
 
     /** O anfitrião sorteia o chimarrão, e o item aparece para os dois jogadores. */
@@ -849,7 +880,7 @@ export class World extends Scene {
                 this.player.health.isAlive ? card.effect.healAmount : 0
             );
         }
-        this.playerRangeIndicator?.setRadius(this.upgrades.range);
+        if (this.activeRoomKey !== 'gaucho-dungeon') this.playerRangeIndicator?.setRadius(this.upgrades.range);
     }
 
     private createPiranhasBarPrompt() {
@@ -971,7 +1002,9 @@ export class World extends Scene {
     }
 
     private createPlayerRangeIndicator() {
-        const { range } = COMBAT_CONFIG.player;
+        const range = this.activeRoomKey === 'gaucho-dungeon'
+            ? COMBAT_CONFIG.melee.range
+            : COMBAT_CONFIG.player.range;
         const { color, fillAlpha, strokeAlpha, strokeWidth } = COMBAT_CONFIG.rangeIndicator;
         this.playerRangeIndicator = this.add.circle(0, 0, range, color, fillAlpha)
             .setStrokeStyle(strokeWidth, color, strokeAlpha)
@@ -1037,6 +1070,7 @@ export class World extends Scene {
         this.cardRelease = undefined;
         this.droppedItems.clear();
         this.input.keyboard?.off('keydown-P', this.openPauseMenu, this);
+        this.input.off('pointerdown', this.handleSwordPointer, this);
         this.input.keyboard?.off('keydown-G', this.openPiranhasMenu, this);
         this.input.keyboard?.off('keydown', this.handleSecretCodeKey, this);
         this.events.off(Phaser.Scenes.Events.RESUME, this.resetPauseMenuState, this);
@@ -1091,6 +1125,7 @@ export class World extends Scene {
             onPlayerShot: (x, y, angle, speed, color) => multiplayerClient.sendEvent({
                 kind: 'player.shot', x, y, angle, speed, color
             }),
+            onPlayerSwing: (x, y, angle) => multiplayerClient.sendEvent({ kind: 'player.swing', x, y, angle }),
             onEnemyHit: (enemy, damage, direction) => multiplayerClient.sendEvent({
                 kind: 'enemy.hit',
                 index: this.drones.indexOf(enemy),
@@ -1291,6 +1326,9 @@ export class World extends Scene {
             }
             case 'player.shot':
                 this.combat?.spawnPartnerShot(event.x, event.y, event.angle, event.speed, event.color);
+                break;
+            case 'player.swing':
+                this.combat?.playPartnerSwing(event.x, event.y, event.angle);
                 break;
             case 'player.damage':
                 this.player?.takeDamage(event.amount);

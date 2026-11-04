@@ -49,6 +49,17 @@ export const COMBAT_CONFIG = {
         shieldDamageMultiplier: 0.25,
         shieldArcDot: -0.55
     },
+    // Espada do esconderijo dos gaúchos: arco de 120° para onde o personagem olha.
+    // damageMultiplier sobre o dano do tiro (com cartas): 1,5 derruba um gaúcho em 2 golpes.
+    melee: {
+        range: 36,
+        arc: Math.PI * 2 / 3,
+        interval: 450,
+        swingDuration: 140,
+        damageMultiplier: 1.5,
+        // Clique dado nesse final da recarga fica guardado e sai assim que ela termina.
+        bufferWindow: 150
+    },
     gaucho: {
         maxHealth: PLAYER_COMBAT_STATS.maxHealth,
         range: 20,

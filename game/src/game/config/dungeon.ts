@@ -24,6 +24,7 @@ export type SavedRoomCombat = Readonly<{
 export type DungeonSessionState = {
     seed: number;
     rewardClaimed: boolean;
+    swordCollected: boolean;
     piranhasItemConsumed: boolean;
     savedCombat: Partial<Record<RoomKey, SavedRoomCombat>>;
 };
@@ -34,6 +35,7 @@ export function createDungeonSessionState(
     return {
         seed: seed >>> 0,
         rewardClaimed: false,
+        swordCollected: false,
         piranhasItemConsumed: false,
         savedCombat: {}
     };

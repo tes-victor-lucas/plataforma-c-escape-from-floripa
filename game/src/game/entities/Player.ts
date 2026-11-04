@@ -34,6 +34,8 @@ export class Player {
     );
     private readonly footsteps: FootstepAudio;
     private facing: Direction = 'down';
+    /** Última direção pedida pelo teclado; muda na hora, antes de a velocidade inverter. */
+    private aimDirection: { x: number; y: number } = { x: 0, y: 1 };
     private movementSpeedMultiplier = 1;
     private controlsInverted = false;
     /**
@@ -88,6 +90,7 @@ export class Player {
         const direction = this.getMovementDirection();
         const { x, y } = direction;
         const isReceivingMovementInput = x !== 0 || y !== 0;
+        if (isReceivingMovementInput) this.aimDirection = direction;
 
         if (Phaser.Input.Keyboard.JustDown(this.dashKey)) {
             const dashDirection = isReceivingMovementInput
@@ -138,6 +141,10 @@ export class Player {
         if (this.sprite.anims.currentAnim?.key !== animationKey || !this.sprite.anims.isPlaying) {
             this.playWalkAnimation(animationKey);
         }
+    }
+
+    getAimDirection() {
+        return this.aimDirection;
     }
 
     getNetworkState() {
