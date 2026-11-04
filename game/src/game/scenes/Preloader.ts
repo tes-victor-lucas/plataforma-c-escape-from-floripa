@@ -70,6 +70,16 @@ export class Preloader extends Scene {
             { frameWidth: 32, frameHeight: 32 }
         );
 
+        this.load.spritesheet(
+            'gaucho-walk',
+            'assets/enemies/gaucho-escape/gaucho_robotico/walk.png',
+            { frameWidth: 32, frameHeight: 40 }
+        );
+        this.load.image('chimarrao', 'assets/items/chimarrao.png');
+        this.load.image('manhole', 'assets/props/manhole.png');
+        this.load.image('sword', 'assets/items/sword.png');
+        this.load.spritesheet('sword-hit', 'assets/effects/sword-hit.png', { frameWidth: 18, frameHeight: 16 });
+
         this.load.spritesheet(DRONE_EXPLOSION.texture, DRONE_EXPLOSION.path, {
             frameWidth: DRONE_EXPLOSION.frameWidth,
             frameHeight: DRONE_EXPLOSION.frameHeight

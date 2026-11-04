@@ -16,12 +16,15 @@ export type DungeonEnemyState = Readonly<{
 export type SavedRoomCombat = Readonly<{
     enemies: readonly DungeonEnemyState[];
     pendingWaves: readonly number[];
+    /** A sala já foi vencida: reabre a saída sem repetir combate nem recompensa. */
+    cleared: boolean;
 }>;
 
 /** Estado carregado entre a dungeon e a fase 2 durante a mesma partida. */
 export type DungeonSessionState = {
     seed: number;
     rewardClaimed: boolean;
+    swordCollected: boolean;
     piranhasItemConsumed: boolean;
     savedCombat: Partial<Record<RoomKey, SavedRoomCombat>>;
 };
@@ -32,6 +35,7 @@ export function createDungeonSessionState(
     return {
         seed: seed >>> 0,
         rewardClaimed: false,
+        swordCollected: false,
         piranhasItemConsumed: false,
         savedCombat: {}
     };

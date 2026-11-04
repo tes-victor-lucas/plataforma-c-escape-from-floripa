@@ -17,10 +17,18 @@ export const ROOM1_TO_ROOM2_GATEWAY: RoomGatewayDefinition = {
     portal: { x: 11 * 16, y: 0.25 * 16 }
 };
 
+/** Passagem para uma dungeon: sem parede, basta pisar na área (bueiro); com parede, é preciso encostar nela. */
+export type SecretDungeonGateway = RoomGatewayDefinition & {
+    wall?: 'left' | 'right';
+    returnSpawn: Readonly<{ x: number; y: number }>;
+};
+
 /** Fresta escondida na última parede, e não em toda a lateral do Terminal Velho. */
-export const ROOM2_TO_DUNGEON_GATEWAY: RoomGatewayDefinition = {
+export const ROOM2_TO_DUNGEON_GATEWAY: SecretDungeonGateway = {
     from: 'room2',
     to: 'dungeon',
+    wall: 'right',
+    returnSpawn: { x: 43.5 * 16, y: 28 * 16 },
     area: {
         left: 44 * 16,
         right: 45 * 16,
@@ -30,7 +38,22 @@ export const ROOM2_TO_DUNGEON_GATEWAY: RoomGatewayDefinition = {
     portal: { x: 45 * 16 - 2, y: 28 * 16 }
 };
 
-export const DUNGEON_RETURN_SPAWN = { x: 43.5 * 16, y: 28 * 16 } as const;
+/** Bueiro de 2×2 blocos no chão da Room 1; pisar na tampa (sem o aro) leva ao esconderijo. */
+export const ROOM1_TO_GAUCHO_DUNGEON_GATEWAY: SecretDungeonGateway = {
+    from: 'room1',
+    to: 'gaucho-dungeon',
+    returnSpawn: { x: 9 * 16, y: 26.5 * 16 },
+    // A área é testada contra os pés do jogador, que ficam numa hitbox de poucos pixels.
+    area: {
+        left: 7 * 16 - 12,
+        right: 7 * 16 + 12,
+        top: 26.5 * 16 - 12,
+        bottom: 26.5 * 16 + 12
+    },
+    portal: { x: 7 * 16, y: 26.5 * 16 }
+};
+
+export const SECRET_DUNGEON_GATEWAYS = [ROOM2_TO_DUNGEON_GATEWAY, ROOM1_TO_GAUCHO_DUNGEON_GATEWAY];
 
 export function isInsideRoomGateway(
     x: number,
@@ -44,9 +67,10 @@ export function isInsideRoomGateway(
 export function isTouchingSecretDungeonEntrance(
     x: number,
     y: number,
-    isBlockedOnRight: boolean
+    isBlockedAgainstWall: boolean,
+    gateway: SecretDungeonGateway = ROOM2_TO_DUNGEON_GATEWAY
 ) {
-    return isBlockedOnRight && isInsideRoomGateway(x, y, ROOM2_TO_DUNGEON_GATEWAY);
+    return isBlockedAgainstWall && isInsideRoomGateway(x, y, gateway);
 }
 
 export function isTouchingDungeonReturn(

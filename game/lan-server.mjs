@@ -38,6 +38,8 @@ async function buildGame() {
         defaultConfig: path.join(gameDirectory, 'node_modules', '@parcel', 'config-default', 'index.json'),
         mode: 'development',
         shouldPatchConsole: false,
+        // Com cache, o clean-dist apaga bundles e o index.html pode continuar apontando para eles.
+        shouldDisableCache: true,
         defaultTargetOptions: {
             distDir: distDirectory,
             publicUrl: '/',

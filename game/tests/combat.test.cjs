@@ -90,6 +90,7 @@ const {
     isInsideRoomGateway,
     isTouchingDungeonReturn,
     isTouchingSecretDungeonEntrance,
+    ROOM1_TO_GAUCHO_DUNGEON_GATEWAY,
     ROOM1_TO_ROOM2_GATEWAY,
     ROOM2_TO_DUNGEON_GATEWAY
 } = load('../src/game/config/roomGateway.ts');
@@ -352,7 +353,8 @@ test('sair pela rota secreta guarda drones vivos, ondas restantes e o item do ba
             patrolLeft: 84,
             patrolRight: 116
         }],
-        pendingWaves: [20]
+        pendingWaves: [20],
+        cleared: false
     });
 });
 
@@ -417,6 +419,7 @@ test('itens do Piranhas aplicam velocidade, coração extra e efeito do cookie',
     world.player = {
         health,
         setMovementSpeedMultiplier(value) { speedMultiplier = value; },
+        getMovementSpeedMultiplier() { return speedMultiplier; },
         setControlsInverted(value) { controlsInverted = value; }
     };
     world.physics = { resume() { resumes++; } };
@@ -456,7 +459,7 @@ function fighter(x, y, maxHealth, id = 'fighter') {
         takeDamage(amount) { health.takeDamage(amount); }
     };
 }
-function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUpgradeState(), tracker) {
+function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUpgradeState(), tracker, melee = false) {
     const player = fighter(100, 100, COMBAT_CONFIG.player.maxHealth, 'player');
     const drones = positions.map(([x, y], index) =>
         fighter(x, y, COMBAT_CONFIG.drone.maxHealth, `enemy-${index}`));
@@ -480,6 +483,16 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
         sound: { play() {} },
         tweens: { add() {} },
         add: {
+            image() {
+                return {
+                    setOrigin() { return this; },
+                    setDepth() { return this; },
+                    setRotation() { return this; },
+                    setScale() { return this; },
+                    setPosition() { return this; },
+                    setVisible() { return this; }
+                };
+            },
             sprite(x, y, texture, frame) {
                 const companion = {
                     x, y, texture, frame,
@@ -546,7 +559,7 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
         }
     };
     const walls = [{ getTilesWithinWorldXY: () => wallTiles }];
-    const combat = new CombatSystem(scene, player, drones, walls, upgrades, tracker);
+    const combat = new CombatSystem(scene, player, drones, walls, upgrades, tracker, undefined, melee);
     return { combat, player, drones, groups, colliders, overlaps, attachBody, damageLabels, companions };
 }
 
@@ -1113,6 +1126,7 @@ test('reparo escolhido na recompensa da dungeon cura na própria conclusão', ()
     world.combat = { clear() {} };
     world.physics = { pause() {}, resume() {} };
     world.scene = { get: () => ({ add: { container: () => root } }) };
+    world.activeRoomKey = 'dungeon';
     world.isGameplayReady = true;
 
     UpgradeSelectionView.prototype.play = function (onSelect) {
@@ -1750,7 +1764,7 @@ test('encerramento do mundo não falha quando a câmera já foi removida', () =>
     const stopped = [];
     world.scene = { stop(key) { stopped.push(key); } };
     world.cameras = { main: undefined };
-    world.input = {};
+    world.input = { off() {} };
     world.events = { off() {} };
     const previousPhaser = global.Phaser;
     global.Phaser = { Scenes: { Events: { RESUME: 'resume' } } };
@@ -2067,4 +2081,441 @@ test('menu usa o layout central, e o lateral somente com ?telas', () => {
     const textures = Object.values(MENU_CONFIG.layouts)
         .flatMap((layout) => layout.backgrounds.map(({ texture }) => texture));
     assert.equal(new Set(textures).size, textures.length);
+});
+
+test('multiplayer: inimigo mira o jogador vivo mais próximo', () => {
+    const { nearestLivingTarget } = load('../src/game/network/coop.ts');
+    const target = (x, isAlive = true) => ({
+        health: { isAlive },
+        sprite: { body: { center: { x, y: 0 } } },
+        takeDamage() {}
+    });
+    const near = target(10, false);
+    const middle = target(20);
+    const far = target(90);
+
+    assert.equal(nearestLivingTarget({ x: 0, y: 0 }, [far, near, middle]), middle);
+    assert.equal(nearestLivingTarget({ x: 0, y: 0 }, [near]), undefined);
+});
+
+test('multiplayer: reviver exige o parceiro por perto e recomeça ao sair', () => {
+    const { advanceRevive, isWithinReviveRadius } = load('../src/game/network/coop.ts');
+    const { multiplayer } = COMBAT_CONFIG;
+
+    assert.equal(multiplayer.reviveDuration, 5000);
+    assert.equal(advanceRevive(4000, 16, true), 4016);
+    assert.equal(advanceRevive(4000, 16, false), 0);
+    assert.equal(isWithinReviveRadius({ x: 0, y: 0 }, { x: multiplayer.reviveRadius, y: 0 }), true);
+    assert.equal(isWithinReviveRadius({ x: 0, y: 0 }, { x: multiplayer.reviveRadius + 1, y: 0 }), false);
+});
+
+test('multiplayer: cartas só liberam após as duas escolhas, em qualquer ordem', () => {
+    const { CardBarrier } = load('../src/game/network/coop.ts');
+    const barrier = new CardBarrier();
+    let releases = 0;
+
+    barrier.open();
+    barrier.chooseLocal(() => { releases += 1; });
+    assert.equal(barrier.isWaitingForPeer, true);
+    assert.equal(releases, 0);
+    barrier.choosePeer();
+    assert.equal(releases, 1);
+    assert.equal(barrier.isWaitingForPeer, false);
+
+    barrier.open();
+    barrier.choosePeer();
+    assert.equal(releases, 1);
+    barrier.chooseLocal(() => { releases += 1; });
+    assert.equal(releases, 2);
+    barrier.choosePeer();
+    assert.equal(releases, 2);
+});
+
+test('multiplayer: vida de inimigo só desce e o estado vazio derruba o inimigo', () => {
+    const { applyEnemySnapshotHealth } = load('../src/game/network/coop.ts');
+    const enemy = {
+        health: { current: 6, get isAlive() { return this.current > 0; } },
+        takeDamage(amount) { this.health.current -= amount; return amount; }
+    };
+
+    assert.equal(applyEnemySnapshotHealth(enemy, [0, 0, 8, 0, 0]), 0);
+    assert.equal(enemy.health.current, 6);
+    assert.equal(applyEnemySnapshotHealth(enemy, [0, 0, 4, 0, 0]), 2);
+    assert.equal(applyEnemySnapshotHealth(enemy, null), 4);
+    assert.equal(enemy.health.isAlive, false);
+});
+
+test('multiplayer: convidado não decide dano nem dispara pelos inimigos', () => {
+    const { combat, groups, drones, overlaps } = setup([[150, 100]]);
+    const hits = [];
+    combat.setNetwork({
+        isHost: false,
+        getEnemyTarget: () => undefined,
+        onEnemyShot() {},
+        onPlayerShot() {},
+        onEnemyHit: (enemy, damage) => hits.push({ enemy, damage })
+    });
+
+    combat.update(COMBAT_CONFIG.drone.fireInterval);
+    assert.equal(groups[1].shots.length, 0);
+    assert.equal(groups[0].shots.length, 1);
+    const health = drones[0].health.current;
+    overlaps[0].hit(groups[0].shots[0]);
+    assert.equal(drones[0].health.current, health);
+    assert.deepEqual(hits, [{ enemy: drones[0], damage: COMBAT_CONFIG.player.damage }]);
+});
+
+test('multiplayer: anfitrião caído mantém inimigos atirando no parceiro', () => {
+    const { combat, groups, player } = setup([[150, 100]]);
+    const partner = { health: { isAlive: true }, sprite: { body: { center: { x: 150, y: 150 } } } };
+    const sent = [];
+    combat.setNetwork({
+        isHost: true,
+        getEnemyTarget: () => partner,
+        onEnemyShot: (x, y, angle) => sent.push(angle),
+        onPlayerShot() {},
+        onEnemyHit() {}
+    });
+    player.takeDamage(player.health.current);
+
+    combat.update(COMBAT_CONFIG.drone.fireInterval);
+    assert.equal(groups[0].shots.length, 0);
+    assert.equal(groups[1].shots.length, 1);
+    assert.equal(sent.length, 1);
+    assert.ok(groups[1].shots[0].velocity.y > 0);
+});
+
+function downedWorld() {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { multiplayerClient } = load('../src/game/network/MultiplayerClient.ts');
+    const world = new World();
+    world.registry = { get: (key) => key === 'multiplayerEnabled' };
+    const health = new Health(4);
+    health.takeDamage(4);
+    const body = { enable: true, center: { x: 0, y: 0 } };
+    const sprite = { x: 0, y: 0, body, setAngle() { return this; } };
+    world.player = {
+        health, sprite,
+        revive(amount) { health.heal(amount); body.enable = true; }
+    };
+    world.remotePlayers.set('parceiro', { isAlive: true, feet: { x: 0, y: 0 } });
+    return { world, health, body, multiplayerClient };
+}
+
+test('multiplayer: corpo caído perde a física e volta ao reviver', () => {
+    const { world, health, body, multiplayerClient } = downedWorld();
+    multiplayerClient.revivesUsed = 0;
+
+    world.updateRevive(16);
+    assert.equal(body.enable, false);
+    world.updateRevive(COMBAT_CONFIG.multiplayer.reviveDuration);
+    assert.equal(health.isAlive, true);
+    assert.equal(body.enable, true);
+    assert.equal(multiplayerClient.revivesUsed, 1);
+    multiplayerClient.disconnect();
+});
+
+test('multiplayer: sem renascimentos o jogador permanece morto', () => {
+    const { world, health, body, multiplayerClient } = downedWorld();
+    multiplayerClient.revivesUsed = COMBAT_CONFIG.multiplayer.maxRevives;
+
+    world.updateRevive(COMBAT_CONFIG.multiplayer.reviveDuration * 2);
+    assert.equal(world.reviveElapsed, 0);
+    world.revivePlayer();
+    assert.equal(health.isAlive, false);
+    assert.equal(body.enable, false);
+    assert.equal(multiplayerClient.revivesUsed, COMBAT_CONFIG.multiplayer.maxRevives);
+    multiplayerClient.disconnect();
+});
+
+test('multiplayer: carta de vida não levanta quem está caído', () => {
+    const { world, health } = downedWorld();
+    world.upgrades.reset();
+    const card = world.upgrades.availableCards().find(({ effect }) => effect.type === 'increase-max-health');
+
+    world.acquireUpgrade(card);
+    assert.equal(health.isAlive, false);
+    assert.equal(health.max, 4 + card.effect.amount);
+    world.upgrades.reset();
+});
+
+test('bueiro da Room 1 leva ao esconderijo dos gaúchos sem precisar de parede', () => {
+    const gateway = ROOM1_TO_GAUCHO_DUNGEON_GATEWAY;
+    const x = (gateway.area.left + gateway.area.right) / 2;
+    const y = (gateway.area.top + gateway.area.bottom) / 2;
+    assert.equal(gateway.to, 'gaucho-dungeon');
+    assert.equal(gateway.wall, undefined);
+    assert.equal(isInsideRoomGateway(gateway.returnSpawn.x, gateway.returnSpawn.y + 11, gateway), false);
+    assert.equal(isTouchingSecretDungeonEntrance(x, y, true, gateway), true);
+    assert.equal(isTouchingSecretDungeonEntrance(x, y, true), false);
+    assert.equal(getRequestedRoomKey('?room=gaucho-dungeon'), 'gaucho-dungeon');
+});
+
+test('esconderijo só tem gaúchos e a Sala II recebe um a cada cinco', () => {
+    assert.deepEqual(new Set(getWaveEnemyKinds('gaucho-dungeon', 0, 10)), new Set(['gaucho']));
+    const room2 = getWaveEnemyKinds('room2', 0, 10);
+    assert.deepEqual([room2[4], room2[9]], ['gaucho', 'gaucho']);
+    assert.equal(room2.filter((kind) => kind === 'gaucho').length, 2);
+    assert.equal(new Set(getWaveEnemyKinds('room1', 1, 20)).has('gaucho'), false);
+});
+
+function gauchoAt(callbacks) {
+    const { Gaucho } = load('../src/game/entities/Gaucho.ts');
+    const world = new ArcadeWorld({ sys: { scale: { width: 800, height: 640 } } }, {});
+    const sprite = {
+        x: 300, y: 208, active: true, body: new ArcadeBody(world),
+        setScale() { return this; }, setDepth() { return this; }, setCollideWorldBounds() { return this; },
+        play() {}, setTint() {}, clearTint() {},
+        disableBody() { this.active = false; this.body.enable = false; }
+    };
+    const graphics = { clear() { return this; }, fillStyle() { return this; }, fillRect() { return this; }, setDepth() { return this; } };
+    const scene = {
+        sound: { play() {} },
+        cameras: { main: { shake() {} } },
+        physics: { add: { sprite: () => sprite } },
+        anims: {
+            exists: () => true,
+            generateFrameNumbers: () => [],
+            create() {}
+        },
+        time: { delayedCall() {} },
+        add: {
+            graphics: () => graphics,
+            sprite: () => Object.assign(new (require('node:events').EventEmitter)(), {
+                setDepth() { return this; }, play() {}, destroy() {}
+            })
+        }
+    };
+    const gaucho = new Gaucho(
+        scene,
+        { x: 300, y: 208, patrolLeft: 260, patrolRight: 360 },
+        [{ getTilesWithinWorldXY: () => [] }],
+        callbacks
+    );
+    sprite.body.position.set(sprite.x - sprite.body.halfWidth, sprite.y - sprite.body.halfHeight);
+    sprite.body.updateCenter();
+    const playerAt = (dx) => fighter(sprite.body.center.x + dx, sprite.body.center.y, COMBAT_CONFIG.player.maxHealth);
+    return { gaucho, sprite, playerAt };
+}
+
+test('gaúcho bate de perto respeitando o intervalo e não acerta quem está longe', () => {
+    const strikes = [];
+    const { gaucho, playerAt } = gauchoAt({ onStrike: (target) => strikes.push(target) });
+    const far = playerAt(COMBAT_CONFIG.gaucho.range + 5);
+    gaucho.update(far, 16);
+    assert.equal(far.health.current, COMBAT_CONFIG.player.maxHealth);
+
+    const near = playerAt(COMBAT_CONFIG.gaucho.range - 5);
+    gaucho.update(near, 16);
+    assert.equal(near.health.current, COMBAT_CONFIG.player.maxHealth - COMBAT_CONFIG.gaucho.damage);
+    assert.deepEqual(strikes, [near]);
+
+    gaucho.update(near, COMBAT_CONFIG.gaucho.attackInterval / 2);
+    assert.equal(near.health.current, COMBAT_CONFIG.player.maxHealth - COMBAT_CONFIG.gaucho.damage);
+    gaucho.update(near, COMBAT_CONFIG.gaucho.attackInterval);
+    assert.equal(near.health.current, COMBAT_CONFIG.player.maxHealth - 2 * COMBAT_CONFIG.gaucho.damage);
+});
+
+test('gaúcho ignora jogador caído e avisa onde morreu', () => {
+    const defeats = [];
+    const { gaucho, sprite, playerAt } = gauchoAt({ onDefeated: (x, y) => defeats.push([x, y]) });
+    const down = playerAt(5);
+    down.takeDamage(down.health.current);
+    gaucho.update(down, 16);
+    assert.equal(sprite.body.velocity.y, 0);
+
+    gaucho.takeDamage(gaucho.health.current);
+    gaucho.takeDamage(1);
+    assert.deepEqual(defeats, [[sprite.body.center.x, sprite.body.center.y]]);
+    assert.equal(sprite.active, false);
+});
+
+test('espada acerta só quem está no arco e no alcance, sem tiro automático', () => {
+    const { combat, player, drones, groups } = setup(
+        [[125, 100], [75, 100], [180, 100]],
+        [],
+        new PlayerUpgradeState(),
+        undefined,
+        true
+    );
+    const [front, behind, far] = drones;
+    const { maxHealth } = COMBAT_CONFIG.drone;
+    const swordDamage = COMBAT_CONFIG.player.damage * COMBAT_CONFIG.melee.damageMultiplier;
+    player.getAimDirection = () => ({ x: 1, y: 0 });
+
+    combat.update(1_000);
+    assert.equal(groups[0].getLength(), 0);
+
+    assert.equal(combat.swing(0), false);
+    combat.equipSword();
+    assert.equal(combat.swing(0), true);
+    assert.equal(front.health.current, maxHealth - swordDamage);
+    assert.equal(behind.health.current, maxHealth);
+    assert.equal(far.health.current, maxHealth);
+
+    assert.equal(combat.swing(0), false);
+    combat.update(COMBAT_CONFIG.melee.interval);
+    assert.equal(combat.swing(Math.PI), true);
+    assert.equal(behind.health.current, maxHealth - swordDamage);
+
+    // Clique no fim da recarga sai sozinho, na direção para onde o personagem olha agora.
+    combat.update(COMBAT_CONFIG.melee.interval - COMBAT_CONFIG.melee.bufferWindow / 2);
+    assert.equal(combat.swing(), false);
+    combat.update(COMBAT_CONFIG.melee.bufferWindow);
+    assert.equal(front.health.isAlive, false);
+});
+
+test('espada não funciona nas salas com tiro', () => {
+    const { combat, drones } = setup([[125, 100]]);
+    combat.equipSword();
+    assert.equal(combat.swing(0), false);
+    assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth);
+});
+
+function coopNetwork(isHost, record) {
+    return {
+        isHost,
+        getEnemyTarget() {},
+        onEnemyShot() {},
+        onPlayerShot() {},
+        onPlayerSwing: (x, y, angle) => record.swings.push({ x, y, angle }),
+        onEnemyHit: (enemy, damage, direction) => record.hits.push({ enemy, damage, direction })
+    };
+}
+
+test('multiplayer: golpe do convidado vai ao anfitrião e não aplica dano local', () => {
+    const { combat, drones, player } = setup([[125, 100]], [], new PlayerUpgradeState(), undefined, true);
+    player.getAimDirection = () => ({ x: 1, y: 0 });
+    const record = { swings: [], hits: [] };
+    combat.setNetwork(coopNetwork(false, record));
+    combat.equipSword();
+
+    assert.equal(combat.swing(0), true);
+    assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth);
+    assert.equal(record.swings.length, 1);
+    assert.equal(record.hits.length, 1);
+    assert.equal(record.hits[0].enemy, drones[0]);
+    assert.equal(record.hits[0].damage, COMBAT_CONFIG.player.damage * COMBAT_CONFIG.melee.damageMultiplier);
+    assert.deepEqual(record.hits[0].direction, { x: 1, y: 0 });
+});
+
+test('multiplayer: golpe do anfitrião causa dano e só avisa o parceiro do movimento', () => {
+    const { combat, drones, player } = setup([[125, 100]], [], new PlayerUpgradeState(), undefined, true);
+    player.getAimDirection = () => ({ x: 1, y: 0 });
+    const record = { swings: [], hits: [] };
+    combat.setNetwork(coopNetwork(true, record));
+    combat.equipSword();
+
+    combat.swing(0);
+    assert.ok(drones[0].health.current < COMBAT_CONFIG.drone.maxHealth);
+    assert.equal(record.swings.length, 1);
+    assert.equal(record.hits.length, 0);
+});
+
+function itemWorld() {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { Player } = load('../src/game/entities/Player.ts');
+    const { multiplayerClient } = load('../src/game/network/MultiplayerClient.ts');
+    const world = new World();
+    const player = Object.create(Player.prototype);
+    player.movementSpeedMultiplier = 1;
+    player.sprite = {};
+    world.player = player;
+    const pickups = [];
+    world.physics = {
+        add: {
+            image() { return { setDepth() { return this; }, destroy() { this.destroyed = true; } }; },
+            overlap(_player, _item, callback) { pickups.push(callback); return { destroy() {} }; }
+        }
+    };
+    const sent = [];
+    const originalSend = multiplayerClient.sendEvent;
+    multiplayerClient.sendEvent = (event) => sent.push(event);
+    const restore = () => { multiplayerClient.sendEvent = originalSend; multiplayerClient.disconnect(); };
+    return { world, player, pickups, sent, multiplayerClient, restore };
+}
+
+test('chimarrão de gaúcho aumenta a velocidade de forma permanente até o teto', () => {
+    const { world, player, pickups, restore } = itemWorld();
+    world.dropChimarrao(0, 0, () => 0.99);
+    assert.equal(pickups.length, 0);
+
+    world.dropChimarrao(0, 0, () => 0);
+    pickups.pop()();
+    assert.equal(player.getMovementSpeedMultiplier(), 1 + WORLD_CONFIG.chimarrao.speedBonus);
+
+    for (let i = 0; i < 20; i++) {
+        world.dropChimarrao(0, 0, () => 0);
+        pickups.pop()();
+    }
+    assert.equal(player.getMovementSpeedMultiplier(), WORLD_CONFIG.player.maxSpeedMultiplier);
+    restore();
+});
+
+test('multiplayer: só o anfitrião sorteia o chimarrão e quem pega primeiro fica com ele', () => {
+    const { world, player, pickups, sent, multiplayerClient, restore } = itemWorld();
+    world.registry = { get: (key) => key === 'multiplayerEnabled' };
+
+    Object.defineProperty(multiplayerClient, 'isHost', { configurable: true, value: false });
+    world.dropChimarrao(10, 20, () => 0);
+    assert.equal(pickups.length, 0);
+    assert.equal(sent.length, 0);
+
+    Object.defineProperty(multiplayerClient, 'isHost', { configurable: true, value: true });
+    world.dropChimarrao(10, 20, () => 0);
+    assert.deepEqual(sent, [{ kind: 'item.drop', id: 1, x: 10, y: 20 }]);
+
+    // O parceiro pegou antes: o item some aqui e não dá bônus.
+    world.handleCoopEvent({ kind: 'item.collected', id: 1 });
+    assert.equal(world.droppedItems.size, 0);
+    assert.equal(player.getMovementSpeedMultiplier(), 1);
+
+    world.handleCoopEvent({ kind: 'item.drop', id: 2, x: 0, y: 0 });
+    sent.length = 0;
+    pickups.pop()();
+    assert.deepEqual(sent, [{ kind: 'item.collected', id: 2 }]);
+    assert.equal(player.getMovementSpeedMultiplier(), 1 + WORLD_CONFIG.chimarrao.speedBonus);
+    delete multiplayerClient.isHost;
+    restore();
+});
+
+test('multiplayer: convidado adota a semente do anfitrião ao trocar de sala', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const transitions = [];
+    world.beginRoomTransition = (roomKey, options) => transitions.push({ roomKey, options });
+    world.dungeonState = createDungeonSessionState(111);
+
+    world.handleCoopEvent({ kind: 'room.transition', roomKey: 'gaucho-dungeon', seed: 222 });
+    assert.equal(world.dungeonState.seed, 222);
+    assert.equal(transitions[0].options.dungeonState, world.dungeonState);
+
+    world.dungeonState = undefined;
+    world.handleCoopEvent({ kind: 'room.transition', roomKey: 'dungeon', seed: 333 });
+    assert.equal(world.dungeonState.seed, 333);
+});
+
+test('sala vencida fica marcada ao sair para reabrir a saída na volta', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    world.activeRoomKey = 'room1';
+    world.dungeonState = createDungeonSessionState(1);
+    world.drones = [];
+    world.isRoomCombatComplete = true;
+    world.rememberCombatProgress();
+    assert.deepEqual(world.dungeonState.savedCombat.room1, { enemies: [], pendingWaves: [], cleared: true });
+});
+
+test('recompensa do esconderijo não gasta a da dungeon principal', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    world.activeRoomKey = 'gaucho-dungeon';
+    world.dungeonState = { ...createDungeonSessionState(1), rewardClaimed: true };
+    world.player = {};
+    let opened = 0;
+    world.combat = { clear() { opened++; } };
+    world.physics = { pause() {} };
+    world.scene = { get: () => { throw new Error('abre a carta'); } };
+    assert.throws(() => world.playDungeonReward(() => assert.fail('não deveria pular a recompensa')), /abre a carta/);
+    assert.equal(opened, 1);
 });

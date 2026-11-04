@@ -7,6 +7,8 @@ export const WORLD_CONFIG = {
         spawn: { x: 400, y: 536 },
         spawnSafeRadius: 240,
         speed: 120,
+        // Teto somado de chimarrões e gin tropical, para não desbalancear a fuga.
+        maxSpeedMultiplier: 1.4,
         velocityResponsiveness: 14,
         stopThreshold: 2,
         directionThreshold: 0.15,
@@ -43,6 +45,19 @@ export const WORLD_CONFIG = {
         scale: 0.92,
         hitbox: { width: 18, height: 16, offsetX: 7, offsetY: 14 }
     },
+    gaucho: {
+        texture: 'gaucho-walk',
+        scale: 0.62,
+        // Corpo a corpo: encosta no jogador em vez de parar a distância para atirar.
+        stopDistance: 14,
+        // Hitbox nos pés, como a do jogador, para a ordem de desenho e as colisões baterem.
+        hitbox: { width: 14, height: 12, offsetX: 9, offsetY: 26 }
+    },
+    chimarrao: {
+        texture: 'chimarrao',
+        dropChance: 0.5,
+        speedBonus: 0.04
+    },
     camera: {
         // Mantém a mesma área vertical visível após a mudança para 16:9.
         zoom: 1.75,
@@ -60,3 +75,9 @@ export const WORLD_CONFIG = {
         }
     }
 } as const;
+
+/** Ordena jogadores e gaúchos pelos pés: quem está mais abaixo é desenhado na frente. */
+export function getActorDepth(feetY: number) {
+    // Fica entre 10 e 11, abaixo das grades (18) e dos telhados (20) da Room 2.
+    return 10 + feetY / 10_000;
+}

@@ -1,4 +1,8 @@
-export type RoomKey = 'room1' | 'room2' | 'dungeon';
+export type RoomKey = 'room1' | 'room2' | 'dungeon' | 'gaucho-dungeon';
+
+export function isDungeonRoom(roomKey: RoomKey) {
+    return roomKey === 'dungeon' || roomKey === 'gaucho-dungeon';
+}
 
 export interface RoomTilesetDefinition {
     mapName: string;
@@ -141,6 +145,12 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
                 path: 'assets/tilesets/neo-zero-dungeon-props.png'
             }
         ]
+    },
+    'gaucho-dungeon': {
+        mapKey: 'gaucho-dungeon',
+        title: 'Esconderijo dos Gaúchos',
+        spawn: { x: 88, y: 328 },
+        tilesets: []
     }
 };
 
@@ -148,7 +158,7 @@ export function getRequestedRoomKey(
     search = typeof window === 'undefined' ? '' : window.location.search
 ): RoomKey {
     const requestedRoom = new URLSearchParams(search).get('room');
-    if (requestedRoom === 'dungeon') return 'dungeon';
+    if (requestedRoom === 'dungeon' || requestedRoom === 'gaucho-dungeon') return requestedRoom;
     return requestedRoom === '2' || requestedRoom === 'room2' ? 'room2' : 'room1';
 }
 

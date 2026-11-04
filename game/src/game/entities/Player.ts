@@ -1,7 +1,7 @@
 import type { Scene } from 'phaser';
 import { FootstepAudio } from '../audio/FootstepAudio';
 import { AUDIO_CONFIG } from '../config/audio';
-import { WORLD_CONFIG } from '../config/world';
+import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import { COMBAT_CONFIG } from '../config/combat';
 import { Health } from '../combat/Health';
 import { DashState } from './DashState';
@@ -34,6 +34,8 @@ export class Player {
     );
     private readonly footsteps: FootstepAudio;
     private facing: Direction = 'down';
+    /** Última direção pedida pelo teclado; muda na hora, antes de a velocidade inverter. */
+    private aimDirection: { x: number; y: number } = { x: 0, y: 1 };
     private movementSpeedMultiplier = 1;
     private controlsInverted = false;
     /**
@@ -82,11 +84,13 @@ export class Player {
 
     update(delta: number) {
         if (!this.health.isAlive) return;
+        this.sprite.setDepth(getActorDepth(this.sprite.body?.bottom ?? this.sprite.y));
         if (this.dash.tick(delta)) this.finishDash();
 
         const direction = this.getMovementDirection();
         const { x, y } = direction;
         const isReceivingMovementInput = x !== 0 || y !== 0;
+        if (isReceivingMovementInput) this.aimDirection = direction;
 
         if (Phaser.Input.Keyboard.JustDown(this.dashKey)) {
             const dashDirection = isReceivingMovementInput
@@ -139,8 +143,19 @@ export class Player {
         }
     }
 
+    getAimDirection() {
+        return this.aimDirection;
+    }
+
     getNetworkState() {
         return { x: this.sprite.x, y: this.sprite.y, facing: this.facing };
+    }
+
+    /** Levanta o jogador caído no multiplayer. */
+    revive(amount: number) {
+        this.health.heal(amount);
+        this.sprite.clearTint().setAngle(0);
+        if (this.sprite.body) this.sprite.body.enable = true;
     }
 
     /** Permite continuar andando se a barreira sumir enquanto a tecla está pressionada. */
@@ -149,7 +164,7 @@ export class Player {
     }
 
     setMovementSpeedMultiplier(multiplier: number) {
-        this.movementSpeedMultiplier = Math.max(0, multiplier);
+        this.movementSpeedMultiplier = Math.min(Math.max(0, multiplier), WORLD_CONFIG.player.maxSpeedMultiplier);
     }
 
     getMovementSpeedMultiplier() {

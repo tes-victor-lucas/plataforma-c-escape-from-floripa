@@ -168,7 +168,7 @@ export class Drone implements CombatEnemy {
         );
     }
 
-    private drawHealthBar() {
+    drawHealthBar() {
         const width = 30 * WORLD_CONFIG.drone.scale;
         const x = this.sprite.x - width / 2;
         const y = this.sprite.y - 21 * WORLD_CONFIG.drone.scale;

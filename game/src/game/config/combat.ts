@@ -1,9 +1,11 @@
+import type { RoomKey } from './rooms';
+
 export const ROOM2_STAIR_GUARD_SPAWNS = [
     { x: 176, y: 352, patrolLeft: 168, patrolRight: 184 },
     { x: 240, y: 352, patrolLeft: 232, patrolRight: 248 }
 ] as const;
 
-export type EnemyKind = 'drone' | 'scooter' | 'guard';
+export type EnemyKind = 'drone' | 'scooter' | 'guard' | 'gaucho';
 
 /** Distâncias em pixels do mundo; intervalos e duração em milissegundos. */
 const PLAYER_COMBAT_STATS = {
@@ -47,13 +49,40 @@ export const COMBAT_CONFIG = {
         shieldDamageMultiplier: 0.25,
         shieldArcDot: -0.55
     },
+    // Espada do esconderijo dos gaúchos: arco de 120° para onde o personagem olha.
+    // damageMultiplier sobre o dano do tiro (com cartas): 1,5 derruba um gaúcho em 2 golpes.
+    melee: {
+        range: 44,
+        arc: Math.PI * 2 / 3,
+        interval: 450,
+        swingDuration: 140,
+        damageMultiplier: 1.5,
+        // Clique dado nesse final da recarga fica guardado e sai assim que ela termina.
+        bufferWindow: 150
+    },
+    gaucho: {
+        maxHealth: PLAYER_COMBAT_STATS.maxHealth,
+        range: 20,
+        attackInterval: 900,
+        damage: 1,
+        strikeShake: { duration: 90, intensity: 0.004 }
+    },
     projectile: { width: 6, height: 3, cornerRadius: 1, scale: 0.85, lifetime: 2200 },
     rangeIndicator: { color: 0xff4d4d, fillAlpha: 0.06, strokeAlpha: 0.22, strokeWidth: 1 },
     waves: [10, 8],
     wavesByRoom: {
         room1: [10, 8],
         room2: [10],
-        dungeon: [10]
+        dungeon: [10],
+        'gaucho-dungeon': [10]
+    },
+    multiplayer: {
+        // Dois jogadores causam o dobro de dano nos mesmos inimigos; acima de 2 fica mais difícil.
+        enemyHealthMultiplier: 2.5,
+        reviveDuration: 5_000,
+        reviveRadius: 28,
+        reviveHealthRatio: 0.5,
+        maxRevives: 2
     },
     spawnDistanceFromPlayer: 180,
     // Pontos livres do mapa Sala I; nenhum fica na área inicial protegida.
@@ -66,23 +95,27 @@ export const COMBAT_CONFIG = {
     ]
 } as const;
 
-const WAVE_PATTERNS: Record<'room1' | 'room2' | 'dungeon', readonly (readonly EnemyKind[])[]> = {
+const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
     room1: [
         ['drone'],
         ['drone', 'scooter', 'drone', 'guard', 'drone', 'scooter', 'drone', 'drone', 'scooter', 'guard']
     ],
     room2: [
-        ['guard', 'guard', 'drone', 'scooter', 'drone'],
-        ['drone', 'scooter', 'guard', 'drone', 'scooter']
+        // Um a cada cinco inimigos da Sala II é um gaúcho.
+        ['guard', 'guard', 'drone', 'scooter', 'gaucho'],
+        ['drone', 'scooter', 'guard', 'drone', 'gaucho']
     ],
     dungeon: [
         ['scooter', 'drone', 'guard', 'drone', 'scooter']
+    ],
+    'gaucho-dungeon': [
+        ['gaucho']
     ]
 };
 
 /** Composição determinística: mantém a quantidade da onda e mistura papéis. */
 export function getWaveEnemyKinds(
-    roomKey: 'room1' | 'room2' | 'dungeon',
+    roomKey: RoomKey,
     waveIndex: number,
     count: number
 ) {

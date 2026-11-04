@@ -5,6 +5,7 @@ import type { CombatEnemy } from '../entities/CombatEnemy';
 import type { Player } from '../entities/Player';
 import { hasLineOfSight } from '../map/hasLineOfSight';
 import { playDamageNumber } from '../effects/playDamageNumber';
+import { playSwordHit } from '../effects/playSwordHit';
 import { WORLD_CONFIG } from '../config/world';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import { runTracker, type RunTracker } from '../scoring/RunTracker';
@@ -26,6 +27,16 @@ type ProjectileState = {
     hitEnemies: Set<CombatEnemy>;
 };
 
+/** Ligações opcionais do multiplayer; sem elas o combate segue como em uma partida solo. */
+export type CombatNetwork = {
+    isHost: boolean;
+    getEnemyTarget(origin: { x: number; y: number }): Fighter | undefined;
+    onEnemyShot(x: number, y: number, angle: number): void;
+    onPlayerShot(x: number, y: number, angle: number, speed: number, color: number): void;
+    onPlayerSwing(x: number, y: number, angle: number): void;
+    onEnemyHit(enemy: CombatEnemy, damage: number, direction: { x: number; y: number }): void;
+};
+
 let fallbackProjectileSequence = 0;
 
 /** Mantém a identidade do projétil única mesmo ao trocar de sala. */
@@ -45,6 +56,11 @@ export class CombatSystem {
     private readonly enemyCooldowns = new Map<CombatEnemy, number>();
     private companion?: Phaser.GameObjects.Sprite;
     private companionCooldown = 0;
+    private heldSword?: Phaser.GameObjects.Image;
+    private isSwingQueued = false;
+    private network?: CombatNetwork;
+    private partnerShots?: Physics.Arcade.Group;
+    private readonly partnerShotLifetimes = new Map<Physics.Arcade.Image, number>();
 
     constructor(
         private readonly scene: Scene,
@@ -53,7 +69,8 @@ export class CombatSystem {
         private readonly walls: Phaser.Tilemaps.TilemapLayer[],
         private readonly playerStats: PlayerUpgradeState = new PlayerUpgradeState(),
         private readonly tracker: RunTracker = runTracker,
-        private readonly onEnemyKilled: () => void = () => undefined
+        private readonly onEnemyKilled: () => void = () => undefined,
+        private readonly melee = false
     ) {
         const texture = 'combat-projectile-rounded';
         if (!scene.textures.exists(texture)) {
@@ -86,6 +103,11 @@ export class CombatSystem {
         // Inimigos sem `kind` são dublês de testes antigos e continuam como drones.
         const isRanged = enemy.kind === 'drone' || enemy.kind === undefined;
         this.enemyCooldowns.set(enemy, isRanged ? COMBAT_CONFIG.drone.fireInterval : 0);
+        if (this.partnerShots) {
+            this.scene.physics.add.overlap(enemy.sprite, this.partnerShots, (_target, shot) => {
+                if (enemy.health.isAlive) this.removePartnerShot(shot as Physics.Arcade.Image);
+            });
+        }
         // Arcade entrega o sprite antes do membro do grupo no callback.
         this.scene.physics.add.overlap(enemy.sprite, this.playerShots, (_target, shot) => {
             const projectile = shot as Physics.Arcade.Image;
@@ -93,6 +115,16 @@ export class CombatSystem {
             if (!projectile.active || !enemy.health.isAlive || !state || state.hitEnemies.has(enemy)) return;
 
             state.hitEnemies.add(enemy);
+            if (this.network && !this.network.isHost) {
+                // Quem decide o dano é o anfitrião; a vida volta pelo próximo estado.
+                this.network.onEnemyHit(enemy, state.damage, {
+                    x: Math.cos(projectile.rotation),
+                    y: Math.sin(projectile.rotation)
+                });
+                if (state.remainingPierces > 0) state.remainingPierces -= 1;
+                else this.removeShot(projectile);
+                return;
+            }
             const previousHealth = enemy.health.current;
             const center = this.getCenter(enemy);
             const wasAlive = enemy.health.isAlive;
@@ -128,7 +160,13 @@ export class CombatSystem {
                 this.removeShot(shot);
             }
         }
-        if (!this.player.health.isAlive) return;
+        for (const [shot, lifetime] of this.partnerShotLifetimes) {
+            if (lifetime <= delta) this.removePartnerShot(shot);
+            else this.partnerShotLifetimes.set(shot, lifetime - delta);
+        }
+        const isPlayerAlive = this.player.health.isAlive;
+        // No multiplayer os inimigos continuam agindo enquanto o jogador local está caído.
+        if (!isPlayerAlive && !this.network) return;
 
         this.playerCooldown = Math.max(0, this.playerCooldown - delta);
         let nearest: CombatEnemy | undefined;
@@ -139,6 +177,8 @@ export class CombatSystem {
             const cooldown = Math.max(0, (this.enemyCooldowns.get(enemy) ?? 0) - delta);
             this.enemyCooldowns.set(enemy, cooldown);
             const origin = this.getCenter(enemy);
+            if (this.network?.isHost) this.fireAtNearestPlayer(enemy, origin, cooldown);
+            if (!isPlayerAlive) continue;
             const target = this.getCenter(this.player);
             const distance = (origin.x - target.x) ** 2 + (origin.y - target.y) ** 2;
             if (distance > Math.max(this.playerStats.range, COMBAT_CONFIG.drone.range) ** 2) continue;
@@ -149,10 +189,20 @@ export class CombatSystem {
                 nearestDistance = distance;
             }
             const isRanged = enemy.kind === 'drone' || enemy.kind === undefined;
-            if (isRanged && distance <= COMBAT_CONFIG.drone.range ** 2 && cooldown === 0) {
+            if (!this.network && isRanged && distance <= COMBAT_CONFIG.drone.range ** 2 && cooldown === 0) {
                 this.fire(enemy, this.player, this.enemyShots, COMBAT_CONFIG.drone);
                 this.enemyCooldowns.set(enemy, COMBAT_CONFIG.drone.fireInterval);
             }
+        }
+        if (!isPlayerAlive) return;
+        // Na sala corpo a corpo o jogador só ataca com a espada, sem tiro nem companheiro.
+        if (this.melee) {
+            if (this.isSwingQueued && this.playerCooldown === 0) {
+                this.isSwingQueued = false;
+                this.swing();
+            }
+            this.updateHeldSword();
+            return;
         }
         if (nearest && this.playerCooldown === 0) {
             this.firePlayer(nearest);
@@ -161,8 +211,163 @@ export class CombatSystem {
         this.updateCompanion(delta);
     }
 
+    /** A espada coletada fica na mão do personagem até o próximo golpe. */
+    equipSword() {
+        if (!this.melee || this.heldSword) return;
+        this.heldSword = this.scene.add.image(0, 0, 'sword').setOrigin(0.15, 0.85);
+        this.updateHeldSword();
+    }
+
+    /** Golpe em arco para onde o personagem olha; cada golpe conta como um ataque para multi-kills. */
+    swing(angle = this.getAimAngle()) {
+        if (!this.heldSword || !this.player.health.isAlive) return false;
+        if (this.playerCooldown > 0) {
+            this.isSwingQueued ||= this.playerCooldown <= COMBAT_CONFIG.melee.bufferWindow;
+            return false;
+        }
+        const { range, arc, interval, damageMultiplier } = COMBAT_CONFIG.melee;
+        const swordDamage = this.playerStats.damage * damageMultiplier;
+        this.playerCooldown = interval;
+        const origin = this.getCenter(this.player);
+        const id = createProjectileId(this.tracker.snapshot().runId);
+        this.tracker.registerProjectile(id);
+
+        const hand = this.getHandPosition();
+        this.heldSword.setVisible(false);
+        this.playSwing(hand.x, hand.y, angle, () => this.heldSword?.setVisible(true));
+        this.network?.onPlayerSwing(hand.x, hand.y, angle);
+
+        for (const enemy of this.enemies) {
+            if (!enemy.health.isAlive) continue;
+            const target = { x: this.getCenter(enemy).x, y: this.getCenter(enemy).y };
+            const dx = target.x - origin.x;
+            const dy = target.y - origin.y;
+            const distance = Math.hypot(dx, dy);
+            const turn = Math.atan2(dy, dx) - angle;
+            if (
+                distance > range
+                || Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) > arc / 2
+                || !hasLineOfSight(this.walls, origin, target)
+            ) continue;
+
+            playSwordHit(this.scene, target.x, target.y);
+            const direction = distance > 0 ? { x: dx / distance, y: dy / distance } : { x: Math.cos(angle), y: Math.sin(angle) };
+            if (this.network && !this.network.isHost) {
+                // Como nos tiros, quem decide o dano é o anfitrião.
+                this.network.onEnemyHit(enemy, swordDamage, direction);
+                continue;
+            }
+            const previousHealth = enemy.health.current;
+            const reportedDamage = enemy.takeDamage(swordDamage, direction);
+            const damage = typeof reportedDamage === 'number'
+                ? reportedDamage
+                : previousHealth - enemy.health.current;
+            if (!enemy.health.isAlive) {
+                this.tracker.recordEnemyDeath(enemy.id, id);
+                this.onEnemyKilled();
+            }
+            if (damage > 0) playDamageNumber(this.scene, target.x, target.y, damage);
+        }
+        this.tracker.finalizeProjectile(id);
+        return true;
+    }
+
+    /** Golpe do parceiro: apenas visual, o dano é resolvido no cliente de quem golpeou. */
+    playPartnerSwing(x: number, y: number, angle: number) {
+        this.playSwing(x, y, angle);
+    }
+
+    private playSwing(x: number, y: number, angle: number, onComplete?: () => void) {
+        const { arc, swingDuration } = COMBAT_CONFIG.melee;
+        // O ícone da espada aponta a lâmina para cima e à direita (-45°).
+        const sword = this.scene.add.image(x, y - 2, 'sword')
+            .setOrigin(0.15, 0.85)
+            .setDepth(15)
+            .setRotation(angle - arc / 2 + Math.PI / 4);
+        this.scene.tweens.add({
+            targets: sword,
+            rotation: angle + arc / 2 + Math.PI / 4,
+            duration: swingDuration,
+            ease: 'Quad.Out',
+            onComplete: () => {
+                sword.destroy();
+                onComplete?.();
+            }
+        });
+    }
+
+    private getAimAngle() {
+        const { x, y } = this.player.getAimDirection();
+        return Math.atan2(y, x);
+    }
+
+    /** Usa o corpo físico, já movido neste quadro; o sprite só é sincronizado depois do update. */
+    private getHandPosition() {
+        const feet = this.getCenter(this.player);
+        return { x: feet.x, y: feet.y - 6 };
+    }
+
+    private updateHeldSword() {
+        if (!this.heldSword) return;
+        const { x, y } = this.player.getAimDirection();
+        const isFacingAway = y < 0 && Math.abs(x) < Math.abs(y);
+        const side = x < 0 || (x === 0 && y < 0) ? -1 : 1;
+        const hand = this.getHandPosition();
+        // Escala negativa espelha em volta do cabo; de costas, a espada fica atrás do corpo.
+        this.heldSword
+            .setPosition(hand.x + side * 5, hand.y)
+            .setScale(side * 0.7, 0.7)
+            .setDepth(this.player.sprite.depth + (isFacingAway ? -0.0001 : 0.0001));
+    }
+
     clear() {
         for (const shot of this.projectiles.keys()) this.removeShot(shot);
+        for (const shot of this.partnerShotLifetimes.keys()) this.removePartnerShot(shot);
+    }
+
+    /** Precisa vir antes dos inimigos, para eles também interceptarem os tiros do parceiro. */
+    setNetwork(network: CombatNetwork) {
+        this.network = network;
+        const partnerShots = this.scene.physics.add.group({ allowGravity: false });
+        this.partnerShots = partnerShots;
+        for (const wall of this.walls) {
+            this.scene.physics.add.collider(partnerShots, wall, (shot) =>
+                this.removePartnerShot(shot as Physics.Arcade.Image));
+        }
+    }
+
+    /** Tiro inimigo vindo do anfitrião: é real aqui, pois só atinge o jogador local. */
+    spawnEnemyShot(x: number, y: number, angle: number) {
+        this.createProjectile({ x, y }, angle, this.enemyShots, COMBAT_CONFIG.drone, 0);
+        const sound = AUDIO_CONFIG.effects.enemyShot;
+        this.scene.sound.play(sound.key, { volume: sound.volume });
+    }
+
+    /** Tiro do parceiro: apenas visual, o dano é resolvido no cliente de quem atirou. */
+    spawnPartnerShot(x: number, y: number, angle: number, speed: number, color: number) {
+        if (!this.partnerShots) return;
+        const shot = this.partnerShots.create(x, y, 'combat-projectile-rounded') as Physics.Arcade.Image;
+        this.configureShot(shot, angle, speed, color);
+        this.partnerShotLifetimes.set(shot, COMBAT_CONFIG.projectile.lifetime);
+    }
+
+    private fireAtNearestPlayer(enemy: CombatEnemy, origin: { x: number; y: number }, cooldown: number) {
+        const isRanged = enemy.kind === 'drone' || enemy.kind === undefined;
+        if (!isRanged || cooldown > 0) return;
+        const target = this.network?.getEnemyTarget(origin);
+        const center = target?.sprite.body?.center;
+        if (!target || !center) return;
+        if ((origin.x - center.x) ** 2 + (origin.y - center.y) ** 2 > COMBAT_CONFIG.drone.range ** 2) return;
+        if (!hasLineOfSight(this.walls, origin, center)) return;
+
+        this.fire(enemy, target, this.enemyShots, COMBAT_CONFIG.drone);
+        this.network?.onEnemyShot(origin.x, origin.y, Math.atan2(center.y - origin.y, center.x - origin.x));
+        this.enemyCooldowns.set(enemy, COMBAT_CONFIG.drone.fireInterval);
+    }
+
+    private removePartnerShot(shot: Physics.Arcade.Image) {
+        this.partnerShotLifetimes.delete(shot);
+        if (shot.active) shot.destroy();
     }
 
     private getCenter(fighter: Fighter) {
@@ -214,14 +419,10 @@ export class CombatSystem {
     ) {
         const shot = group.create(origin.x, origin.y, 'combat-projectile-rounded') as Physics.Arcade.Image;
         const id = createProjectileId(this.tracker.snapshot().runId);
-        const { width, height, scale } = COMBAT_CONFIG.projectile;
-        shot.setDepth(15).setTint(weapon.color);
-        shot.setScale(scale).setRotation(angle);
-        shot.setBodySize(
-            Math.abs(Math.cos(angle)) * width + Math.abs(Math.sin(angle)) * height,
-            Math.abs(Math.sin(angle)) * width + Math.abs(Math.cos(angle)) * height
-        );
-        shot.setVelocity(Math.cos(angle) * weapon.projectileSpeed, Math.sin(angle) * weapon.projectileSpeed);
+        this.configureShot(shot, angle, weapon.projectileSpeed, weapon.color);
+        if (group === this.playerShots) {
+            this.network?.onPlayerShot(origin.x, origin.y, angle, weapon.projectileSpeed, weapon.color);
+        }
         this.projectiles.set(shot, {
             id,
             lifetime: COMBAT_CONFIG.projectile.lifetime,
@@ -230,6 +431,17 @@ export class CombatSystem {
             hitEnemies: new Set()
         });
         this.tracker.registerProjectile(id);
+    }
+
+    private configureShot(shot: Physics.Arcade.Image, angle: number, speed: number, color: number) {
+        const { width, height, scale } = COMBAT_CONFIG.projectile;
+        shot.setDepth(15).setTint(color);
+        shot.setScale(scale).setRotation(angle);
+        shot.setBodySize(
+            Math.abs(Math.cos(angle)) * width + Math.abs(Math.sin(angle)) * height,
+            Math.abs(Math.sin(angle)) * width + Math.abs(Math.cos(angle)) * height
+        );
+        shot.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
     }
 
     private updateCompanion(delta: number) {
