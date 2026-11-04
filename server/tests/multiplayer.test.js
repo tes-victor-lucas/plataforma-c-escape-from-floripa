@@ -125,3 +125,15 @@ test('partida iniciada não aceita novo jogador depois que alguém sai', () => {
     broker.publish('client.message', { clientId: 'p3', message: { type: 'lobby.join', roomId: 'dupla' } });
     assert.equal(messagesFor(sent, 'p3', 'lobby.rejected')[0].message.code, 'ROOM_FULL');
 });
+
+test('eventos da espada, do gaúcho e dos itens chegam ao parceiro', () => {
+    const { broker, sent } = startedRoom();
+    for (const kind of ['player.swing', 'enemy.strike', 'item.drop', 'item.collected']) {
+        broker.publish('client.message', { clientId: 'p1', message: { type: 'match.event', event: { kind } } });
+    }
+    assert.deepEqual(
+        messagesFor(sent, 'p2', 'match.event').map(({ message }) => message.event.kind),
+        ['player.swing', 'enemy.strike', 'item.drop', 'item.collected']
+    );
+    assert.equal(messagesFor(sent, 'p1', 'error').length, 0);
+});

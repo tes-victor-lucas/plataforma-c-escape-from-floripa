@@ -459,7 +459,7 @@ function fighter(x, y, maxHealth, id = 'fighter') {
         takeDamage(amount) { health.takeDamage(amount); }
     };
 }
-function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUpgradeState(), tracker) {
+function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUpgradeState(), tracker, melee = false) {
     const player = fighter(100, 100, COMBAT_CONFIG.player.maxHealth, 'player');
     const drones = positions.map(([x, y], index) =>
         fighter(x, y, COMBAT_CONFIG.drone.maxHealth, `enemy-${index}`));
@@ -483,6 +483,16 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
         sound: { play() {} },
         tweens: { add() {} },
         add: {
+            image() {
+                return {
+                    setOrigin() { return this; },
+                    setDepth() { return this; },
+                    setRotation() { return this; },
+                    setScale() { return this; },
+                    setPosition() { return this; },
+                    setVisible() { return this; }
+                };
+            },
             sprite(x, y, texture, frame) {
                 const companion = {
                     x, y, texture, frame,
@@ -549,7 +559,7 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
         }
     };
     const walls = [{ getTilesWithinWorldXY: () => wallTiles }];
-    const combat = new CombatSystem(scene, player, drones, walls, upgrades, tracker);
+    const combat = new CombatSystem(scene, player, drones, walls, upgrades, tracker, undefined, melee);
     return { combat, player, drones, groups, colliders, overlaps, attachBody, damageLabels, companions };
 }
 
@@ -2318,6 +2328,88 @@ test('gaúcho ignora jogador caído e avisa onde morreu', () => {
     gaucho.takeDamage(1);
     assert.deepEqual(defeats, [[sprite.body.center.x, sprite.body.center.y]]);
     assert.equal(sprite.active, false);
+});
+
+test('espada acerta só quem está no arco e no alcance, sem tiro automático', () => {
+    const { combat, player, drones, groups } = setup(
+        [[125, 100], [75, 100], [180, 100]],
+        [],
+        new PlayerUpgradeState(),
+        undefined,
+        true
+    );
+    const [front, behind, far] = drones;
+    const { maxHealth } = COMBAT_CONFIG.drone;
+    const swordDamage = COMBAT_CONFIG.player.damage * COMBAT_CONFIG.melee.damageMultiplier;
+    player.getAimDirection = () => ({ x: 1, y: 0 });
+
+    combat.update(1_000);
+    assert.equal(groups[0].getLength(), 0);
+
+    assert.equal(combat.swing(0), false);
+    combat.equipSword();
+    assert.equal(combat.swing(0), true);
+    assert.equal(front.health.current, maxHealth - swordDamage);
+    assert.equal(behind.health.current, maxHealth);
+    assert.equal(far.health.current, maxHealth);
+
+    assert.equal(combat.swing(0), false);
+    combat.update(COMBAT_CONFIG.melee.interval);
+    assert.equal(combat.swing(Math.PI), true);
+    assert.equal(behind.health.current, maxHealth - swordDamage);
+
+    // Clique no fim da recarga sai sozinho, na direção para onde o personagem olha agora.
+    combat.update(COMBAT_CONFIG.melee.interval - COMBAT_CONFIG.melee.bufferWindow / 2);
+    assert.equal(combat.swing(), false);
+    combat.update(COMBAT_CONFIG.melee.bufferWindow);
+    assert.equal(front.health.isAlive, false);
+});
+
+test('espada não funciona nas salas com tiro', () => {
+    const { combat, drones } = setup([[125, 100]]);
+    combat.equipSword();
+    assert.equal(combat.swing(0), false);
+    assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth);
+});
+
+function coopNetwork(isHost, record) {
+    return {
+        isHost,
+        getEnemyTarget() {},
+        onEnemyShot() {},
+        onPlayerShot() {},
+        onPlayerSwing: (x, y, angle) => record.swings.push({ x, y, angle }),
+        onEnemyHit: (enemy, damage, direction) => record.hits.push({ enemy, damage, direction })
+    };
+}
+
+test('multiplayer: golpe do convidado vai ao anfitrião e não aplica dano local', () => {
+    const { combat, drones, player } = setup([[125, 100]], [], new PlayerUpgradeState(), undefined, true);
+    player.getAimDirection = () => ({ x: 1, y: 0 });
+    const record = { swings: [], hits: [] };
+    combat.setNetwork(coopNetwork(false, record));
+    combat.equipSword();
+
+    assert.equal(combat.swing(0), true);
+    assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth);
+    assert.equal(record.swings.length, 1);
+    assert.equal(record.hits.length, 1);
+    assert.equal(record.hits[0].enemy, drones[0]);
+    assert.equal(record.hits[0].damage, COMBAT_CONFIG.player.damage * COMBAT_CONFIG.melee.damageMultiplier);
+    assert.deepEqual(record.hits[0].direction, { x: 1, y: 0 });
+});
+
+test('multiplayer: golpe do anfitrião causa dano e só avisa o parceiro do movimento', () => {
+    const { combat, drones, player } = setup([[125, 100]], [], new PlayerUpgradeState(), undefined, true);
+    player.getAimDirection = () => ({ x: 1, y: 0 });
+    const record = { swings: [], hits: [] };
+    combat.setNetwork(coopNetwork(true, record));
+    combat.equipSword();
+
+    combat.swing(0);
+    assert.ok(drones[0].health.current < COMBAT_CONFIG.drone.maxHealth);
+    assert.equal(record.swings.length, 1);
+    assert.equal(record.hits.length, 0);
 });
 
 function itemWorld() {
