@@ -10,6 +10,7 @@ import { WORLD_CONFIG } from '../config/world';
 import { Drone } from '../entities/Drone';
 import { Patinete } from '../entities/Patinete';
 import { GuardaCyber } from '../entities/GuardaCyber';
+import { Gaucho } from '../entities/Gaucho';
 import type { CombatEnemy, EnemySpawn } from '../entities/CombatEnemy';
 import { Player } from '../entities/Player';
 import { createRoom } from '../map/createRoom';
@@ -475,6 +476,8 @@ export class World extends Scene {
                 return new GuardaCyber(this, spawn, this.collisionLayers);
             case 'drone':
                 return new Drone(this, spawn, this.collisionLayers);
+            case 'gaucho':
+                return new Gaucho(this, spawn, this.collisionLayers);
         }
     }
 

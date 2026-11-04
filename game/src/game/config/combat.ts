@@ -3,7 +3,7 @@ export const ROOM2_STAIR_GUARD_SPAWNS = [
     { x: 240, y: 352, patrolLeft: 232, patrolRight: 248 }
 ] as const;
 
-export type EnemyKind = 'drone' | 'scooter' | 'guard';
+export type EnemyKind = 'drone' | 'scooter' | 'guard' | 'gaucho';
 
 /** Distâncias em pixels do mundo; intervalos e duração em milissegundos. */
 const PLAYER_COMBAT_STATS = {
@@ -46,6 +46,13 @@ export const COMBAT_CONFIG = {
         attackCooldown: 1_150,
         shieldDamageMultiplier: 0.25,
         shieldArcDot: -0.55
+    },
+    gaucho: {
+        maxHealth: PLAYER_COMBAT_STATS.maxHealth,
+        range: 20,
+        attackInterval: 900,
+        damage: 1,
+        strikeShake: { duration: 90, intensity: 0.004 }
     },
     projectile: { width: 6, height: 3, cornerRadius: 1, scale: 0.85, lifetime: 2200 },
     rangeIndicator: { color: 0xff4d4d, fillAlpha: 0.06, strokeAlpha: 0.22, strokeWidth: 1 },

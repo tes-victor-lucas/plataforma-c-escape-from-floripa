@@ -45,6 +45,14 @@ export const WORLD_CONFIG = {
         scale: 0.92,
         hitbox: { width: 18, height: 16, offsetX: 7, offsetY: 14 }
     },
+    gaucho: {
+        texture: 'gaucho-walk',
+        scale: 0.62,
+        // Corpo a corpo: encosta no jogador em vez de parar a distância para atirar.
+        stopDistance: 14,
+        // Hitbox nos pés, como a do jogador, para a ordem de desenho e as colisões baterem.
+        hitbox: { width: 14, height: 12, offsetX: 9, offsetY: 26 }
+    },
     camera: {
         // Mantém a mesma área vertical visível após a mudança para 16:9.
         zoom: 1.75,
