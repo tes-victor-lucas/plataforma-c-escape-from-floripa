@@ -2519,3 +2519,15 @@ test('recompensa do esconderijo não gasta a da dungeon principal', () => {
     assert.throws(() => world.playDungeonReward(() => assert.fail('não deveria pular a recompensa')), /abre a carta/);
     assert.equal(opened, 1);
 });
+
+test('multiplayer usa /ws no site publicado e a porta 8080 localmente', () => {
+    const { getDefaultServerUrl } = load('../src/game/network/MultiplayerClient.ts');
+    assert.equal(
+        getDefaultServerUrl({ protocol: 'https:', host: 'escape-from-floripa.negoci.online', hostname: 'escape-from-floripa.negoci.online' }),
+        'wss://escape-from-floripa.negoci.online/ws'
+    );
+    assert.equal(
+        getDefaultServerUrl({ protocol: 'http:', host: 'localhost:1234', hostname: 'localhost' }),
+        'ws://localhost:8080'
+    );
+});
