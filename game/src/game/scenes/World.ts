@@ -56,12 +56,12 @@ import {
     type PiranhasBarItem
 } from '../config/piranhasBar';
 import {
-    DUNGEON_RETURN_SPAWN,
     isInsideRoomGateway,
     isTouchingDungeonReturn,
     isTouchingSecretDungeonEntrance,
     ROOM1_TO_ROOM2_GATEWAY,
-    ROOM2_TO_DUNGEON_GATEWAY
+    SECRET_DUNGEON_GATEWAYS,
+    type SecretDungeonGateway
 } from '../config/roomGateway';
 import { RoomExitPortal } from '../map/RoomExitPortal';
 import { ROOM1_CLEAR_CODE, SecretCodeMatcher } from '../config/secretCodes';
@@ -251,7 +251,8 @@ export class World extends Scene {
             this.persistContinuationCheckpoint();
         });
         if (roomKey === 'room2') this.createPiranhasBarPrompt();
-        if (roomKey === 'room2') this.createSecretEntranceHint();
+        const secretGateway = SECRET_DUNGEON_GATEWAYS.find((gateway) => gateway.from === roomKey);
+        if (secretGateway) this.createSecretEntranceHint(secretGateway);
         this.stairClimbEffect = room.stairPassage
             ? new StairClimbEffect(this, this.player.sprite, room.stairPassage)
             : undefined;
@@ -571,32 +572,37 @@ export class World extends Scene {
 
     private updateRoomGateway() {
         if (!this.player?.health.isAlive || this.isRoomTransitioning) return;
-        if (this.activeRoomKey === 'room1' && !this.isRoomExitOpen) return;
         const sprite = this.player.sprite;
         if (!sprite) return;
         const center = sprite.body?.center ?? sprite;
         const body = sprite.body;
 
+        const secretGateway = SECRET_DUNGEON_GATEWAYS.find((gateway) =>
+            gateway.from === this.activeRoomKey);
         if (
-            this.activeRoomKey === 'room2'
+            secretGateway
             && isTouchingSecretDungeonEntrance(
                 center.x,
                 center.y,
-                body instanceof Phaser.Physics.Arcade.Body && body.blocked.right
+                !secretGateway.wall
+                    || (body instanceof Phaser.Physics.Arcade.Body && body.blocked[secretGateway.wall]),
+                secretGateway
             )
         ) {
             this.dungeonState ??= createDungeonSessionState();
-            this.transitionToRoom(ROOM2_TO_DUNGEON_GATEWAY.to, {
+            this.transitionToRoom(secretGateway.to, {
                 dungeonState: this.dungeonState
             });
             return;
         }
+        const returnGateway = SECRET_DUNGEON_GATEWAYS.find((gateway) =>
+            gateway.to === this.activeRoomKey);
         if (
-            this.activeRoomKey === 'dungeon' && this.dungeonReturnArea
+            returnGateway && this.dungeonReturnArea
             && isTouchingDungeonReturn(center.x, center.y, this.dungeonReturnArea)
         ) {
-            this.transitionToRoom('room2', {
-                spawn: DUNGEON_RETURN_SPAWN,
+            this.transitionToRoom(returnGateway.from, {
+                spawn: returnGateway.returnSpawn,
                 dungeonState: this.dungeonState
             });
             return;
@@ -659,7 +665,7 @@ export class World extends Scene {
         this.combat?.clear();
         this.physics.pause();
         const playerProgress = capturePlayerProgress(this.player, this.upgrades);
-        if (!this.isMultiplayerEnabled()) {
+        if (!this.isMultiplayerEnabled() && (roomKey === 'room2' || roomKey === 'dungeon')) {
             // O checkpoint oficial continua sendo a fase 2; a dungeon é uma rota secreta.
             saveCampaignProgress({ roomKey: 'room2', playerProgress, run: runTracker.checkpoint() });
         }
@@ -694,9 +700,15 @@ export class World extends Scene {
     }
 
     /** Uma fissura discreta indica a parede correta sem transformar a entrada em portal visível. */
-    private createSecretEntranceHint() {
-        const { portal } = ROOM2_TO_DUNGEON_GATEWAY;
-        createLampLight(this, portal.x - 4, portal.y, 18, 0.07).setScale(0.52);
+    private createSecretEntranceHint(gateway: SecretDungeonGateway) {
+        const { portal } = gateway;
+        if (!gateway.wall) {
+            // Acima do chão (0) e abaixo dos jogadores (10).
+            this.add.image(portal.x, portal.y, 'manhole').setDepth(1);
+            return;
+        }
+        const lightX = portal.x + (gateway.wall === 'right' ? -4 : 4);
+        createLampLight(this, lightX, portal.y, 18, 0.07).setScale(0.52);
         const glow = this.add.rectangle(portal.x, portal.y, 2, 19, 0x54d8df, 0.14)
             .setDepth(19);
         this.tweens.add({
