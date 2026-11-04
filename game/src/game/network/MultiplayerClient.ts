@@ -14,6 +14,8 @@ export class MultiplayerClient {
     roomEpoch = 0;
     /** Fica no cliente porque o aviso pode chegar enquanto `World` reinicia. */
     peerReadyEpoch = 0;
+    /** Vale para a partida inteira, e `World` reinicia a cada sala. */
+    revivesUsed = 0;
 
     async connect(onStatus?: (status: string) => void) {
         this.disconnect();
@@ -132,6 +134,7 @@ export class MultiplayerClient {
         this.sequence = 0;
         this.roomEpoch = 0;
         this.peerReadyEpoch = 0;
+        this.revivesUsed = 0;
         this.handlers.clear();
     }
 
