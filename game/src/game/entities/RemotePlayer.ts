@@ -31,6 +31,7 @@ export class RemotePlayer {
     private lastSequence = -1;
     private facing: Direction = 'down';
     private reviveProgress = 0;
+    revivesLeft: number = COMBAT_CONFIG.multiplayer.maxRevives;
 
     constructor(scene: Scene, x: number, y: number, onDamage: (amount: number) => void) {
         const { player } = WORLD_CONFIG;
@@ -63,6 +64,7 @@ export class RemotePlayer {
         this.facing = state.facing;
         this.health.restore(state.health, state.maxHealth);
         this.reviveProgress = state.reviveProgress;
+        this.revivesLeft = state.revivesLeft;
     }
 
     update(feetOffset: { x: number; y: number }) {

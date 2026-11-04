@@ -1080,8 +1080,15 @@ export class World extends Scene {
         const isLocalDown = !this.player?.health.isAlive;
         let message = '';
         if (this.cardBarrier.isWaitingForPeer || this.cardRelease) message = 'AGUARDANDO O PARCEIRO ESCOLHER...';
-        else if (isLocalDown && !this.isGameOver) message = 'VOCE CAIU! O PARCEIRO PRECISA FICAR EM CIMA DE VOCE';
-        else if (partner && !partner.isAlive && !this.isGameOver) message = 'PARCEIRO CAIDO! FIQUE EM CIMA DELE POR 5 SEGUNDOS';
+        else if (isLocalDown && !this.isGameOver) {
+            message = this.getRevivesLeft() > 0
+                ? `VOCE CAIU! O PARCEIRO PRECISA FICAR EM CIMA DE VOCE (${this.getRevivesLeft()} RESTANTES)`
+                : 'VOCE MORREU! SEM RENASCIMENTOS RESTANTES';
+        } else if (partner && !partner.isAlive && !this.isGameOver) {
+            message = partner.revivesLeft > 0
+                ? 'PARCEIRO CAIDO! FIQUE EM CIMA DELE POR 5 SEGUNDOS'
+                : 'PARCEIRO MORREU! SEM RENASCIMENTOS RESTANTES';
+        }
         return {
             message,
             ...(partner ? { partnerHealth: { current: partner.health.current, max: partner.health.max } } : {})
