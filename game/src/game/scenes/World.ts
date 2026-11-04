@@ -143,6 +143,8 @@ export class World extends Scene {
     private droneSpawnPoints: readonly DroneSpawnPoint[] = COMBAT_CONFIG.droneSpawns;
     private readonly upgrades = new PlayerUpgradeState();
     private readonly remotePlayers = new Map<string, RemotePlayer>();
+    private readonly droppedItems = new Map<number, () => void>();
+    private droppedItemSequence = 0;
     private unsubscribeMultiplayer?: () => void;
     private unsubscribeRunTracker?: () => void;
     private multiplayerSyncElapsed = 0;
@@ -190,6 +192,8 @@ export class World extends Scene {
         this.cardBarrier.open();
         this.cardRelease = undefined;
         this.isRoomRequestPending = false;
+        this.droppedItems.clear();
+        this.droppedItemSequence = 0;
         this.upgrades.reset();
         this.physics.pause();
         const roomKey = data.roomKey ?? getRequestedRoomKey();
@@ -479,6 +483,7 @@ export class World extends Scene {
                 return new Drone(this, spawn, this.collisionLayers);
             case 'gaucho':
                 return new Gaucho(this, spawn, this.collisionLayers, {
+                    onDefeated: (x, y) => this.dropChimarrao(x, y),
                     onStrike: (target) => this.handleGauchoStrike(target)
                 });
         }
@@ -500,6 +505,38 @@ export class World extends Scene {
         if (!hitLocal) return;
         const { duration, intensity } = COMBAT_CONFIG.gaucho.strikeShake;
         this.cameras.main.shake(duration, intensity);
+    }
+
+    /** O anfitrião sorteia o chimarrão, e o item aparece para os dois jogadores. */
+    private dropChimarrao(x: number, y: number, random = Math.random) {
+        const { chimarrao } = WORLD_CONFIG;
+        if (!this.player || this.isMultiplayerGuest() || random() >= chimarrao.dropChance) return;
+        const id = ++this.droppedItemSequence;
+        this.spawnChimarrao(id, x, y);
+        if (this.isMultiplayerEnabled()) multiplayerClient.sendEvent({ kind: 'item.drop', id, x, y });
+    }
+
+    /** Velocidade permanente para quem pegar primeiro, limitada pelo teto do Player. */
+    private spawnChimarrao(id: number, x: number, y: number) {
+        if (!this.player) return;
+        const { chimarrao } = WORLD_CONFIG;
+        const item = this.physics.add.image(x, y, chimarrao.texture).setDepth(9);
+        const pickup = this.physics.add.overlap(this.player.sprite, item, () => {
+            this.removeDroppedItem(id);
+            this.player?.setMovementSpeedMultiplier(
+                this.player.getMovementSpeedMultiplier() + chimarrao.speedBonus
+            );
+            if (this.isMultiplayerEnabled()) multiplayerClient.sendEvent({ kind: 'item.collected', id });
+        });
+        this.droppedItems.set(id, () => {
+            pickup.destroy();
+            item.destroy();
+        });
+    }
+
+    private removeDroppedItem(id: number) {
+        this.droppedItems.get(id)?.();
+        this.droppedItems.delete(id);
     }
 
     private handleSecretCodeKey(event: KeyboardEvent) {
@@ -969,6 +1006,7 @@ export class World extends Scene {
         this.reviveBar = undefined;
         this.enemySnapshot = [];
         this.cardRelease = undefined;
+        this.droppedItems.clear();
         this.input.keyboard?.off('keydown-P', this.openPauseMenu, this);
         this.input.keyboard?.off('keydown-G', this.openPiranhasMenu, this);
         this.input.keyboard?.off('keydown', this.handleSecretCodeKey, this);
@@ -1230,6 +1268,12 @@ export class World extends Scene {
                 break;
             case 'enemy.strike':
                 this.playGauchoStrike(event.x, event.y, event.hitPeer);
+                break;
+            case 'item.drop':
+                this.spawnChimarrao(event.id, event.x, event.y);
+                break;
+            case 'item.collected':
+                this.removeDroppedItem(event.id);
                 break;
             case 'wave.intermission':
                 this.playWaveIntermission(() => undefined);

@@ -53,6 +53,11 @@ export const WORLD_CONFIG = {
         // Hitbox nos pés, como a do jogador, para a ordem de desenho e as colisões baterem.
         hitbox: { width: 14, height: 12, offsetX: 9, offsetY: 26 }
     },
+    chimarrao: {
+        texture: 'chimarrao',
+        dropChance: 0.5,
+        speedBonus: 0.04
+    },
     camera: {
         // Mantém a mesma área vertical visível após a mudança para 16:9.
         zoom: 1.75,
