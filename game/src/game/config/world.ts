@@ -60,3 +60,9 @@ export const WORLD_CONFIG = {
         }
     }
 } as const;
+
+/** Ordena jogadores e gaúchos pelos pés: quem está mais abaixo é desenhado na frente. */
+export function getActorDepth(feetY: number) {
+    // Fica entre 10 e 11, abaixo das grades (18) e dos telhados (20) da Room 2.
+    return 10 + feetY / 10_000;
+}

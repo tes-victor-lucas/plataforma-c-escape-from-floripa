@@ -1,7 +1,7 @@
 import type { Scene } from 'phaser';
 import { FootstepAudio } from '../audio/FootstepAudio';
 import { AUDIO_CONFIG } from '../config/audio';
-import { WORLD_CONFIG } from '../config/world';
+import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import { COMBAT_CONFIG } from '../config/combat';
 import { Health } from '../combat/Health';
 import { DashState } from './DashState';
@@ -82,6 +82,7 @@ export class Player {
 
     update(delta: number) {
         if (!this.health.isAlive) return;
+        this.sprite.setDepth(getActorDepth(this.sprite.body?.bottom ?? this.sprite.y));
         if (this.dash.tick(delta)) this.finishDash();
 
         const direction = this.getMovementDirection();

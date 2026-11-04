@@ -1,7 +1,7 @@
 import type { Scene } from 'phaser';
 import { Health } from '../combat/Health';
 import { COMBAT_CONFIG } from '../config/combat';
-import { WORLD_CONFIG } from '../config/world';
+import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import type { RemotePlayerState } from '../network/protocol';
 import type { Direction } from './Player';
 
@@ -80,6 +80,7 @@ export class RemotePlayer {
         );
         this.center.x = this.sprite.x + feetOffset.x;
         this.center.y = this.sprite.y + feetOffset.y;
+        this.sprite.setDepth(getActorDepth(this.center.y));
 
         const isAlive = this.health.isAlive;
         this.sprite.setAngle(isAlive ? 0 : 90);
