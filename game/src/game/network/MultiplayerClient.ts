@@ -112,6 +112,7 @@ export class MultiplayerClient {
         health: number;
         maxHealth: number;
         reviveProgress: number;
+        revivesLeft: number;
     }) {
         if (this.socket?.readyState !== WebSocket.OPEN) return;
         this.socket.send(JSON.stringify({

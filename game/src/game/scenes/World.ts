@@ -1023,7 +1023,8 @@ export class World extends Scene {
             ...state,
             health: this.player.health.current,
             maxHealth: this.player.health.max,
-            reviveProgress: this.getReviveProgress()
+            reviveProgress: this.getReviveProgress(),
+            revivesLeft: this.getRevivesLeft()
         });
         if (this.isMultiplayerHost()) this.sendEnemySnapshot();
     }

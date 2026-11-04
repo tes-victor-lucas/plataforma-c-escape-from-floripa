@@ -19,6 +19,7 @@ export type RemotePlayerState = {
     maxHealth: number;
     /** Entre 0 e 1 enquanto o jogador caído recebe ajuda. */
     reviveProgress: number;
+    revivesLeft: number;
 };
 
 export type EnemySpawnRow = Readonly<{
