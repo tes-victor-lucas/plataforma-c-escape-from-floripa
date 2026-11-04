@@ -2,7 +2,8 @@ const DIRECTIONS = new Set(['up', 'down', 'left', 'right']);
 const EVENT_KINDS = new Set([
     'enemy.spawn', 'enemy.snapshot', 'enemy.shot', 'enemy.hit', 'enemy.killed',
     'player.shot', 'player.damage', 'world.ready', 'wave.intermission', 'combat.complete',
-    'cards.chosen', 'cards.released', 'room.request', 'room.transition'
+    'cards.chosen', 'cards.released', 'room.request', 'room.transition',
+    'enemy.strike'
 ]);
 const MAX_EVENT_BYTES = 16_384;
 

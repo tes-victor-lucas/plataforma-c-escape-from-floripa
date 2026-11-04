@@ -40,6 +40,7 @@ import {
 import { multiplayerClient } from '../network/MultiplayerClient';
 import type { CoopEvent, EnemySnapshotRow, ServerMessage } from '../network/protocol';
 import { playDamageNumber } from '../effects/playDamageNumber';
+import { playSwordHit } from '../effects/playSwordHit';
 import {
     getRequestedRoomKey,
     replaceRequestedRoomKey,
@@ -477,8 +478,28 @@ export class World extends Scene {
             case 'drone':
                 return new Drone(this, spawn, this.collisionLayers);
             case 'gaucho':
-                return new Gaucho(this, spawn, this.collisionLayers);
+                return new Gaucho(this, spawn, this.collisionLayers, {
+                    onStrike: (target) => this.handleGauchoStrike(target)
+                });
         }
+    }
+
+    /** Roda no anfitrião, ou na partida solo: o convidado recebe o golpe por evento. */
+    private handleGauchoStrike(target: Player) {
+        const { x, y } = target.sprite.body?.center ?? target.sprite;
+        const hitLocal = target === this.player;
+        this.playGauchoStrike(x, y - 6, hitLocal);
+        if (this.isMultiplayerEnabled()) {
+            multiplayerClient.sendEvent({ kind: 'enemy.strike', x, y: y - 6, hitPeer: !hitLocal });
+        }
+    }
+
+    /** Efeito sobre o jogador atingido, para a pancada ser percebida no escuro. */
+    private playGauchoStrike(x: number, y: number, hitLocal: boolean) {
+        playSwordHit(this, x, y);
+        if (!hitLocal) return;
+        const { duration, intensity } = COMBAT_CONFIG.gaucho.strikeShake;
+        this.cameras.main.shake(duration, intensity);
     }
 
     private handleSecretCodeKey(event: KeyboardEvent) {
@@ -1206,6 +1227,9 @@ export class World extends Scene {
                 break;
             case 'player.damage':
                 this.player?.takeDamage(event.amount);
+                break;
+            case 'enemy.strike':
+                this.playGauchoStrike(event.x, event.y, event.hitPeer);
                 break;
             case 'wave.intermission':
                 this.playWaveIntermission(() => undefined);
