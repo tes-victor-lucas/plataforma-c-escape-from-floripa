@@ -374,6 +374,20 @@ export class World extends Scene {
             onQuit: () => this.returnToMainMenuFromDefeat(),
             ...(this.isMultiplayerEnabled() ? { getCoopStatus: () => this.getCoopStatus() } : {})
         });
+        if (this.activeRoomKey === 'gaucho-dungeon' && !this.isRoomCombatComplete) this.playGauchoDungeonWarning();
+    }
+
+    private playGauchoDungeonWarning() {
+        const overlayScene = this.scene.get('CombatHud') as Scene;
+        this.physics.pause();
+        this.isWaveIntermissionOpen = true;
+        // O CombatHud acabou de ser lançado; o aviso só pode ser desenhado depois do create dele.
+        overlayScene.events.once(Phaser.Scenes.Events.CREATE, () => {
+            new WaveThreatView(overlayScene, this.cameras.main, 'MATE OS GAUCHOS').play(() => {
+                this.isWaveIntermissionOpen = false;
+                if (!this.isGameOver && !this.isPauseMenuOpen) this.physics.resume();
+            });
+        });
     }
 
     /** Executado exclusivamente pelo botão "Tentar novamente" da tela de derrota. */

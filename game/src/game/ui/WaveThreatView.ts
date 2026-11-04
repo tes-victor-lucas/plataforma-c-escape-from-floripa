@@ -15,14 +15,15 @@ const GLITCH_SLICES = [
     { y: 47, x: -292, width: 584, height: 5 }
 ] as const;
 
-/** Vinheta ameaçadora exibida entre a primeira e a segunda onda. */
+/** Vinheta ameaçadora exibida entre ondas e ao entrar no esconderijo dos gaúchos. */
 export class WaveThreatView {
     private readonly dim: Phaser.GameObjects.Rectangle;
     private readonly banner: Phaser.GameObjects.Container;
 
     constructor(
         private readonly scene: Scene,
-        private readonly worldCamera?: Phaser.Cameras.Scene2D.Camera
+        private readonly worldCamera?: Phaser.Cameras.Scene2D.Camera,
+        text = 'VOCÊ NÃO VAI ESCAPAR'
     ) {
         this.dim = scene.add.rectangle(
             GAME_WIDTH / 2,
@@ -44,7 +45,7 @@ export class WaveThreatView {
             { x: 382, y: 31, width: 18, height: 5 }
         ]) glitch.fillRect(fragment.x, fragment.y, fragment.width, fragment.height);
 
-        const message = scene.add.text(0, 0, 'VOCÊ NÃO VAI ESCAPAR', {
+        const message = scene.add.text(0, 0, text, {
             color: '#ffffff',
             fontFamily: 'PixelGamer, monospace',
             fontSize: '34px',
