@@ -19,4 +19,5 @@ export interface CombatEnemy {
 
     update(player?: Player, delta?: number): void;
     takeDamage(amount: number, impactDirection?: Readonly<{ x: number; y: number }>): number;
+    drawHealthBar(): void;
 }

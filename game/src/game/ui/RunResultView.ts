@@ -7,6 +7,8 @@ import { CLEAN_MENU_COLORS, CleanOverlayMenu, type CleanMenuBounds } from './Cle
 type RunResultOptions = Readonly<{
     result: RunSnapshot;
     onPrimary: () => void;
+    /** No multiplayer uma nova partida começa pelo menu, com o parceiro. */
+    retryLabel?: string;
     onQuit: () => void;
 }>;
 
@@ -78,7 +80,7 @@ export class RunResultView {
             '#b9dce1',
             '18px'
         );
-        menu.addButton('TENTAR NOVAMENTE', 258, this.options.onPrimary, {
+        menu.addButton(this.options.retryLabel ?? 'TENTAR NOVAMENTE', 258, this.options.onPrimary, {
             width: 330,
             height: 42,
             fontSize: '20px',

@@ -198,7 +198,7 @@ export class GuardaCyber implements CombatEnemy {
         });
     }
 
-    private drawHealthBar() {
+    drawHealthBar() {
         const width = 31;
         const x = this.sprite.x - width / 2;
         const y = this.sprite.y - 19;

@@ -55,6 +55,13 @@ export const COMBAT_CONFIG = {
         room2: [10],
         dungeon: [10]
     },
+    multiplayer: {
+        // Dois jogadores causam o dobro de dano nos mesmos inimigos; acima de 2 fica mais difícil.
+        enemyHealthMultiplier: 2.5,
+        reviveDuration: 5_000,
+        reviveRadius: 28,
+        reviveHealthRatio: 0.5
+    },
     spawnDistanceFromPlayer: 180,
     // Pontos livres do mapa Sala I; nenhum fica na área inicial protegida.
     droneSpawns: [

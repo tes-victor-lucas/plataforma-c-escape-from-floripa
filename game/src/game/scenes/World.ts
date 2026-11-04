@@ -26,9 +26,19 @@ import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
 import { drawUpgradeCards } from '../upgrades/drawUpgradeCards';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
-import { RemotePlayer } from '../entities/RemotePlayer';
+import { drawPlayerBar, RemotePlayer } from '../entities/RemotePlayer';
+import {
+    advanceRevive,
+    applyEnemySnapshotHealth,
+    CardBarrier,
+    createEnemySnapshotRow,
+    isWithinReviveRadius,
+    nearestLivingTarget,
+    type CoopTarget
+} from '../network/coop';
 import { multiplayerClient } from '../network/MultiplayerClient';
-import type { ServerMessage } from '../network/protocol';
+import type { CoopEvent, EnemySnapshotRow, ServerMessage } from '../network/protocol';
+import { playDamageNumber } from '../effects/playDamageNumber';
 import {
     getRequestedRoomKey,
     replaceRequestedRoomKey,
@@ -134,6 +144,13 @@ export class World extends Scene {
     private unsubscribeMultiplayer?: () => void;
     private unsubscribeRunTracker?: () => void;
     private multiplayerSyncElapsed = 0;
+    private reviveElapsed = 0;
+    private reviveBar?: Phaser.GameObjects.Graphics;
+    private enemySnapshot: readonly EnemySnapshotRow[] = [];
+    private readonly cardBarrier = new CardBarrier();
+    /** Convidado aguardando o anfitrião liberar as cartas. */
+    private cardRelease?: () => void;
+    private isRoomRequestPending = false;
     private readonly room1SecretCode = new SecretCodeMatcher(ROOM1_CLEAR_CODE);
     private completeRoomCombat?: () => void;
     private dungeonReturnArea?: Readonly<{ left: number; right: number; top: number; bottom: number }>;
@@ -166,6 +183,11 @@ export class World extends Scene {
         this.room1SecretCode.reset();
         this.nauseaEndsAt = 0;
         this.multiplayerSyncElapsed = 0;
+        this.reviveElapsed = 0;
+        this.enemySnapshot = [];
+        this.cardBarrier.open();
+        this.cardRelease = undefined;
+        this.isRoomRequestPending = false;
         this.upgrades.reset();
         this.physics.pause();
         const roomKey = data.roomKey ?? getRequestedRoomKey();
@@ -243,7 +265,9 @@ export class World extends Scene {
             runTracker,
             () => this.playHitStop()
         );
+        this.connectCombatToPartner();
         const finishRoomCombat = () => {
+            if (this.isCoopActive() && this.player && !this.player.health.isAlive) this.revivePlayer();
             if (this.player) this.upgrades.repairAfterRoom(this.player.health);
             room.openExit();
             this.player?.clearBlockedDirection();
@@ -259,6 +283,13 @@ export class World extends Scene {
             if (this.isRoomCombatComplete) return;
             this.isRoomCombatComplete = true;
             this.waves = undefined;
+            if (this.isMultiplayerHost()) {
+                this.sendEnemySnapshot();
+                multiplayerClient.sendEvent({
+                    kind: 'combat.complete',
+                    rewardClaimed: this.dungeonState?.rewardClaimed ?? false
+                });
+            }
             if (shouldOfferRoomCompletionUpgrade(roomKey)) {
                 this.playRoom1CompletionReward(finishRoomCombat);
                 return;
@@ -275,7 +306,8 @@ export class World extends Scene {
             : roomKey === 'dungeon'
                 ? [DUNGEON_WAVE_ENEMY_COUNT]
                 : COMBAT_CONFIG.wavesByRoom[roomKey];
-        this.waves = waveCounts.some((count) => count > 0)
+        // O convidado recebe ondas e inimigos prontos do anfitrião.
+        this.waves = !this.isMultiplayerGuest() && waveCounts.some((count) => count > 0)
             ? new DroneWaves(
                 (count) => this.spawnDrones(count),
                 () => {
@@ -285,7 +317,7 @@ export class World extends Scene {
                 waveCounts
             )
             : undefined;
-        this.waves?.update(this.drones);
+        if (this.isPartnerRoomReady()) this.waves?.update(this.drones);
 
         configureWorldCamera(this, room.map, this.player.sprite);
         this.normalCameraZoom = this.cameras.main.zoom;
@@ -295,6 +327,9 @@ export class World extends Scene {
         this.input.keyboard?.on('keydown', this.handleSecretCodeKey, this);
         this.events.on(Phaser.Scenes.Events.RESUME, this.resetPauseMenuState, this);
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
+        if (this.isMultiplayerEnabled()) {
+            multiplayerClient.sendEvent({ kind: 'world.ready', epoch: multiplayerClient.roomEpoch });
+        }
         if (!data.waitForReveal) this.startGameplay();
     }
 
@@ -307,8 +342,12 @@ export class World extends Scene {
         this.scene.launch('CombatHud', {
             player: this.player,
             onPause: () => this.openPauseMenu(),
-            onRestart: () => this.restartFromDefeatMenu(),
-            onQuit: () => this.returnToMainMenuFromDefeat()
+            // Recomeçar sozinho deixaria o parceiro em outra partida: volta ao menu.
+            onRestart: () => this.isMultiplayerEnabled()
+                ? this.returnToMainMenuFromDefeat()
+                : this.restartFromDefeatMenu(),
+            onQuit: () => this.returnToMainMenuFromDefeat(),
+            ...(this.isMultiplayerEnabled() ? { getCoopStatus: () => this.getCoopStatus() } : {})
         });
     }
 
@@ -340,8 +379,11 @@ export class World extends Scene {
     update(_time: number, delta: number) {
         this.updatePlayerRangeIndicator();
         this.updateLowHealthEffect();
-        if (!this.isGameplayReady || this.isGameOver) return;
-        if (this.player && !this.player.health.isAlive) {
+        if (!this.isGameplayReady) return;
+        // Continua mesmo no fim: o parceiro precisa saber que este jogador caiu.
+        this.updateMultiplayer(delta);
+        if (this.isGameOver) return;
+        if (this.player && !this.player.health.isAlive && !this.canPartnerRevive()) {
             this.isGameOver = true;
             this.combat?.clear();
             this.physics.pause();
@@ -353,13 +395,19 @@ export class World extends Scene {
         this.updateNauseaEffect();
         if (this.isPiranhasMenuOpen || this.isWaveIntermissionOpen) return;
         this.player?.update(delta);
-        this.updateMultiplayer(delta);
+        this.updateRevive(delta);
         this.updateRoomGateway();
         if (this.isRoomTransitioning) return;
         this.stairClimbEffect?.update();
-        for (const enemy of this.drones) enemy.update(this.player, delta);
+        if (this.isMultiplayerGuest()) {
+            this.updateEnemiesFromSnapshot();
+        } else {
+            for (const enemy of this.drones) {
+                enemy.update(this.getEnemyTarget(enemy.sprite) as Player | undefined, delta);
+            }
+        }
         this.combat?.update(delta);
-        this.waves?.update(this.drones);
+        if (this.isPartnerRoomReady()) this.waves?.update(this.drones);
     }
 
     private spawnDrones(count: number) {
@@ -384,14 +432,39 @@ export class World extends Scene {
         if (shouldSpawnStairGuards) this.hasSpawnedRoom2Guards = true;
         this.savedEnemies = undefined;
         this.combat.clear();
-        for (const [index, spawn] of spawns.entries()) {
+        const created = spawns.map((spawn, index) => {
             const enemy = this.createEnemy(kinds[index], spawn);
+            if (this.isMultiplayerEnabled()) {
+                const { enemyHealthMultiplier } = COMBAT_CONFIG.multiplayer;
+                const maxHealth = enemy.health.max * enemyHealthMultiplier;
+                enemy.health.restore((spawn as EnemySpawn).health ?? maxHealth, maxHealth);
+                enemy.drawHealthBar();
+            }
             for (const layer of this.collisionLayers) this.physics.add.collider(enemy.sprite, layer);
-            this.physics.add.collider(this.player.sprite, enemy.sprite);
             this.droneBodies?.add(enemy.sprite);
-            this.drones.push(enemy);
-            this.combat.registerEnemy(enemy);
+            this.addEnemyToCombat(enemy);
+            return { kind: kinds[index], spawn, enemy };
+        });
+        if (this.isMultiplayerEnabled()) {
+            multiplayerClient.sendEvent({
+                kind: 'enemy.spawn',
+                enemies: created.map(({ kind, spawn, enemy }) => ({
+                    kind,
+                    x: spawn.x,
+                    y: spawn.y,
+                    patrolLeft: spawn.patrolLeft,
+                    patrolRight: spawn.patrolRight,
+                    health: enemy.health.current,
+                    maxHealth: enemy.health.max
+                }))
+            });
         }
+    }
+
+    private addEnemyToCombat(enemy: CombatEnemy) {
+        if (this.player) this.physics.add.collider(this.player.sprite, enemy.sprite);
+        this.drones.push(enemy);
+        this.combat?.registerEnemy(enemy);
     }
 
     private createEnemy(kind: EnemyKind, spawn: EnemySpawn) {
@@ -407,7 +480,7 @@ export class World extends Scene {
 
     private handleSecretCodeKey(event: KeyboardEvent) {
         if (
-            event.repeat || this.activeRoomKey !== 'room1'
+            event.repeat || this.activeRoomKey !== 'room1' || this.isMultiplayerGuest()
             || !this.isGameplayReady || this.isGameOver || this.isRoomCombatComplete
         ) return;
         if (!this.room1SecretCode.push(event.key)) return;
@@ -434,7 +507,7 @@ export class World extends Scene {
     }
 
     private updateRoomGateway() {
-        if (!this.player || this.isRoomTransitioning) return;
+        if (!this.player?.health.isAlive || this.isRoomTransitioning) return;
         if (this.activeRoomKey === 'room1' && !this.isRoomExitOpen) return;
         const sprite = this.player.sprite;
         if (!sprite) return;
@@ -482,7 +555,41 @@ export class World extends Scene {
         } = {}
     ) {
         if (!this.player || this.isRoomTransitioning) return;
+        if (this.isMultiplayerGuest()) {
+            // Só o anfitrião troca a sala, para os dois saírem juntos.
+            if (this.isRoomRequestPending) return;
+            this.isRoomRequestPending = true;
+            multiplayerClient.sendEvent({
+                kind: 'room.request',
+                roomKey,
+                ...(options.spawn ? { spawn: options.spawn } : {})
+            });
+            return;
+        }
+        if (this.isMultiplayerEnabled()) {
+            multiplayerClient.sendEvent({
+                kind: 'room.transition',
+                roomKey,
+                ...(options.spawn ? { spawn: options.spawn } : {}),
+                ...(options.dungeonState ? { seed: options.dungeonState.seed } : {})
+            });
+        }
+        this.beginRoomTransition(roomKey, options);
+    }
 
+    private beginRoomTransition(
+        roomKey: RoomKey,
+        options: {
+            spawn?: Readonly<{ x: number; y: number }>;
+            dungeonState?: DungeonSessionState;
+        }
+    ) {
+        if (!this.player || this.isRoomTransitioning) return;
+        if (this.isMultiplayerEnabled()) {
+            // A troca conjunta pode acontecer com este jogador caído ou no menu de pausa.
+            if (!this.player.health.isAlive) this.revivePlayer();
+            this.scene.stop('PauseMenu');
+        }
         this.rememberCombatProgress();
         this.isRoomTransitioning = true;
         this.player.stopMovement();
@@ -561,6 +668,11 @@ export class World extends Scene {
     }
 
     private playWaveIntermission(resume: () => void) {
+        if (this.isMultiplayerHost()) {
+            this.sendEnemySnapshot();
+            multiplayerClient.sendEvent({ kind: 'wave.intermission' });
+        }
+        this.cardBarrier.open();
         this.combat?.clear();
         this.physics.pause();
         this.isWaveIntermissionOpen = true;
@@ -568,16 +680,19 @@ export class World extends Scene {
         const overlayScene = this.scene.get('CombatHud') as Scene;
         new UpgradeSelectionView(overlayScene, drawUpgradeCards(undefined, this.upgrades.availableCards())).play((selected) => {
             this.acquireUpgrade(selected);
-            new WaveThreatView(overlayScene, this.cameras.main).play(() => {
-                this.isWaveIntermissionOpen = false;
-                if (this.isGameplayReady && !this.isGameOver) this.physics.resume();
-                resume();
+            this.waitForPartnerCard(() => {
+                new WaveThreatView(overlayScene, this.cameras.main).play(() => {
+                    this.isWaveIntermissionOpen = false;
+                    if (this.isGameplayReady && !this.isGameOver) this.physics.resume();
+                    resume();
+                });
             });
         });
     }
 
     /** Oferece uma segunda escolha depois da onda final e só então libera a Sala II. */
     private playRoom1CompletionReward(onComplete: () => void) {
+        this.cardBarrier.open();
         this.combat?.clear();
         this.physics.pause();
         this.isWaveIntermissionOpen = true;
@@ -593,11 +708,13 @@ export class World extends Scene {
             }
         ).play((selected) => {
             this.acquireUpgrade(selected);
-            this.isWaveIntermissionOpen = false;
-            onComplete();
-            if (this.isGameplayReady && !this.isGameOver && !this.isPauseMenuOpen) {
-                this.physics.resume();
-            }
+            this.waitForPartnerCard(() => {
+                this.isWaveIntermissionOpen = false;
+                onComplete();
+                if (this.isGameplayReady && !this.isGameOver && !this.isPauseMenuOpen) {
+                    this.physics.resume();
+                }
+            });
         });
     }
 
@@ -607,6 +724,7 @@ export class World extends Scene {
             onComplete();
             return;
         }
+        this.cardBarrier.open();
         this.combat?.clear();
         this.physics.pause();
         this.isWaveIntermissionOpen = true;
@@ -622,11 +740,13 @@ export class World extends Scene {
         ).play((selected) => {
             this.acquireUpgrade(selected);
             if (this.dungeonState) this.dungeonState.rewardClaimed = true;
-            this.isWaveIntermissionOpen = false;
-            onComplete();
-            if (this.isGameplayReady && !this.isGameOver && !this.isPauseMenuOpen) {
-                this.physics.resume();
-            }
+            this.waitForPartnerCard(() => {
+                this.isWaveIntermissionOpen = false;
+                onComplete();
+                if (this.isGameplayReady && !this.isGameOver && !this.isPauseMenuOpen) {
+                    this.physics.resume();
+                }
+            });
         });
     }
 
@@ -814,6 +934,10 @@ export class World extends Scene {
         for (const remotePlayer of this.remotePlayers.values()) remotePlayer.destroy();
         this.remotePlayers.clear();
         this.multiplayerSyncElapsed = 0;
+        this.reviveElapsed = 0;
+        this.reviveBar = undefined;
+        this.enemySnapshot = [];
+        this.cardRelease = undefined;
         this.input.keyboard?.off('keydown-P', this.openPauseMenu, this);
         this.input.keyboard?.off('keydown-G', this.openPiranhasMenu, this);
         this.input.keyboard?.off('keydown', this.handleSecretCodeKey, this);
@@ -844,41 +968,290 @@ export class World extends Scene {
 
     private setupMultiplayer() {
         if (!this.isMultiplayerEnabled()) return;
+        multiplayerClient.roomEpoch += 1;
         const localId = multiplayerClient.playerId;
         for (const [index, playerId] of (multiplayerClient.match?.players ?? []).entries()) {
             if (playerId === localId) continue;
             const spawn = this.activeSpawn;
-            this.remotePlayers.set(playerId, new RemotePlayer(this, spawn.x + index * 36, spawn.y));
+            this.remotePlayers.set(playerId, new RemotePlayer(
+                this,
+                spawn.x + index * 36,
+                spawn.y,
+                (amount) => multiplayerClient.sendEvent({ kind: 'player.damage', amount })
+            ));
         }
+        this.reviveBar = this.add.graphics().setDepth(25);
         this.unsubscribeMultiplayer = multiplayerClient.subscribe((message) => this.handleMultiplayerMessage(message));
     }
 
+    private connectCombatToPartner() {
+        if (!this.isMultiplayerEnabled()) return;
+        this.combat?.setNetwork({
+            isHost: this.isMultiplayerHost(),
+            getEnemyTarget: (origin) => this.getEnemyTarget(origin) as Player | undefined,
+            onEnemyShot: (x, y, angle) => multiplayerClient.sendEvent({ kind: 'enemy.shot', x, y, angle }),
+            onPlayerShot: (x, y, angle, speed, color) => multiplayerClient.sendEvent({
+                kind: 'player.shot', x, y, angle, speed, color
+            }),
+            onEnemyHit: (enemy, damage, direction) => multiplayerClient.sendEvent({
+                kind: 'enemy.hit',
+                index: this.drones.indexOf(enemy),
+                damage,
+                dx: direction.x,
+                dy: direction.y
+            })
+        });
+    }
+
     private updateMultiplayer(delta: number) {
-        for (const remotePlayer of this.remotePlayers.values()) remotePlayer.update();
         if (!this.isMultiplayerEnabled() || !this.player) return;
+        const body = this.player.sprite.body;
+        const feetOffset = {
+            x: (body?.center.x ?? this.player.sprite.x) - this.player.sprite.x,
+            y: (body?.center.y ?? this.player.sprite.y) - this.player.sprite.y
+        };
+        for (const remotePlayer of this.remotePlayers.values()) remotePlayer.update(feetOffset);
         this.multiplayerSyncElapsed += delta;
         if (this.multiplayerSyncElapsed < 50) return;
         this.multiplayerSyncElapsed = 0;
         const state = this.player.getNetworkState();
-        multiplayerClient.sendPlayerState(state.x, state.y, state.facing);
+        multiplayerClient.sendPlayerState({
+            ...state,
+            health: this.player.health.current,
+            maxHealth: this.player.health.max,
+            reviveProgress: this.getReviveProgress()
+        });
+        if (this.isMultiplayerHost()) this.sendEnemySnapshot();
+    }
+
+    private sendEnemySnapshot() {
+        if (this.drones.length === 0) return;
+        multiplayerClient.sendEvent({
+            kind: 'enemy.snapshot',
+            rows: this.drones.map((enemy) => createEnemySnapshotRow(enemy))
+        });
+    }
+
+    private getReviveProgress() {
+        return Math.min(1, this.reviveElapsed / COMBAT_CONFIG.multiplayer.reviveDuration);
+    }
+
+    /** O próprio caído conta o tempo, pois é a autoridade sobre a sua vida. */
+    private updateRevive(delta: number) {
+        if (!this.player || !this.isMultiplayerEnabled()) return;
+        if (this.player.health.isAlive) {
+            this.reviveBar?.clear();
+            return;
+        }
+        this.player.sprite.setAngle(90);
+        const feet = this.player.sprite.body?.center ?? this.player.sprite;
+        const isPartnerClose = [...this.remotePlayers.values()].some((partner) =>
+            partner.isAlive && isWithinReviveRadius(feet, partner.feet));
+        this.reviveElapsed = advanceRevive(this.reviveElapsed, delta, isPartnerClose);
+        if (this.reviveBar) {
+            drawPlayerBar(this.reviveBar, this.player.sprite.x, this.player.sprite.y - 24, this.getReviveProgress(), 0x8affc1);
+        }
+        if (this.reviveElapsed >= COMBAT_CONFIG.multiplayer.reviveDuration) this.revivePlayer();
+    }
+
+    private revivePlayer() {
+        if (!this.player) return;
+        const { max } = this.player.health;
+        this.player.revive(Math.ceil(max * COMBAT_CONFIG.multiplayer.reviveHealthRatio));
+        this.reviveElapsed = 0;
+        this.reviveBar?.clear();
+    }
+
+    private getCoopStatus() {
+        const partner = [...this.remotePlayers.values()][0];
+        const isLocalDown = !this.player?.health.isAlive;
+        let message = '';
+        if (this.cardBarrier.isWaitingForPeer || this.cardRelease) message = 'AGUARDANDO O PARCEIRO ESCOLHER...';
+        else if (isLocalDown && !this.isGameOver) message = 'VOCE CAIU! O PARCEIRO PRECISA FICAR EM CIMA DE VOCE';
+        else if (partner && !partner.isAlive && !this.isGameOver) message = 'PARCEIRO CAIDO! FIQUE EM CIMA DELE POR 5 SEGUNDOS';
+        return {
+            message,
+            ...(partner ? { partnerHealth: { current: partner.health.current, max: partner.health.max } } : {})
+        };
+    }
+
+    /** Sem parceiro presente a escolha libera na hora, como em uma partida solo. */
+    private waitForPartnerCard(release: () => void) {
+        if (!this.isCoopActive()) {
+            release();
+            return;
+        }
+        if (this.isMultiplayerGuest()) {
+            this.cardRelease = release;
+            multiplayerClient.sendEvent({ kind: 'cards.chosen' });
+            return;
+        }
+        this.cardBarrier.chooseLocal(() => {
+            multiplayerClient.sendEvent({ kind: 'cards.released' });
+            release();
+        });
+    }
+
+    private getEnemyTarget(origin: { x: number; y: number }): CoopTarget | undefined {
+        if (!this.isMultiplayerEnabled()) return this.player as CoopTarget | undefined;
+        const targets = [...this.remotePlayers.values()].map((partner) => partner.target) as CoopTarget[];
+        if (this.player) targets.push(this.player as CoopTarget);
+        return nearestLivingTarget(origin, targets);
+    }
+
+    private updateEnemiesFromSnapshot() {
+        for (const [index, enemy] of this.drones.entries()) {
+            const row = this.enemySnapshot[index];
+            if (!row || !enemy.health.isAlive) continue;
+            enemy.sprite.anims.stop();
+            enemy.sprite.setFrame(row[3]).setFlipX(row[4] === 1).setPosition(
+                Phaser.Math.Linear(enemy.sprite.x, row[0], 0.35),
+                Phaser.Math.Linear(enemy.sprite.y, row[1], 0.35)
+            );
+            enemy.drawHealthBar();
+        }
     }
 
     private handleMultiplayerMessage(message: ServerMessage) {
         if (message.type === 'player.state') {
-            this.remotePlayers.get(message.playerId)?.applyState(
-                message.sequence,
-                message.x,
-                message.y,
-                message.facing
-            );
+            this.remotePlayers.get(message.playerId)?.applyState(message);
         }
         if (message.type === 'player.left') {
-            this.remotePlayers.get(message.playerId)?.destroy();
-            this.remotePlayers.delete(message.playerId);
+            for (const [playerId, remotePlayer] of this.remotePlayers) {
+                if (message.playerId && playerId !== message.playerId) continue;
+                remotePlayer.destroy();
+                this.remotePlayers.delete(playerId);
+            }
+            this.handlePartnerLeft();
+        }
+        if (message.type === 'match.event') this.handleCoopEvent(message.event);
+    }
+
+    private handlePartnerLeft() {
+        if (this.isMultiplayerGuest()) {
+            // shortcut: sem migração de anfitrião a partida termina, trocar se quedas forem comuns.
+            if (this.isGameOver) return;
+            this.isGameOver = true;
+            this.combat?.clear();
+            this.physics.pause();
+            runTracker.lose();
+            return;
+        }
+        this.cardBarrier.choosePeer();
+    }
+
+    private handleCoopEvent(event: CoopEvent) {
+        switch (event.kind) {
+            case 'enemy.spawn':
+                for (const row of event.enemies) {
+                    const enemy = this.createEnemy(row.kind, row);
+                    enemy.health.restore(row.health, row.maxHealth);
+                    enemy.drawHealthBar();
+                    this.addEnemyToCombat(enemy);
+                }
+                break;
+            case 'enemy.snapshot':
+                this.enemySnapshot = event.rows;
+                for (const [index, row] of event.rows.entries()) {
+                    const enemy = this.drones[index];
+                    if (!enemy) continue;
+                    const center = { x: enemy.sprite.x, y: enemy.sprite.y };
+                    const damage = applyEnemySnapshotHealth(enemy, row);
+                    if (damage > 0) playDamageNumber(this, center.x, center.y, damage);
+                }
+                break;
+            case 'enemy.shot':
+                this.combat?.spawnEnemyShot(event.x, event.y, event.angle);
+                break;
+            case 'enemy.hit':
+                this.applyPartnerHit(event);
+                break;
+            case 'enemy.killed': {
+                const enemy = this.drones[event.index];
+                if (!enemy) break;
+                // shortcut: o projétil já terminou aqui, então abates do convidado não somam multi-kill.
+                const killId = `${enemy.id}:coop-kill`;
+                if (runTracker.recordEnemyDeath(enemy.id, killId)) runTracker.finalizeProjectile(killId);
+                this.playHitStop();
+                break;
+            }
+            case 'player.shot':
+                this.combat?.spawnPartnerShot(event.x, event.y, event.angle, event.speed, event.color);
+                break;
+            case 'player.damage':
+                this.player?.takeDamage(event.amount);
+                break;
+            case 'wave.intermission':
+                this.playWaveIntermission(() => undefined);
+                break;
+            case 'combat.complete':
+                if (this.dungeonState) this.dungeonState.rewardClaimed = event.rewardClaimed;
+                this.completeRoomCombat?.();
+                break;
+            case 'cards.chosen':
+                this.cardBarrier.choosePeer();
+                break;
+            case 'cards.released': {
+                const release = this.cardRelease;
+                this.cardRelease = undefined;
+                release?.();
+                break;
+            }
+            case 'room.request':
+                if (this.isMultiplayerHost()) {
+                    if (event.roomKey === 'dungeon') this.dungeonState ??= createDungeonSessionState();
+                    this.transitionToRoom(event.roomKey, {
+                        ...(event.spawn ? { spawn: event.spawn } : {}),
+                        ...(this.dungeonState ? { dungeonState: this.dungeonState } : {})
+                    });
+                }
+                break;
+            case 'room.transition': {
+                if (event.seed !== undefined) this.dungeonState ??= createDungeonSessionState(event.seed);
+                this.beginRoomTransition(event.roomKey, {
+                    ...(event.spawn ? { spawn: event.spawn } : {}),
+                    ...(this.dungeonState ? { dungeonState: this.dungeonState } : {})
+                });
+                break;
+            }
+            case 'world.ready':
+                break;
+        }
+    }
+
+    private applyPartnerHit(event: Extract<CoopEvent, { kind: 'enemy.hit' }>) {
+        const enemy = this.drones[event.index];
+        if (!this.isMultiplayerHost() || !enemy?.health.isAlive) return;
+        const center = { x: enemy.sprite.x, y: enemy.sprite.y };
+        const damage = enemy.takeDamage(event.damage, { x: event.dx, y: event.dy });
+        if (damage > 0) playDamageNumber(this, center.x, center.y, damage);
+        if (!enemy.health.isAlive) {
+            multiplayerClient.sendEvent({ kind: 'enemy.killed', index: event.index });
         }
     }
 
     private isMultiplayerEnabled() {
         return Boolean(this.registry?.get('multiplayerEnabled'));
+    }
+
+    private isMultiplayerHost() {
+        return this.isMultiplayerEnabled() && multiplayerClient.isHost;
+    }
+
+    private isMultiplayerGuest() {
+        return this.isMultiplayerEnabled() && !multiplayerClient.isHost;
+    }
+
+    private isCoopActive() {
+        return this.isMultiplayerEnabled() && this.remotePlayers.size > 0;
+    }
+
+    private canPartnerRevive() {
+        return this.isCoopActive() && [...this.remotePlayers.values()].some((partner) => partner.isAlive);
+    }
+
+    /** O anfitrião só cria inimigos depois que o parceiro consegue recebê-los. */
+    private isPartnerRoomReady() {
+        return !this.isCoopActive() || multiplayerClient.peerReadyEpoch >= multiplayerClient.roomEpoch;
     }
 }

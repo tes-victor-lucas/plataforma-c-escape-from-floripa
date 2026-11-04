@@ -26,6 +26,15 @@ type ProjectileState = {
     hitEnemies: Set<CombatEnemy>;
 };
 
+/** Ligações opcionais do multiplayer; sem elas o combate segue como em uma partida solo. */
+export type CombatNetwork = {
+    isHost: boolean;
+    getEnemyTarget(origin: { x: number; y: number }): Fighter | undefined;
+    onEnemyShot(x: number, y: number, angle: number): void;
+    onPlayerShot(x: number, y: number, angle: number, speed: number, color: number): void;
+    onEnemyHit(enemy: CombatEnemy, damage: number, direction: { x: number; y: number }): void;
+};
+
 let fallbackProjectileSequence = 0;
 
 /** Mantém a identidade do projétil única mesmo ao trocar de sala. */
@@ -45,6 +54,9 @@ export class CombatSystem {
     private readonly enemyCooldowns = new Map<CombatEnemy, number>();
     private companion?: Phaser.GameObjects.Sprite;
     private companionCooldown = 0;
+    private network?: CombatNetwork;
+    private partnerShots?: Physics.Arcade.Group;
+    private readonly partnerShotLifetimes = new Map<Physics.Arcade.Image, number>();
 
     constructor(
         private readonly scene: Scene,
@@ -86,6 +98,11 @@ export class CombatSystem {
         // Inimigos sem `kind` são dublês de testes antigos e continuam como drones.
         const isRanged = enemy.kind === 'drone' || enemy.kind === undefined;
         this.enemyCooldowns.set(enemy, isRanged ? COMBAT_CONFIG.drone.fireInterval : 0);
+        if (this.partnerShots) {
+            this.scene.physics.add.overlap(enemy.sprite, this.partnerShots, (_target, shot) => {
+                if (enemy.health.isAlive) this.removePartnerShot(shot as Physics.Arcade.Image);
+            });
+        }
         // Arcade entrega o sprite antes do membro do grupo no callback.
         this.scene.physics.add.overlap(enemy.sprite, this.playerShots, (_target, shot) => {
             const projectile = shot as Physics.Arcade.Image;
@@ -93,6 +110,16 @@ export class CombatSystem {
             if (!projectile.active || !enemy.health.isAlive || !state || state.hitEnemies.has(enemy)) return;
 
             state.hitEnemies.add(enemy);
+            if (this.network && !this.network.isHost) {
+                // Quem decide o dano é o anfitrião; a vida volta pelo próximo estado.
+                this.network.onEnemyHit(enemy, state.damage, {
+                    x: Math.cos(projectile.rotation),
+                    y: Math.sin(projectile.rotation)
+                });
+                if (state.remainingPierces > 0) state.remainingPierces -= 1;
+                else this.removeShot(projectile);
+                return;
+            }
             const previousHealth = enemy.health.current;
             const center = this.getCenter(enemy);
             const wasAlive = enemy.health.isAlive;
@@ -128,7 +155,13 @@ export class CombatSystem {
                 this.removeShot(shot);
             }
         }
-        if (!this.player.health.isAlive) return;
+        for (const [shot, lifetime] of this.partnerShotLifetimes) {
+            if (lifetime <= delta) this.removePartnerShot(shot);
+            else this.partnerShotLifetimes.set(shot, lifetime - delta);
+        }
+        const isPlayerAlive = this.player.health.isAlive;
+        // No multiplayer os inimigos continuam agindo enquanto o jogador local está caído.
+        if (!isPlayerAlive && !this.network) return;
 
         this.playerCooldown = Math.max(0, this.playerCooldown - delta);
         let nearest: CombatEnemy | undefined;
@@ -139,6 +172,8 @@ export class CombatSystem {
             const cooldown = Math.max(0, (this.enemyCooldowns.get(enemy) ?? 0) - delta);
             this.enemyCooldowns.set(enemy, cooldown);
             const origin = this.getCenter(enemy);
+            if (this.network?.isHost) this.fireAtNearestPlayer(enemy, origin, cooldown);
+            if (!isPlayerAlive) continue;
             const target = this.getCenter(this.player);
             const distance = (origin.x - target.x) ** 2 + (origin.y - target.y) ** 2;
             if (distance > Math.max(this.playerStats.range, COMBAT_CONFIG.drone.range) ** 2) continue;
@@ -149,11 +184,12 @@ export class CombatSystem {
                 nearestDistance = distance;
             }
             const isRanged = enemy.kind === 'drone' || enemy.kind === undefined;
-            if (isRanged && distance <= COMBAT_CONFIG.drone.range ** 2 && cooldown === 0) {
+            if (!this.network && isRanged && distance <= COMBAT_CONFIG.drone.range ** 2 && cooldown === 0) {
                 this.fire(enemy, this.player, this.enemyShots, COMBAT_CONFIG.drone);
                 this.enemyCooldowns.set(enemy, COMBAT_CONFIG.drone.fireInterval);
             }
         }
+        if (!isPlayerAlive) return;
         if (nearest && this.playerCooldown === 0) {
             this.firePlayer(nearest);
             this.playerCooldown = this.playerStats.fireInterval;
@@ -163,6 +199,52 @@ export class CombatSystem {
 
     clear() {
         for (const shot of this.projectiles.keys()) this.removeShot(shot);
+        for (const shot of this.partnerShotLifetimes.keys()) this.removePartnerShot(shot);
+    }
+
+    /** Precisa vir antes dos inimigos, para eles também interceptarem os tiros do parceiro. */
+    setNetwork(network: CombatNetwork) {
+        this.network = network;
+        const partnerShots = this.scene.physics.add.group({ allowGravity: false });
+        this.partnerShots = partnerShots;
+        for (const wall of this.walls) {
+            this.scene.physics.add.collider(partnerShots, wall, (shot) =>
+                this.removePartnerShot(shot as Physics.Arcade.Image));
+        }
+    }
+
+    /** Tiro inimigo vindo do anfitrião: é real aqui, pois só atinge o jogador local. */
+    spawnEnemyShot(x: number, y: number, angle: number) {
+        this.createProjectile({ x, y }, angle, this.enemyShots, COMBAT_CONFIG.drone, 0);
+        const sound = AUDIO_CONFIG.effects.enemyShot;
+        this.scene.sound.play(sound.key, { volume: sound.volume });
+    }
+
+    /** Tiro do parceiro: apenas visual, o dano é resolvido no cliente de quem atirou. */
+    spawnPartnerShot(x: number, y: number, angle: number, speed: number, color: number) {
+        if (!this.partnerShots) return;
+        const shot = this.partnerShots.create(x, y, 'combat-projectile-rounded') as Physics.Arcade.Image;
+        this.configureShot(shot, angle, speed, color);
+        this.partnerShotLifetimes.set(shot, COMBAT_CONFIG.projectile.lifetime);
+    }
+
+    private fireAtNearestPlayer(enemy: CombatEnemy, origin: { x: number; y: number }, cooldown: number) {
+        const isRanged = enemy.kind === 'drone' || enemy.kind === undefined;
+        if (!isRanged || cooldown > 0) return;
+        const target = this.network?.getEnemyTarget(origin);
+        const center = target?.sprite.body?.center;
+        if (!target || !center) return;
+        if ((origin.x - center.x) ** 2 + (origin.y - center.y) ** 2 > COMBAT_CONFIG.drone.range ** 2) return;
+        if (!hasLineOfSight(this.walls, origin, center)) return;
+
+        this.fire(enemy, target, this.enemyShots, COMBAT_CONFIG.drone);
+        this.network?.onEnemyShot(origin.x, origin.y, Math.atan2(center.y - origin.y, center.x - origin.x));
+        this.enemyCooldowns.set(enemy, COMBAT_CONFIG.drone.fireInterval);
+    }
+
+    private removePartnerShot(shot: Physics.Arcade.Image) {
+        this.partnerShotLifetimes.delete(shot);
+        if (shot.active) shot.destroy();
     }
 
     private getCenter(fighter: Fighter) {
@@ -214,14 +296,10 @@ export class CombatSystem {
     ) {
         const shot = group.create(origin.x, origin.y, 'combat-projectile-rounded') as Physics.Arcade.Image;
         const id = createProjectileId(this.tracker.snapshot().runId);
-        const { width, height, scale } = COMBAT_CONFIG.projectile;
-        shot.setDepth(15).setTint(weapon.color);
-        shot.setScale(scale).setRotation(angle);
-        shot.setBodySize(
-            Math.abs(Math.cos(angle)) * width + Math.abs(Math.sin(angle)) * height,
-            Math.abs(Math.sin(angle)) * width + Math.abs(Math.cos(angle)) * height
-        );
-        shot.setVelocity(Math.cos(angle) * weapon.projectileSpeed, Math.sin(angle) * weapon.projectileSpeed);
+        this.configureShot(shot, angle, weapon.projectileSpeed, weapon.color);
+        if (group === this.playerShots) {
+            this.network?.onPlayerShot(origin.x, origin.y, angle, weapon.projectileSpeed, weapon.color);
+        }
         this.projectiles.set(shot, {
             id,
             lifetime: COMBAT_CONFIG.projectile.lifetime,
@@ -230,6 +308,17 @@ export class CombatSystem {
             hitEnemies: new Set()
         });
         this.tracker.registerProjectile(id);
+    }
+
+    private configureShot(shot: Physics.Arcade.Image, angle: number, speed: number, color: number) {
+        const { width, height, scale } = COMBAT_CONFIG.projectile;
+        shot.setDepth(15).setTint(color);
+        shot.setScale(scale).setRotation(angle);
+        shot.setBodySize(
+            Math.abs(Math.cos(angle)) * width + Math.abs(Math.sin(angle)) * height,
+            Math.abs(Math.sin(angle)) * width + Math.abs(Math.cos(angle)) * height
+        );
+        shot.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
     }
 
     private updateCompanion(delta: number) {

@@ -1,5 +1,5 @@
 import type { Direction } from '../entities/Player';
-import type { MatchReadyMessage, ServerMessage } from './protocol';
+import type { CoopEvent, MatchReadyMessage, ServerMessage } from './protocol';
 
 type MessageHandler = (message: ServerMessage) => void;
 
@@ -10,6 +10,10 @@ export class MultiplayerClient {
     private sequence = 0;
     playerId?: string;
     match?: MatchReadyMessage;
+    /** Conta as salas carregadas aqui; o parceiro avisa quando carregou a dele. */
+    roomEpoch = 0;
+    /** Fica no cliente porque o aviso pode chegar enquanto `World` reinicia. */
+    peerReadyEpoch = 0;
 
     async connect(onStatus?: (status: string) => void) {
         this.disconnect();
@@ -40,6 +44,9 @@ export class MultiplayerClient {
                 const message = this.parse(event.data);
                 if (!message) return;
                 if (message.type === 'session.welcome') this.playerId = message.playerId;
+                if (message.type === 'match.event' && message.event.kind === 'world.ready') {
+                    this.peerReadyEpoch = message.event.epoch;
+                }
                 if (message.type === 'lobby.joined' || message.type === 'lobby.players') {
                     onStatus?.(`SALA ${message.roomId.toUpperCase()}: ${message.players.length}/2 JOGADORES`);
                 }
@@ -57,6 +64,10 @@ export class MultiplayerClient {
             });
             socket.addEventListener('close', () => {
                 settle(() => reject(new Error('A conexão multiplayer foi encerrada.')));
+                // `disconnect()` limpa os ouvintes antes, então isto só avisa de queda real.
+                for (const handler of this.handlers) {
+                    handler({ type: 'player.left', roomId, playerId: '', players: [] });
+                }
             });
         });
     }
@@ -88,15 +99,29 @@ export class MultiplayerClient {
         return () => this.handlers.delete(handler);
     }
 
-    sendPlayerState(x: number, y: number, facing: Direction) {
+    get isHost() {
+        return this.match?.players[0] === this.playerId;
+    }
+
+    sendPlayerState(state: {
+        x: number;
+        y: number;
+        facing: Direction;
+        health: number;
+        maxHealth: number;
+        reviveProgress: number;
+    }) {
         if (this.socket?.readyState !== WebSocket.OPEN) return;
         this.socket.send(JSON.stringify({
             type: 'player.state',
             sequence: this.sequence++,
-            x,
-            y,
-            facing
+            ...state
         }));
+    }
+
+    sendEvent(event: CoopEvent) {
+        if (this.socket?.readyState !== WebSocket.OPEN) return;
+        this.socket.send(JSON.stringify({ type: 'match.event', event }));
     }
 
     disconnect() {
@@ -105,6 +130,8 @@ export class MultiplayerClient {
         this.playerId = undefined;
         this.match = undefined;
         this.sequence = 0;
+        this.roomEpoch = 0;
+        this.peerReadyEpoch = 0;
         this.handlers.clear();
     }
 

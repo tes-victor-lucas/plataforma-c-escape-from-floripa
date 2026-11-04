@@ -4,7 +4,7 @@ Servidor WebSocket para partidas de até dois jogadores. O código é dividido e
 
 - `ConnectionAgent`: conexões e serialização WebSocket.
 - `LobbyAgent`: salas, entrada/saída e limite de dois participantes.
-- `MatchAgent`: validação e distribuição do estado em tempo real.
+- `MatchAgent`: validação e distribuição do estado em tempo real e dos eventos da partida. O primeiro jogador da sala é o anfitrião: o cliente dele simula inimigos e ondas, e o servidor só retransmite.
 
 ## Executar
 

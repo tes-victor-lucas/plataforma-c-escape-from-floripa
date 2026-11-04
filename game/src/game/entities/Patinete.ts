@@ -204,7 +204,7 @@ export class Patinete implements CombatEnemy {
         });
     }
 
-    private drawHealthBar() {
+    drawHealthBar() {
         const width = 27;
         const x = this.sprite.x - width / 2;
         const y = this.sprite.y - 18;

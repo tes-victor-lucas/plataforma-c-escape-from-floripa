@@ -35,9 +35,10 @@ export class LobbyAgent {
     join(clientId, requestedRoomId) {
         if (this.#clientRooms.has(clientId)) return;
         const roomId = this.normalizeRoomId(requestedRoomId);
-        const room = this.#rooms.get(roomId) ?? { id: roomId, players: new Set(), ready: false };
+        const room = this.#rooms.get(roomId) ?? { id: roomId, players: new Set(), ready: false, started: false };
 
-        if (room.players.size >= MAX_PLAYERS) {
+        // Quem chega depois não teria inimigos: a partida em andamento segue só com quem ficou.
+        if (room.players.size >= MAX_PLAYERS || room.started) {
             this.send(clientId, { type: 'lobby.rejected', code: 'ROOM_FULL', roomId });
             return;
         }
@@ -51,6 +52,7 @@ export class LobbyAgent {
 
         if (players.length === MAX_PLAYERS) {
             room.ready = true;
+            room.started = true;
             this.broadcast(room, { type: 'match.ready', roomId, players });
         }
     }

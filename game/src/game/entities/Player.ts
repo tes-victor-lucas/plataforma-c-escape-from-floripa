@@ -143,6 +143,12 @@ export class Player {
         return { x: this.sprite.x, y: this.sprite.y, facing: this.facing };
     }
 
+    /** Levanta o jogador caído no multiplayer. */
+    revive(amount: number) {
+        this.health.heal(amount);
+        this.sprite.clearTint().setAngle(0);
+    }
+
     /** Permite continuar andando se a barreira sumir enquanto a tecla está pressionada. */
     clearBlockedDirection() {
         this.blockedDirection = undefined;
