@@ -11,44 +11,76 @@ export class MultiplayerClient {
     playerId?: string;
     match?: MatchReadyMessage;
 
-    connect(onStatus?: (status: string) => void) {
+    async connect(onStatus?: (status: string) => void) {
         this.disconnect();
-        const parameters = new URLSearchParams(window.location.search);
-        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const url = parameters.get('server') ?? `${protocol}://${window.location.hostname}:8080`;
-        const roomId = parameters.get('room') ?? 'publica';
+        const { url, roomId } = await this.getConnectionParameters();
 
         return new Promise<MatchReadyMessage>((resolve, reject) => {
             const socket = new WebSocket(url);
             this.socket = socket;
             let settled = false;
+            const waitTimeout = window.setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                reject(new Error('Outro jogador não entrou. Confiram se abriram o mesmo link.'));
+            }, 60_000);
+
+            const settle = (callback: () => void) => {
+                if (settled) return;
+                settled = true;
+                window.clearTimeout(waitTimeout);
+                callback();
+            };
 
             socket.addEventListener('open', () => {
-                onStatus?.('AGUARDANDO OUTRO JOGADOR...');
+                onStatus?.(`SALA ${roomId.toUpperCase()}: ENTRANDO...`);
                 socket.send(JSON.stringify({ type: 'lobby.join', roomId }));
             });
             socket.addEventListener('message', (event) => {
                 const message = this.parse(event.data);
                 if (!message) return;
                 if (message.type === 'session.welcome') this.playerId = message.playerId;
+                if (message.type === 'lobby.joined' || message.type === 'lobby.players') {
+                    onStatus?.(`SALA ${message.roomId.toUpperCase()}: ${message.players.length}/2 JOGADORES`);
+                }
                 if (message.type === 'match.ready') {
                     this.match = message;
-                    settled = true;
-                    resolve(message);
+                    settle(() => resolve(message));
                 }
                 if (message.type === 'lobby.rejected') {
-                    settled = true;
-                    reject(new Error('A sala já possui dois jogadores.'));
+                    settle(() => reject(new Error('A sala já possui dois jogadores.')));
                 }
                 for (const handler of this.handlers) handler(message);
             });
             socket.addEventListener('error', () => {
-                if (!settled) reject(new Error('Não foi possível conectar ao servidor multiplayer.'));
+                settle(() => reject(new Error('Não foi possível conectar ao servidor multiplayer.')));
             });
             socket.addEventListener('close', () => {
-                if (!settled) reject(new Error('A conexão multiplayer foi encerrada.'));
+                settle(() => reject(new Error('A conexão multiplayer foi encerrada.')));
             });
         });
+    }
+
+    private async getConnectionParameters() {
+        const parameters = new URLSearchParams(window.location.search);
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        let url = parameters.get('server') ?? `${protocol}://${window.location.hostname}:8080`;
+        let roomId = parameters.get('room') ?? 'publica';
+
+        if (!parameters.has('server')) {
+            try {
+                const response = await fetch('/multiplayer-config.json', { cache: 'no-store' });
+                if (response.ok) {
+                    const config = await response.json() as { server?: unknown; room?: unknown };
+                    if (typeof config.server === 'string') url = config.server;
+                    if (!parameters.has('room') && typeof config.room === 'string') roomId = config.room;
+                }
+            } catch {
+                // O servidor de desenvolvimento antigo continua usando a porta 8080.
+            }
+        }
+
+        return { url, roomId };
     }
 
     subscribe(handler: MessageHandler) {

@@ -1,0 +1,8 @@
+{
+  "name": "escape-from-floripa",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "lan": "npm install --prefix game --no-audit --no-fund && npm --prefix game run lan"
+  }
+}

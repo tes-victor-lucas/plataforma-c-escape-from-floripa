@@ -18,17 +18,17 @@ No ano de 2067, uma IA (Floria) assumiu o controle do Centro de Florianópolis p
 5. Dê o comando "npm run dev"
 6. Entre em http://localhost:1234/
 
-## Multiplayer (dois jogadores)
+## Multiplayer na mesma rede (dois jogadores)
 
-O servidor fica separado em `server/` e usa agentes de conexão, lobby e partida coordenados por um broker de mensagens em memória. Em outro terminal:
+No computador que hospedará a partida, execute na raiz do projeto:
 
 ```bash
-cd server
-npm install
-npm start
+npm run lan
 ```
 
-Abra o jogo em duas abas e escolha **MULTIPLAYER**. Cada sala aceita no máximo dois jogadores. Consulte `server/README.md` para configurar sala, endereço do servidor e porta.
+O terminal mostrará um único endereço, como `http://192.168.1.42:8080`. Abra exatamente esse endereço nos dois computadores e escolha **JOGAR > MULTIPLAYER**. O segundo computador precisa apenas do navegador; não precisa clonar nem iniciar o projeto.
+
+Jogo e WebSocket usam a mesma porta para evitar divergência de servidor ou bloqueio de uma segunda porta. Cada sala aceita no máximo dois jogadores.
 
 ## Pontuação e placar
 
