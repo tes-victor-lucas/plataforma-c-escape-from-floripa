@@ -14,7 +14,7 @@ npm install
 npm start
 ```
 
-Por padrão o servidor usa `ws://localhost:8080`. A porta pode ser alterada com `PORT`.
+Por padrão o servidor usa `ws://localhost:8080`. A porta pode ser alterada com `PORT`, e `ALLOWED_ORIGIN` restringe as conexões a um site (`https://...`). Sem o parâmetro `room`, cada dupla nova entra na próxima sala pública livre.
 
 Abra o jogo em duas abas e selecione **MULTIPLAYER** nas duas. O parâmetro `room` separa partidas, e `server` permite indicar outro broker WebSocket:
 

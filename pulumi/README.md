@@ -37,4 +37,6 @@ Para publicar uma nova versão do jogo, repita o build, o `sync` e a invalidaç�
 
 A delegação de `escape-from-floripa.negoci.online` é feita fora desta conta, na zona `negoci.online`, com os valores de `pulumi stack output ns_escape`. A zona está com `protect` para não ser recriada. Se for recriada mesmo assim, os NS mudam e a delegação precisa ser refeita antes do `pulumi up`, senão a validação do certificado ACM fica presa.
 
+O `prod` também sobe o servidor multiplayer de `server/` em uma EC2, acessível somente pelo CloudFront em `/ws`. Alterar `server/` e rodar `pulumi up` recria a instância. O passo a passo completo está em [docs/deploy-aws.md](../docs/deploy-aws.md).
+
 No MVP, o `prod` não exige autenticação: o jogo ainda não tem login no Cognito, então qualquer cliente consegue registrar runs. Para exigir JWT, use `pulumi config set requireAuthentication true` depois que o frontend enviar `accessToken`.

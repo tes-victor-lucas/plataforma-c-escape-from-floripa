@@ -3,6 +3,13 @@ import type { CoopEvent, MatchReadyMessage, ServerMessage } from './protocol';
 
 type MessageHandler = (message: ServerMessage) => void;
 
+/** Publicado com HTTPS, o servidor fica no mesmo domínio em `/ws`; localmente, na porta 8080. */
+export function getDefaultServerUrl(location: Pick<Location, 'protocol' | 'host' | 'hostname'>) {
+    return location.protocol === 'https:'
+        ? `wss://${location.host}/ws`
+        : `ws://${location.hostname}:8080`;
+}
+
 /** Cliente persistente entre as cenas do menu e do mundo. */
 export class MultiplayerClient {
     private socket?: WebSocket;
@@ -76,8 +83,7 @@ export class MultiplayerClient {
 
     private async getConnectionParameters() {
         const parameters = new URLSearchParams(window.location.search);
-        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        let url = parameters.get('server') ?? `${protocol}://${window.location.hostname}:8080`;
+        let url = parameters.get('server') ?? getDefaultServerUrl(window.location);
         let roomId = parameters.get('room') ?? 'publica';
 
         if (!parameters.has('server')) {

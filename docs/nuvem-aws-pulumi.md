@@ -21,4 +21,4 @@ O projeto possui os seguintes recursos:
 
 O Pulumi exporta a URL da API, o nome da tabela e o nome do stage. Quando Cognito está ativo, também exporta os identificadores do User Pool e do cliente web. Na stack `prod`, exporta os nameservers da zona Route 53.
 
-S3, CloudFront, GameLift, IoT Core, EventBridge, SQS, SES e SNS aparecem no diagrama de arquitetura, mas não estão implementados no Pulumi atual. O servidor multiplayer também não possui infraestrutura AWS.
+GameLift, IoT Core, EventBridge, SQS, SES e SNS aparecem no diagrama de arquitetura, mas não estão implementados no Pulumi atual. No stack `prod`, o site usa S3 e CloudFront e o servidor multiplayer roda em uma EC2. O passo a passo está em [deploy-aws.md](deploy-aws.md).

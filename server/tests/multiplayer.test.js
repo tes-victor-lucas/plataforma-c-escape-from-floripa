@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { isOriginAllowed } from '../src/agents/ConnectionAgent.js';
 import { LobbyAgent } from '../src/agents/LobbyAgent.js';
 import { MatchAgent } from '../src/agents/MatchAgent.js';
 import { MessageBroker } from '../src/broker/MessageBroker.js';
@@ -136,4 +137,40 @@ test('eventos da espada, do gaúcho e dos itens chegam ao parceiro', () => {
         ['player.swing', 'enemy.strike', 'item.drop', 'item.collected']
     );
     assert.equal(messagesFor(sent, 'p1', 'error').length, 0);
+});
+
+function joinPublic(broker, clientId) {
+    broker.publish('connection.opened', { clientId });
+    broker.publish('client.message', { clientId, message: { type: 'lobby.join' } });
+}
+
+test('sem código de sala cada dupla nova ganha uma sala própria', () => {
+    const { broker, sent } = setup();
+    for (const clientId of ['p1', 'p2', 'p3', 'p4']) joinPublic(broker, clientId);
+
+    assert.equal(messagesFor(sent, 'p3', 'lobby.rejected').length, 0);
+    assert.equal(messagesFor(sent, 'p1', 'match.ready')[0].message.roomId, 'publica');
+    assert.equal(messagesFor(sent, 'p3', 'match.ready')[0].message.roomId, 'publica-2');
+    assert.deepEqual(messagesFor(sent, 'p4', 'match.ready')[0].message.players, ['p3', 'p4']);
+});
+
+test('sala pública com partida iniciada não recebe quem chega depois', () => {
+    const { broker, sent } = setup();
+    for (const clientId of ['p1', 'p2']) joinPublic(broker, clientId);
+    broker.publish('connection.closed', { clientId: 'p2' });
+
+    joinPublic(broker, 'p3');
+    assert.equal(messagesFor(sent, 'p3', 'lobby.joined')[0].message.roomId, 'publica-2');
+
+    broker.publish('connection.closed', { clientId: 'p1' });
+    joinPublic(broker, 'p4');
+    assert.equal(messagesFor(sent, 'p4', 'lobby.joined')[0].message.roomId, 'publica');
+});
+
+test('origem só é restrita quando configurada', () => {
+    const allowed = 'https://escape-from-floripa.negoci.online';
+    assert.equal(isOriginAllowed('https://outro-site.com', undefined), true);
+    assert.equal(isOriginAllowed(allowed, allowed), true);
+    assert.equal(isOriginAllowed('https://outro-site.com', allowed), false);
+    assert.equal(isOriginAllowed(undefined, allowed), false);
 });
