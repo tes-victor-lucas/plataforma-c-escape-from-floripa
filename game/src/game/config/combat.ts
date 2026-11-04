@@ -60,7 +60,8 @@ export const COMBAT_CONFIG = {
         enemyHealthMultiplier: 2.5,
         reviveDuration: 5_000,
         reviveRadius: 28,
-        reviveHealthRatio: 0.5
+        reviveHealthRatio: 0.5,
+        maxRevives: 2
     },
     spawnDistanceFromPlayer: 180,
     // Pontos livres do mapa Sala I; nenhum fica na área inicial protegida.
