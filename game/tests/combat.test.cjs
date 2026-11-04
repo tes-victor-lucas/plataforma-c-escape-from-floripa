@@ -2068,3 +2068,105 @@ test('menu usa o layout central, e o lateral somente com ?telas', () => {
         .flatMap((layout) => layout.backgrounds.map(({ texture }) => texture));
     assert.equal(new Set(textures).size, textures.length);
 });
+
+test('multiplayer: inimigo mira o jogador vivo mais próximo', () => {
+    const { nearestLivingTarget } = load('../src/game/network/coop.ts');
+    const target = (x, isAlive = true) => ({
+        health: { isAlive },
+        sprite: { body: { center: { x, y: 0 } } },
+        takeDamage() {}
+    });
+    const near = target(10, false);
+    const middle = target(20);
+    const far = target(90);
+
+    assert.equal(nearestLivingTarget({ x: 0, y: 0 }, [far, near, middle]), middle);
+    assert.equal(nearestLivingTarget({ x: 0, y: 0 }, [near]), undefined);
+});
+
+test('multiplayer: reviver exige o parceiro por perto e recomeça ao sair', () => {
+    const { advanceRevive, isWithinReviveRadius } = load('../src/game/network/coop.ts');
+    const { multiplayer } = COMBAT_CONFIG;
+
+    assert.equal(multiplayer.reviveDuration, 5000);
+    assert.equal(advanceRevive(4000, 16, true), 4016);
+    assert.equal(advanceRevive(4000, 16, false), 0);
+    assert.equal(isWithinReviveRadius({ x: 0, y: 0 }, { x: multiplayer.reviveRadius, y: 0 }), true);
+    assert.equal(isWithinReviveRadius({ x: 0, y: 0 }, { x: multiplayer.reviveRadius + 1, y: 0 }), false);
+});
+
+test('multiplayer: cartas só liberam após as duas escolhas, em qualquer ordem', () => {
+    const { CardBarrier } = load('../src/game/network/coop.ts');
+    const barrier = new CardBarrier();
+    let releases = 0;
+
+    barrier.open();
+    barrier.chooseLocal(() => { releases += 1; });
+    assert.equal(barrier.isWaitingForPeer, true);
+    assert.equal(releases, 0);
+    barrier.choosePeer();
+    assert.equal(releases, 1);
+    assert.equal(barrier.isWaitingForPeer, false);
+
+    barrier.open();
+    barrier.choosePeer();
+    assert.equal(releases, 1);
+    barrier.chooseLocal(() => { releases += 1; });
+    assert.equal(releases, 2);
+    barrier.choosePeer();
+    assert.equal(releases, 2);
+});
+
+test('multiplayer: vida de inimigo só desce e o estado vazio derruba o inimigo', () => {
+    const { applyEnemySnapshotHealth } = load('../src/game/network/coop.ts');
+    const enemy = {
+        health: { current: 6, get isAlive() { return this.current > 0; } },
+        takeDamage(amount) { this.health.current -= amount; return amount; }
+    };
+
+    assert.equal(applyEnemySnapshotHealth(enemy, [0, 0, 8, 0, 0]), 0);
+    assert.equal(enemy.health.current, 6);
+    assert.equal(applyEnemySnapshotHealth(enemy, [0, 0, 4, 0, 0]), 2);
+    assert.equal(applyEnemySnapshotHealth(enemy, null), 4);
+    assert.equal(enemy.health.isAlive, false);
+});
+
+test('multiplayer: convidado não decide dano nem dispara pelos inimigos', () => {
+    const { combat, groups, drones, overlaps } = setup([[150, 100]]);
+    const hits = [];
+    combat.setNetwork({
+        isHost: false,
+        getEnemyTarget: () => undefined,
+        onEnemyShot() {},
+        onPlayerShot() {},
+        onEnemyHit: (enemy, damage) => hits.push({ enemy, damage })
+    });
+
+    combat.update(COMBAT_CONFIG.drone.fireInterval);
+    assert.equal(groups[1].shots.length, 0);
+    assert.equal(groups[0].shots.length, 1);
+    const health = drones[0].health.current;
+    overlaps[0].hit(groups[0].shots[0]);
+    assert.equal(drones[0].health.current, health);
+    assert.deepEqual(hits, [{ enemy: drones[0], damage: COMBAT_CONFIG.player.damage }]);
+});
+
+test('multiplayer: anfitrião caído mantém inimigos atirando no parceiro', () => {
+    const { combat, groups, player } = setup([[150, 100]]);
+    const partner = { health: { isAlive: true }, sprite: { body: { center: { x: 150, y: 150 } } } };
+    const sent = [];
+    combat.setNetwork({
+        isHost: true,
+        getEnemyTarget: () => partner,
+        onEnemyShot: (x, y, angle) => sent.push(angle),
+        onPlayerShot() {},
+        onEnemyHit() {}
+    });
+    player.takeDamage(player.health.current);
+
+    combat.update(COMBAT_CONFIG.drone.fireInterval);
+    assert.equal(groups[0].shots.length, 0);
+    assert.equal(groups[1].shots.length, 1);
+    assert.equal(sent.length, 1);
+    assert.ok(groups[1].shots[0].velocity.y > 0);
+});
