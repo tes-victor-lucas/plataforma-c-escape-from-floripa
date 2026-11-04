@@ -808,7 +808,9 @@ export class World extends Scene {
 
     /** Entrega uma única carta ao limpar a única onda da dungeon. */
     private playDungeonReward(onComplete: () => void) {
-        if (!this.player || !this.dungeonState || this.dungeonState.rewardClaimed) {
+        // O esconderijo só paga uma vez porque a sala vencida não repete o combate.
+        const isMainDungeon = this.activeRoomKey === 'dungeon';
+        if (!this.player || !this.dungeonState || (isMainDungeon && this.dungeonState.rewardClaimed)) {
             onComplete();
             return;
         }
@@ -827,7 +829,7 @@ export class World extends Scene {
             }
         ).play((selected) => {
             this.acquireUpgrade(selected);
-            if (this.dungeonState) this.dungeonState.rewardClaimed = true;
+            if (this.dungeonState && isMainDungeon) this.dungeonState.rewardClaimed = true;
             this.waitForPartnerCard(() => {
                 this.isWaveIntermissionOpen = false;
                 onComplete();

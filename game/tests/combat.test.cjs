@@ -1116,6 +1116,7 @@ test('reparo escolhido na recompensa da dungeon cura na própria conclusão', ()
     world.combat = { clear() {} };
     world.physics = { pause() {}, resume() {} };
     world.scene = { get: () => ({ add: { container: () => root } }) };
+    world.activeRoomKey = 'dungeon';
     world.isGameplayReady = true;
 
     UpgradeSelectionView.prototype.play = function (onSelect) {
@@ -2413,3 +2414,16 @@ test('sala vencida fica marcada ao sair para reabrir a saída na volta', () => {
     assert.deepEqual(world.dungeonState.savedCombat.room1, { enemies: [], pendingWaves: [], cleared: true });
 });
 
+test('recompensa do esconderijo não gasta a da dungeon principal', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    world.activeRoomKey = 'gaucho-dungeon';
+    world.dungeonState = { ...createDungeonSessionState(1), rewardClaimed: true };
+    world.player = {};
+    let opened = 0;
+    world.combat = { clear() { opened++; } };
+    world.physics = { pause() {} };
+    world.scene = { get: () => { throw new Error('abre a carta'); } };
+    assert.throws(() => world.playDungeonReward(() => assert.fail('não deveria pular a recompensa')), /abre a carta/);
+    assert.equal(opened, 1);
+});
