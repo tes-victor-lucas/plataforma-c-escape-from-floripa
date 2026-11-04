@@ -417,6 +417,7 @@ test('itens do Piranhas aplicam velocidade, coração extra e efeito do cookie',
     world.player = {
         health,
         setMovementSpeedMultiplier(value) { speedMultiplier = value; },
+        getMovementSpeedMultiplier() { return speedMultiplier; },
         setControlsInverted(value) { controlsInverted = value; }
     };
     world.physics = { resume() { resumes++; } };

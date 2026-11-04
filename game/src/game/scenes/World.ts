@@ -809,7 +809,10 @@ export class World extends Scene {
 
         switch (item.id) {
             case 'gin-tropical':
-                this.player.setMovementSpeedMultiplier(PIRANHAS_BAR_CONFIG.tropicalSpeedMultiplier);
+                // Soma ao bônus atual para não apagar os chimarrões já coletados.
+                this.player.setMovementSpeedMultiplier(
+                    this.player.getMovementSpeedMultiplier() + PIRANHAS_BAR_CONFIG.tropicalSpeedMultiplier - 1
+                );
                 break;
             case 'gin-melancia':
                 this.player.health.increaseMax(

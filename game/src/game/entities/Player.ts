@@ -157,7 +157,7 @@ export class Player {
     }
 
     setMovementSpeedMultiplier(multiplier: number) {
-        this.movementSpeedMultiplier = Math.max(0, multiplier);
+        this.movementSpeedMultiplier = Math.min(Math.max(0, multiplier), WORLD_CONFIG.player.maxSpeedMultiplier);
     }
 
     getMovementSpeedMultiplier() {
