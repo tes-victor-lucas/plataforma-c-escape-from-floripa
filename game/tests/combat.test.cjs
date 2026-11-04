@@ -90,6 +90,7 @@ const {
     isInsideRoomGateway,
     isTouchingDungeonReturn,
     isTouchingSecretDungeonEntrance,
+    ROOM1_TO_GAUCHO_DUNGEON_GATEWAY,
     ROOM1_TO_ROOM2_GATEWAY,
     ROOM2_TO_DUNGEON_GATEWAY
 } = load('../src/game/config/roomGateway.ts');
@@ -2224,6 +2225,18 @@ test('multiplayer: carta de vida não levanta quem está caído', () => {
     assert.equal(health.isAlive, false);
     assert.equal(health.max, 4 + card.effect.amount);
     world.upgrades.reset();
+});
+
+test('bueiro da Room 1 leva ao esconderijo dos gaúchos sem precisar de parede', () => {
+    const gateway = ROOM1_TO_GAUCHO_DUNGEON_GATEWAY;
+    const x = (gateway.area.left + gateway.area.right) / 2;
+    const y = (gateway.area.top + gateway.area.bottom) / 2;
+    assert.equal(gateway.to, 'gaucho-dungeon');
+    assert.equal(gateway.wall, undefined);
+    assert.equal(isInsideRoomGateway(gateway.returnSpawn.x, gateway.returnSpawn.y + 11, gateway), false);
+    assert.equal(isTouchingSecretDungeonEntrance(x, y, true, gateway), true);
+    assert.equal(isTouchingSecretDungeonEntrance(x, y, true), false);
+    assert.equal(getRequestedRoomKey('?room=gaucho-dungeon'), 'gaucho-dungeon');
 });
 
 test('esconderijo só tem gaúchos e a Sala II recebe um a cada cinco', () => {
