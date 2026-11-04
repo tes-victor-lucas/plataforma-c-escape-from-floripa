@@ -2297,3 +2297,70 @@ test('gaúcho ignora jogador caído e avisa onde morreu', () => {
     assert.equal(sprite.active, false);
 });
 
+function itemWorld() {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { Player } = load('../src/game/entities/Player.ts');
+    const { multiplayerClient } = load('../src/game/network/MultiplayerClient.ts');
+    const world = new World();
+    const player = Object.create(Player.prototype);
+    player.movementSpeedMultiplier = 1;
+    player.sprite = {};
+    world.player = player;
+    const pickups = [];
+    world.physics = {
+        add: {
+            image() { return { setDepth() { return this; }, destroy() { this.destroyed = true; } }; },
+            overlap(_player, _item, callback) { pickups.push(callback); return { destroy() {} }; }
+        }
+    };
+    const sent = [];
+    const originalSend = multiplayerClient.sendEvent;
+    multiplayerClient.sendEvent = (event) => sent.push(event);
+    const restore = () => { multiplayerClient.sendEvent = originalSend; multiplayerClient.disconnect(); };
+    return { world, player, pickups, sent, multiplayerClient, restore };
+}
+
+test('chimarrão de gaúcho aumenta a velocidade de forma permanente até o teto', () => {
+    const { world, player, pickups, restore } = itemWorld();
+    world.dropChimarrao(0, 0, () => 0.99);
+    assert.equal(pickups.length, 0);
+
+    world.dropChimarrao(0, 0, () => 0);
+    pickups.pop()();
+    assert.equal(player.getMovementSpeedMultiplier(), 1 + WORLD_CONFIG.chimarrao.speedBonus);
+
+    for (let i = 0; i < 20; i++) {
+        world.dropChimarrao(0, 0, () => 0);
+        pickups.pop()();
+    }
+    assert.equal(player.getMovementSpeedMultiplier(), WORLD_CONFIG.player.maxSpeedMultiplier);
+    restore();
+});
+
+test('multiplayer: só o anfitrião sorteia o chimarrão e quem pega primeiro fica com ele', () => {
+    const { world, player, pickups, sent, multiplayerClient, restore } = itemWorld();
+    world.registry = { get: (key) => key === 'multiplayerEnabled' };
+
+    Object.defineProperty(multiplayerClient, 'isHost', { configurable: true, value: false });
+    world.dropChimarrao(10, 20, () => 0);
+    assert.equal(pickups.length, 0);
+    assert.equal(sent.length, 0);
+
+    Object.defineProperty(multiplayerClient, 'isHost', { configurable: true, value: true });
+    world.dropChimarrao(10, 20, () => 0);
+    assert.deepEqual(sent, [{ kind: 'item.drop', id: 1, x: 10, y: 20 }]);
+
+    // O parceiro pegou antes: o item some aqui e não dá bônus.
+    world.handleCoopEvent({ kind: 'item.collected', id: 1 });
+    assert.equal(world.droppedItems.size, 0);
+    assert.equal(player.getMovementSpeedMultiplier(), 1);
+
+    world.handleCoopEvent({ kind: 'item.drop', id: 2, x: 0, y: 0 });
+    sent.length = 0;
+    pickups.pop()();
+    assert.deepEqual(sent, [{ kind: 'item.collected', id: 2 }]);
+    assert.equal(player.getMovementSpeedMultiplier(), 1 + WORLD_CONFIG.chimarrao.speedBonus);
+    delete multiplayerClient.isHost;
+    restore();
+});
+
