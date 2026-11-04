@@ -2214,3 +2214,13 @@ test('multiplayer: sem renascimentos o jogador permanece morto', () => {
     multiplayerClient.disconnect();
 });
 
+test('multiplayer: carta de vida não levanta quem está caído', () => {
+    const { world, health } = downedWorld();
+    world.upgrades.reset();
+    const card = world.upgrades.availableCards().find(({ effect }) => effect.type === 'increase-max-health');
+
+    world.acquireUpgrade(card);
+    assert.equal(health.isAlive, false);
+    assert.equal(health.max, 4 + card.effect.amount);
+    world.upgrades.reset();
+});
