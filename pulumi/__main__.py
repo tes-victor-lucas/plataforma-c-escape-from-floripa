@@ -4,9 +4,12 @@ from pathlib import Path
 import pulumi
 import pulumi_aws as aws
 
+from multiplayer_server import SERVER_PORT, build_user_data
+
 config = pulumi.Config()
 require_authentication = config.get_bool("requireAuthentication") or False
 root = Path(__file__).resolve().parent.parent
+site_domain = "escape-from-floripa.negoci.online"
 
 score_table = aws.dynamodb.Table(
     "score-table",
@@ -149,7 +152,7 @@ aws.lambda_.Permission(
 if pulumi.get_stack() == "prod":
     zone = aws.route53.Zone(
         "escape-from-floripa",
-        name="escape-from-floripa.negoci.online",
+        name=site_domain,
         # Recriar a zona troca os NS que estão delegados em negoci.online.
         opts=pulumi.ResourceOptions(protect=True),
     )
@@ -197,6 +200,61 @@ if pulumi.get_stack() == "prod":
 }""",
     )
 
+    # O servidor multiplayer só aceita conexões vindas do CloudFront, que cuida do HTTPS.
+    multiplayer_security_group = aws.ec2.SecurityGroup(
+        "multiplayer",
+        description="Servidor multiplayer acessivel somente pelo CloudFront",
+        vpc_id=aws.ec2.get_vpc(default=True).id,
+        ingress=[aws.ec2.SecurityGroupIngressArgs(
+            protocol="tcp",
+            from_port=SERVER_PORT,
+            to_port=SERVER_PORT,
+            prefix_list_ids=[
+                aws.ec2.get_managed_prefix_list(name="com.amazonaws.global.cloudfront.origin-facing").id,
+            ],
+        )],
+        egress=[aws.ec2.SecurityGroupEgressArgs(
+            protocol="-1", from_port=0, to_port=0, cidr_blocks=["0.0.0.0/0"],
+        )],
+    )
+    # Session Manager dá acesso aos logs sem abrir a porta de SSH.
+    multiplayer_role = aws.iam.Role(
+        "multiplayer",
+        assume_role_policy=json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Principal": {"Service": "ec2.amazonaws.com"},
+                "Action": "sts:AssumeRole",
+            }],
+        }),
+    )
+    aws.iam.RolePolicyAttachment(
+        "multiplayer-session-manager",
+        role=multiplayer_role.name,
+        policy_arn="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
+    )
+    multiplayer_instance = aws.ec2.Instance(
+        "multiplayer",
+        ami=aws.ssm.get_parameter(
+            name="/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64",
+        ).value,
+        instance_type=config.get("multiplayerInstanceType") or "t4g.micro",
+        iam_instance_profile=aws.iam.InstanceProfile("multiplayer", role=multiplayer_role.name).name,
+        vpc_security_group_ids=[multiplayer_security_group.id],
+        associate_public_ip_address=True,
+        user_data=build_user_data(root / "server", f"https://{site_domain}"),
+        user_data_replace_on_change=True,
+        metadata_options=aws.ec2.InstanceMetadataOptionsArgs(http_tokens="required"),
+        root_block_device=aws.ec2.InstanceRootBlockDeviceArgs(encrypted=True),
+        tags={"Name": "escape-from-floripa-multiplayer", "Application": "escape-from-floripa"},
+        # A AMI mais recente muda sozinha e não deve derrubar partidas a cada `pulumi up`.
+        opts=pulumi.ResourceOptions(ignore_changes=["ami"]),
+    )
+    # O CloudFront exige um nome, e este continua o mesmo quando a instância é recriada.
+    multiplayer_ip = aws.ec2.Eip("multiplayer", domain="vpc", instance=multiplayer_instance.id)
+    pulumi.export("multiplayer_instance_id", multiplayer_instance.id)
+
     distribution = aws.cloudfront.Distribution(
         "site",
         enabled=True,
@@ -216,6 +274,16 @@ if pulumi.get_stack() == "prod":
                     http_port=80,
                     https_port=443,
                     origin_protocol_policy="https-only",
+                    origin_ssl_protocols=["TLSv1.2"],
+                ),
+            ),
+            aws.cloudfront.DistributionOriginArgs(
+                origin_id="multiplayer",
+                domain_name=multiplayer_ip.public_dns,
+                custom_origin_config=aws.cloudfront.DistributionOriginCustomOriginConfigArgs(
+                    http_port=SERVER_PORT,
+                    https_port=443,
+                    origin_protocol_policy="http-only",
                     origin_ssl_protocols=["TLSv1.2"],
                 ),
             ),
@@ -241,6 +309,15 @@ if pulumi.get_stack() == "prod":
                     event_type="viewer-request",
                     function_arn=strip_api_prefix.arn,
                 )],
+            ),
+            aws.cloudfront.DistributionOrderedCacheBehaviorArgs(
+                path_pattern="/ws",
+                target_origin_id="multiplayer",
+                viewer_protocol_policy="https-only",
+                allowed_methods=["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"],
+                cached_methods=["GET", "HEAD"],
+                cache_policy_id="4135ea2d-6df8-44a3-9df3-4b5a84be39ad",  # Managed-CachingDisabled
+                origin_request_policy_id="216adef6-5c7f-47e4-b989-5492eafa07d3",  # Managed-AllViewer, exigida para WebSocket
             ),
         ],
         restrictions=aws.cloudfront.DistributionRestrictionsArgs(
