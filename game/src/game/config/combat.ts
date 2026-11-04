@@ -52,7 +52,7 @@ export const COMBAT_CONFIG = {
     // Espada do esconderijo dos gaúchos: arco de 120° para onde o personagem olha.
     // damageMultiplier sobre o dano do tiro (com cartas): 1,5 derruba um gaúcho em 2 golpes.
     melee: {
-        range: 36,
+        range: 44,
         arc: Math.PI * 2 / 3,
         interval: 450,
         swingDuration: 140,
