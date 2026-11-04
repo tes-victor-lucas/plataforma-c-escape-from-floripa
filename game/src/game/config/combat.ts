@@ -1,3 +1,5 @@
+import type { RoomKey } from './rooms';
+
 export const ROOM2_STAIR_GUARD_SPAWNS = [
     { x: 176, y: 352, patrolLeft: 168, patrolRight: 184 },
     { x: 240, y: 352, patrolLeft: 232, patrolRight: 248 }
@@ -60,7 +62,8 @@ export const COMBAT_CONFIG = {
     wavesByRoom: {
         room1: [10, 8],
         room2: [10],
-        dungeon: [10]
+        dungeon: [10],
+        'gaucho-dungeon': [10]
     },
     multiplayer: {
         // Dois jogadores causam o dobro de dano nos mesmos inimigos; acima de 2 fica mais difícil.
@@ -81,7 +84,7 @@ export const COMBAT_CONFIG = {
     ]
 } as const;
 
-const WAVE_PATTERNS: Record<'room1' | 'room2' | 'dungeon', readonly (readonly EnemyKind[])[]> = {
+const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
     room1: [
         ['drone'],
         ['drone', 'scooter', 'drone', 'guard', 'drone', 'scooter', 'drone', 'drone', 'scooter', 'guard']
@@ -92,12 +95,15 @@ const WAVE_PATTERNS: Record<'room1' | 'room2' | 'dungeon', readonly (readonly En
     ],
     dungeon: [
         ['scooter', 'drone', 'guard', 'drone', 'scooter']
+    ],
+    'gaucho-dungeon': [
+        ['gaucho']
     ]
 };
 
 /** Composição determinística: mantém a quantidade da onda e mistura papéis. */
 export function getWaveEnemyKinds(
-    roomKey: 'room1' | 'room2' | 'dungeon',
+    roomKey: RoomKey,
     waveIndex: number,
     count: number
 ) {

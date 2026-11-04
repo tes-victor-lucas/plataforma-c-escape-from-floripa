@@ -44,6 +44,7 @@ import { playSwordHit } from '../effects/playSwordHit';
 import {
     getRequestedRoomKey,
     replaceRequestedRoomKey,
+    isDungeonRoom,
     ROOM_DEFINITIONS,
     type RoomKey
 } from '../config/rooms';
@@ -201,7 +202,8 @@ export class World extends Scene {
         this.activeRoomKey = roomKey;
         this.activeSpawn = spawn;
         this.dungeonState = data.dungeonState;
-        if (roomKey === 'dungeon' && !this.dungeonState) {
+        const isDungeon = isDungeonRoom(roomKey);
+        if (isDungeon && !this.dungeonState) {
             this.dungeonState = createDungeonSessionState();
         }
         this.hasSelectedPiranhasItem = this.dungeonState?.piranhasItemConsumed ?? false;
@@ -300,7 +302,7 @@ export class World extends Scene {
                 this.playRoom1CompletionReward(finishRoomCombat);
                 return;
             }
-            if (roomKey === 'dungeon') {
+            if (isDungeon) {
                 this.playDungeonReward(finishRoomCombat);
                 return;
             }
@@ -309,7 +311,7 @@ export class World extends Scene {
         // Ao voltar, os drones vivos formam a primeira onda; uma sala já limpa não tem combate.
         const waveCounts = savedCombat
             ? [savedCombat.enemies.length, ...savedCombat.pendingWaves]
-            : roomKey === 'dungeon'
+            : isDungeon
                 ? [DUNGEON_WAVE_ENEMY_COUNT]
                 : COMBAT_CONFIG.wavesByRoom[roomKey];
         // O convidado recebe ondas e inimigos prontos do anfitrião.
@@ -1293,7 +1295,7 @@ export class World extends Scene {
             }
             case 'room.request':
                 if (this.isMultiplayerHost()) {
-                    if (event.roomKey === 'dungeon') this.dungeonState ??= createDungeonSessionState();
+                    if (isDungeonRoom(event.roomKey)) this.dungeonState ??= createDungeonSessionState();
                     this.transitionToRoom(event.roomKey, {
                         ...(event.spawn ? { spawn: event.spawn } : {}),
                         ...(this.dungeonState ? { dungeonState: this.dungeonState } : {})

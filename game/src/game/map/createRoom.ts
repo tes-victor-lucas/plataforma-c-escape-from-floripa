@@ -57,6 +57,8 @@ export function isRoom2LampLayer(layerName: string) {
 /** Cria as layers do mapa e habilita colisão somente nos tiles marcados no Tiled. */
 export function createRoom(scene: Scene, mapKey: string, dungeonSeed = Date.now()): Room | null {
     if (mapKey === 'dungeon') return createProceduralDungeon(scene, dungeonSeed);
+    // A semente é da partida inteira; o esconderijo não pode repetir a planta da dungeon.
+    if (mapKey === 'gaucho-dungeon') return createProceduralDungeon(scene, (dungeonSeed ^ 0x9e3779b9) >>> 0);
     if (mapKey === 'room2') return createRoom2(scene);
 
     const map = scene.make.tilemap({ key: mapKey });
