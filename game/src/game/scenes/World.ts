@@ -1044,6 +1044,8 @@ export class World extends Scene {
             return;
         }
         this.player.sprite.setAngle(90);
+        // Sem corpo físico, inimigos passam por cima em vez de arrastar quem caiu.
+        if (this.player.sprite.body) this.player.sprite.body.enable = false;
         if (this.getRevivesLeft() === 0) return;
         const feet = this.player.sprite.body?.center ?? this.player.sprite;
         const isPartnerClose = [...this.remotePlayers.values()].some((partner) =>

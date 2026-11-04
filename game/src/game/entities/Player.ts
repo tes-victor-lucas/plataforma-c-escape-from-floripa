@@ -147,6 +147,7 @@ export class Player {
     revive(amount: number) {
         this.health.heal(amount);
         this.sprite.clearTint().setAngle(0);
+        if (this.sprite.body) this.sprite.body.enable = true;
     }
 
     /** Permite continuar andando se a barreira sumir enquanto a tecla está pressionada. */
