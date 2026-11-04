@@ -268,7 +268,7 @@ export class World extends Scene {
         this.connectCombatToPartner();
         const finishRoomCombat = () => {
             if (this.isCoopActive() && this.player && !this.player.health.isAlive) this.revivePlayer();
-            if (this.player) this.upgrades.repairAfterRoom(this.player.health);
+            if (this.player?.health.isAlive) this.upgrades.repairAfterRoom(this.player.health);
             room.openExit();
             this.player?.clearBlockedDirection();
             if (roomKey === ROOM1_TO_ROOM2_GATEWAY.from) this.activateRoomExit();
