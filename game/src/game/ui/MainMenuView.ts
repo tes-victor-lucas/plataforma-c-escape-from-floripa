@@ -18,6 +18,9 @@ const SELECTED_ACTION_COLOR = '#ffffff';
 const SELECTED_MARKER_COLOR = 0xe90931;
 const MARKER_GAP = 8;
 const ACTION_HIT_AREA_WIDTH = 190;
+// Os números da PixelGamer são desenhos, e nomes de sala e status podem ter números.
+const PLAIN_FONT = 'Pixeboy, monospace';
+const ROOM_NAME_MAX_LENGTH = 20;
 
 type MenuAction = {
     label: string;
@@ -59,6 +62,12 @@ export function createPlayMenuActions(
     return positionActions(actions);
 }
 
+/** Aceita só o que o servidor mantém no nome da sala. */
+export function editRoomName(name: string, key: string) {
+    if (key === 'Backspace') return name.slice(0, -1);
+    return /^[a-z0-9_-]$/i.test(key) && name.length < ROOM_NAME_MAX_LENGTH ? name + key.toLowerCase() : name;
+}
+
 type RenderedAction = {
     marker: Phaser.GameObjects.Graphics;
     markerX: number;
@@ -73,6 +82,7 @@ export class MainMenuView {
     private readonly renderedActions: RenderedAction[] = [];
     private statusText?: Phaser.GameObjects.Text;
     private isPlayMenuOpen = false;
+    private closeRoomInput?: () => void;
 
     constructor(
         private readonly scene: Scene,
@@ -91,7 +101,7 @@ export class MainMenuView {
         this.addKeyboardNavigation();
         this.statusText = this.scene.add.text(MENU_LAYOUT.menuX, 340, '', {
             color: '#ffffff',
-            fontFamily: ACTION_FONT,
+            fontFamily: PLAIN_FONT,
             fontSize: '12px',
             align: 'center'
         }).setOrigin(0.5).setScrollFactor(0).setResolution(2);
@@ -128,7 +138,43 @@ export class MainMenuView {
     }
 
     setStatus(status: string) {
-        this.statusText?.setText(status);
+        // A fonte do status não tem acentos.
+        this.statusText?.setText(status.normalize('NFD').replace(/\p{M}/gu, ''));
+    }
+
+    /** Dois jogadores que digitam o mesmo nome entram na mesma sala. */
+    showRoomInput(onConfirm: (roomName: string) => void) {
+        this.isPlayMenuOpen = false;
+        this.renderActions([]);
+        this.setStatus('');
+        const textAt = (y: number, text: string, fontSize: string, color = '#ffffff') => this.scene.add
+            .text(MENU_LAYOUT.menuX, y, text, { color, fontFamily: PLAIN_FONT, fontSize, shadow: MENU_LAYOUT.actions.shadow })
+            .setOrigin(0.5).setScrollFactor(0).setResolution(2);
+        let name = '';
+        const texts = [
+            textAt(226, 'NOME DA SALA', '18px', ACTION_COLOR),
+            textAt(258, '_', '24px'),
+            textAt(292, 'USE O MESMO NOME DO SEU PARCEIRO', '12px'),
+            textAt(310, 'ENTER: ENTRAR   ESC: VOLTAR', '12px')
+        ];
+        const keyboard = this.scene.input.keyboard;
+        const close = () => {
+            keyboard?.off('keydown', handleKey);
+            texts.forEach((text) => text.destroy());
+            this.closeRoomInput = undefined;
+        };
+        const handleKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' || (event.key === 'Enter' && name)) {
+                close();
+                this.showPlayMenu();
+                if (event.key === 'Enter') onConfirm(name);
+                return;
+            }
+            name = editRoomName(name, event.key);
+            texts[1].setText(`${name.toUpperCase()}_`);
+        };
+        keyboard?.on('keydown', handleKey);
+        this.closeRoomInput = close;
     }
 
     private showMainMenu() {
@@ -224,6 +270,7 @@ export class MainMenuView {
         keyboard.on('keydown-ESC', goBack);
 
         this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            this.closeRoomInput?.();
             keyboard.off('keydown-UP', selectPrevious);
             keyboard.off('keydown-W', selectPrevious);
             keyboard.off('keydown-DOWN', selectNext);

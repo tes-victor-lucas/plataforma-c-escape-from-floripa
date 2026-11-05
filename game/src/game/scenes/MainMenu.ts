@@ -36,7 +36,10 @@ export class MainMenu extends Scene {
         this.view = new MainMenuView(this, {
             onNewGame: () => this.startNewGame(),
             onContinue: continuation ? () => this.continueGame(continuation) : undefined,
-            onMultiplayer: () => void this.startMultiplayer(),
+            // Um link com `?room=` já diz a sala, então não pergunta de novo.
+            onMultiplayer: () => new URLSearchParams(window.location.search).has('room')
+                ? void this.startMultiplayer()
+                : this.view?.showRoomInput((roomName) => void this.startMultiplayer(roomName)),
             onLeaderboard: () => this.scene.launch('Leaderboard')
         });
         this.view.create();
@@ -70,7 +73,7 @@ export class MainMenu extends Scene {
         for (const sceneKey of GAMEPLAY_SCENES) this.scene.stop(sceneKey);
     }
 
-    private async startMultiplayer() {
+    private async startMultiplayer(roomName?: string) {
         if (this.isStartingGame) return;
         const view = this.view;
         if (!view) return;
@@ -78,7 +81,7 @@ export class MainMenu extends Scene {
         view.setStatus('CONECTANDO...');
 
         try {
-            await multiplayerClient.connect((status) => view.setStatus(status));
+            await multiplayerClient.connect((status) => view.setStatus(status), roomName);
             this.registry.set('multiplayerEnabled', true);
             runTracker.startNew('MULTIPLAYER');
             replaceRequestedRoomKey('room1');

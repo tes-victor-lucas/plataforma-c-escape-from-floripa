@@ -24,9 +24,9 @@ export class MultiplayerClient {
     /** Vale para a partida inteira, e `World` reinicia a cada sala. */
     revivesUsed = 0;
 
-    async connect(onStatus?: (status: string) => void) {
+    async connect(onStatus?: (status: string) => void, roomName?: string) {
         this.disconnect();
-        const { url, roomId } = await this.getConnectionParameters();
+        const { url, roomId } = await this.getConnectionParameters(roomName);
 
         return new Promise<MatchReadyMessage>((resolve, reject) => {
             const socket = new WebSocket(url);
@@ -35,7 +35,7 @@ export class MultiplayerClient {
             const waitTimeout = window.setTimeout(() => {
                 if (settled) return;
                 settled = true;
-                reject(new Error('Outro jogador não entrou. Confiram se abriram o mesmo link.'));
+                reject(new Error('Outro jogador não entrou. Confiram o nome da sala.'));
             }, 60_000);
 
             const settle = (callback: () => void) => {
@@ -81,10 +81,10 @@ export class MultiplayerClient {
         });
     }
 
-    private async getConnectionParameters() {
+    private async getConnectionParameters(roomName?: string) {
         const parameters = new URLSearchParams(window.location.search);
         let url = parameters.get('server') ?? getDefaultServerUrl(window.location);
-        let roomId = parameters.get('room') ?? 'publica';
+        let roomId = roomName ?? parameters.get('room') ?? 'publica';
 
         if (!parameters.has('server')) {
             try {
@@ -92,7 +92,7 @@ export class MultiplayerClient {
                 if (response.ok) {
                     const config = await response.json() as { server?: unknown; room?: unknown };
                     if (typeof config.server === 'string') url = config.server;
-                    if (!parameters.has('room') && typeof config.room === 'string') roomId = config.room;
+                    if (!roomName && !parameters.has('room') && typeof config.room === 'string') roomId = config.room;
                 }
             } catch {
                 // O servidor de desenvolvimento antigo continua usando a porta 8080.
