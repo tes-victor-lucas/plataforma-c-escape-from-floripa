@@ -18,8 +18,8 @@ const SELECTED_ACTION_COLOR = '#ffffff';
 const SELECTED_MARKER_COLOR = 0xe90931;
 const MARKER_GAP = 8;
 const ACTION_HIT_AREA_WIDTH = 190;
-// Os números da PixelGamer são desenhos, e nomes de sala e status podem ter números.
-const PLAIN_FONT = 'Pixeboy, monospace';
+// shortcut: mostra só as primeiras salas abertas, trocar por rolagem se o público crescer.
+const MAX_LISTED_ROOMS = 4;
 const ROOM_NAME_MAX_LENGTH = 20;
 
 type MenuAction = {
@@ -62,6 +62,27 @@ export function createPlayMenuActions(
     return positionActions(actions);
 }
 
+export type MultiplayerMenuHandlers = {
+    onCreate: () => void;
+    onJoin: (roomId: string) => void;
+    onBack: () => void;
+};
+
+export function createMultiplayerMenuActions(
+    rooms: readonly string[],
+    { onCreate, onJoin, onBack }: MultiplayerMenuHandlers
+): MenuAction[] {
+    const listed: Omit<MenuAction, 'y'>[] = rooms.slice(0, MAX_LISTED_ROOMS).map((roomId) => ({
+        label: `${roomId.toUpperCase()}   [ ENTRAR ]`,
+        onSelect: () => onJoin(roomId)
+    }));
+    return positionActions([
+        { label: 'CRIAR SALA', onSelect: onCreate },
+        ...(listed.length > 0 ? listed : [{ label: 'NENHUMA SALA ABERTA', enabled: false }]),
+        { label: 'VOLTAR', onSelect: onBack }
+    ]);
+}
+
 /** Aceita só o que o servidor mantém no nome da sala. */
 export function editRoomName(name: string, key: string) {
     if (key === 'Backspace') return name.slice(0, -1);
@@ -81,7 +102,7 @@ export class MainMenuView {
     private currentActions: MenuAction[] = [];
     private readonly renderedActions: RenderedAction[] = [];
     private statusText?: Phaser.GameObjects.Text;
-    private isPlayMenuOpen = false;
+    private onEscape?: () => void;
     private closeRoomInput?: () => void;
 
     constructor(
@@ -99,9 +120,9 @@ export class MainMenuView {
 
         this.showMainMenu();
         this.addKeyboardNavigation();
-        this.statusText = this.scene.add.text(MENU_LAYOUT.menuX, 340, '', {
+        this.statusText = this.scene.add.text(MENU_LAYOUT.menuX, 362, '', {
             color: '#ffffff',
-            fontFamily: PLAIN_FONT,
+            fontFamily: ACTION_FONT,
             fontSize: '12px',
             align: 'center'
         }).setOrigin(0.5).setScrollFactor(0).setResolution(2);
@@ -138,23 +159,22 @@ export class MainMenuView {
     }
 
     setStatus(status: string) {
-        // A fonte do status não tem acentos.
-        this.statusText?.setText(status.normalize('NFD').replace(/\p{M}/gu, ''));
+        this.statusText?.setText(status);
     }
 
     /** Dois jogadores que digitam o mesmo nome entram na mesma sala. */
-    showRoomInput(onConfirm: (roomName: string) => void) {
-        this.isPlayMenuOpen = false;
+    showRoomInput(onConfirm: (roomName: string) => void, onCancel: () => void) {
+        this.onEscape = undefined;
         this.renderActions([]);
         this.setStatus('');
         const textAt = (y: number, text: string, fontSize: string, color = '#ffffff') => this.scene.add
-            .text(MENU_LAYOUT.menuX, y, text, { color, fontFamily: PLAIN_FONT, fontSize, shadow: MENU_LAYOUT.actions.shadow })
+            .text(MENU_LAYOUT.menuX, y, text, { color, fontFamily: ACTION_FONT, fontSize, shadow: MENU_LAYOUT.actions.shadow })
             .setOrigin(0.5).setScrollFactor(0).setResolution(2);
         let name = '';
         const texts = [
             textAt(226, 'NOME DA SALA', '18px', ACTION_COLOR),
             textAt(258, '_', '24px'),
-            textAt(292, 'USE O MESMO NOME DO SEU PARCEIRO', '12px'),
+            textAt(292, 'SEU PARCEIRO VAI VER ESSE NOME NA LISTA', '12px'),
             textAt(310, 'ENTER: ENTRAR   ESC: VOLTAR', '12px')
         ];
         const keyboard = this.scene.input.keyboard;
@@ -166,8 +186,8 @@ export class MainMenuView {
         const handleKey = (event: KeyboardEvent) => {
             if (event.key === 'Escape' || (event.key === 'Enter' && name)) {
                 close();
-                this.showPlayMenu();
                 if (event.key === 'Enter') onConfirm(name);
+                else onCancel();
                 return;
             }
             name = editRoomName(name, event.key);
@@ -177,16 +197,33 @@ export class MainMenuView {
         this.closeRoomInput = close;
     }
 
+    /** A lista muda enquanto o jogador olha: mantém a opção onde ele está. */
+    showMultiplayerMenu(rooms: readonly string[], handlers: MultiplayerMenuHandlers) {
+        this.onEscape = handlers.onBack;
+        const selectedLabel = this.currentActions[this.selectedAction]?.label;
+        this.renderActions(createMultiplayerMenuActions(rooms, handlers));
+        const selected = this.currentActions.findIndex((action) => action.label === selectedLabel);
+        if (selected >= 0) {
+            this.selectedAction = selected;
+            this.updateSelection();
+        }
+    }
+
+    showWaitingForPartner(onCancel: () => void) {
+        this.onEscape = onCancel;
+        this.renderActions(positionActions([{ label: 'CANCELAR', onSelect: onCancel }]));
+    }
+
     private showMainMenu() {
-        this.isPlayMenuOpen = false;
+        this.onEscape = undefined;
         this.renderActions(createMainMenuActions(
             () => this.showPlayMenu(),
             this.options.onLeaderboard
         ));
     }
 
-    private showPlayMenu() {
-        this.isPlayMenuOpen = true;
+    showPlayMenu() {
+        this.onEscape = () => this.showMainMenu();
         this.renderActions(createPlayMenuActions(this.options, () => this.showMainMenu()));
     }
 
@@ -228,7 +265,7 @@ export class MainMenuView {
             .rectangle(
                 MENU_LAYOUT.menuX,
                 action.y,
-                ACTION_HIT_AREA_WIDTH,
+                Math.max(ACTION_HIT_AREA_WIDTH, label.width + 24),
                 // Altura igual ao espaçamento, para que itens vizinhos não disputem o mesmo ponteiro.
                 ACTION_SPACING,
                 0x000000,
@@ -257,9 +294,7 @@ export class MainMenuView {
         const selectPrevious = () => this.moveSelection(-1);
         const selectNext = () => this.moveSelection(1);
         const confirmSelection = () => this.currentActions[this.selectedAction]?.onSelect?.();
-        const goBack = () => {
-            if (this.isPlayMenuOpen) this.showMainMenu();
-        };
+        const goBack = () => this.onEscape?.();
 
         keyboard.on('keydown-UP', selectPrevious);
         keyboard.on('keydown-W', selectPrevious);

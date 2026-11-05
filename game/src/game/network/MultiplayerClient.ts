@@ -3,6 +3,8 @@ import type { CoopEvent, MatchReadyMessage, ServerMessage } from './protocol';
 
 type MessageHandler = (message: ServerMessage) => void;
 
+const ROOM_LIST_INTERVAL = 2_000;
+
 /** Publicado com HTTPS, o servidor fica no mesmo domínio em `/ws`; localmente, na porta 8080. */
 export function getDefaultServerUrl(location: Pick<Location, 'protocol' | 'host' | 'hostname'>) {
     return location.protocol === 'https:'
@@ -35,8 +37,8 @@ export class MultiplayerClient {
             const waitTimeout = window.setTimeout(() => {
                 if (settled) return;
                 settled = true;
-                reject(new Error('Outro jogador não entrou. Confiram o nome da sala.'));
-            }, 60_000);
+                reject(new Error('Ninguém entrou na sala a tempo.'));
+            }, 300_000);
 
             const settle = (callback: () => void) => {
                 if (settled) return;
@@ -79,6 +81,38 @@ export class MultiplayerClient {
                 }
             });
         });
+    }
+
+    /** Conexão própria e curta: só consulta a lista, sem entrar em nenhuma sala. */
+    watchRooms(onRooms: (rooms: string[]) => void, onError: () => void) {
+        let stopped = false;
+        let socket: WebSocket | undefined;
+        let timer: number | undefined;
+        void this.getConnectionParameters().then(({ url }) => {
+            if (stopped) return;
+            const roomSocket = new WebSocket(url);
+            socket = roomSocket;
+            const request = () => {
+                if (roomSocket.readyState === WebSocket.OPEN) roomSocket.send(JSON.stringify({ type: 'lobby.list' }));
+            };
+            roomSocket.addEventListener('open', () => {
+                request();
+                timer = window.setInterval(request, ROOM_LIST_INTERVAL);
+            });
+            roomSocket.addEventListener('message', (event) => {
+                const message = this.parse(event.data);
+                if (message?.type === 'lobby.rooms') onRooms(message.rooms);
+            });
+            roomSocket.addEventListener('close', () => {
+                window.clearInterval(timer);
+                if (!stopped) onError();
+            });
+        });
+        return () => {
+            stopped = true;
+            window.clearInterval(timer);
+            socket?.close();
+        };
     }
 
     private async getConnectionParameters(roomName?: string) {

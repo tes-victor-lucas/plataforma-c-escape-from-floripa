@@ -21,6 +21,9 @@ const GAMEPLAY_SCENES = [
 export class MainMenu extends Scene {
     private isStartingGame = false;
     private view?: MainMenuView;
+    private stopRoomWatch?: () => void;
+    /** Uma espera cancelada ainda termina depois, e não pode mexer no menu atual. */
+    private joinAttempt = 0;
 
     constructor() {
         super('MainMenu');
@@ -39,10 +42,11 @@ export class MainMenu extends Scene {
             // Um link com `?room=` já diz a sala, então não pergunta de novo.
             onMultiplayer: () => new URLSearchParams(window.location.search).has('room')
                 ? void this.startMultiplayer()
-                : this.view?.showRoomInput((roomName) => void this.startMultiplayer(roomName)),
+                : this.openMultiplayerMenu(),
             onLeaderboard: () => this.scene.launch('Leaderboard')
         });
         this.view.create();
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopWatchingRooms());
     }
 
     private startNewGame() {
@@ -73,23 +77,71 @@ export class MainMenu extends Scene {
         for (const sceneKey of GAMEPLAY_SCENES) this.scene.stop(sceneKey);
     }
 
+    private stopWatchingRooms() {
+        this.stopRoomWatch?.();
+        this.stopRoomWatch = undefined;
+    }
+
+    private openMultiplayerMenu() {
+        const view = this.view;
+        if (!view) return;
+        let rooms: string[] = [];
+        const render = () => view.showMultiplayerMenu(rooms, {
+            onCreate: () => {
+                this.stopWatchingRooms();
+                view.setStatus('');
+                view.showRoomInput(
+                    (roomName) => void this.startMultiplayer(roomName),
+                    () => this.openMultiplayerMenu()
+                );
+            },
+            onJoin: (roomId) => void this.startMultiplayer(roomId),
+            onBack: () => {
+                this.stopWatchingRooms();
+                view.setStatus('');
+                view.showPlayMenu();
+            }
+        });
+        render();
+        this.stopWatchingRooms();
+        this.stopRoomWatch = multiplayerClient.watchRooms((nextRooms) => {
+            if (nextRooms.join() === rooms.join()) return;
+            rooms = nextRooms;
+            render();
+        }, () => view.setStatus('SERVIDOR MULTIPLAYER INDISPONÍVEL'));
+    }
+
+    private cancelMultiplayerWait() {
+        this.joinAttempt += 1;
+        this.isStartingGame = false;
+        multiplayerClient.disconnect();
+        this.view?.setStatus('');
+        this.openMultiplayerMenu();
+    }
+
     private async startMultiplayer(roomName?: string) {
         if (this.isStartingGame) return;
         const view = this.view;
         if (!view) return;
+        this.stopWatchingRooms();
         this.isStartingGame = true;
+        const attempt = ++this.joinAttempt;
+        view.showWaitingForPartner(() => this.cancelMultiplayerWait());
         view.setStatus('CONECTANDO...');
 
         try {
             await multiplayerClient.connect((status) => view.setStatus(status), roomName);
+            if (attempt !== this.joinAttempt) return;
             this.registry.set('multiplayerEnabled', true);
             runTracker.startNew('MULTIPLAYER');
             replaceRequestedRoomKey('room1');
             view.setStatus('DUPLA ENCONTRADA!');
             this.scene.launch('RoomTransition', { roomKey: 'room1' });
         } catch (error) {
+            if (attempt !== this.joinAttempt) return;
             this.isStartingGame = false;
             multiplayerClient.disconnect();
+            this.openMultiplayerMenu();
             view.setStatus(error instanceof Error ? error.message.toUpperCase() : 'ERRO MULTIPLAYER');
         }
     }
