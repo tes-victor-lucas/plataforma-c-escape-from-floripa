@@ -10,7 +10,8 @@ config = pulumi.Config()
 require_authentication = config.get_bool("requireAuthentication") or False
 root = Path(__file__).resolve().parent.parent
 site_domain = "escape-from-floripa.negoci.online"
-github_repository = "tes-victor-lucas/plataforma-c-escape-from-floripa"
+# Repositórios criados depois de 15/07/2026 identificam dono e repositório por ID no `sub` do OIDC.
+github_repository = "tes-victor-lucas@311227909/plataforma-c-escape-from-floripa@1317803667"
 
 score_table = aws.dynamodb.Table(
     "score-table",
