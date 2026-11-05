@@ -150,10 +150,11 @@ Espere uns 2 minutos, porque a EC2 ainda está instalando o servidor.
 - [ ] O endereço com `http://` redireciona para `https://`.
 - [ ] O placar abre no menu (vazio é normal).
 - [ ] Uma vitória aparece no placar, sem erro 401 no console do navegador (F12).
-- [ ] Em dois computadores ou janelas, **JOGAR → MULTIPLAYER** inicia a partida nas duas.
-- [ ] Um terceiro e um quarto jogador formam outra partida, sem serem recusados.
+- [ ] Em dois computadores ou janelas, **JOGAR → MULTIPLAYER** com o mesmo nome de sala inicia a partida nas duas.
+- [ ] Outra dupla, com outro nome de sala, joga separada.
+- [ ] Um terceiro jogador no mesmo nome de sala é avisado de que ela está cheia.
 
-Para jogar com alguém específico, os dois usam o mesmo código no endereço: `https://escape-from-floripa.negoci.online/?room=minha-sala`.
+Um link com `?room=minha-sala` entra direto nessa sala, sem perguntar o nome.
 
 ## Publicação automática
 
