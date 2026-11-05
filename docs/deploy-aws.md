@@ -210,7 +210,7 @@ Para voltar a uma versão anterior, reverta o commit na `main`. O merge da rever
 | Erro 502 em `/ws` | O servidor não está rodando. Veja os logs abaixo |
 | Erro 401 em `/ws` | O site foi aberto por outro endereço, e só o domínio oficial é aceito |
 | Jogo antigo depois de publicar | Rode de novo a invalidação do passo 8 |
-| Publicação falha com `Not authorized to perform sts:AssumeRoleWithWebIdentity` | Confira a variável `AWS_DEPLOY_ROLE_ARN` e se o workflow rodou na `main` |
+| Publicação falha com `Not authorized to perform sts:AssumeRoleWithWebIdentity` | Confira a variável `AWS_DEPLOY_ROLE_ARN` e se o workflow rodou na `main`. Se estiver certo, confira o `sub` com `gh api repos/tes-victor-lucas/plataforma-c-escape-from-floripa/actions/oidc/customization/sub`: o `sub_claim_prefix` precisa ser igual a `github_repository` em `pulumi/__main__.py`, com `repo:` na frente. Depois de corrigir, rode `pulumi up` |
 | Publicação pulada na aba Actions | As variáveis de "Publicação automática" não foram configuradas |
 | Placar com erro | **CloudWatch → Log groups**, grupo da Lambda `score-api` |
 
