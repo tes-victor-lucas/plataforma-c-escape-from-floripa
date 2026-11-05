@@ -146,6 +146,7 @@ export class World extends Scene {
     private readonly remotePlayers = new Map<string, RemotePlayer>();
     private readonly droppedItems = new Map<number, () => void>();
     private droppedItemSequence = 0;
+    private swordHint?: Phaser.GameObjects.Text;
     private unsubscribeMultiplayer?: () => void;
     private unsubscribeRunTracker?: () => void;
     private multiplayerSyncElapsed = 0;
@@ -195,6 +196,7 @@ export class World extends Scene {
         this.isRoomRequestPending = false;
         this.droppedItems.clear();
         this.droppedItemSequence = 0;
+        this.swordHint = undefined;
         this.upgrades.reset();
         this.physics.pause();
         const roomKey = data.roomKey ?? getRequestedRoomKey();
@@ -278,7 +280,7 @@ export class World extends Scene {
         this.connectCombatToPartner();
         if (roomKey === 'gaucho-dungeon') {
             // Cada jogador tem a sua espada, então o item só existe para quem ainda não pegou.
-            if (this.dungeonState?.swordCollected) this.combat.equipSword();
+            if (this.dungeonState?.swordCollected) this.equipSword();
             else this.createSwordPickup();
         }
         const finishRoomCombat = () => {
@@ -417,6 +419,7 @@ export class World extends Scene {
 
     update(_time: number, delta: number) {
         this.updatePlayerRangeIndicator();
+        if (this.player) this.swordHint?.setPosition(this.player.sprite.x, this.player.sprite.y - 26);
         this.updateLowHealthEffect();
         if (!this.isGameplayReady) return;
         // Continua mesmo no fim: o parceiro precisa saber que este jogador caiu.
@@ -546,7 +549,26 @@ export class World extends Scene {
             !pointer.rightButtonDown() || !this.player || !this.isGameplayReady || this.isGameOver
             || this.isPauseMenuOpen || this.isWaveIntermissionOpen
         ) return;
-        this.combat?.swing();
+        if (this.combat?.swing()) {
+            this.swordHint?.destroy();
+            this.swordHint = undefined;
+        }
+    }
+
+    /** O tiro automático some nesta sala, então o jogador precisa ver como atacar. */
+    private equipSword() {
+        this.combat?.equipSword();
+        this.swordHint = this.createWorldHint('BOTÃO DIREITO DO MOUSE: ATACAR');
+    }
+
+    private createWorldHint(text: string) {
+        return this.add.text(0, 0, text, {
+            fontFamily: 'PixelGamer, monospace',
+            fontSize: '8px',
+            color: '#ffffff',
+            backgroundColor: '#07131fe6',
+            padding: { x: 5, y: 3 }
+        }).setOrigin(0.5).setDepth(25);
     }
 
     /** A espada fica no chão logo ao lado de onde o jogador chega ao esconderijo. */
@@ -555,11 +577,13 @@ export class World extends Scene {
         // Perto dos pés, onde fica a hitbox do jogador; a primeira sala não tem obstáculos perto do centro.
         const { x, y } = this.player.sprite;
         const item = this.physics.add.image(x + 28, y + 8, 'sword').setDepth(9);
+        const label = this.createWorldHint('PEGUE A ESPADA').setPosition(x + 28, y - 8);
         const pickup = this.physics.add.overlap(this.player.sprite, item, () => {
             pickup.destroy();
             item.destroy();
+            label.destroy();
             if (this.dungeonState) this.dungeonState.swordCollected = true;
-            this.combat?.equipSword();
+            this.equipSword();
         });
     }
 
@@ -1083,6 +1107,7 @@ export class World extends Scene {
         this.enemySnapshot = [];
         this.cardRelease = undefined;
         this.droppedItems.clear();
+        this.swordHint = undefined;
         this.input.keyboard?.off('keydown-P', this.openPauseMenu, this);
         this.input.off('pointerdown', this.handleSwordPointer, this);
         this.input.keyboard?.off('keydown-G', this.openPiranhasMenu, this);
