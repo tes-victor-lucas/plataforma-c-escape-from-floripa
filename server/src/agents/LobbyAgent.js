@@ -1,5 +1,6 @@
 const MAX_PLAYERS = 2;
 const PUBLIC_ROOM = 'publica';
+const MAX_LISTED_ROOMS = 20;
 
 /** Mantém salas e aplica o limite de dois jogadores por partida. */
 export class LobbyAgent {
@@ -18,6 +19,7 @@ export class LobbyAgent {
             }),
             this.broker.subscribe('client.message', (event) => {
                 if (event.message.type === 'lobby.join') this.join(event.clientId, event.message.roomId);
+                if (event.message.type === 'lobby.list') this.sendOpenRooms(event.clientId);
             }),
             this.broker.subscribe('connection.closed', ({ clientId }) => this.leave(clientId))
         );
@@ -31,6 +33,14 @@ export class LobbyAgent {
     getRoomForClient(clientId) {
         const roomId = this.#clientRooms.get(clientId);
         return roomId ? this.#rooms.get(roomId) : undefined;
+    }
+
+    sendOpenRooms(clientId) {
+        const rooms = [...this.#rooms.values()]
+            .filter((room) => room.players.size < MAX_PLAYERS && !room.started)
+            .slice(0, MAX_LISTED_ROOMS)
+            .map((room) => room.id);
+        this.send(clientId, { type: 'lobby.rooms', rooms });
     }
 
     join(clientId, requestedRoomId) {
