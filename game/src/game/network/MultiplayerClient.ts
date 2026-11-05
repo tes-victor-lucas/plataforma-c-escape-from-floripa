@@ -3,6 +3,8 @@ import type { CoopEvent, MatchReadyMessage, ServerMessage } from './protocol';
 
 type MessageHandler = (message: ServerMessage) => void;
 
+const ROOM_LIST_INTERVAL = 2_000;
+
 /** Publicado com HTTPS, o servidor fica no mesmo domínio em `/ws`; localmente, na porta 8080. */
 export function getDefaultServerUrl(location: Pick<Location, 'protocol' | 'host' | 'hostname'>) {
     return location.protocol === 'https:'
@@ -24,9 +26,9 @@ export class MultiplayerClient {
     /** Vale para a partida inteira, e `World` reinicia a cada sala. */
     revivesUsed = 0;
 
-    async connect(onStatus?: (status: string) => void) {
+    async connect(onStatus?: (status: string) => void, roomName?: string) {
         this.disconnect();
-        const { url, roomId } = await this.getConnectionParameters();
+        const { url, roomId } = await this.getConnectionParameters(roomName);
 
         return new Promise<MatchReadyMessage>((resolve, reject) => {
             const socket = new WebSocket(url);
@@ -35,8 +37,8 @@ export class MultiplayerClient {
             const waitTimeout = window.setTimeout(() => {
                 if (settled) return;
                 settled = true;
-                reject(new Error('Outro jogador não entrou. Confiram se abriram o mesmo link.'));
-            }, 60_000);
+                reject(new Error('Ninguém entrou na sala a tempo.'));
+            }, 300_000);
 
             const settle = (callback: () => void) => {
                 if (settled) return;
@@ -81,10 +83,42 @@ export class MultiplayerClient {
         });
     }
 
-    private async getConnectionParameters() {
+    /** Conexão própria e curta: só consulta a lista, sem entrar em nenhuma sala. */
+    watchRooms(onRooms: (rooms: string[]) => void, onError: () => void) {
+        let stopped = false;
+        let socket: WebSocket | undefined;
+        let timer: number | undefined;
+        void this.getConnectionParameters().then(({ url }) => {
+            if (stopped) return;
+            const roomSocket = new WebSocket(url);
+            socket = roomSocket;
+            const request = () => {
+                if (roomSocket.readyState === WebSocket.OPEN) roomSocket.send(JSON.stringify({ type: 'lobby.list' }));
+            };
+            roomSocket.addEventListener('open', () => {
+                request();
+                timer = window.setInterval(request, ROOM_LIST_INTERVAL);
+            });
+            roomSocket.addEventListener('message', (event) => {
+                const message = this.parse(event.data);
+                if (message?.type === 'lobby.rooms') onRooms(message.rooms);
+            });
+            roomSocket.addEventListener('close', () => {
+                window.clearInterval(timer);
+                if (!stopped) onError();
+            });
+        });
+        return () => {
+            stopped = true;
+            window.clearInterval(timer);
+            socket?.close();
+        };
+    }
+
+    private async getConnectionParameters(roomName?: string) {
         const parameters = new URLSearchParams(window.location.search);
         let url = parameters.get('server') ?? getDefaultServerUrl(window.location);
-        let roomId = parameters.get('room') ?? 'publica';
+        let roomId = roomName ?? parameters.get('room') ?? 'publica';
 
         if (!parameters.has('server')) {
             try {
@@ -92,7 +126,7 @@ export class MultiplayerClient {
                 if (response.ok) {
                     const config = await response.json() as { server?: unknown; room?: unknown };
                     if (typeof config.server === 'string') url = config.server;
-                    if (!parameters.has('room') && typeof config.room === 'string') roomId = config.room;
+                    if (!roomName && !parameters.has('room') && typeof config.room === 'string') roomId = config.room;
                 }
             } catch {
                 // O servidor de desenvolvimento antigo continua usando a porta 8080.

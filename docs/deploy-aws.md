@@ -133,6 +133,8 @@ Leva uns 5 a 15 minutos, por causa do certificado e do CloudFront.
 
 ## Passo 8: enviar o jogo
 
+Este envio manual só é necessário antes de configurar a publicação automática, descrita mais abaixo.
+
 Ainda em `pulumi/`:
 
 ```bash
@@ -148,20 +150,54 @@ Espere uns 2 minutos, porque a EC2 ainda está instalando o servidor.
 - [ ] O endereço com `http://` redireciona para `https://`.
 - [ ] O placar abre no menu (vazio é normal).
 - [ ] Uma vitória aparece no placar, sem erro 401 no console do navegador (F12).
-- [ ] Em dois computadores ou janelas, **JOGAR → MULTIPLAYER** inicia a partida nas duas.
-- [ ] Um terceiro e um quarto jogador formam outra partida, sem serem recusados.
+- [ ] Em **JOGAR → MULTIPLAYER**, um jogador cria uma sala e o outro a vê na lista e clica em **ENTRAR**: a partida inicia nos dois.
+- [ ] Outra dupla, em outra sala, joga separada.
+- [ ] A sala some da lista quando a partida começa ou quando quem a criou cancela.
 
-Para jogar com alguém específico, os dois usam o mesmo código no endereço: `https://escape-from-floripa.negoci.online/?room=minha-sala`.
+Um link com `?room=minha-sala` entra direto nessa sala, sem perguntar o nome.
+
+## Publicação automática
+
+Depois de configurada, cada merge na `main` roda os testes e, se passarem, publica o jogo no S3 e limpa o cache do CloudFront. Em PRs, só os testes rodam. O acompanhamento fica na aba **Actions** do GitHub.
+
+**Tudo que entra na `main` vai direto para os jogadores.**
+
+### Configurar uma única vez
+
+Com a mudança que adiciona o workflow já na `main` e os passos 3 e 4 feitos:
+
+```bash
+cd pulumi
+pulumi stack select prod
+pulumi preview
+```
+
+O preview deve mostrar a **criação** de `github-actions`, `github-deploy` e `github-deploy-site`. Se `server/` mudou desde o último `pulumi up`, também mostra a **substituição da EC2 `multiplayer`**, que é esperada e derruba as partidas em andamento. Nenhum outro recurso deve ser substituído, principalmente a zona. Estando certo:
+
+```bash
+pulumi up
+gh variable set AWS_DEPLOY_ROLE_ARN --body "$(pulumi stack output deploy_role_arn)"
+gh variable set SITE_BUCKET --body "$(pulumi stack output site_bucket)"
+gh variable set SITE_DISTRIBUTION_ID --body "$(pulumi stack output site_distribution_id)"
+gh workflow run deploy.yml --ref main
+gh run watch
+```
+
+Sem essas variáveis, o workflow roda só os testes e pula a publicação. Os valores não são segredos, porque a role só pode ser usada por este repositório, na `main`.
+
+Se o `pulumi up` responder `EntityAlreadyExists` para `github-actions`, a conta já tem esse provedor. Importe-o com `pulumi import aws:iam/openIdConnectProvider:OpenIdConnectProvider github-actions arn:aws:iam::<CONTA>:oidc-provider/token.actions.githubusercontent.com` e rode `pulumi up` de novo.
+
+Para voltar a uma versão anterior, reverta o commit na `main`. O merge da reversão publica o jogo de novo.
 
 ## Como atualizar
 
 | O que mudou | O que fazer |
 |---|---|
-| Jogo (`game/`) | Passos 6 e 8 |
+| Jogo (`game/`) | Merge na `main`, e o resto é automático |
 | Servidor multiplayer (`server/`) | `pulumi up`: **recria a EC2 e derruba as partidas em andamento** |
 | Placar (`backend/`) ou infraestrutura (`pulumi/`) | `pulumi up` |
 
-Depois de mudar o protocolo do multiplayer, publique o jogo e o servidor juntos.
+**Cuidado:** o jogo sai no merge, mas o servidor só muda com o `pulumi up`. Se o protocolo do multiplayer mudar, rode o `pulumi up` logo após o merge, porque o coop pode falhar nesse intervalo.
 
 ## Se algo der errado
 
@@ -174,6 +210,8 @@ Depois de mudar o protocolo do multiplayer, publique o jogo e o servidor juntos.
 | Erro 502 em `/ws` | O servidor não está rodando. Veja os logs abaixo |
 | Erro 401 em `/ws` | O site foi aberto por outro endereço, e só o domínio oficial é aceito |
 | Jogo antigo depois de publicar | Rode de novo a invalidação do passo 8 |
+| Publicação falha com `Not authorized to perform sts:AssumeRoleWithWebIdentity` | Confira a variável `AWS_DEPLOY_ROLE_ARN` e se o workflow rodou na `main` |
+| Publicação pulada na aba Actions | As variáveis de "Publicação automática" não foram configuradas |
 | Placar com erro | **CloudWatch → Log groups**, grupo da Lambda `score-api` |
 
 ### Ver os logs do servidor multiplayer
@@ -205,4 +243,4 @@ Isso apaga tudo menos a zona do domínio, que tem proteção contra exclusão. M
 - **Combate decidido no cliente:** o computador do anfitrião simula os inimigos, então uma trapaça é possível.
 - **Servidor único:** um reinício derruba as partidas em andamento, e não há limite de mensagens por jogador.
 - **Trecho interno sem HTTPS:** do jogador ao CloudFront é criptografado, mas do CloudFront à EC2 não. O tráfego contém só o estado da partida, e a EC2 aceita conexões apenas do CloudFront.
-- **Deploy manual:** ainda não há publicação automática pelo GitHub Actions.
+- **Servidor e infraestrutura manuais:** só o jogo é publicado automaticamente; o resto depende de `pulumi up`.

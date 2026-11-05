@@ -10,6 +10,7 @@ config = pulumi.Config()
 require_authentication = config.get_bool("requireAuthentication") or False
 root = Path(__file__).resolve().parent.parent
 site_domain = "escape-from-floripa.negoci.online"
+github_repository = "tes-victor-lucas/plataforma-c-escape-from-floripa"
 
 score_table = aws.dynamodb.Table(
     "score-table",
@@ -355,6 +356,42 @@ if pulumi.get_stack() == "prod":
             evaluate_target_health=False,
         )],
     )
+
+    # O GitHub Actions publica o jogo com credenciais temporárias, sem chave guardada no repositório.
+    github_oidc = aws.iam.OpenIdConnectProvider(
+        "github-actions",
+        url="https://token.actions.githubusercontent.com",
+        client_id_lists=["sts.amazonaws.com"],
+    )
+    deploy_role = aws.iam.Role(
+        "github-deploy",
+        assume_role_policy=github_oidc.arn.apply(lambda arn: json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Principal": {"Federated": arn},
+                "Action": "sts:AssumeRoleWithWebIdentity",
+                "Condition": {"StringEquals": {
+                    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                    # Só a main publica; PRs não conseguem assumir esta role.
+                    "token.actions.githubusercontent.com:sub": f"repo:{github_repository}:ref:refs/heads/main",
+                }},
+            }],
+        })),
+    )
+    aws.iam.RolePolicy(
+        "github-deploy-site",
+        role=deploy_role.id,
+        policy=pulumi.Output.all(site_bucket.arn, distribution.arn).apply(lambda arns: json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [
+                {"Effect": "Allow", "Action": "s3:ListBucket", "Resource": arns[0]},
+                {"Effect": "Allow", "Action": ["s3:PutObject", "s3:DeleteObject"], "Resource": f"{arns[0]}/*"},
+                {"Effect": "Allow", "Action": "cloudfront:CreateInvalidation", "Resource": arns[1]},
+            ],
+        })),
+    )
+    pulumi.export("deploy_role_arn", deploy_role.arn)
     pulumi.export("site_bucket", site_bucket.bucket)
     pulumi.export("site_distribution_id", distribution.id)
     pulumi.export("site_url", pulumi.Output.concat("https://", zone.name))

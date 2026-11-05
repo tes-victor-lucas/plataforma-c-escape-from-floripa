@@ -61,6 +61,7 @@ export type ServerMessage =
     | { type: 'lobby.joined'; roomId: string; playerId: string; players: string[] }
     | { type: 'lobby.players'; roomId: string; players: string[] }
     | { type: 'lobby.rejected'; code: string; roomId: string }
+    | { type: 'lobby.rooms'; rooms: string[] }
     | MatchReadyMessage
     | RemotePlayerState
     | { type: 'match.event'; playerId: string; event: CoopEvent }

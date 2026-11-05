@@ -2531,3 +2531,90 @@ test('multiplayer usa /ws no site publicado e a porta 8080 localmente', () => {
         'ws://localhost:8080'
     );
 });
+
+test('nome da sala aceita só o que o servidor mantém', () => {
+    const { editRoomName } = load('../src/game/ui/MainMenuView.ts');
+    let name = '';
+    for (const key of ['S', 'a', 'l', 'a', '-', '1', ' ', 'ç', 'Shift', 'Enter']) name = editRoomName(name, key);
+    assert.equal(name, 'sala-1');
+    assert.equal(editRoomName(name, 'Backspace'), 'sala-');
+    assert.equal(editRoomName('', 'Backspace'), '');
+    assert.equal(editRoomName('a'.repeat(20), 'b').length, 20);
+});
+
+test('dica da espada aparece ao equipar e some no primeiro golpe que sai', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    let swings = false;
+    let destroyed = 0;
+    const hint = { setOrigin() { return this; }, setDepth() { return this; }, setResolution() { return this; }, destroy() { destroyed++; } };
+    world.add = { text: () => hint };
+    world.combat = { equipSword() {}, swing: () => swings };
+    world.player = {};
+    world.isGameplayReady = true;
+    const rightClick = { rightButtonDown: () => true };
+
+    world.equipSword();
+    assert.equal(world.swordHint, hint);
+    world.handleSwordPointer(rightClick);
+    assert.equal(destroyed, 0, 'Golpe em recarga não conta');
+
+    swings = true;
+    world.handleSwordPointer(rightClick);
+    assert.equal(destroyed, 1);
+    assert.equal(world.swordHint, undefined);
+});
+
+test('menu multiplayer lista as salas abertas com a opção de entrar', () => {
+    const { createMultiplayerMenuActions } = load('../src/game/ui/MainMenuView.ts');
+    const joined = [];
+    const handlers = { onCreate() {}, onJoin: (room) => joined.push(room), onBack() {} };
+
+    const empty = createMultiplayerMenuActions([], handlers);
+    assert.deepEqual(empty.map(({ label }) => label), ['CRIAR SALA', 'NENHUMA SALA ABERTA', 'VOLTAR']);
+    assert.equal(empty[1].enabled, false);
+
+    const listed = createMultiplayerMenuActions(['sala-1', 'b', 'c', 'd', 'e'], handlers);
+    assert.equal(listed.length, 6);
+    assert.equal(listed[1].label, 'SALA-1   [ ENTRAR ]');
+    listed[1].onSelect();
+    assert.deepEqual(joined, ['sala-1']);
+});
+
+test('carta com textura mostra a imagem, e as outras mantêm o ícone desenhado', () => {
+    const { UpgradeSelectionView } = load('../src/game/ui/UpgradeSelectionView.ts');
+    const images = [];
+    let drawnIcons = 0;
+    let scale;
+    const object = () => ({
+        setStrokeStyle() { return this; }, setInteractive() { return this; }, setOrigin() { return this; },
+        setPosition() { return this; }, on() { return this; }, once() { return this; }, add() { return this; },
+        lineStyle() { return this; }, fillStyle() { return this; }, fillCircle() { return this; }, strokeCircle() { return this; },
+        beginPath() { return this; }, moveTo() { return this; }, lineTo() { return this; }, strokePath() { return this; },
+        fillRect() { return this; }, strokeRect() { return this; }, fillRoundedRect() { return this; }, strokeRoundedRect() { return this; },
+        fillTriangle() { return this; }, strokeTriangle() { return this; }, setDepth() { return this; }, setScrollFactor() { return this; }
+    });
+    const scene = {
+        add: {
+            container: object,
+            rectangle: object,
+            text: object,
+            graphics() { drawnIcons += 1; return object(); },
+            image(x, y, texture) {
+                images.push(texture);
+                return { width: 109, height: 140, setScale(value) { scale = value; return this; } };
+            }
+        }
+    };
+    const view = new UpgradeSelectionView(scene, []);
+    const card = { id: 'gin-tropical', kind: 'stat', title: 'Gin', description: '' };
+
+    view.createCard({ ...card, texture: 'piranhas-gin-tropical' }, 0, () => {});
+    assert.deepEqual(images, ['piranhas-gin-tropical']);
+    assert.equal(scale, 58 / 140);
+    assert.equal(drawnIcons, 0);
+
+    view.createCard({ ...card, id: 'attack-range' }, 0, () => {});
+    assert.equal(images.length, 1);
+    assert.equal(drawnIcons, 1);
+});

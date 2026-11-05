@@ -6,6 +6,12 @@ import { setupFullscreenButton } from './game/ui/FullscreenButton';
 async function loadGameFonts() {
     const fonts = [
         new FontFace('PixelGamer', 'url("assets/fonts/PixelGamer-Regular.otf")'),
+        // Na PixelGamer, números e estes símbolos são desenhos: vêm da Pixeboy, no tamanho das letras.
+        new FontFace('PixelGamer', 'url("assets/fonts/Pixeboy.ttf")', {
+            unicodeRange: 'U+24-26, U+2C, U+2E, U+30-39',
+            // Ainda não está nos tipos do TypeScript.
+            sizeAdjust: '140%'
+        } as FontFaceDescriptors),
         new FontFace('Pixeboy', 'url("assets/fonts/Pixeboy.ttf")')
     ];
     const loadedFonts = await Promise.all(fonts.map((font) => font.load()));

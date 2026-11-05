@@ -174,3 +174,32 @@ test('origem só é restrita quando configurada', () => {
     assert.equal(isOriginAllowed('https://outro-site.com', allowed), false);
     assert.equal(isOriginAllowed(undefined, allowed), false);
 });
+
+function openRooms(broker, sent, clientId) {
+    sent.length = 0;
+    broker.publish('client.message', { clientId, message: { type: 'lobby.list' } });
+    return messagesFor(sent, clientId, 'lobby.rooms')[0].message.rooms;
+}
+
+test('lista mostra só salas esperando parceiro, para quem ainda não entrou', () => {
+    const { broker, sent } = setup();
+    const join = (clientId, roomId) => {
+        broker.publish('connection.opened', { clientId });
+        broker.publish('client.message', { clientId, message: { type: 'lobby.join', roomId } });
+    };
+    broker.publish('connection.opened', { clientId: 'visitante' });
+    assert.deepEqual(openRooms(broker, sent, 'visitante'), []);
+
+    join('p1', 'sala-a');
+    join('p2', 'sala-b');
+    assert.deepEqual(openRooms(broker, sent, 'visitante'), ['sala-a', 'sala-b']);
+
+    join('p3', 'sala-a');
+    assert.deepEqual(openRooms(broker, sent, 'visitante'), ['sala-b']);
+
+    broker.publish('connection.closed', { clientId: 'p2' });
+    assert.deepEqual(openRooms(broker, sent, 'visitante'), []);
+
+    broker.publish('connection.closed', { clientId: 'p3' });
+    assert.deepEqual(openRooms(broker, sent, 'visitante'), [], 'Partida iniciada não reabre');
+});

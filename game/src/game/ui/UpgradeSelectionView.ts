@@ -10,6 +10,7 @@ const CARD_Y = 286;
 const DEFAULT_CARD_CENTER_DISTANCE = 210;
 const CARD_BACKGROUND = 0x0c1219;
 const CARD_HOVER_BACKGROUND = 0x121b25;
+const ITEM_IMAGE_SIZE = 58;
 
 const PALETTES = {
     stat: {
@@ -46,6 +47,7 @@ type SelectionCard = Readonly<{
     description: string;
     theme?: keyof typeof PALETTES;
     label?: string;
+    texture?: string;
 }>;
 
 type SelectionViewOptions = Readonly<{
@@ -138,8 +140,10 @@ export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefini
             color: palette.accent,
             letterSpacing: 1
         }).setOrigin(0.5);
-        const icon = createUpgradeIcon(this.scene, card.id, palette.border, CARD_BACKGROUND)
-            .setPosition(0, -38);
+        const icon = card.texture
+            ? this.createItemImage(card.texture)
+            : createUpgradeIcon(this.scene, card.id, palette.border, CARD_BACKGROUND)
+                .setPosition(0, -38);
         const title = this.scene.add.text(0, 29, card.title.toUpperCase(), {
             fontFamily: 'PixelGamer, monospace',
             fontSize: '16px',
@@ -171,6 +175,12 @@ export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefini
         background.once('pointerup', () => select(card));
 
         return cardContainer;
+    }
+
+    /** Os itens têm tamanhos diferentes; a escala os encaixa sem deformar a arte. */
+    private createItemImage(texture: string) {
+        const image = this.scene.add.image(0, -38, texture);
+        return image.setScale(Math.min(ITEM_IMAGE_SIZE / image.width, ITEM_IMAGE_SIZE / image.height));
     }
 
 }

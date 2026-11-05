@@ -146,7 +146,7 @@ httpServer.listen(port, '0.0.0.0', () => {
     } else {
         for (const address of addresses) console.log(`Abra nos dois computadores: http://${address}:${port}`);
     }
-    console.log('\nOs dois devem clicar em JOGAR > MULTIPLAYER.');
+    console.log('\nOs dois devem clicar em JOGAR > MULTIPLAYER: um cria a sala e o outro entra pela lista.');
     console.log('Para encerrar, pressione Ctrl+C.\n');
 });
 

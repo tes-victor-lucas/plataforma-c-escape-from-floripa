@@ -1,0 +1,73 @@
+name: Testar e publicar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: game/package-lock.json
+      - name: Instalar dependências do jogo
+        working-directory: game
+        run: npm ci
+      - name: Verificar tipos
+        working-directory: game
+        run: npx tsc --noEmit
+      - name: Testar o jogo
+        working-directory: game
+        run: npm test
+      - name: Testar o servidor multiplayer
+        working-directory: server
+        run: npm ci && npm test
+      - name: Testar a pontuação
+        working-directory: backend
+        run: python3 -m unittest discover -s tests
+      - name: Testar o script do servidor na EC2
+        working-directory: pulumi
+        run: python3 -m unittest discover -s tests
+
+  deploy:
+    name: Publicar o jogo
+    needs: test
+    # Sem a role configurada no GitHub, só os testes rodam (veja docs/deploy-aws.md).
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    # Dois merges seguidos não podem enviar arquivos ao mesmo tempo.
+    concurrency:
+      group: deploy-prod
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: game/package-lock.json
+      - name: Gerar o build
+        working-directory: game
+        run: |
+          npm ci
+          npm run build-nolog
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: sa-east-1
+      - name: Enviar ao S3
+        run: aws s3 sync game/dist "s3://${{ vars.SITE_BUCKET }}" --delete
+      - name: Limpar o cache do CloudFront
+        run: aws cloudfront create-invalidation --distribution-id "${{ vars.SITE_DISTRIBUTION_ID }}" --paths '/*'
