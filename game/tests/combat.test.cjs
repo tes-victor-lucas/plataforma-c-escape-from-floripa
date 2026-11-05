@@ -2580,3 +2580,41 @@ test('menu multiplayer lista as salas abertas com a opção de entrar', () => {
     listed[1].onSelect();
     assert.deepEqual(joined, ['sala-1']);
 });
+
+test('carta com textura mostra a imagem, e as outras mantêm o ícone desenhado', () => {
+    const { UpgradeSelectionView } = load('../src/game/ui/UpgradeSelectionView.ts');
+    const images = [];
+    let drawnIcons = 0;
+    let scale;
+    const object = () => ({
+        setStrokeStyle() { return this; }, setInteractive() { return this; }, setOrigin() { return this; },
+        setPosition() { return this; }, on() { return this; }, once() { return this; }, add() { return this; },
+        lineStyle() { return this; }, fillStyle() { return this; }, fillCircle() { return this; }, strokeCircle() { return this; },
+        beginPath() { return this; }, moveTo() { return this; }, lineTo() { return this; }, strokePath() { return this; },
+        fillRect() { return this; }, strokeRect() { return this; }, fillRoundedRect() { return this; }, strokeRoundedRect() { return this; },
+        fillTriangle() { return this; }, strokeTriangle() { return this; }, setDepth() { return this; }, setScrollFactor() { return this; }
+    });
+    const scene = {
+        add: {
+            container: object,
+            rectangle: object,
+            text: object,
+            graphics() { drawnIcons += 1; return object(); },
+            image(x, y, texture) {
+                images.push(texture);
+                return { width: 109, height: 140, setScale(value) { scale = value; return this; } };
+            }
+        }
+    };
+    const view = new UpgradeSelectionView(scene, []);
+    const card = { id: 'gin-tropical', kind: 'stat', title: 'Gin', description: '' };
+
+    view.createCard({ ...card, texture: 'piranhas-gin-tropical' }, 0, () => {});
+    assert.deepEqual(images, ['piranhas-gin-tropical']);
+    assert.equal(scale, 58 / 140);
+    assert.equal(drawnIcons, 0);
+
+    view.createCard({ ...card, id: 'attack-range' }, 0, () => {});
+    assert.equal(images.length, 1);
+    assert.equal(drawnIcons, 1);
+});
