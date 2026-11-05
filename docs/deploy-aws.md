@@ -197,6 +197,8 @@ Para voltar a uma versão anterior, reverta o commit na `main`. O merge da rever
 | Servidor multiplayer (`server/`) | `pulumi up`: **recria a EC2 e derruba as partidas em andamento** |
 | Placar (`backend/`) ou infraestrutura (`pulumi/`) | `pulumi up` |
 
+PRs que mexem em `server/`, `backend/` ou `pulumi/` recebem um comentário automático lembrando do `pulumi up`.
+
 **Cuidado:** o jogo sai no merge, mas o servidor só muda com o `pulumi up`. Se o protocolo do multiplayer mudar, rode o `pulumi up` logo após o merge, porque o coop pode falhar nesse intervalo.
 
 ## Se algo der errado

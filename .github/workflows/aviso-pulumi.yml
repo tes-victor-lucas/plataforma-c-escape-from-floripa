@@ -1,0 +1,49 @@
+name: Aviso de pulumi up
+
+# Só roda quando o PR mexe no que o merge não publica sozinho.
+on:
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'backend/**'
+      - 'pulumi/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  comentar:
+    name: Avisar que precisa de pulumi up
+    runs-on: ubuntu-latest
+    # PRs de forks recebem um token sem permissão de comentar.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Comentar no PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          marker='<!-- aviso-pulumi -->'
+          # Um comentário por PR, mesmo com vários pushes.
+          if gh pr view "$PR" -R "$REPO" --json comments --jq '.comments[].body' | grep -qF "$marker"; then
+            exit 0
+          fi
+          files=$(gh pr diff "$PR" -R "$REPO" --name-only | grep -E '^(server|backend|pulumi)/' | sed "s/.*/- \`&\`/")
+          gh pr comment "$PR" -R "$REPO" --body "$marker
+          ### ⚠️ Este PR precisa de \`pulumi up\` depois do merge
+
+          O merge publica só o jogo. Estes arquivos só chegam à AWS quando quem tem a conta rodar o \`pulumi up\`:
+
+          $files
+
+          Depois do merge, na \`main\` atualizada:
+          \`\`\`bash
+          cd pulumi
+          pulumi stack select prod
+          pulumi preview   # revise antes de aplicar
+          pulumi up
+          \`\`\`
+
+          Se \`server/\` mudou, a EC2 do multiplayer é recriada e as partidas em andamento caem. O passo a passo completo está em \`docs/deploy-aws.md\`."
