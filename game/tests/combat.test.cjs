@@ -2564,3 +2564,19 @@ test('dica da espada aparece ao equipar e some no primeiro golpe que sai', () =>
     assert.equal(destroyed, 1);
     assert.equal(world.swordHint, undefined);
 });
+
+test('menu multiplayer lista as salas abertas com a opção de entrar', () => {
+    const { createMultiplayerMenuActions } = load('../src/game/ui/MainMenuView.ts');
+    const joined = [];
+    const handlers = { onCreate() {}, onJoin: (room) => joined.push(room), onBack() {} };
+
+    const empty = createMultiplayerMenuActions([], handlers);
+    assert.deepEqual(empty.map(({ label }) => label), ['CRIAR SALA', 'NENHUMA SALA ABERTA', 'VOLTAR']);
+    assert.equal(empty[1].enabled, false);
+
+    const listed = createMultiplayerMenuActions(['sala-1', 'b', 'c', 'd', 'e'], handlers);
+    assert.equal(listed.length, 6);
+    assert.equal(listed[1].label, 'SALA-1   [ ENTRAR ]');
+    listed[1].onSelect();
+    assert.deepEqual(joined, ['sala-1']);
+});
