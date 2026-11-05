@@ -2531,3 +2531,36 @@ test('multiplayer usa /ws no site publicado e a porta 8080 localmente', () => {
         'ws://localhost:8080'
     );
 });
+
+test('nome da sala aceita só o que o servidor mantém', () => {
+    const { editRoomName } = load('../src/game/ui/MainMenuView.ts');
+    let name = '';
+    for (const key of ['S', 'a', 'l', 'a', '-', '1', ' ', 'ç', 'Shift', 'Enter']) name = editRoomName(name, key);
+    assert.equal(name, 'sala-1');
+    assert.equal(editRoomName(name, 'Backspace'), 'sala-');
+    assert.equal(editRoomName('', 'Backspace'), '');
+    assert.equal(editRoomName('a'.repeat(20), 'b').length, 20);
+});
+
+test('dica da espada aparece ao equipar e some no primeiro golpe que sai', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    let swings = false;
+    let destroyed = 0;
+    const hint = { setOrigin() { return this; }, setDepth() { return this; }, destroy() { destroyed++; } };
+    world.add = { text: () => hint };
+    world.combat = { equipSword() {}, swing: () => swings };
+    world.player = {};
+    world.isGameplayReady = true;
+    const rightClick = { rightButtonDown: () => true };
+
+    world.equipSword();
+    assert.equal(world.swordHint, hint);
+    world.handleSwordPointer(rightClick);
+    assert.equal(destroyed, 0, 'Golpe em recarga não conta');
+
+    swings = true;
+    world.handleSwordPointer(rightClick);
+    assert.equal(destroyed, 1);
+    assert.equal(world.swordHint, undefined);
+});
