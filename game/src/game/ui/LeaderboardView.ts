@@ -40,6 +40,9 @@ export class LeaderboardView {
             fontFamily: TABLE_FONT, fontSize: '15px', color: '#ffffff',
             lineSpacing: 11
         }).setDepth(202));
+        scene.add.text(GAME_WIDTH / 2, 424, 'FUNÇÃO EM DESENVOLVIMENTO', {
+            fontFamily: 'PixelGamer, monospace', fontSize: '16px', color: '#ffcc66'
+        }).setOrigin(0.5).setDepth(202).setResolution(2);
         const close = scene.add.text(GAME_WIDTH / 2, 454, '[ VOLTAR ]', {
             fontFamily: 'PixelGamer, monospace', fontSize: '18px', color: '#ffffff'
         }).setOrigin(0.5).setDepth(203).setInteractive({ useHandCursor: true });
