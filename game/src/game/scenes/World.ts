@@ -568,7 +568,8 @@ export class World extends Scene {
             color: '#ffffff',
             backgroundColor: '#07131fe6',
             padding: { x: 5, y: 3 }
-        }).setOrigin(0.5).setDepth(25);
+        // A câmera tem zoom: sem resolução maior, as letras pequenas perdem os traços.
+        }).setOrigin(0.5).setDepth(25).setResolution(4);
     }
 
     /** A espada fica no chão logo ao lado de onde o jogador chega ao esconderijo. */
@@ -577,7 +578,8 @@ export class World extends Scene {
         // Perto dos pés, onde fica a hitbox do jogador; a primeira sala não tem obstáculos perto do centro.
         const { x, y } = this.player.sprite;
         const item = this.physics.add.image(x + 28, y + 8, 'sword').setDepth(9);
-        const label = this.createWorldHint('PEGUE A ESPADA').setPosition(x + 28, y - 8);
+        // Abaixo da espada: acima dela, a mensagem cobriria a cabeça do personagem.
+        const label = this.createWorldHint('PEGUE A ESPADA').setPosition(x + 28, y + 26);
         const pickup = this.physics.add.overlap(this.player.sprite, item, () => {
             pickup.destroy();
             item.destroy();

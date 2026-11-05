@@ -2547,7 +2547,7 @@ test('dica da espada aparece ao equipar e some no primeiro golpe que sai', () =>
     const world = new World();
     let swings = false;
     let destroyed = 0;
-    const hint = { setOrigin() { return this; }, setDepth() { return this; }, destroy() { destroyed++; } };
+    const hint = { setOrigin() { return this; }, setDepth() { return this; }, setResolution() { return this; }, destroy() { destroyed++; } };
     world.add = { text: () => hint };
     world.combat = { equipSword() {}, swing: () => swings };
     world.player = {};
