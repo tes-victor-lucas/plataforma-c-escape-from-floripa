@@ -150,9 +150,9 @@ Espere uns 2 minutos, porque a EC2 ainda está instalando o servidor.
 - [ ] O endereço com `http://` redireciona para `https://`.
 - [ ] O placar abre no menu (vazio é normal).
 - [ ] Uma vitória aparece no placar, sem erro 401 no console do navegador (F12).
-- [ ] Em dois computadores ou janelas, **JOGAR → MULTIPLAYER** com o mesmo nome de sala inicia a partida nas duas.
-- [ ] Outra dupla, com outro nome de sala, joga separada.
-- [ ] Um terceiro jogador no mesmo nome de sala é avisado de que ela está cheia.
+- [ ] Em **JOGAR → MULTIPLAYER**, um jogador cria uma sala e o outro a vê na lista e clica em **ENTRAR**: a partida inicia nos dois.
+- [ ] Outra dupla, em outra sala, joga separada.
+- [ ] A sala some da lista quando a partida começa ou quando quem a criou cancela.
 
 Um link com `?room=minha-sala` entra direto nessa sala, sem perguntar o nome.
 
@@ -172,7 +172,7 @@ pulumi stack select prod
 pulumi preview
 ```
 
-O preview deve mostrar a **criação** de `github-actions`, `github-deploy` e `github-deploy-site`, e nenhuma substituição. Estando certo:
+O preview deve mostrar a **criação** de `github-actions`, `github-deploy` e `github-deploy-site`. Se `server/` mudou desde o último `pulumi up`, também mostra a **substituição da EC2 `multiplayer`**, que é esperada e derruba as partidas em andamento. Nenhum outro recurso deve ser substituído, principalmente a zona. Estando certo:
 
 ```bash
 pulumi up

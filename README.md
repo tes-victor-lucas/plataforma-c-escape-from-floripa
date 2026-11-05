@@ -26,7 +26,7 @@ No computador que hospedará a partida, execute na raiz do projeto:
 npm run lan
 ```
 
-O terminal mostrará um único endereço, como `http://192.168.1.42:8080`. Abra exatamente esse endereço nos dois computadores e escolha **JOGAR > MULTIPLAYER** com o mesmo nome de sala. O segundo computador precisa apenas do navegador; não precisa clonar nem iniciar o projeto.
+O terminal mostrará um único endereço, como `http://192.168.1.42:8080`. Abra exatamente esse endereço nos dois computadores e escolha **JOGAR > MULTIPLAYER**: um cria a sala e o outro entra pela lista. O segundo computador precisa apenas do navegador; não precisa clonar nem iniciar o projeto.
 
 Jogo e WebSocket usam a mesma porta para evitar divergência de servidor ou bloqueio de uma segunda porta. Cada sala aceita no máximo dois jogadores.
 

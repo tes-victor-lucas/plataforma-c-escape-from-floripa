@@ -45,7 +45,7 @@ PORT=9090 npm start
 
 ## Testar o multiplayer
 
-Mantenha o jogo e o servidor abertos. Selecione MULTIPLAYER em duas abas e digite o mesmo nome de sala. Para pular essa etapa, use a URL abaixo:
+Mantenha o jogo e o servidor abertos. Selecione MULTIPLAYER em duas abas: uma cria a sala e a outra escolhe na lista. Sem o servidor rodando, o menu mostra "SERVIDOR MULTIPLAYER INDISPONÍVEL". Para pular essa etapa, use a URL abaixo:
 
 http://localhost:1234/?room=minha-sala&server=ws://localhost:8080
 
