@@ -1758,7 +1758,7 @@ test('voltar ao menu após derrota usa a transição suave de saída', () => {
     assert.deepEqual(topScenes, ['ReturnToMenuTransition']);
 });
 
-test('transição de retorno devolve o menu ao topo após vitória, derrota ou pausa', () => {
+test('transição de retorno não coloca o menu acima de overlays como o placar', () => {
     const { ReturnToMenuTransition } = load('../src/game/scenes/ReturnToMenuTransition.ts');
     const { musicDirector } = load('../src/game/audio/MusicDirector.ts');
     const originalTransitionTo = musicDirector.transitionTo;
@@ -1790,7 +1790,6 @@ test('transição de retorno devolve o menu ao topo após vitória, derrota ou p
         ['stop', 'PauseMenu'],
         ['launch', 'MainMenu'],
         ['back', 'MainMenu'],
-        ['top', 'MainMenu'],
         ['stop', undefined]
     ]);
 });
