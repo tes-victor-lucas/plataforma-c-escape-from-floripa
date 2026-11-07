@@ -18,9 +18,10 @@ vm.runInThisContext(`(function(require, module, exports) { ${code}\n})`, { filen
 
 const { GamepadInput } = compiledModule.exports;
 
-function fakeGamepad(pressed = [], axes = [0, 0]) {
+function fakeGamepad(pressed = [], axes = [0, 0], mapping = '') {
     return {
         connected: true,
+        mapping,
         axes,
         buttons: Array.from({ length: 16 }, (_, index) => ({
             pressed: pressed.includes(index),
@@ -37,7 +38,7 @@ test('controle USB combina direcional, botoes principais e Start', () => {
     input.update(1);
     assert.deepEqual(input.getMovement(), { x: 0, y: 0 });
 
-    gamepad = fakeGamepad([0, 13], [0, 0]);
+    gamepad = fakeGamepad([1, 13], [0, 0]);
     input.update(2);
     assert.equal(input.justPressed('confirm'), true);
     assert.equal(input.justPressed('attack'), true);
@@ -46,7 +47,7 @@ test('controle USB combina direcional, botoes principais e Start', () => {
     input.update(3);
     assert.equal(input.justPressed('confirm'), false, 'segurar não repete a ação');
 
-    gamepad = fakeGamepad([1, 9], [-1, -1]);
+    gamepad = fakeGamepad([0, 9], [-1, -1]);
     input.update(4);
     assert.equal(input.justPressed('dash'), true);
     assert.equal(input.justPressed('cancel'), true);
@@ -59,4 +60,16 @@ test('controle USB combina direcional, botoes principais e Start', () => {
     gamepad = fakeGamepad([5]);
     input.update(6);
     assert.equal(input.justPressed('dash'), true, 'o botão R também executa o dash');
+});
+
+test('controle com mapeamento padrao confirma com o botao principal inferior', () => {
+    const input = new GamepadInput();
+    let gamepad = fakeGamepad([], [0, 0], 'standard');
+    input.getGamepad = () => gamepad;
+    input.update(1);
+
+    gamepad = fakeGamepad([0], [0, 0], 'standard');
+    input.update(2);
+    assert.equal(input.justPressed('confirm'), true);
+    assert.equal(input.justPressed('cancel'), false);
 });

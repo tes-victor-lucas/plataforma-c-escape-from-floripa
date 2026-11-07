@@ -20,14 +20,22 @@ const PRIMARY_BUTTON = 0;
 const SECONDARY_BUTTON = 1;
 const RIGHT_SHOULDER_BUTTON = 5;
 const START_BUTTON = 9;
-const BUTTONS: Readonly<Partial<Record<GamepadAction, readonly number[]>>> = {
-    // A posição física é mais confiável que a letra impressa: botão inferior e botão direito.
+const STANDARD_BUTTONS: Readonly<Partial<Record<GamepadAction, readonly number[]>>> = {
+    // No mapeamento padrão, o botão principal fica embaixo (A no Xbox, B no SNES).
     confirm: [PRIMARY_BUTTON],
     attack: [PRIMARY_BUTTON],
     interact: [PRIMARY_BUTTON],
     cancel: [SECONDARY_BUTTON],
-    // Controles estilo SNES expõem o botão R como o ombro direito (índice padrão 5).
     dash: [SECONDARY_BUTTON, RIGHT_SHOULDER_BUTTON],
+    pause: [START_BUTTON]
+};
+const GENERIC_SNES_BUTTONS: typeof STANDARD_BUTTONS = {
+    // O USB Gamepad 0810:0001 não declara mapeamento padrão: A é 1 e B é 0.
+    confirm: [SECONDARY_BUTTON],
+    attack: [SECONDARY_BUTTON],
+    interact: [SECONDARY_BUTTON],
+    cancel: [PRIMARY_BUTTON],
+    dash: [PRIMARY_BUTTON, RIGHT_SHOULDER_BUTTON],
     pause: [START_BUTTON]
 };
 const DIRECTION_BUTTONS: Readonly<Record<Direction, number>> = {
@@ -52,12 +60,14 @@ export class GamepadInput {
     };
     private previousDirections = this.currentDirections;
     private axes: readonly number[] = [];
+    private usesStandardMapping = false;
     private lastFrameToken = Number.NaN;
 
     constructor() {
         // Uma cena aberta por um botão ainda segurado não deve interpretar o mesmo toque outra vez.
         const gamepad = this.getGamepad();
         if (!gamepad) return;
+        this.usesStandardMapping = gamepad.mapping === 'standard';
         this.currentButtons = gamepad.buttons.map((button) => button.pressed || button.value > 0.5);
         this.previousButtons = [...this.currentButtons];
         this.axes = [...gamepad.axes];
@@ -86,6 +96,7 @@ export class GamepadInput {
             return;
         }
 
+        this.usesStandardMapping = gamepad.mapping === 'standard';
         this.currentButtons = gamepad.buttons.map((button) => button.pressed || button.value > 0.5);
         this.axes = [...gamepad.axes];
         const horizontal = this.axis(0);
@@ -100,14 +111,14 @@ export class GamepadInput {
 
     isDown(action: GamepadAction) {
         if (this.isDirection(action)) return this.currentDirections[action];
-        return (BUTTONS[action] ?? []).some((button) => this.button(button));
+        return this.buttonsFor(action).some((button) => this.button(button));
     }
 
     justPressed(action: GamepadAction) {
         if (this.isDirection(action)) {
             return this.currentDirections[action] && !this.previousDirections[action];
         }
-        return (BUTTONS[action] ?? []).some((button) =>
+        return this.buttonsFor(action).some((button) =>
             this.button(button) && !this.previousButton(button));
     }
 
@@ -139,6 +150,11 @@ export class GamepadInput {
 
     private axis(index: number) {
         return this.axes[index] ?? 0;
+    }
+
+    private buttonsFor(action: GamepadAction) {
+        const mapping = this.usesStandardMapping ? STANDARD_BUTTONS : GENERIC_SNES_BUTTONS;
+        return mapping[action] ?? [];
     }
 
     private isDirection(action: GamepadAction): action is Direction {
