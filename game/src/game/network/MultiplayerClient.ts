@@ -1,3 +1,4 @@
+import type { CharacterId } from '../config/characters';
 import type { Direction } from '../entities/Player';
 import type { CoopEvent, MatchReadyMessage, ServerMessage } from './protocol';
 
@@ -153,6 +154,7 @@ export class MultiplayerClient {
         maxHealth: number;
         reviveProgress: number;
         revivesLeft: number;
+        character: CharacterId;
     }) {
         if (this.socket?.readyState !== WebSocket.OPEN) return;
         this.socket.send(JSON.stringify({

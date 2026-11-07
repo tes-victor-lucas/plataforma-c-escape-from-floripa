@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 import { getMenuLayout, MENU_CONFIG } from '../config/menu';
+import { createWalkAnimations, walkAnimationKey } from '../entities/PlayerAnimations';
 
 const MENU_LAYOUT = getMenuLayout();
 
@@ -9,6 +10,9 @@ export type MainMenuViewOptions = {
     onContinue?: () => void;
     onMultiplayer?: () => void;
     onLeaderboard?: () => void;
+    /** Rótulo do personagem atual e textura da prévia; sem isso o menu não oferece a troca. */
+    character?: () => { label: string; texture: string };
+    onToggleCharacter?: () => void;
 };
 
 const ACTION_FONT = 'PixelGamer, monospace';
@@ -58,6 +62,9 @@ export function createPlayMenuActions(
         onSelect: options.onNewGame
     }];
     if (options.onMultiplayer) actions.push({ label: 'MULTIPLAYER', onSelect: options.onMultiplayer });
+    if (options.character && options.onToggleCharacter) {
+        actions.push({ label: `PERSONAGEM: ${options.character().label}`, onSelect: options.onToggleCharacter });
+    }
     actions.push({ label: 'VOLTAR', onSelect: onBack });
     return positionActions(actions);
 }
@@ -103,6 +110,7 @@ export class MainMenuView {
     private readonly renderedActions: RenderedAction[] = [];
     private statusText?: Phaser.GameObjects.Text;
     private onEscape?: () => void;
+    private characterPreview?: Phaser.GameObjects.Sprite;
     private closeRoomInput?: () => void;
 
     constructor(
@@ -200,13 +208,42 @@ export class MainMenuView {
     /** A lista muda enquanto o jogador olha: mantém a opção onde ele está. */
     showMultiplayerMenu(rooms: readonly string[], handlers: MultiplayerMenuHandlers) {
         this.onEscape = handlers.onBack;
+        this.renderKeepingSelection(createMultiplayerMenuActions(rooms, handlers));
+    }
+
+    /** Depois de trocar o personagem, o cursor continua na mesma opção. */
+    refreshPlayMenu() {
+        const selected = this.selectedAction;
+        this.renderActions(createPlayMenuActions(this.options, () => this.showMainMenu()));
+        this.selectedAction = selected;
+        this.updateSelection();
+        this.updateCharacterPreview();
+    }
+
+    private renderKeepingSelection(actions: MenuAction[]) {
         const selectedLabel = this.currentActions[this.selectedAction]?.label;
-        this.renderActions(createMultiplayerMenuActions(rooms, handlers));
+        this.renderActions(actions);
         const selected = this.currentActions.findIndex((action) => action.label === selectedLabel);
         if (selected >= 0) {
             this.selectedAction = selected;
             this.updateSelection();
         }
+    }
+
+    /** Prévia animada ao lado da opção, visível só no menu de jogar. */
+    private updateCharacterPreview() {
+        const action = this.currentActions.find(({ label }) => label.startsWith('PERSONAGEM'));
+        const character = this.options.character?.();
+        if (!action || !character) {
+            this.characterPreview?.setVisible(false);
+            return;
+        }
+        createWalkAnimations(this.scene, character.texture);
+        this.characterPreview ??= this.scene.add.sprite(0, 0, character.texture).setScale(1.5).setScrollFactor(0);
+        this.characterPreview
+            .setVisible(true)
+            .setPosition(MENU_LAYOUT.menuX + 150, action.y - 8)
+            .play(walkAnimationKey(character.texture, 'down'), true);
     }
 
     showWaitingForPartner(onCancel: () => void) {
@@ -225,9 +262,11 @@ export class MainMenuView {
     showPlayMenu() {
         this.onEscape = () => this.showMainMenu();
         this.renderActions(createPlayMenuActions(this.options, () => this.showMainMenu()));
+        this.updateCharacterPreview();
     }
 
     private renderActions(actions: MenuAction[]) {
+        this.characterPreview?.setVisible(false);
         this.renderedActions.forEach(({ marker, label, hitArea }) => {
             this.scene.tweens.killTweensOf(marker);
             marker.destroy();
