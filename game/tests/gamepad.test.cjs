@@ -1,0 +1,62 @@
+const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const path = require('node:path');
+const { test } = require('node:test');
+const vm = require('node:vm');
+const ts = require('typescript');
+
+const filename = path.resolve(__dirname, '../src/game/input/GamepadInput.ts');
+const compiledModule = { exports: {} };
+const code = ts.transpileModule(readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
+}).outputText;
+vm.runInThisContext(`(function(require, module, exports) { ${code}\n})`, { filename })(
+    require,
+    compiledModule,
+    compiledModule.exports
+);
+
+const { GamepadInput } = compiledModule.exports;
+
+function fakeGamepad(pressed = [], axes = [0, 0]) {
+    return {
+        connected: true,
+        axes,
+        buttons: Array.from({ length: 16 }, (_, index) => ({
+            pressed: pressed.includes(index),
+            value: pressed.includes(index) ? 1 : 0
+        }))
+    };
+}
+
+test('controle USB combina direcional, botoes principais e Start', () => {
+    const input = new GamepadInput();
+    let gamepad = fakeGamepad();
+    input.getGamepad = () => gamepad;
+
+    input.update(1);
+    assert.deepEqual(input.getMovement(), { x: 0, y: 0 });
+
+    gamepad = fakeGamepad([0, 13], [0, 0]);
+    input.update(2);
+    assert.equal(input.justPressed('confirm'), true);
+    assert.equal(input.justPressed('attack'), true);
+    assert.deepEqual(input.getMovement(), { x: 0, y: 1 });
+
+    input.update(3);
+    assert.equal(input.justPressed('confirm'), false, 'segurar não repete a ação');
+
+    gamepad = fakeGamepad([1, 9], [-1, -1]);
+    input.update(4);
+    assert.equal(input.justPressed('dash'), true);
+    assert.equal(input.justPressed('cancel'), true);
+    assert.equal(input.justPressed('pause'), true);
+    assert.ok(Math.abs(input.getMovement().x + Math.SQRT1_2) < 0.0001);
+    assert.ok(Math.abs(input.getMovement().y + Math.SQRT1_2) < 0.0001);
+
+    gamepad = fakeGamepad();
+    input.update(5);
+    gamepad = fakeGamepad([5]);
+    input.update(6);
+    assert.equal(input.justPressed('dash'), true, 'o botão R também executa o dash');
+});
