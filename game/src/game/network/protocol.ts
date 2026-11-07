@@ -1,5 +1,6 @@
 import type { EnemyKind } from '../config/combat';
 import type { RoomKey } from '../config/rooms';
+import type { CharacterId } from '../config/characters';
 import type { Direction } from '../entities/Player';
 
 export type MatchReadyMessage = {
@@ -20,6 +21,7 @@ export type RemotePlayerState = {
     /** Entre 0 e 1 enquanto o jogador caído recebe ajuda. */
     reviveProgress: number;
     revivesLeft: number;
+    character?: CharacterId;
 };
 
 export type EnemySpawnRow = Readonly<{

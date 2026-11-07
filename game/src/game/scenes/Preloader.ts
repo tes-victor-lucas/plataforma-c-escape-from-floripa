@@ -1,3 +1,4 @@
+import { CHARACTERS } from '../config/characters';
 import { Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
 import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
@@ -46,11 +47,9 @@ export class Preloader extends Scene {
             }
         }
 
-        this.load.spritesheet(
-            'player-walk',
-            'assets/character.png',
-            { frameWidth: 38, frameHeight: 38 }
-        );
+        for (const { texture, path } of Object.values(CHARACTERS)) {
+            this.load.spritesheet(texture, path, { frameWidth: 38, frameHeight: 38 });
+        }
 
         this.load.spritesheet(
             'drone-fly',

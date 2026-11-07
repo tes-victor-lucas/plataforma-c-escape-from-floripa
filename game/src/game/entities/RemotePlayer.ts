@@ -3,7 +3,8 @@ import { Health } from '../combat/Health';
 import { COMBAT_CONFIG } from '../config/combat';
 import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import type { RemotePlayerState } from '../network/protocol';
-import type { Direction } from './Player';
+import { CHARACTERS, isCharacterId, type CharacterId } from '../config/characters';
+import { createWalkAnimations, walkAnimationKey, type Direction } from './PlayerAnimations';
 
 /** Barra sobre a cabeça, usada para a vida do parceiro e para a ajuda ao caído. */
 export function drawPlayerBar(
@@ -32,10 +33,12 @@ export class RemotePlayer {
     private facing: Direction = 'down';
     private reviveProgress = 0;
     revivesLeft: number = COMBAT_CONFIG.multiplayer.maxRevives;
+    private characterId: CharacterId = 'padrao';
 
     constructor(scene: Scene, x: number, y: number, onDamage: (amount: number) => void) {
         const { player } = WORLD_CONFIG;
-        this.sprite = scene.add.sprite(x, y, player.texture, player.initialFrame)
+        createWalkAnimations(scene, CHARACTERS.padrao.texture);
+        this.sprite = scene.add.sprite(x, y, CHARACTERS.padrao.texture, player.initialFrame)
             .setScale(player.scale)
             .setDepth(9)
             .setTint(0x66ccff);
@@ -65,6 +68,12 @@ export class RemotePlayer {
         this.health.restore(state.health, state.maxHealth);
         this.reviveProgress = state.reviveProgress;
         this.revivesLeft = state.revivesLeft;
+        // Cliente antigo não envia o personagem: o parceiro continua no padrão.
+        if (isCharacterId(state.character) && state.character !== this.characterId) {
+            this.characterId = state.character;
+            createWalkAnimations(this.sprite.scene, CHARACTERS[state.character].texture);
+            this.sprite.setTexture(CHARACTERS[state.character].texture, WORLD_CONFIG.player.initialFrame);
+        }
     }
 
     update(feetOffset: { x: number; y: number }) {
@@ -85,7 +94,7 @@ export class RemotePlayer {
         const isAlive = this.health.isAlive;
         this.sprite.setAngle(isAlive ? 0 : 90);
         if (isAlive && distance > 1) {
-            this.sprite.anims.play(`player-walk-${this.facing}`, true);
+            this.sprite.anims.play(walkAnimationKey(CHARACTERS[this.characterId].texture, this.facing), true);
         } else {
             this.sprite.anims.stop();
         }

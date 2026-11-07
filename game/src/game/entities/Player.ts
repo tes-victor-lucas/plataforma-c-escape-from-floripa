@@ -5,16 +5,12 @@ import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import { COMBAT_CONFIG } from '../config/combat';
 import { Health } from '../combat/Health';
 import { DashState } from './DashState';
+import { CHARACTERS, type CharacterId } from '../config/characters';
+import { createWalkAnimations, walkAnimationKey, WALK_FRAMES, type Direction } from './PlayerAnimations';
 
-export type Direction = 'up' | 'down' | 'left' | 'right';
+export type { Direction } from './PlayerAnimations';
 
-// A folha possui 12 colunas: cada direção ocupa 9 frames em uma linha distinta.
-const WALK_FRAMES: Record<Direction, number[]> = {
-    up: [96, 97, 98, 99, 100, 101, 102, 103, 104],
-    left: [108, 109, 110, 111, 112, 113, 114, 115, 116],
-    down: [120, 121, 122, 123, 124, 125, 126, 127, 128],
-    right: [132, 133, 134, 135, 136, 137, 138, 139, 140]
-};
+
 
 type MovementKeys = Record<Direction, Phaser.Input.Keyboard.Key>;
 type MovementDirection = { x: number; y: number };
@@ -34,6 +30,7 @@ export class Player {
     );
     private readonly footsteps: FootstepAudio;
     private facing: Direction = 'down';
+    private readonly texture: string;
     /** Última direção pedida pelo teclado; muda na hora, antes de a velocidade inverter. */
     private aimDirection: { x: number; y: number } = { x: 0, y: 1 };
     private movementSpeedMultiplier = 1;
@@ -47,7 +44,8 @@ export class Player {
     constructor(
         private readonly scene: Scene,
         spawnPosition: SpawnPosition,
-        private readonly onDamageApplied?: (healthLost: number) => void
+        private readonly onDamageApplied?: (healthLost: number) => void,
+        characterId: CharacterId = 'padrao'
     ) {
         const keyboard = scene.input.keyboard;
 
@@ -59,15 +57,16 @@ export class Player {
         this.sprite = scene.physics.add.sprite(
             spawnPosition.x,
             spawnPosition.y,
-            player.texture,
+            CHARACTERS[characterId].texture,
             player.initialFrame
         );
+        this.texture = CHARACTERS[characterId].texture;
         this.sprite.setScale(player.scale);
         this.sprite.setDepth(10);
         this.sprite.setCollideWorldBounds(true);
         this.configureBody();
 
-        this.createAnimations();
+        createWalkAnimations(scene, this.texture);
         this.setIdleFrame();
 
         this.cursors = keyboard.createCursorKeys();
@@ -137,7 +136,7 @@ export class Player {
 
         this.facing = this.getFacingDirection(x, y);
 
-        const animationKey = `player-walk-${this.facing}`;
+        const animationKey = walkAnimationKey(this.texture, this.facing);
         if (this.sprite.anims.currentAnim?.key !== animationKey || !this.sprite.anims.isPlaying) {
             this.playWalkAnimation(animationKey);
         }
@@ -364,22 +363,7 @@ export class Player {
         this.setIdleFrame();
     }
 
-    private createAnimations() {
-        for (const [direction, frames] of Object.entries(WALK_FRAMES) as [Direction, number[]][]) {
-            const key = `player-walk-${direction}`;
-
-            if (!this.scene.anims.exists(key)) {
-                this.scene.anims.create({
-                    key,
-                    frames: this.scene.anims.generateFrameNumbers(WORLD_CONFIG.player.texture, { frames }),
-                    frameRate: 9,
-                    repeat: -1
-                });
-            }
-        }
-    }
-
     private setIdleFrame() {
-        this.sprite.setTexture(WORLD_CONFIG.player.texture, WALK_FRAMES[this.facing][0]);
+        this.sprite.setTexture(this.texture, WALK_FRAMES[this.facing][0]);
     }
 }
