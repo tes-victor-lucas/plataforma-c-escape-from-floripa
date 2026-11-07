@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 import { getMenuLayout, MENU_CONFIG } from '../config/menu';
+import { bindGamepadActions } from '../input/GamepadInput';
 
 const MENU_LAYOUT = getMenuLayout();
 
@@ -195,6 +196,10 @@ export class MainMenuView {
         };
         keyboard?.on('keydown', handleKey);
         this.closeRoomInput = close;
+        this.onEscape = () => {
+            close();
+            onCancel();
+        };
     }
 
     /** A lista muda enquanto o jogador olha: mantém a opção onde ele está. */
@@ -288,6 +293,13 @@ export class MainMenuView {
     }
 
     private addKeyboardNavigation() {
+        bindGamepadActions(this.scene, {
+            up: () => this.moveSelection(-1),
+            down: () => this.moveSelection(1),
+            confirm: () => this.currentActions[this.selectedAction]?.onSelect?.(),
+            cancel: () => this.onEscape?.()
+        });
+
         const keyboard = this.scene.input.keyboard;
         if (!keyboard) return;
 

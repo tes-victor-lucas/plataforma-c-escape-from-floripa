@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 import type { UpgradeCardDefinition } from '../upgrades';
 import { createUpgradeIcon } from './UpgradeIcon';
+import { bindGamepadActions } from '../input/GamepadInput';
 
 const DEPTH = 180;
 const CARD_WIDTH = 176;
@@ -56,6 +57,12 @@ type SelectionViewOptions = Readonly<{
     cardCenterDistance?: number;
 }>;
 
+type RenderedSelectionCard = Readonly<{
+    container: Phaser.GameObjects.Container;
+    setFocused: (focused: boolean) => void;
+    select: () => void;
+}>;
+
 /** Exibe três cartas e encerra somente depois que uma delas for escolhida. */
 export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefinition> {
     private readonly root: Phaser.GameObjects.Container;
@@ -107,10 +114,13 @@ export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefini
             GAME_WIDTH / 2,
             GAME_WIDTH / 2 + centerDistance
         ];
-        this.cards.forEach((card, index) => {
-            this.root.add(this.createCard(card, cardX[index], (selected) => {
+        let selectedIndex = 0;
+        let cleanupInput = () => undefined;
+        const renderedCards = this.cards.map((card, index) =>
+            this.createCard(card, cardX[index], (selected) => {
                 if (this.selected) return;
                 this.selected = true;
+                cleanupInput();
                 this.scene.tweens.add({
                     targets: this.root,
                     alpha: 0,
@@ -120,14 +130,67 @@ export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefini
                         onSelect(selected);
                     }
                 });
+            }, () => {
+                selectedIndex = index;
+                updateFocus();
             }));
+        const updateFocus = () => renderedCards.forEach((card, index) =>
+            card.setFocused(index === selectedIndex));
+        const move = (direction: number) => {
+            selectedIndex = (selectedIndex + direction + renderedCards.length) % renderedCards.length;
+            updateFocus();
+        };
+        const confirm = () => renderedCards[selectedIndex]?.select();
+
+        this.root.add(renderedCards.map(({ container }) => container));
+        const controls = this.scene.add.text(
+            GAME_WIDTH / 2,
+            438,
+            '← → / DIRECIONAL   •   ENTER / BOTÃO PRINCIPAL',
+            {
+                fontFamily: 'PixelGamer, monospace',
+                fontSize: '11px',
+                color: '#8e99a6'
+            }
+        ).setOrigin(0.5);
+        this.root.add(controls);
+
+        const keyboard = this.scene.input.keyboard;
+        const previous = () => move(-1);
+        const next = () => move(1);
+        keyboard?.on('keydown-LEFT', previous);
+        keyboard?.on('keydown-A', previous);
+        keyboard?.on('keydown-RIGHT', next);
+        keyboard?.on('keydown-D', next);
+        keyboard?.on('keydown-ENTER', confirm);
+        keyboard?.on('keydown-SPACE', confirm);
+        const cleanupGamepad = bindGamepadActions(this.scene, {
+            left: previous,
+            right: next,
+            confirm
         });
+        cleanupInput = () => {
+            cleanupGamepad();
+            keyboard?.off('keydown-LEFT', previous);
+            keyboard?.off('keydown-A', previous);
+            keyboard?.off('keydown-RIGHT', next);
+            keyboard?.off('keydown-D', next);
+            keyboard?.off('keydown-ENTER', confirm);
+            keyboard?.off('keydown-SPACE', confirm);
+        };
+        this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanupInput);
+        updateFocus();
 
         this.root.setAlpha(0);
         this.scene.tweens.add({ targets: this.root, alpha: 1, duration: 150, ease: 'Sine.Out' });
     }
 
-    private createCard(card: Card, x: number, select: (card: Card) => void) {
+    private createCard(
+        card: Card,
+        x: number,
+        select: (card: Card) => void,
+        focus: () => void
+    ): RenderedSelectionCard {
         const palette = PALETTES[card.theme ?? card.kind];
         const cardContainer = this.scene.add.container(x, CARD_Y);
         const background = this.scene.add
@@ -162,19 +225,25 @@ export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefini
         }).setOrigin(0.5);
 
         cardContainer.add([background, kind, icon, title, description]);
-        background.on('pointerover', () => {
-            background.setFillStyle(CARD_HOVER_BACKGROUND, 1).setStrokeStyle(3, palette.border);
+        const setFocused = (focused: boolean) => {
+            background
+                .setFillStyle(focused ? CARD_HOVER_BACKGROUND : CARD_BACKGROUND, 1)
+                .setStrokeStyle(focused ? 3 : 2, palette.border);
             this.scene.tweens.killTweensOf(cardContainer);
-            this.scene.tweens.add({ targets: cardContainer, scale: 1.015, duration: 80 });
-        });
-        background.on('pointerout', () => {
-            background.setFillStyle(CARD_BACKGROUND, 1).setStrokeStyle(2, palette.border);
-            this.scene.tweens.killTweensOf(cardContainer);
-            this.scene.tweens.add({ targets: cardContainer, scale: 1, duration: 80 });
-        });
+            this.scene.tweens.add({
+                targets: cardContainer,
+                scale: focused ? 1.015 : 1,
+                duration: 80
+            });
+        };
+        background.on('pointerover', focus);
         background.once('pointerup', () => select(card));
 
-        return cardContainer;
+        return {
+            container: cardContainer,
+            setFocused,
+            select: () => select(card)
+        };
     }
 
     /** Os itens têm tamanhos diferentes; a escala os encaixa sem deformar a arte. */

@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { scoreApi } from '../scoring/ScoreApi';
 import { LeaderboardView } from '../ui/LeaderboardView';
+import { bindGamepadActions } from '../input/GamepadInput';
 
 export class Leaderboard extends Scene {
     constructor() {
@@ -10,6 +11,7 @@ export class Leaderboard extends Scene {
     create() {
         const view = new LeaderboardView(this, () => this.scene.stop());
         this.input.keyboard?.once('keydown-ESC', () => this.scene.stop());
+        bindGamepadActions(this, { cancel: () => this.scene.stop() });
         void scoreApi.getLeaderboard('SINGLE_PLAYER')
             .then((entries) => view.showEntries(entries))
             .catch(() => view.showError());

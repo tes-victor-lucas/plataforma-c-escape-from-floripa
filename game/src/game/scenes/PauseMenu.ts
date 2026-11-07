@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { PauseMenuView } from '../ui/PauseMenuView';
 import type { UpgradeProgress } from '../upgrades';
+import { bindGamepadActions } from '../input/GamepadInput';
 
 type PauseMenuData = {
     upgrades?: UpgradeProgress;
@@ -23,6 +24,7 @@ export class PauseMenu extends Scene {
         }).create();
 
         this.input.keyboard?.once('keydown-P', this.continueGame, this);
+        bindGamepadActions(this, { pause: () => this.continueGame() });
     }
 
     private continueGame() {
