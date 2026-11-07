@@ -33,7 +33,11 @@ export class ReturnToMenuTransition extends Scene {
                 this.scene.launch('MainMenu');
                 this.scene.sendToBack('MainMenu');
             },
-            onComplete: () => this.scene.stop()
+            onComplete: () => {
+                // O menu foi enviado para trás durante o fade; devolve o foco visual e do gamepad.
+                this.scene.bringToTop('MainMenu');
+                this.scene.stop();
+            }
         });
     }
 }

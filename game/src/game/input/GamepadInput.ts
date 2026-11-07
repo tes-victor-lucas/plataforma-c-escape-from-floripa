@@ -30,12 +30,12 @@ const STANDARD_BUTTONS: Readonly<Partial<Record<GamepadAction, readonly number[]
     pause: [START_BUTTON]
 };
 const GENERIC_SNES_BUTTONS: typeof STANDARD_BUTTONS = {
-    // O USB Gamepad 0810:0001 não declara mapeamento padrão: A é 1 e B é 0.
-    confirm: [SECONDARY_BUTTON],
-    attack: [SECONDARY_BUTTON],
-    interact: [SECONDARY_BUTTON],
-    cancel: [PRIMARY_BUTTON],
-    dash: [PRIMARY_BUTTON, RIGHT_SHOULDER_BUTTON],
+    // O USB Gamepad 0810:0001 não declara mapeamento padrão: B é 0 e A é 1.
+    confirm: [PRIMARY_BUTTON],
+    attack: [PRIMARY_BUTTON],
+    interact: [PRIMARY_BUTTON],
+    cancel: [SECONDARY_BUTTON],
+    dash: [SECONDARY_BUTTON, RIGHT_SHOULDER_BUTTON],
     pause: [START_BUTTON]
 };
 const DIRECTION_BUTTONS: Readonly<Record<Direction, number>> = {
@@ -163,12 +163,25 @@ export class GamepadInput {
 }
 
 const sceneInputs = new WeakMap<Scene, GamepadInput>();
+const NON_BLOCKING_SCENES = new Set(['Audio']);
+
+/** Cenas de serviço sem interface não devem bloquear o menu que está visível. */
+export function isTopGamepadScene(scene: Scene, activeScenes: readonly Scene[]) {
+    const interactiveScenes = activeScenes.filter(
+        (candidate) => !NON_BLOCKING_SCENES.has(candidate.scene.key)
+    );
+    return interactiveScenes.length === 0
+        || interactiveScenes[interactiveScenes.length - 1] === scene;
+}
 
 export function getGamepadInput(scene: Scene) {
     const existing = sceneInputs.get(scene);
     if (existing) return existing;
     const input = new GamepadInput();
     sceneInputs.set(scene, input);
+    scene.events?.once('shutdown', () => {
+        if (sceneInputs.get(scene) === input) sceneInputs.delete(scene);
+    });
     return input;
 }
 
@@ -179,8 +192,8 @@ export function bindGamepadActions(scene: Scene, handlers: GamepadActionHandlers
     const actions = Object.keys(handlers) as GamepadAction[];
     const update = (time: number) => {
         // Uma cena coberta por outro menu não deve responder ao mesmo botão por baixo dele.
-        const activeScenes = scene.scene?.manager?.getScenes(true);
-        if (activeScenes?.length && activeScenes[activeScenes.length - 1] !== scene) return;
+        const activeScenes = scene.scene?.manager?.getScenes(true) as Scene[] | undefined;
+        if (activeScenes && !isTopGamepadScene(scene, activeScenes)) return;
         input.update(time);
         for (const action of actions) {
             if (input.justPressed(action)) handlers[action]?.();

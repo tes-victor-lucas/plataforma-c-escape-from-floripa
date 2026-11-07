@@ -1758,6 +1758,43 @@ test('voltar ao menu após derrota usa a transição suave de saída', () => {
     assert.deepEqual(topScenes, ['ReturnToMenuTransition']);
 });
 
+test('transição de retorno devolve o menu ao topo após vitória, derrota ou pausa', () => {
+    const { ReturnToMenuTransition } = load('../src/game/scenes/ReturnToMenuTransition.ts');
+    const { musicDirector } = load('../src/game/audio/MusicDirector.ts');
+    const originalTransitionTo = musicDirector.transitionTo;
+    const transition = new ReturnToMenuTransition();
+    const actions = [];
+    const rectangle = {};
+    for (const method of ['setOrigin', 'setScale', 'setDepth', 'setScrollFactor']) {
+        rectangle[method] = () => rectangle;
+    }
+    transition.add = { rectangle: () => rectangle };
+    transition.tweens = { add: ({ onComplete }) => onComplete() };
+    transition.scene = {
+        get: () => ({ saveContinuation: () => true }),
+        stop: (key) => actions.push(['stop', key]),
+        launch: (key) => actions.push(['launch', key]),
+        sendToBack: (key) => actions.push(['back', key]),
+        bringToTop: (key) => actions.push(['top', key])
+    };
+    musicDirector.transitionTo = () => undefined;
+
+    try {
+        transition.create();
+    } finally {
+        musicDirector.transitionTo = originalTransitionTo;
+    }
+
+    assert.deepEqual(actions, [
+        ['stop', 'World'],
+        ['stop', 'PauseMenu'],
+        ['launch', 'MainMenu'],
+        ['back', 'MainMenu'],
+        ['top', 'MainMenu'],
+        ['stop', undefined]
+    ]);
+});
+
 test('encerramento do mundo não falha quando a câmera já foi removida', () => {
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();

@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const path = require('node:path');
 const { test } = require('node:test');
+const { EventEmitter } = require('node:events');
 const vm = require('node:vm');
 const ts = require('typescript');
 
@@ -16,7 +17,7 @@ vm.runInThisContext(`(function(require, module, exports) { ${code}\n})`, { filen
     compiledModule.exports
 );
 
-const { GamepadInput } = compiledModule.exports;
+const { GamepadInput, getGamepadInput, isTopGamepadScene } = compiledModule.exports;
 
 function fakeGamepad(pressed = [], axes = [0, 0], mapping = '') {
     return {
@@ -38,7 +39,7 @@ test('controle USB combina direcional, botoes principais e Start', () => {
     input.update(1);
     assert.deepEqual(input.getMovement(), { x: 0, y: 0 });
 
-    gamepad = fakeGamepad([1, 13], [0, 0]);
+    gamepad = fakeGamepad([0, 13], [0, 0]);
     input.update(2);
     assert.equal(input.justPressed('confirm'), true);
     assert.equal(input.justPressed('attack'), true);
@@ -47,7 +48,7 @@ test('controle USB combina direcional, botoes principais e Start', () => {
     input.update(3);
     assert.equal(input.justPressed('confirm'), false, 'segurar não repete a ação');
 
-    gamepad = fakeGamepad([0, 9], [-1, -1]);
+    gamepad = fakeGamepad([1, 9], [-1, -1]);
     input.update(4);
     assert.equal(input.justPressed('dash'), true);
     assert.equal(input.justPressed('cancel'), true);
@@ -72,4 +73,23 @@ test('controle com mapeamento padrao confirma com o botao principal inferior', (
     input.update(2);
     assert.equal(input.justPressed('confirm'), true);
     assert.equal(input.justPressed('cancel'), false);
+});
+
+test('cena de audio não bloqueia o controle ao retornar para o menu', () => {
+    const mainMenu = { scene: { key: 'MainMenu' } };
+    const audio = { scene: { key: 'Audio' } };
+    const transition = { scene: { key: 'ReturnToMenuTransition' } };
+
+    assert.equal(isTopGamepadScene(mainMenu, [mainMenu, audio]), true);
+    assert.equal(isTopGamepadScene(mainMenu, [mainMenu, audio, transition]), false);
+    assert.equal(isTopGamepadScene(transition, [mainMenu, audio, transition]), true);
+});
+
+test('reabrir uma cena cria um estado novo para o controle', () => {
+    const scene = { events: new EventEmitter() };
+    const first = getGamepadInput(scene);
+    assert.equal(getGamepadInput(scene), first);
+
+    scene.events.emit('shutdown');
+    assert.notEqual(getGamepadInput(scene), first);
 });
