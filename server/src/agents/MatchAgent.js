@@ -1,4 +1,5 @@
 const DIRECTIONS = new Set(['up', 'down', 'left', 'right']);
+const CHARACTERS = new Set(['padrao', 'gaucho']);
 const EVENT_KINDS = new Set([
     'enemy.spawn', 'enemy.snapshot', 'enemy.shot', 'enemy.hit', 'enemy.killed',
     'player.shot', 'player.damage', 'world.ready', 'wave.intermission', 'combat.complete',
@@ -70,7 +71,7 @@ export class MatchAgent {
     }
 
     sanitizeState(message) {
-        const { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft } = message;
+        const { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft, character = 'padrao' } = message;
         if (
             !Number.isSafeInteger(sequence)
             || sequence < 0
@@ -89,8 +90,9 @@ export class MatchAgent {
             || reviveProgress > 1
             || !Number.isSafeInteger(revivesLeft)
             || revivesLeft < 0
+            || !CHARACTERS.has(character)
         ) return undefined;
 
-        return { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft };
+        return { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft, character };
     }
 }

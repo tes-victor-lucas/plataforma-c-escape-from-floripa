@@ -2654,3 +2654,69 @@ test('carta com textura mostra a imagem, e as outras mantêm o ícone desenhado'
     assert.equal(images.length, 1);
     assert.equal(drawnIcons, 1);
 });
+
+test('na dupla só o anfitrião envia a vitória ao placar', async () => {
+    const { scoreApi } = load('../src/game/scoring/ScoreApi.ts');
+    const original = { ...scoreApi };
+    const calls = [];
+    scoreApi.startRun = async () => ({});
+    scoreApi.finishVictory = async (runId) => { calls.push(['vitoria', runId]); return {}; };
+    scoreApi.discardRun = async (runId) => { calls.push(['descarte', runId]); };
+    try {
+        const host = new RunTracker();
+        host.startNew('MULTIPLAYER');
+        await host.win();
+        const guest = new RunTracker();
+        guest.startNew('MULTIPLAYER');
+        const snapshot = await guest.win(undefined, false);
+        assert.equal(snapshot.status, 'WON', 'o convidado também vê a vitória na tela');
+        assert.deepEqual(calls.map(([kind]) => kind), ['vitoria', 'descarte']);
+    } finally {
+        Object.assign(scoreApi, original);
+    }
+});
+
+test('personagem escolhido fica salvo e alterna entre as opções', () => {
+    const { loadCharacterId, saveCharacterId, nextCharacterId, CHARACTERS } = load('../src/game/config/characters.ts');
+    const values = new Map();
+    const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+
+    assert.equal(loadCharacterId(storage), 'padrao');
+    saveCharacterId('gaucho', storage);
+    assert.equal(loadCharacterId(storage), 'gaucho');
+    values.set([...values.keys()][0], 'inexistente');
+    assert.equal(loadCharacterId(storage), 'padrao');
+    assert.equal(loadCharacterId(undefined), 'padrao');
+    assert.equal(nextCharacterId('padrao'), 'gaucho');
+    assert.equal(nextCharacterId('gaucho'), 'padrao');
+    assert.deepEqual(Object.keys(CHARACTERS), ['padrao', 'gaucho']);
+});
+
+test('menu de jogar mostra a troca de personagem antes de voltar', () => {
+    const { createPlayMenuActions } = load('../src/game/ui/MainMenuView.ts');
+    let toggled = 0;
+    const actions = createPlayMenuActions({
+        onNewGame() {},
+        onMultiplayer() {},
+        character: () => ({ label: 'GAÚCHO', texture: 'player-gaucho' }),
+        onToggleCharacter: () => { toggled += 1; }
+    }, () => {});
+    assert.deepEqual(actions.map(({ label }) => label), [
+        'CONTINUAR', 'JOGAR SOLO', 'MULTIPLAYER', 'PERSONAGEM: GAÚCHO', 'VOLTAR'
+    ]);
+    actions[3].onSelect();
+    assert.equal(toggled, 1);
+});
+
+test('folha do gaúcho segue o layout do personagem atual', () => {
+    const { CHARACTERS } = load('../src/game/config/characters.ts');
+    // Largura e altura ficam no cabeçalho IHDR do PNG.
+    const size = (file) => {
+        const data = readFileSync(path.resolve(__dirname, '../public', file));
+        return [data.readUInt32BE(16), data.readUInt32BE(20)];
+    };
+    const [originalWidth] = size(CHARACTERS.padrao.path);
+    const [width, height] = size(CHARACTERS.gaucho.path);
+    assert.equal(Math.floor(width / 38), Math.floor(originalWidth / 38), 'mesma numeração de quadros');
+    assert.ok(height >= 12 * 38, 'cabe a linha de caminhada para a direita');
+});

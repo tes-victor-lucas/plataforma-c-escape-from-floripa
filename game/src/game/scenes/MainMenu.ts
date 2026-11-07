@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { MainMenuView } from '../ui/MainMenuView';
+import { CHARACTERS, loadCharacterId, nextCharacterId, saveCharacterId } from '../config/characters';
 import { musicDirector } from '../audio/MusicDirector';
 import { AUDIO_CONFIG } from '../config/audio';
 import { multiplayerClient } from '../network/MultiplayerClient';
@@ -43,7 +44,12 @@ export class MainMenu extends Scene {
             onMultiplayer: () => new URLSearchParams(window.location.search).has('room')
                 ? void this.startMultiplayer()
                 : this.openMultiplayerMenu(),
-            onLeaderboard: () => this.scene.launch('Leaderboard')
+            onLeaderboard: () => this.scene.launch('Leaderboard'),
+            character: () => CHARACTERS[loadCharacterId()],
+            onToggleCharacter: () => {
+                saveCharacterId(nextCharacterId(loadCharacterId()));
+                this.view?.refreshPlayMenu();
+            }
         });
         this.view.create();
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopWatchingRooms());
