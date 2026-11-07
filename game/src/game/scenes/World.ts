@@ -409,11 +409,12 @@ export class World extends Scene {
     private restartFromDefeatMenu() {
         clearCampaignProgress();
         runTracker.startNew(this.isMultiplayerEnabled() ? 'MULTIPLAYER' : 'SINGLE_PLAYER');
+        replaceRequestedRoomKey('room1');
         this.stopGameplayOverlays();
         this.scene.restart({
             waitForReveal: false,
-            roomKey: this.activeRoomKey,
-            spawn: this.activeSpawn
+            roomKey: 'room1',
+            spawn: ROOM_DEFINITIONS.room1.spawn
         });
     }
 

@@ -1727,6 +1727,8 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     const stoppedScenes = [];
     world.player = { health: new Health(100), update() { movementUpdates++; } };
     world.combat = { update() { combatUpdates++; }, clear() {} };
+    world.activeRoomKey = 'dungeon';
+    world.activeSpawn = ROOM_DEFINITIONS.dungeon.spawn;
     world.physics = { resume() { resumes++; }, pause() {} };
     world.scene = {
         launch(key, data) { launches.push({ key, data }); },
@@ -1748,6 +1750,8 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     world.player.health.takeDamage(100);
     world.update(2016, 16);
     assert.equal(restartData, undefined, 'a derrota sozinha não pode reiniciar a partida');
+    runTracker.startNew('SINGLE_PLAYER');
+    runTracker.recordDungeonCompletion('dungeon');
     launches[0].data.onRestart();
     assert.deepEqual(stoppedScenes, [
         'PauseMenu',
@@ -1758,6 +1762,8 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     assert.equal(restartData.waitForReveal, false);
     assert.equal(restartData.roomKey, 'room1');
     assert.deepEqual(restartData.spawn, ROOM_DEFINITIONS.room1.spawn);
+    assert.equal(runTracker.snapshot().score.dungeonPoints, 0, 'o placar deve pertencer à nova partida');
+    runTracker.abandon();
 });
 
 test('voltar ao menu após derrota usa a transição suave de saída', () => {
