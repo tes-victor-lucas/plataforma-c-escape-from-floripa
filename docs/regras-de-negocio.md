@@ -10,3 +10,5 @@
 - **RN08:** A partida deve ser encerrada em derrota quando a vida do personagem chegar a zero; a build e todas as melhorias da partida devem ser removidas e não podem ser usadas em uma nova run.
 - **RN09:** A partida deve ser encerrada em vitória somente após a derrota do chefe final e a chegada do jogador à Plataforma C.
 - **RN10:** O tempo de uma run começa no início da partida e termina quando ela é encerrada. Somente runs encerradas em vitória são registradas no placar de líderes; derrotas não geram progresso, histórico de partidas ou estatísticas persistentes no MVP.
+- **RN11:** Cada dungeon deve conceder exatamente 1.000 pontos ao ser concluída, sem repetir o bônus ao revisitar a mesma dungeon durante a run.
+- **RN12:** A opção de tentar novamente após uma derrota deve iniciar uma nova run na primeira sala, descartando sala, posição, cronômetro, pontuação, build e melhorias da partida anterior.

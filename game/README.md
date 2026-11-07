@@ -12,7 +12,7 @@
 - Os drones perseguem o jogador visível a até 220 pixels, mantêm 64 pixels de distância para atirar e perdem o alvo ao sair de 260 pixels ou ao ter a visão bloqueada. Tamanho, velocidade e raios da perseguição ficam em `src/game/config/world.ts`.
 - O jogador começa com 4 de vida (dois corações) e causa 20 de dano; cada drone tem 60 de vida e causa 1 de dano.
 - Ao destruir um drone, toca a explosão roxa da prévia (linha 4, coluna 7), usando os frames 306–309 do spritesheet original em `public/assets/effects/drone-explosion.png`.
-- A interface mostra a vida depois da transição de entrada na sala. Na derrota, escolha reiniciar a sala ou voltar ao menu.
+- A interface mostra a vida depois da transição de entrada na sala. Na derrota, escolha iniciar uma nova partida desde a primeira sala ou voltar ao menu.
 - Ajuste alcance, dano, vida, cadência e posições em `src/game/config/combat.ts`.
 - Execute `npm test` para verificar as regras de combate e `npx tsc --noEmit` para validar os tipos.
 
