@@ -16,26 +16,28 @@ type Direction = 'up' | 'down' | 'left' | 'right';
 type GamepadActionHandlers = Partial<Record<GamepadAction, () => void>>;
 
 const DEAD_ZONE = 0.35;
-const PRIMARY_BUTTON = 0;
-const SECONDARY_BUTTON = 1;
+const STANDARD_PRIMARY_BUTTON = 0;
+const STANDARD_SECONDARY_BUTTON = 1;
+const GENERIC_SNES_A_BUTTON = 1;
+const GENERIC_SNES_B_BUTTON = 2;
 const RIGHT_SHOULDER_BUTTON = 5;
 const START_BUTTON = 9;
 const STANDARD_BUTTONS: Readonly<Partial<Record<GamepadAction, readonly number[]>>> = {
     // No mapeamento padrão, o botão principal fica embaixo (A no Xbox, B no SNES).
-    confirm: [PRIMARY_BUTTON],
-    attack: [PRIMARY_BUTTON],
-    interact: [PRIMARY_BUTTON],
-    cancel: [SECONDARY_BUTTON],
-    dash: [SECONDARY_BUTTON, RIGHT_SHOULDER_BUTTON],
+    confirm: [STANDARD_PRIMARY_BUTTON],
+    attack: [STANDARD_PRIMARY_BUTTON],
+    interact: [STANDARD_PRIMARY_BUTTON],
+    cancel: [STANDARD_SECONDARY_BUTTON],
+    dash: [STANDARD_SECONDARY_BUTTON, RIGHT_SHOULDER_BUTTON],
     pause: [START_BUTTON]
 };
 const GENERIC_SNES_BUTTONS: typeof STANDARD_BUTTONS = {
-    // O USB Gamepad 0810:0001 não declara mapeamento padrão: B é 0 e A é 1.
-    confirm: [PRIMARY_BUTTON],
-    attack: [PRIMARY_BUTTON],
-    interact: [PRIMARY_BUTTON],
-    cancel: [SECONDARY_BUTTON],
-    dash: [SECONDARY_BUTTON, RIGHT_SHOULDER_BUTTON],
+    // No USB Gamepad 0810:0001: X=0, A=1 e o botão inferior B=2.
+    confirm: [GENERIC_SNES_B_BUTTON],
+    attack: [GENERIC_SNES_B_BUTTON],
+    interact: [GENERIC_SNES_B_BUTTON],
+    cancel: [GENERIC_SNES_A_BUTTON],
+    dash: [GENERIC_SNES_A_BUTTON, RIGHT_SHOULDER_BUTTON],
     pause: [START_BUTTON]
 };
 const DIRECTION_BUTTONS: Readonly<Record<Direction, number>> = {

@@ -41,15 +41,22 @@ test('controle USB combina direcional, botoes principais e Start', () => {
 
     gamepad = fakeGamepad([0, 13], [0, 0]);
     input.update(2);
+    assert.equal(input.justPressed('confirm'), false, 'X não deve confirmar neste controle');
+    assert.deepEqual(input.getMovement(), { x: 0, y: 1 });
+
+    gamepad = fakeGamepad();
+    input.update(3);
+    gamepad = fakeGamepad([2, 13], [0, 0]);
+    input.update(4);
     assert.equal(input.justPressed('confirm'), true);
     assert.equal(input.justPressed('attack'), true);
     assert.deepEqual(input.getMovement(), { x: 0, y: 1 });
 
-    input.update(3);
+    input.update(5);
     assert.equal(input.justPressed('confirm'), false, 'segurar não repete a ação');
 
     gamepad = fakeGamepad([1, 9], [-1, -1]);
-    input.update(4);
+    input.update(6);
     assert.equal(input.justPressed('dash'), true);
     assert.equal(input.justPressed('cancel'), true);
     assert.equal(input.justPressed('pause'), true);
@@ -57,9 +64,9 @@ test('controle USB combina direcional, botoes principais e Start', () => {
     assert.ok(Math.abs(input.getMovement().y + Math.SQRT1_2) < 0.0001);
 
     gamepad = fakeGamepad();
-    input.update(5);
+    input.update(7);
     gamepad = fakeGamepad([5]);
-    input.update(6);
+    input.update(8);
     assert.equal(input.justPressed('dash'), true, 'o botão R também executa o dash');
 });
 
