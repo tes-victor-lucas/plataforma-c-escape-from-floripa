@@ -124,6 +124,7 @@ def _finish_victory(event: dict[str, Any], run_id: str) -> dict[str, Any]:
 
     enemies = _bounded_integer(body.get("enemiesDefeated"), 0, 100_000)
     hits = _bounded_integer(body.get("hitsTaken"), 0, 100_000)
+    dungeons = _bounded_integer(body.get("dungeonsCompleted"), 0, 2)
     raw_multi_kills = body.get("multiKills")
     if not isinstance(raw_multi_kills, list) or len(raw_multi_kills) > enemies:
         raise ValueError("Multi-kills inválidos")
@@ -138,6 +139,7 @@ def _finish_victory(event: dict[str, Any], run_id: str) -> dict[str, Any]:
         elapsed_time_ms=elapsed_ms,
         enemies_defeated=enemies,
         hits_taken=hits,
+        dungeons_completed=dungeons,
         multi_kills=multi_kills,
     )
     try:
@@ -146,7 +148,8 @@ def _finish_victory(event: dict[str, Any], run_id: str) -> dict[str, Any]:
             UpdateExpression=(
                 "SET #status = :won, entityType = :type, completedAt = :completed, "
                 "completedAtEpochMs = :completed_ms, elapsedTimeMs = :elapsed, "
-                "enemiesDefeated = :enemies, hitsTaken = :hits, multiKills = :multi, "
+                "enemiesDefeated = :enemies, hitsTaken = :hits, dungeonsCompleted = :dungeons, "
+                "multiKills = :multi, "
                 "scoreBreakdown = :breakdown, score = :score REMOVE expiresAt"
             ),
             ConditionExpression="#status = :running AND playerId = :player",
@@ -155,7 +158,7 @@ def _finish_victory(event: dict[str, Any], run_id: str) -> dict[str, Any]:
                 ":won": "WON", ":running": "RUNNING", ":player": player_id,
                 ":type": "VICTORY_RUN", ":completed": completed_at,
                 ":completed_ms": completed_epoch_ms, ":elapsed": elapsed_ms,
-                ":enemies": enemies, ":hits": hits, ":multi": multi_kills,
+                ":enemies": enemies, ":hits": hits, ":dungeons": dungeons, ":multi": multi_kills,
                 ":breakdown": breakdown.to_dict(), ":score": breakdown.total,
             },
         )

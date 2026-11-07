@@ -10,14 +10,16 @@ class ScoreTests(unittest.TestCase):
             elapsed_time_ms=12_999,
             enemies_defeated=3,
             hits_taken=0,
+            dungeons_completed=1,
             multi_kills=[3],
         )
         self.assertEqual(result.victoryPoints, 1_000)
+        self.assertEqual(result.dungeonPoints, 1_000)
         self.assertEqual(result.timePoints, 5_880)
         self.assertEqual(result.enemyPoints, 300)
         self.assertEqual(result.multiKillPoints, 350)
         self.assertEqual(result.damagePoints, 2_000)
-        self.assertEqual(result.total, 9_530)
+        self.assertEqual(result.total, 10_530)
 
     def test_time_and_damage_never_become_negative(self):
         self.assertEqual(time_points(999), 6_000)

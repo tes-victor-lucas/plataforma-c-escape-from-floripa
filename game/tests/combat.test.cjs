@@ -119,6 +119,7 @@ const { RunTracker } = load('../src/game/scoring/RunTracker.ts');
 test('pontuação v1 aplica tempo, dano, mortes, multi-kill e vitória', () => {
     const score = calculateScore({
         won: true,
+        dungeonsCompleted: 1,
         elapsedTimeMs: 12_999,
         enemiesDefeated: 3,
         hitsTaken: 0,
@@ -126,11 +127,12 @@ test('pontuação v1 aplica tempo, dano, mortes, multi-kill e vitória', () => {
     });
     assert.deepEqual(score, {
         victoryPoints: 1_000,
+        dungeonPoints: 1_000,
         timePoints: 5_880,
         enemyPoints: 300,
         multiKillPoints: 350,
         damagePoints: 2_000,
-        total: 9_530
+        total: 10_530
     });
     assert.equal(calculateTimePoints(900_000), 0);
     assert.equal(calculateDamagePoints(1), 1_200);
@@ -156,6 +158,20 @@ test('tracker deduplica mortes, acertos e fechamento do mesmo projétil', () => 
     assert.equal(snapshot.score.total, 450, 'tempo e dano entram apenas ao terminar');
     const finalSnapshot = tracker.lose(new Date('2026-01-01T00:00:10.000Z'));
     assert.equal(finalSnapshot.score.total, 7_550);
+});
+
+test('tracker concede uma vez o bônus de cada dungeon e preserva no checkpoint', () => {
+    const tracker = new RunTracker();
+    tracker.startNew('SINGLE_PLAYER', new Date('2026-01-01T00:00:00.000Z'));
+    assert.equal(tracker.recordDungeonCompletion('dungeon'), true);
+    assert.equal(tracker.recordDungeonCompletion('dungeon'), false);
+    assert.equal(tracker.snapshot().score.dungeonPoints, 1_000);
+
+    const restored = new RunTracker();
+    restored.restore(tracker.checkpoint());
+    assert.equal(restored.recordDungeonCompletion('dungeon'), false);
+    assert.equal(restored.recordDungeonCompletion('gaucho-dungeon'), true);
+    assert.equal(restored.snapshot().score.dungeonPoints, 2_000);
 });
 
 test('projéteis continuam únicos depois da troca de sala', () => {

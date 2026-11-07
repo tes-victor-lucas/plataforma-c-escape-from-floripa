@@ -3,8 +3,9 @@
 from dataclasses import asdict, dataclass
 from math import floor
 
-SCORE_VERSION = 1
+SCORE_VERSION = 2
 VICTORY_POINTS = 1_000
+DUNGEON_COMPLETION_POINTS = 1_000
 ENEMY_KILL_POINTS = 100
 MAXIMUM_TIME_BONUS = 6_000
 POINTS_LOST_PER_SECOND = 10
@@ -16,6 +17,7 @@ MULTI_KILL_EXTRA = 100
 @dataclass(frozen=True)
 class ScoreBreakdown:
     victoryPoints: int
+    dungeonPoints: int
     timePoints: int
     enemyPoints: int
     multiKillPoints: int
@@ -49,12 +51,14 @@ def calculate_score(
     elapsed_time_ms: int,
     enemies_defeated: int,
     hits_taken: int,
+    dungeons_completed: int,
     multi_kills: list[int],
 ) -> ScoreBreakdown:
     victory = VICTORY_POINTS if won else 0
+    dungeons = max(0, floor(dungeons_completed)) * DUNGEON_COMPLETION_POINTS
     time = time_points(elapsed_time_ms)
     enemies = max(0, floor(enemies_defeated)) * ENEMY_KILL_POINTS
     multi = sum(multi_kill_bonus(kills) for kills in multi_kills)
     damage = damage_points(hits_taken)
-    total = max(0, victory + time + enemies + multi + damage)
-    return ScoreBreakdown(victory, time, enemies, multi, damage, total)
+    total = max(0, victory + dungeons + time + enemies + multi + damage)
+    return ScoreBreakdown(victory, dungeons, time, enemies, multi, damage, total)

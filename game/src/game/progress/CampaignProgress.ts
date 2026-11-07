@@ -40,6 +40,7 @@ function isRunCheckpoint(value: unknown): value is RunCheckpoint {
         && typeof run.hitsTaken === 'number'
         && Array.isArray(run.multiKills)
         && Array.isArray(run.defeatedEnemyIds)
+        && Array.isArray(run.completedDungeonIds)
         && run.scoreVersion === SCORE_VERSION
         && (run.mode === 'SINGLE_PLAYER' || run.mode === 'MULTIPLAYER')
         && run.status === 'RUNNING';
