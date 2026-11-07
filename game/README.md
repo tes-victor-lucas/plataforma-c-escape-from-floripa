@@ -2,7 +2,7 @@
 
 ## Combate
 
-- Movimente o personagem com WASD ou as setas; Espaço executa o dash; P ou o botão no canto superior direito abrem a pausa.
+- Movimente o personagem com WASD, setas ou o direcional de um controle USB. No controle, o botão principal confirma/interage/ataca, o botão à direita executa o dash ou volta, R também executa o dash, e Start pausa ou continua. O controle pode ser conectado antes ou depois de abrir o jogo.
 - A barra abaixo do jogo permite consultar os controles e alternar o player completo para tela cheia.
 - O jogador atira automaticamente no drone visível mais próximo a até 100 pixels.
 - A sala tem duas ondas: 10 drones iniciais e mais 20 após eliminar todos os primeiros. Os drones disparam projéteis vermelhos a até 200 pixels; paredes e obstáculos bloqueiam os disparos.
