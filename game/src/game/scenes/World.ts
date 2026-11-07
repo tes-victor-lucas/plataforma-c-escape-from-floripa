@@ -84,6 +84,7 @@ import {
     type DungeonSessionState
 } from '../config/dungeon';
 import { createLampLight } from '../map/createLampLights';
+import { getGamepadInput } from '../input/GamepadInput';
 
 const ROOM2_WALKABLE_LAYERS = [
     'floor',
@@ -168,6 +169,7 @@ export class World extends Scene {
     private hitStopTimer?: Phaser.Time.TimerEvent;
     private lowHealthFilter?: Phaser.Filters.ColorMatrix;
     private lowHealthDesaturation = -1;
+    private gamepad?: ReturnType<typeof getGamepadInput>;
 
     constructor() {
         super('World');
@@ -241,6 +243,7 @@ export class World extends Scene {
             (healthLost) => runTracker.recordPlayerHit(healthLost),
             this.characterId
         );
+        this.gamepad = getGamepadInput(this);
         if (data.playerProgress) {
             restorePlayerProgress(
                 data.playerProgress,
@@ -421,7 +424,10 @@ export class World extends Scene {
         for (const sceneKey of GAMEPLAY_OVERLAY_SCENES) this.scene.stop(sceneKey);
     }
 
-    update(_time: number, delta: number) {
+    update(time: number, delta: number) {
+        this.gamepad?.update(time);
+        if (this.gamepad?.justPressed('pause')) this.openPauseMenu();
+        if (this.isPauseMenuOpen) return;
         this.updatePlayerRangeIndicator();
         if (this.player) this.swordHint?.setPosition(this.player.sprite.x, this.player.sprite.y - 26);
         this.updateLowHealthEffect();
@@ -438,6 +444,10 @@ export class World extends Scene {
         }
         if (this.isHitStopActive) return;
         this.updatePiranhasBarInteraction();
+        if (this.gamepad?.justPressed('interact')) {
+            if (this.piranhasBarPrompt?.visible) this.openPiranhasMenu();
+            else this.handleSwordGamepad();
+        }
         this.updateNauseaEffect();
         if (this.isPiranhasMenuOpen || this.isWaveIntermissionOpen) return;
         this.player?.update(delta);
@@ -559,10 +569,21 @@ export class World extends Scene {
         }
     }
 
+    private handleSwordGamepad() {
+        if (
+            !this.player || !this.isGameplayReady || this.isGameOver
+            || this.isPauseMenuOpen || this.isWaveIntermissionOpen
+        ) return;
+        if (this.combat?.swing()) {
+            this.swordHint?.destroy();
+            this.swordHint = undefined;
+        }
+    }
+
     /** O tiro automático some nesta sala, então o jogador precisa ver como atacar. */
     private equipSword() {
         this.combat?.equipSword();
-        this.swordHint = this.createWorldHint('BOTÃO DIREITO DO MOUSE: ATACAR');
+        this.swordHint = this.createWorldHint('BOTÃO DIREITO / BOTÃO PRINCIPAL: ATACAR');
     }
 
     private createWorldHint(text: string) {
@@ -930,7 +951,7 @@ export class World extends Scene {
 
     private createPiranhasBarPrompt() {
         const { x, y } = PIRANHAS_BAR_CONFIG.prompt;
-        this.piranhasBarPrompt = this.add.text(x, y, '[ G ]  CARDÁPIO', {
+        this.piranhasBarPrompt = this.add.text(x, y, '[ G / BOTÃO PRINCIPAL ]  CARDÁPIO', {
             fontFamily: 'PixelGamer, monospace',
             fontSize: '8px',
             color: '#ffffff',
@@ -1099,6 +1120,7 @@ export class World extends Scene {
         this.cameras.main?.setRotation(0).setZoom(this.normalCameraZoom);
         this.lowHealthFilter = undefined;
         this.lowHealthDesaturation = -1;
+        this.gamepad = undefined;
         this.piranhasBarPrompt = undefined;
         this.player = undefined;
         this.playerRangeIndicator = undefined;

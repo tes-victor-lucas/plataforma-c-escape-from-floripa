@@ -15,7 +15,7 @@ export class DashCooldownView {
         private readonly y: number
     ) {
         this.graphics = scene.add.graphics().setDepth(110).setScrollFactor(0);
-        this.label = scene.add.text(x, y, 'DASH  [SPACE]', {
+        this.label = scene.add.text(x, y, 'DASH  [SPACE / A / R]', {
             fontFamily: 'Pixeboy, monospace',
             fontSize: '17px',
             color: '#91a5ad'

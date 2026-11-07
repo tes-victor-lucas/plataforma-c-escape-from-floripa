@@ -1,5 +1,6 @@
 import type { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
+import { bindGamepadActions } from '../input/GamepadInput';
 
 export const CLEAN_MENU_COLORS = {
     panel: 0x00171b,
@@ -211,8 +212,7 @@ export class CleanOverlayMenu {
     }
 
     enableKeyboardNavigation(options: KeyboardNavigationOptions = {}) {
-        const keyboard = this.scene.input?.keyboard;
-        if (!keyboard || this.buttons.length === 0) return;
+        if (this.buttons.length === 0) return;
 
         const previous = () => this.moveSelection(-1);
         const next = () => this.moveSelection(1);
@@ -222,6 +222,16 @@ export class CleanOverlayMenu {
             this.activated = true;
             options.onCancel();
         };
+
+        bindGamepadActions(this.scene, {
+            up: previous,
+            down: next,
+            confirm,
+            cancel
+        });
+
+        const keyboard = this.scene.input?.keyboard;
+        if (!keyboard) return;
 
         keyboard.on('keydown-UP', previous);
         keyboard.on('keydown-W', previous);

@@ -5,12 +5,11 @@ import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import { COMBAT_CONFIG } from '../config/combat';
 import { Health } from '../combat/Health';
 import { DashState } from './DashState';
+import { getGamepadInput } from '../input/GamepadInput';
 import { CHARACTERS, type CharacterId } from '../config/characters';
 import { createWalkAnimations, walkAnimationKey, WALK_FRAMES, type Direction } from './PlayerAnimations';
 
 export type { Direction } from './PlayerAnimations';
-
-
 
 type MovementKeys = Record<Direction, Phaser.Input.Keyboard.Key>;
 type MovementDirection = { x: number; y: number };
@@ -24,6 +23,7 @@ export class Player {
     private readonly cursors: Phaser.Types.Input.Keyboard.CursorKeys;
     private readonly wasd: MovementKeys;
     private readonly dashKey: Phaser.Input.Keyboard.Key;
+    private readonly gamepad: ReturnType<typeof getGamepadInput>;
     private readonly dash = new DashState(
         WORLD_CONFIG.player.dash.duration,
         WORLD_CONFIG.player.dash.cooldown
@@ -77,6 +77,7 @@ export class Player {
             right: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D)
         };
         this.dashKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+        this.gamepad = getGamepadInput(scene);
         this.footsteps = new FootstepAudio(scene);
         scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.footsteps.destroy());
     }
@@ -91,7 +92,7 @@ export class Player {
         const isReceivingMovementInput = x !== 0 || y !== 0;
         if (isReceivingMovementInput) this.aimDirection = direction;
 
-        if (Phaser.Input.Keyboard.JustDown(this.dashKey)) {
+        if (Phaser.Input.Keyboard.JustDown(this.dashKey) || this.gamepad.justPressed('dash')) {
             const dashDirection = isReceivingMovementInput
                 ? direction
                 : this.getFacingVector();
@@ -224,10 +225,16 @@ export class Player {
     }
 
     private getMovementDirection() {
+        const gamepad = this.gamepad.getMovement();
         let x = Number(this.cursors.right.isDown || this.wasd.right.isDown)
-            - Number(this.cursors.left.isDown || this.wasd.left.isDown);
+            - Number(this.cursors.left.isDown || this.wasd.left.isDown)
+            + gamepad.x;
         let y = Number(this.cursors.down.isDown || this.wasd.down.isDown)
-            - Number(this.cursors.up.isDown || this.wasd.up.isDown);
+            - Number(this.cursors.up.isDown || this.wasd.up.isDown)
+            + gamepad.y;
+
+        x = Math.max(-1, Math.min(1, x));
+        y = Math.max(-1, Math.min(1, y));
 
         const length = Math.hypot(x, y);
         if (length > 0) {

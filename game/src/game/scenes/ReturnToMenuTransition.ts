@@ -33,6 +33,8 @@ export class ReturnToMenuTransition extends Scene {
                 this.scene.launch('MainMenu');
                 this.scene.sendToBack('MainMenu');
             },
+            // O menu permanece atrás das cenas de overlay configuradas, como o placar.
+            // A cena de áudio é ignorada separadamente pela lógica de foco do gamepad.
             onComplete: () => this.scene.stop()
         });
     }

@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import type { GameMode } from '../config/score';
 import { scoreApi } from '../scoring/ScoreApi';
 import { LeaderboardView } from '../ui/LeaderboardView';
+import { bindGamepadActions } from '../input/GamepadInput';
 
 export class Leaderboard extends Scene {
     constructor() {
@@ -24,6 +25,11 @@ export class Leaderboard extends Scene {
         const view = new LeaderboardView(this, () => this.scene.stop(), show);
         this.input.keyboard?.once('keydown-ESC', () => this.scene.stop());
         for (const key of ['LEFT', 'RIGHT', 'A', 'D']) this.input.keyboard?.on(`keydown-${key}`, toggle);
+        bindGamepadActions(this, {
+            left: toggle,
+            right: toggle,
+            cancel: () => this.scene.stop()
+        });
         show(mode);
     }
 }
