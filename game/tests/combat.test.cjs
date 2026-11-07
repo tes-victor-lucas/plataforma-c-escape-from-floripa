@@ -114,9 +114,9 @@ const {
     calculateScore,
     calculateTimePoints
 } = load('../src/game/scoring/ScoreCalculator.ts');
-const { RunTracker } = load('../src/game/scoring/RunTracker.ts');
+const { RunTracker, runTracker } = load('../src/game/scoring/RunTracker.ts');
 
-test('pontuação v1 aplica tempo, dano, mortes, multi-kill e vitória', () => {
+test('pontuação v2 aplica dungeon, tempo, dano, mortes, multi-kill e vitória', () => {
     const score = calculateScore({
         won: true,
         dungeonsCompleted: 1,
@@ -172,6 +172,18 @@ test('tracker concede uma vez o bônus de cada dungeon e preserva no checkpoint'
     assert.equal(restored.recordDungeonCompletion('dungeon'), false);
     assert.equal(restored.recordDungeonCompletion('gaucho-dungeon'), true);
     assert.equal(restored.snapshot().score.dungeonPoints, 2_000);
+});
+
+test('conclusão de sala pontua apenas as dungeons', () => {
+    const { recordRoomCompletionScore } = load('../src/game/scenes/World.ts');
+    runTracker.startNew('SINGLE_PLAYER');
+    assert.equal(recordRoomCompletionScore('room1'), false);
+    assert.equal(runTracker.snapshot().score.dungeonPoints, 0);
+    assert.equal(recordRoomCompletionScore('dungeon'), true);
+    assert.equal(recordRoomCompletionScore('dungeon'), false);
+    assert.equal(recordRoomCompletionScore('gaucho-dungeon'), true);
+    assert.equal(runTracker.snapshot().score.dungeonPoints, 2_000);
+    runTracker.abandon();
 });
 
 test('projéteis continuam únicos depois da troca de sala', () => {

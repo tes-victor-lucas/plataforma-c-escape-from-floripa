@@ -117,6 +117,11 @@ export function shouldOfferRoomCompletionUpgrade(roomKey: RoomKey) {
     return roomKey === 'room1';
 }
 
+export function recordRoomCompletionScore(roomKey: RoomKey) {
+    if (!isDungeonRoom(roomKey)) return false;
+    return runTracker.recordDungeonCompletion(roomKey);
+}
+
 export class World extends Scene {
     private player?: Player;
     private playerRangeIndicator?: Phaser.GameObjects.Arc;
@@ -307,6 +312,7 @@ export class World extends Scene {
             if (this.isRoomCombatComplete) return;
             this.isRoomCombatComplete = true;
             this.waves = undefined;
+            recordRoomCompletionScore(roomKey);
             if (this.isMultiplayerHost()) {
                 this.sendEnemySnapshot();
                 multiplayerClient.sendEvent({
