@@ -51,7 +51,7 @@ test('estado válido é enviado apenas ao companheiro da sala', () => {
     assert.equal(messagesFor(sent, 'p1', 'player.state').length, 0);
     assert.deepEqual(messagesFor(sent, 'p2', 'player.state')[0].message, {
         type: 'player.state', playerId: 'p1', sequence: 4, x: 100, y: 200, facing: 'left',
-        health: 3, maxHealth: 4, reviveProgress: 0, revivesLeft: 2
+        health: 3, maxHealth: 4, reviveProgress: 0, revivesLeft: 2, character: 'padrao'
     });
 });
 
@@ -202,4 +202,21 @@ test('lista mostra só salas esperando parceiro, para quem ainda não entrou', (
 
     broker.publish('connection.closed', { clientId: 'p3' });
     assert.deepEqual(openRooms(broker, sent, 'visitante'), [], 'Partida iniciada não reabre');
+});
+
+test('personagem escolhido é repassado e valor desconhecido invalida o estado', () => {
+    const { broker, sent } = startedRoom();
+    const state = (character) => broker.publish('client.message', {
+        clientId: 'p1',
+        message: {
+            type: 'player.state', sequence: sent.length + 1, x: 0, y: 0, facing: 'down',
+            health: 4, maxHealth: 4, reviveProgress: 0, revivesLeft: 2, character
+        }
+    });
+
+    state('gaucho');
+    assert.equal(messagesFor(sent, 'p2', 'player.state')[0].message.character, 'gaucho');
+    state('admin');
+    assert.equal(messagesFor(sent, 'p2', 'player.state').length, 1);
+    assert.equal(messagesFor(sent, 'p1', 'error').at(-1).message.code, 'INVALID_PLAYER_STATE');
 });
