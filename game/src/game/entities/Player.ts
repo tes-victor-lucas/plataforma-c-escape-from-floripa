@@ -61,7 +61,7 @@ export class Player {
             player.initialFrame
         );
         this.texture = CHARACTERS[characterId].texture;
-        this.sprite.setScale(player.scale);
+        this.sprite.setScale(player.scale * CHARACTERS[characterId].scaleMultiplier);
         this.sprite.setDepth(10);
         this.sprite.setCollideWorldBounds(true);
         this.configureBody();

@@ -2732,7 +2732,7 @@ test('menu de jogar mostra a troca de personagem antes de voltar', () => {
     const actions = createPlayMenuActions({
         onNewGame() {},
         onMultiplayer() {},
-        character: () => ({ label: 'GAÚCHO', texture: 'player-gaucho' }),
+        character: () => ({ label: 'GAÚCHO', texture: 'player-gaucho', scaleMultiplier: 6 / 7 }),
         onToggleCharacter: () => { toggled += 1; }
     }, () => {});
     assert.deepEqual(actions.map(({ label }) => label), [
@@ -2753,4 +2753,6 @@ test('folha do gaúcho segue o layout do personagem atual', () => {
     const [width, height] = size(CHARACTERS.gaucho.path);
     assert.equal(Math.floor(width / 38), Math.floor(originalWidth / 38), 'mesma numeração de quadros');
     assert.ok(height >= 12 * 38, 'cabe a linha de caminhada para a direita');
+    assert.equal(WORLD_CONFIG.player.scale * CHARACTERS.padrao.scaleMultiplier, 0.7);
+    assert.ok(Math.abs(WORLD_CONFIG.player.scale * CHARACTERS.gaucho.scaleMultiplier - 0.6) < 1e-9);
 });
