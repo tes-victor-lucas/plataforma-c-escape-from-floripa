@@ -705,6 +705,26 @@ test('jogador escolhe o inimigo vivo mais próximo e respeita o intervalo entre 
     assert.ok(groups[0].shots[1].velocity.x > 0);
 });
 
+test('bônus da cuia aumenta a cadência de tiro em 50%', () => {
+    const { combat, groups } = setup([[150, 100]]);
+    combat.update(0);
+    assert.equal(groups[0].shots.length, 1);
+
+    combat.setPlayerFireRateMultiplier(WORLD_CONFIG.chimarrao.effectMultiplier);
+    const boostedInterval = COMBAT_CONFIG.player.fireInterval
+        / WORLD_CONFIG.chimarrao.effectMultiplier;
+    combat.update(boostedInterval - 1);
+    assert.equal(groups[0].shots.length, 1);
+    combat.update(1);
+    assert.equal(groups[0].shots.length, 2);
+
+    combat.setPlayerFireRateMultiplier(1);
+    combat.update(COMBAT_CONFIG.player.fireInterval - 1);
+    assert.equal(groups[0].shots.length, 2);
+    combat.update(1);
+    assert.equal(groups[0].shots.length, 3);
+});
+
 test('drones mantêm intervalos de disparo independentes', () => {
     const { combat, groups } = setup([[150, 100], [100, 150]]);
     combat.update(COMBAT_CONFIG.drone.fireInterval);
@@ -2489,8 +2509,26 @@ function itemWorld() {
     const world = new World();
     const player = Object.create(Player.prototype);
     player.movementSpeedMultiplier = 1;
+    player.temporaryMovementSpeedMultiplier = 1;
     player.sprite = {};
     world.player = player;
+    const fireRateMultipliers = [];
+    world.combat = {
+        setPlayerFireRateMultiplier(multiplier) { fireRateMultipliers.push(multiplier); }
+    };
+    const timers = [];
+    world.time = {
+        delayedCall(delay, callback) {
+            const timer = {
+                delay,
+                callback,
+                removed: false,
+                remove() { this.removed = true; }
+            };
+            timers.push(timer);
+            return timer;
+        }
+    };
     const pickups = [];
     world.physics = {
         add: {
@@ -2502,23 +2540,42 @@ function itemWorld() {
     const originalSend = multiplayerClient.sendEvent;
     multiplayerClient.sendEvent = (event) => sent.push(event);
     const restore = () => { multiplayerClient.sendEvent = originalSend; multiplayerClient.disconnect(); };
-    return { world, player, pickups, sent, multiplayerClient, restore };
+    return { world, player, pickups, fireRateMultipliers, timers, sent, multiplayerClient, restore };
 }
 
-test('chimarrão de gaúcho aumenta a velocidade de forma permanente até o teto', () => {
-    const { world, player, pickups, restore } = itemWorld();
+test('cuia de gaúcho aumenta movimento e tiro em 50% por três segundos', () => {
+    const { world, player, pickups, fireRateMultipliers, timers, restore } = itemWorld();
     world.dropChimarrao(0, 0, () => 0.99);
     assert.equal(pickups.length, 0);
 
     world.dropChimarrao(0, 0, () => 0);
     pickups.pop()();
-    assert.equal(player.getMovementSpeedMultiplier(), 1 + WORLD_CONFIG.chimarrao.speedBonus);
+    assert.equal(player.getMovementSpeedMultiplier(), 1, 'não altera o bônus permanente da build');
+    assert.equal(player.getEffectiveMovementSpeedMultiplier(), WORLD_CONFIG.chimarrao.effectMultiplier);
+    assert.deepEqual(fireRateMultipliers, [WORLD_CONFIG.chimarrao.effectMultiplier]);
+    assert.equal(timers[0].delay, WORLD_CONFIG.chimarrao.effectDuration);
 
-    for (let i = 0; i < 20; i++) {
-        world.dropChimarrao(0, 0, () => 0);
-        pickups.pop()();
-    }
-    assert.equal(player.getMovementSpeedMultiplier(), WORLD_CONFIG.player.maxSpeedMultiplier);
+    timers[0].callback();
+    assert.equal(player.getEffectiveMovementSpeedMultiplier(), 1);
+    assert.deepEqual(fireRateMultipliers, [WORLD_CONFIG.chimarrao.effectMultiplier, 1]);
+    restore();
+});
+
+test('pegar outra cuia renova os três segundos sem acumular o bônus', () => {
+    const { world, player, pickups, fireRateMultipliers, timers, restore } = itemWorld();
+    world.dropChimarrao(0, 0, () => 0);
+    pickups.pop()();
+    world.dropChimarrao(0, 0, () => 0);
+    pickups.pop()();
+
+    assert.equal(timers.length, 2);
+    assert.equal(timers[0].removed, true);
+    assert.equal(timers[1].delay, WORLD_CONFIG.chimarrao.effectDuration);
+    assert.equal(player.getEffectiveMovementSpeedMultiplier(), WORLD_CONFIG.chimarrao.effectMultiplier);
+    assert.deepEqual(fireRateMultipliers, [
+        WORLD_CONFIG.chimarrao.effectMultiplier,
+        WORLD_CONFIG.chimarrao.effectMultiplier
+    ]);
     restore();
 });
 
@@ -2538,13 +2595,13 @@ test('multiplayer: só o anfitrião sorteia o chimarrão e quem pega primeiro fi
     // O parceiro pegou antes: o item some aqui e não dá bônus.
     world.handleCoopEvent({ kind: 'item.collected', id: 1 });
     assert.equal(world.droppedItems.size, 0);
-    assert.equal(player.getMovementSpeedMultiplier(), 1);
+    assert.equal(player.getEffectiveMovementSpeedMultiplier(), 1);
 
     world.handleCoopEvent({ kind: 'item.drop', id: 2, x: 0, y: 0 });
     sent.length = 0;
     pickups.pop()();
     assert.deepEqual(sent, [{ kind: 'item.collected', id: 2 }]);
-    assert.equal(player.getMovementSpeedMultiplier(), 1 + WORLD_CONFIG.chimarrao.speedBonus);
+    assert.equal(player.getEffectiveMovementSpeedMultiplier(), WORLD_CONFIG.chimarrao.effectMultiplier);
     delete multiplayerClient.isHost;
     restore();
 });

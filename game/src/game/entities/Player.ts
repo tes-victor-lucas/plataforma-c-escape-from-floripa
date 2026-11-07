@@ -34,6 +34,7 @@ export class Player {
     /** Última direção pedida pelo teclado; muda na hora, antes de a velocidade inverter. */
     private aimDirection: { x: number; y: number } = { x: 0, y: 1 };
     private movementSpeedMultiplier = 1;
+    private temporaryMovementSpeedMultiplier = 1;
     private controlsInverted = false;
     /**
      * `body.blocked` é limpo pelo Arcade Physics antes do próximo passo. Guardamos
@@ -171,6 +172,14 @@ export class Player {
         return this.movementSpeedMultiplier;
     }
 
+    setTemporaryMovementSpeedMultiplier(multiplier: number) {
+        this.temporaryMovementSpeedMultiplier = Math.max(0, multiplier);
+    }
+
+    getEffectiveMovementSpeedMultiplier() {
+        return this.movementSpeedMultiplier * this.temporaryMovementSpeedMultiplier;
+    }
+
     getDashCharge() {
         return this.dash.charge;
     }
@@ -254,8 +263,9 @@ export class Player {
         const { speed, velocityResponsiveness } = WORLD_CONFIG.player;
         const interpolation = 1 - Math.exp(-velocityResponsiveness * delta / 1000);
         const body = this.sprite.body;
-        const targetX = direction.x * speed * this.movementSpeedMultiplier;
-        const targetY = direction.y * speed * this.movementSpeedMultiplier;
+        const movementMultiplier = this.getEffectiveMovementSpeedMultiplier();
+        const targetX = direction.x * speed * movementMultiplier;
+        const targetY = direction.y * speed * movementMultiplier;
 
         if (!(body instanceof Phaser.Physics.Arcade.Body)) {
             this.sprite.setVelocity(targetX, targetY);
@@ -282,7 +292,7 @@ export class Player {
 
     private updateDashVelocity() {
         const { x, y } = this.dash.direction;
-        const speed = WORLD_CONFIG.player.dash.speed * this.movementSpeedMultiplier;
+        const speed = WORLD_CONFIG.player.dash.speed * this.getEffectiveMovementSpeedMultiplier();
         this.sprite.setVelocity(x * speed, y * speed);
         this.footsteps.stop();
         this.stopWalkingAnimation();
