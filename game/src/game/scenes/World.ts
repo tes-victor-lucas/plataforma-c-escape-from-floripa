@@ -1,3 +1,4 @@
+import { loadCharacterId, type CharacterId } from '../config/characters';
 import { Scene } from 'phaser';
 import { configureWorldCamera } from '../camera/configureWorldCamera';
 import {
@@ -147,6 +148,7 @@ export class World extends Scene {
     private readonly droppedItems = new Map<number, () => void>();
     private droppedItemSequence = 0;
     private swordHint?: Phaser.GameObjects.Text;
+    private characterId: CharacterId = 'padrao';
     private unsubscribeMultiplayer?: () => void;
     private unsubscribeRunTracker?: () => void;
     private multiplayerSyncElapsed = 0;
@@ -197,6 +199,7 @@ export class World extends Scene {
         this.droppedItems.clear();
         this.droppedItemSequence = 0;
         this.swordHint = undefined;
+        this.characterId = loadCharacterId();
         this.upgrades.reset();
         this.physics.pause();
         const roomKey = data.roomKey ?? getRequestedRoomKey();
@@ -235,7 +238,8 @@ export class World extends Scene {
         this.player = new Player(
             this,
             this.getPlayerSpawn(spawn),
-            (healthLost) => runTracker.recordPlayerHit(healthLost)
+            (healthLost) => runTracker.recordPlayerHit(healthLost),
+            this.characterId
         );
         if (data.playerProgress) {
             restorePlayerProgress(
@@ -293,7 +297,7 @@ export class World extends Scene {
                 this.isGameOver = true;
                 this.combat?.clear();
                 this.physics.pause();
-                void runTracker.win();
+                void runTracker.win(undefined, !this.isMultiplayerGuest());
             }
         };
         this.completeRoomCombat = () => {
@@ -577,9 +581,10 @@ export class World extends Scene {
         if (!this.player) return;
         // Perto dos pés, onde fica a hitbox do jogador; a primeira sala não tem obstáculos perto do centro.
         const { x, y } = this.player.sprite;
-        const item = this.physics.add.image(x + 28, y + 8, 'sword').setDepth(9);
-        // Abaixo da espada: acima dela, a mensagem cobriria a cabeça do personagem.
-        const label = this.createWorldHint('PEGUE A ESPADA').setPosition(x + 28, y + 26);
+        // Abaixo de cada jogador: na dupla o parceiro nasce ao lado, e a espada ficaria embaixo dele.
+        const item = this.physics.add.image(x, y + 28, 'sword').setDepth(9);
+        // À direita da espada e abaixo dos personagens, para nunca cobrir ninguém.
+        const label = this.createWorldHint('PEGUE A ESPADA').setOrigin(0, 0.5).setPosition(x + 12, y + 28).setDepth(9);
         const pickup = this.physics.add.overlap(this.player.sprite, item, () => {
             pickup.destroy();
             item.destroy();
@@ -1194,7 +1199,8 @@ export class World extends Scene {
             health: this.player.health.current,
             maxHealth: this.player.health.max,
             reviveProgress: this.getReviveProgress(),
-            revivesLeft: this.getRevivesLeft()
+            revivesLeft: this.getRevivesLeft(),
+            character: this.characterId
         });
         if (this.isMultiplayerHost()) this.sendEnemySnapshot();
     }

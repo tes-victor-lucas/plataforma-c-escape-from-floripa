@@ -137,14 +137,17 @@ export class RunTracker {
         return true;
     }
 
-    async win(now = new Date()) {
+    /** Na dupla, só o anfitrião envia a vitória: a pontuação é da dupla, e o placar teria duas entradas iguais. */
+    async win(now = new Date(), submit = true) {
         if (this.status !== 'RUNNING') return this.snapshot();
         this.finalizeOutstandingProjectiles();
         this.endedAt = now.toISOString();
         this.status = 'WON';
         this.emit();
         await this.startRequest;
-        if (this.runId) {
+        if (this.runId && !submit) {
+            void scoreApi.discardRun(this.runId);
+        } else if (this.runId) {
             void scoreApi.finishVictory(this.runId, {
                 mode: this.mode,
                 scoreVersion: SCORE_VERSION,

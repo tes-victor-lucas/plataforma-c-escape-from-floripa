@@ -1,11 +1,16 @@
 import type { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
+import type { GameMode } from '../config/score';
 import type { LeaderboardEntry } from '../scoring/ScoreApi';
 import { formatElapsedTime } from '../scoring/ScoreCalculator';
 
 // Os números da PixelGamer são desenhos.
 const TABLE_FONT = 'Pixeboy, monospace';
 // Posições fixas: o espaço é mais estreito que as letras, então preencher com espaços não alinha.
+const TABS: readonly { mode: GameMode; label: string; x: number }[] = [
+    { mode: 'SINGLE_PLAYER', label: 'SOLO', x: GAME_WIDTH / 2 - 70 },
+    { mode: 'MULTIPLAYER', label: 'DUPLA', x: GAME_WIDTH / 2 + 70 }
+];
 const COLUMNS = [
     { x: 78, title: '#' },
     { x: 125, title: 'JOGADOR' },
@@ -18,25 +23,31 @@ const COLUMNS = [
 export class LeaderboardView {
     private readonly content: Phaser.GameObjects.Text;
     private readonly columns: Phaser.GameObjects.Text[];
+    private readonly tabs: Phaser.GameObjects.Text[];
 
-    constructor(scene: Scene, onClose: () => void) {
+    constructor(scene: Scene, onClose: () => void, onSelectMode: (mode: GameMode) => void) {
         scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.84)
             .setDepth(200);
         scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 790, 440, 0x00171b)
             .setStrokeStyle(3, 0x008fa5).setDepth(201);
-        scene.add.text(GAME_WIDTH / 2, 52, 'PLACAR — SINGLE-PLAYER', {
+        scene.add.text(GAME_WIDTH / 2, 42, 'PLACAR', {
             fontFamily: 'PixelGamer, monospace', fontSize: '27px', color: '#5ce5f1'
         }).setOrigin(0.5).setDepth(202);
+        this.tabs = TABS.map(({ mode, label, x }) => scene.add.text(x, 74, `[ ${label} ]`, {
+            fontFamily: 'PixelGamer, monospace', fontSize: '16px', color: '#ffffff'
+        }).setOrigin(0.5).setDepth(203).setResolution(2)
+            .setInteractive({ useHandCursor: true })
+            .on('pointerdown', () => onSelectMode(mode)));
         for (const { x, title } of COLUMNS) {
-            scene.add.text(x, 91, title, {
+            scene.add.text(x, 102, title, {
                 fontFamily: TABLE_FONT, fontSize: '15px', color: '#72aeb8'
             }).setDepth(202);
         }
-        this.content = scene.add.text(78, 125, 'CARREGANDO PLACAR...', {
+        this.content = scene.add.text(78, 134, 'CARREGANDO PLACAR...', {
             fontFamily: TABLE_FONT, fontSize: '15px', color: '#ffffff',
             lineSpacing: 11
         }).setDepth(202);
-        this.columns = COLUMNS.map(({ x }) => scene.add.text(x, 125, '', {
+        this.columns = COLUMNS.map(({ x }) => scene.add.text(x, 134, '', {
             fontFamily: TABLE_FONT, fontSize: '15px', color: '#ffffff',
             lineSpacing: 11
         }).setDepth(202));
@@ -47,6 +58,13 @@ export class LeaderboardView {
             fontFamily: 'PixelGamer, monospace', fontSize: '18px', color: '#ffffff'
         }).setOrigin(0.5).setDepth(203).setInteractive({ useHandCursor: true });
         close.once('pointerdown', onClose);
+    }
+
+    /** Destaca a aba e limpa a tabela enquanto a outra lista carrega. */
+    selectMode(mode: GameMode) {
+        TABS.forEach((tab, index) => this.tabs[index].setColor(tab.mode === mode ? '#ffffff' : '#4f7f88'));
+        this.columns.forEach((column) => column.setText(''));
+        this.content.setText('CARREGANDO PLACAR...');
     }
 
     showEntries(entries: readonly LeaderboardEntry[]) {
