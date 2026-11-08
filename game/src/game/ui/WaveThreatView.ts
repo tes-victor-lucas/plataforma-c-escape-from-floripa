@@ -1,10 +1,12 @@
 import { Scene } from 'phaser';
+import { AUDIO_CONFIG } from '../config/audio';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 
 const DEPTH = 150;
 const BAND_WIDTH = 720;
 const BAND_HEIGHT = 76;
 const HOLD_DURATION = 1350;
+const DEFAULT_THREAT_TEXT = 'VOCÊ NÃO VAI ESCAPAR';
 
 const GLITCH_SLICES = [
     { y: -52, x: -308, width: 616, height: 5 },
@@ -19,12 +21,14 @@ const GLITCH_SLICES = [
 export class WaveThreatView {
     private readonly dim: Phaser.GameObjects.Rectangle;
     private readonly banner: Phaser.GameObjects.Container;
+    private readonly shouldPlayThreatSound: boolean;
 
     constructor(
         private readonly scene: Scene,
         private readonly worldCamera?: Phaser.Cameras.Scene2D.Camera,
-        text = 'VOCÊ NÃO VAI ESCAPAR'
+        text = DEFAULT_THREAT_TEXT
     ) {
+        this.shouldPlayThreatSound = text === DEFAULT_THREAT_TEXT;
         this.dim = scene.add.rectangle(
             GAME_WIDTH / 2,
             GAME_HEIGHT / 2,
@@ -67,6 +71,10 @@ export class WaveThreatView {
     }
 
     play(onComplete: () => void) {
+        if (this.shouldPlayThreatSound) {
+            const sound = AUDIO_CONFIG.effects.waveThreat;
+            this.scene.sound.play(sound.key, { volume: sound.volume });
+        }
         this.shake(320, 0.012);
         this.scene.tweens.add({ targets: this.dim, fillAlpha: 0.52, duration: 100 });
         this.scene.tweens.add({
