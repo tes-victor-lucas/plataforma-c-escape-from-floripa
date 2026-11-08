@@ -14,6 +14,7 @@ import {
 const TABLE_FONT = 'Pixeboy, monospace';
 const PANEL = { x: 42, y: 26, width: 805, height: 448 };
 const TABLE: CleanMenuBounds = { x: 62, y: 130, width: 765, height: 264 };
+const CLOSE_BUTTON: CleanMenuBounds = { x: 805, y: 38, width: 28, height: 28 };
 const TAB_Y = 107;
 const TABS: readonly { mode: GameMode; label: string; bounds: CleanMenuBounds }[] = [
     { mode: 'SINGLE_PLAYER', label: 'SOLO', bounds: { x: GAME_WIDTH / 2 - 132, y: TAB_Y - 16, width: 126, height: 32 } },
@@ -38,12 +39,13 @@ export class LeaderboardView {
     private readonly columns: Phaser.GameObjects.Text[];
     private readonly tabs: RenderedTab[];
 
-    constructor(scene: Scene, onClose: () => void, onSelectMode: (mode: GameMode) => void) {
+    constructor(private readonly scene: Scene, onClose: () => void, onSelectMode: (mode: GameMode) => void) {
         const menu = new CleanOverlayMenu(scene, {
             bounds: PANEL,
             dimAlpha: 0.72
         });
         menu.addTitle('PLACAR', 73, 'leaderboard');
+        this.addCloseButton(menu, onClose);
 
         this.tabs = TABS.map(({ mode, label, bounds }) => {
             const background = scene.add.graphics();
@@ -97,17 +99,46 @@ export class LeaderboardView {
         }).setResolution(2));
         menu.add([this.content, ...this.columns]);
 
-        menu.addButton('VOLTAR AO MENU', 422, onClose, {
+        menu.addButton('VOLTAR AO MENU', 442, onClose, {
             width: 300,
             height: 38,
             fontSize: '18px'
         });
-        menu.addControlHints([
-            { key: '← →', label: 'ALTERAR PLACAR' },
-            { key: 'ESC', label: 'VOLTAR' }
-        ], 457);
         menu.enableKeyboardNavigation({ onCancel: onClose });
         menu.fadeIn();
+    }
+
+    private addCloseButton(menu: CleanOverlayMenu, onClose: () => void) {
+        const background = this.scene.add.graphics();
+        const render = (hovered: boolean) => {
+            background.clear();
+            drawCleanMenuBox(
+                background,
+                CLOSE_BUTTON,
+                hovered ? CLEAN_MENU_COLORS.buttonHover : CLEAN_MENU_COLORS.button,
+                CLEAN_MENU_COLORS.frame,
+                4,
+                2
+            );
+            background.fillStyle(CLEAN_MENU_COLORS.danger, 1);
+            for (let pixel = 0; pixel < 4; pixel += 1) {
+                background.fillRect(CLOSE_BUTTON.x + 6 + pixel * 4, CLOSE_BUTTON.y + 6 + pixel * 4, 4, 4);
+                background.fillRect(CLOSE_BUTTON.x + 18 - pixel * 4, CLOSE_BUTTON.y + 6 + pixel * 4, 4, 4);
+            }
+        };
+        const hitArea = this.scene.add.rectangle(
+            CLOSE_BUTTON.x + CLOSE_BUTTON.width / 2,
+            CLOSE_BUTTON.y + CLOSE_BUTTON.height / 2,
+            CLOSE_BUTTON.width,
+            CLOSE_BUTTON.height,
+            0x000000,
+            0
+        ).setInteractive({ useHandCursor: true });
+        hitArea.on('pointerover', () => render(true));
+        hitArea.on('pointerout', () => render(false));
+        hitArea.on('pointerdown', onClose);
+        render(false);
+        menu.add([background, hitArea]);
     }
 
     /** Destaca a aba e limpa a tabela enquanto a outra lista carrega. */
