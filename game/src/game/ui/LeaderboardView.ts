@@ -1,68 +1,135 @@
 import type { Scene } from 'phaser';
-import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
+import { GAME_WIDTH } from '../config/display';
 import type { GameMode } from '../config/score';
 import type { LeaderboardEntry } from '../scoring/ScoreApi';
 import { formatElapsedTime } from '../scoring/ScoreCalculator';
+import {
+    CLEAN_MENU_COLORS,
+    CleanOverlayMenu,
+    drawCleanMenuBox,
+    type CleanMenuBounds
+} from './CleanOverlayMenu';
 
 // Os números da PixelGamer são desenhos.
 const TABLE_FONT = 'Pixeboy, monospace';
-// Posições fixas: o espaço é mais estreito que as letras, então preencher com espaços não alinha.
-const TABS: readonly { mode: GameMode; label: string; x: number }[] = [
-    { mode: 'SINGLE_PLAYER', label: 'SOLO', x: GAME_WIDTH / 2 - 70 },
-    { mode: 'MULTIPLAYER', label: 'DUPLA', x: GAME_WIDTH / 2 + 70 }
+const PANEL = { x: 42, y: 26, width: 805, height: 448 };
+const TABLE: CleanMenuBounds = { x: 62, y: 130, width: 765, height: 264 };
+const TAB_Y = 107;
+const TABS: readonly { mode: GameMode; label: string; bounds: CleanMenuBounds }[] = [
+    { mode: 'SINGLE_PLAYER', label: 'SOLO', bounds: { x: GAME_WIDTH / 2 - 132, y: TAB_Y - 16, width: 126, height: 32 } },
+    { mode: 'MULTIPLAYER', label: 'DUPLA', bounds: { x: GAME_WIDTH / 2 + 6, y: TAB_Y - 16, width: 126, height: 32 } }
 ];
 const COLUMNS = [
-    { x: 78, title: '#' },
-    { x: 125, title: 'JOGADOR' },
-    { x: 345, title: 'PONTOS' },
-    { x: 450, title: 'TEMPO' },
-    { x: 555, title: 'BAIXAS' },
-    { x: 660, title: 'DATA' }
+    { x: 78, title: '#', color: CLEAN_MENU_COLORS.frameCss },
+    { x: 125, title: 'JOGADOR', color: CLEAN_MENU_COLORS.text },
+    { x: 345, title: 'PONTOS', color: CLEAN_MENU_COLORS.frameCss },
+    { x: 450, title: 'TEMPO', color: CLEAN_MENU_COLORS.text },
+    { x: 555, title: 'BAIXAS', color: CLEAN_MENU_COLORS.text },
+    { x: 660, title: 'DATA', color: CLEAN_MENU_COLORS.mutedText }
 ] as const;
+
+type RenderedTab = Readonly<{
+    background: Phaser.GameObjects.Graphics;
+    label: Phaser.GameObjects.Text;
+}>;
 
 export class LeaderboardView {
     private readonly content: Phaser.GameObjects.Text;
     private readonly columns: Phaser.GameObjects.Text[];
-    private readonly tabs: Phaser.GameObjects.Text[];
+    private readonly tabs: RenderedTab[];
 
     constructor(scene: Scene, onClose: () => void, onSelectMode: (mode: GameMode) => void) {
-        scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.84)
-            .setDepth(200);
-        scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 790, 440, 0x00171b)
-            .setStrokeStyle(3, 0x008fa5).setDepth(201);
-        scene.add.text(GAME_WIDTH / 2, 42, 'PLACAR', {
-            fontFamily: 'PixelGamer, monospace', fontSize: '27px', color: '#5ce5f1'
-        }).setOrigin(0.5).setDepth(202);
-        this.tabs = TABS.map(({ mode, label, x }) => scene.add.text(x, 74, `[ ${label} ]`, {
-            fontFamily: 'PixelGamer, monospace', fontSize: '16px', color: '#ffffff'
-        }).setOrigin(0.5).setDepth(203).setResolution(2)
-            .setInteractive({ useHandCursor: true })
-            .on('pointerdown', () => onSelectMode(mode)));
-        for (const { x, title } of COLUMNS) {
-            scene.add.text(x, 102, title, {
-                fontFamily: TABLE_FONT, fontSize: '15px', color: '#72aeb8'
-            }).setDepth(202);
+        const menu = new CleanOverlayMenu(scene, {
+            bounds: PANEL,
+            dimAlpha: 0.72
+        });
+        menu.addTitle('PLACAR', 73, 'leaderboard');
+
+        this.tabs = TABS.map(({ mode, label, bounds }) => {
+            const background = scene.add.graphics();
+            const text = scene.add.text(bounds.x + bounds.width / 2, TAB_Y, label, {
+                fontFamily: 'PixelGamer, monospace',
+                fontSize: '16px',
+                color: CLEAN_MENU_COLORS.text
+            }).setOrigin(0.5).setResolution(2);
+            const hitArea = scene.add.rectangle(
+                bounds.x + bounds.width / 2,
+                TAB_Y,
+                bounds.width,
+                bounds.height,
+                0x000000,
+                0
+            ).setInteractive({ useHandCursor: true })
+                .on('pointerdown', () => onSelectMode(mode));
+            menu.add([background, text, hitArea]);
+            return { background, label: text };
+        });
+
+        const table = scene.add.graphics();
+        drawCleanMenuBox(table, TABLE, CLEAN_MENU_COLORS.panel, CLEAN_MENU_COLORS.frame, 7, 2);
+        table.fillStyle(CLEAN_MENU_COLORS.button, 1)
+            .fillRect(TABLE.x + 3, TABLE.y + 5, TABLE.width - 6, 32);
+        for (let row = 0; row < 10; row += 2) {
+            table.fillStyle(CLEAN_MENU_COLORS.frame, 0.045)
+                .fillRect(TABLE.x + 3, 172 + row * 21, TABLE.width - 6, 21);
         }
-        this.content = scene.add.text(78, 134, 'CARREGANDO PLACAR...', {
-            fontFamily: TABLE_FONT, fontSize: '15px', color: '#ffffff',
-            lineSpacing: 11
-        }).setDepth(202);
-        this.columns = COLUMNS.map(({ x }) => scene.add.text(x, 134, '', {
-            fontFamily: TABLE_FONT, fontSize: '15px', color: '#ffffff',
-            lineSpacing: 11
-        }).setDepth(202));
-        scene.add.text(GAME_WIDTH / 2, 424, 'FUNÇÃO EM DESENVOLVIMENTO', {
-            fontFamily: 'PixelGamer, monospace', fontSize: '16px', color: '#ffcc66'
-        }).setOrigin(0.5).setDepth(202).setResolution(2);
-        const close = scene.add.text(GAME_WIDTH / 2, 454, '[ VOLTAR ]', {
-            fontFamily: 'PixelGamer, monospace', fontSize: '18px', color: '#ffffff'
-        }).setOrigin(0.5).setDepth(203).setInteractive({ useHandCursor: true });
-        close.once('pointerdown', onClose);
+        menu.add(table);
+
+        for (const { x, title } of COLUMNS) {
+            menu.add(scene.add.text(x, 140, title, {
+                fontFamily: 'PixelGamer, monospace',
+                fontSize: '12px',
+                color: CLEAN_MENU_COLORS.mutedText
+            }).setResolution(2));
+        }
+        this.content = scene.add.text(GAME_WIDTH / 2, 260, 'CARREGANDO PLACAR...', {
+            fontFamily: 'PixelGamer, monospace',
+            fontSize: '14px',
+            color: CLEAN_MENU_COLORS.mutedText,
+            align: 'center',
+            lineSpacing: 6
+        }).setOrigin(0.5).setResolution(2);
+        this.columns = COLUMNS.map(({ x, color }) => scene.add.text(x, 172, '', {
+            fontFamily: TABLE_FONT,
+            fontSize: '15px',
+            color,
+            lineSpacing: 6
+        }).setResolution(2));
+        menu.add([this.content, ...this.columns]);
+
+        menu.addButton('VOLTAR AO MENU', 422, onClose, {
+            width: 300,
+            height: 38,
+            fontSize: '18px'
+        });
+        menu.addControlHints([
+            { key: '← →', label: 'ALTERAR PLACAR' },
+            { key: 'ESC', label: 'VOLTAR' }
+        ], 457);
+        menu.enableKeyboardNavigation({ onCancel: onClose });
+        menu.fadeIn();
     }
 
     /** Destaca a aba e limpa a tabela enquanto a outra lista carrega. */
     selectMode(mode: GameMode) {
-        TABS.forEach((tab, index) => this.tabs[index].setColor(tab.mode === mode ? '#ffffff' : '#4f7f88'));
+        TABS.forEach((tab, index) => {
+            const selected = tab.mode === mode;
+            const rendered = this.tabs[index];
+            rendered.background.clear();
+            drawCleanMenuBox(
+                rendered.background,
+                tab.bounds,
+                selected ? CLEAN_MENU_COLORS.buttonHover : CLEAN_MENU_COLORS.button,
+                CLEAN_MENU_COLORS.frame,
+                5,
+                2
+            );
+            if (selected) {
+                rendered.background.fillStyle(CLEAN_MENU_COLORS.danger, 1)
+                    .fillRect(tab.bounds.x + 10, tab.bounds.y + tab.bounds.height - 4, tab.bounds.width - 20, 3);
+            }
+            rendered.label.setColor(selected ? CLEAN_MENU_COLORS.text : CLEAN_MENU_COLORS.mutedText);
+        });
         this.columns.forEach((column) => column.setText(''));
         this.content.setText('CARREGANDO PLACAR...');
     }
@@ -76,7 +143,7 @@ export class LeaderboardView {
         const rows = entries.slice(0, 10).map((entry) => [
             String(entry.rank),
             entry.playerName.slice(0, 18),
-            String(entry.score),
+            entry.score.toLocaleString('pt-BR'),
             formatElapsedTime(entry.elapsedTimeMs),
             String(entry.enemiesDefeated),
             new Date(entry.completedAt).toLocaleDateString('pt-BR')

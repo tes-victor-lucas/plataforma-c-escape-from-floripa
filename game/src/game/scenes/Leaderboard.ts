@@ -23,7 +23,6 @@ export class Leaderboard extends Scene {
         };
         const toggle = () => show(mode === 'SINGLE_PLAYER' ? 'MULTIPLAYER' : 'SINGLE_PLAYER');
         const view = new LeaderboardView(this, () => this.scene.stop(), show);
-        this.input.keyboard?.once('keydown-ESC', () => this.scene.stop());
         for (const key of ['LEFT', 'RIGHT', 'A', 'D']) this.input.keyboard?.on(`keydown-${key}`, toggle);
         bindGamepadActions(this, {
             left: toggle,
