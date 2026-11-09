@@ -52,8 +52,19 @@ const {
     selectDroneSpawns,
     selectDroneSpawnsWithPriority
 } = load('../src/game/combat/DroneWaves.ts');
-const { drawUpgradeCards, drawUpgradeCardsFeaturing } = load('../src/game/upgrades/drawUpgradeCards.ts');
-const { getUpgradeCard, AREA_UPGRADE_IDS } = load('../src/game/upgrades/catalog.ts');
+const {
+    basicUpgradeCards,
+    drawUpgradeCards,
+    drawUpgradeCardsFeaturing,
+    withoutRoom3Cards
+} = load('../src/game/upgrades/drawUpgradeCards.ts');
+const {
+    getUpgradeCard,
+    AREA_UPGRADE_IDS,
+    ROOM3_EXCLUSIVE_UPGRADE_IDS,
+    ROOM3_UPGRADE_IDS,
+    UPGRADE_CARDS
+} = load('../src/game/upgrades/catalog.ts');
 const { PlayerUpgradeState } = load('../src/game/upgrades/PlayerUpgradeState.ts');
 const {
     capturePlayerProgress,
@@ -3306,4 +3317,35 @@ test('fora da horda da Sala II os sorteios só trazem as cartas básicas', () =>
         const cards = drawUpgradeCards(() => roll, basic);
         assert.ok(cards.every((card) => !AREA_UPGRADE_IDS.includes(card.id)), `sorteio ${roll}`);
     }
+});
+
+test('cartas exclusivas da room3 não aparecem nas salas anteriores', () => {
+    const exclusive = (card) => ROOM3_EXCLUSIVE_UPGRADE_IDS.includes(card.id);
+    assert.equal(basicUpgradeCards(UPGRADE_CARDS).some(exclusive), false);
+    assert.equal(withoutRoom3Cards(UPGRADE_CARDS).some(exclusive), false);
+    for (let seed = 0; seed < 20; seed += 1) {
+        const room2Cards = drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, () => (seed * 0.37) % 1, withoutRoom3Cards(UPGRADE_CARDS));
+        assert.equal(room2Cards.some(exclusive), false);
+        const room3Cards = drawUpgradeCardsFeaturing(ROOM3_UPGRADE_IDS, () => (seed * 0.37) % 1, UPGRADE_CARDS);
+        assert.ok(room3Cards.every((card) => ROOM3_UPGRADE_IDS.includes(card.id)));
+    }
+});
+
+test('carta comum pega depois da forte não enfraquece o efeito', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('thunder-storm'));
+    upgrades.acquire(getUpgradeCard('chain-lightning'));
+    assert.equal(upgrades.chainInterval, 500);
+    assert.equal(upgrades.chainDamageRatio, 3);
+    assert.equal(upgrades.chainRange, 130);
+    assert.equal(upgrades.chainJumps, 16);
+
+    upgrades.acquire(getUpgradeCard('shock-pulse'));
+    upgrades.acquire(getUpgradeCard('nova-pulse'));
+    assert.equal(upgrades.pulseInterval, 600);
+    assert.equal(upgrades.pulseDamageRatio, 3);
+    assert.equal(upgrades.pulseRadius, 150);
+
+    upgrades.acquire(getUpgradeCard('heavy-rounds'));
+    assert.equal(upgrades.damage, COMBAT_CONFIG.player.damage + 3);
 });
