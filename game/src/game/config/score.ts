@@ -1,7 +1,8 @@
-export const SCORE_VERSION = 1;
+export const SCORE_VERSION = 2;
 
 export const SCORE_CONFIG = Object.freeze({
     victory: 1_000,
+    dungeonCompletion: 1_000,
     enemyKill: 100,
     time: Object.freeze({
         maximumBonus: 6_000,

@@ -30,6 +30,7 @@ export type RunCheckpoint = Readonly<{
     hitsTaken: number;
     multiKills: readonly MultiKill[];
     defeatedEnemyIds: readonly string[];
+    completedDungeonIds: readonly string[];
     scoreVersion: number;
     mode: GameMode;
     status: 'RUNNING';
@@ -56,6 +57,7 @@ export class RunTracker {
     private hitsTaken = 0;
     private multiKills: MultiKill[] = [];
     private defeatedEnemyIds = new Set<string>();
+    private completedDungeonIds = new Set<string>();
     private projectileKills = new Map<string, Set<string>>();
     private finalizedProjectileIds = new Set<string>();
     private status: RunStatus = 'IDLE';
@@ -92,6 +94,7 @@ export class RunTracker {
         this.hitsTaken = checkpoint.hitsTaken;
         this.multiKills = checkpoint.multiKills.map((multiKill) => ({ ...multiKill }));
         this.defeatedEnemyIds = new Set(checkpoint.defeatedEnemyIds);
+        this.completedDungeonIds = new Set(checkpoint.completedDungeonIds);
         this.mode = checkpoint.mode;
         this.status = 'RUNNING';
         this.emit();
@@ -137,6 +140,13 @@ export class RunTracker {
         return true;
     }
 
+    recordDungeonCompletion(dungeonId: string) {
+        if (this.status !== 'RUNNING' || this.completedDungeonIds.has(dungeonId)) return false;
+        this.completedDungeonIds.add(dungeonId);
+        this.emit();
+        return true;
+    }
+
     /** Na dupla, só o anfitrião envia a vitória: a pontuação é da dupla, e o placar teria duas entradas iguais. */
     async win(now = new Date(), submit = true) {
         if (this.status !== 'RUNNING') return this.snapshot();
@@ -153,6 +163,7 @@ export class RunTracker {
                 scoreVersion: SCORE_VERSION,
                 enemiesDefeated: this.enemiesDefeated,
                 hitsTaken: this.hitsTaken,
+                dungeonsCompleted: this.completedDungeonIds.size,
                 multiKills: this.multiKills.map(({ enemies }) => enemies)
             }).catch(() => undefined);
         }
@@ -186,6 +197,7 @@ export class RunTracker {
             hitsTaken: this.hitsTaken,
             multiKills: this.multiKills.map((multiKill) => ({ ...multiKill })),
             defeatedEnemyIds: [...this.defeatedEnemyIds],
+            completedDungeonIds: [...this.completedDungeonIds],
             scoreVersion: SCORE_VERSION,
             mode: this.mode,
             status: 'RUNNING'
@@ -202,6 +214,7 @@ export class RunTracker {
             elapsedTimeMs,
             enemiesDefeated: this.enemiesDefeated,
             hitsTaken: this.hitsTaken,
+            dungeonsCompleted: this.completedDungeonIds.size,
             multiKillBonuses: this.multiKills.map(({ bonus }) => bonus)
         });
         return {
@@ -251,6 +264,7 @@ export class RunTracker {
         this.hitsTaken = 0;
         this.multiKills = [];
         this.defeatedEnemyIds.clear();
+        this.completedDungeonIds.clear();
         this.projectileKills.clear();
         this.finalizedProjectileIds.clear();
         this.status = 'IDLE';

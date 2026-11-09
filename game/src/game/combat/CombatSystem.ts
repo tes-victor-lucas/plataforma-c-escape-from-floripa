@@ -53,6 +53,7 @@ export class CombatSystem {
     private readonly enemyShots: Physics.Arcade.Group;
     private readonly projectiles = new Map<Physics.Arcade.Image, ProjectileState>();
     private playerCooldown = 0;
+    private playerFireRateMultiplier = 1;
     private readonly enemyCooldowns = new Map<CombatEnemy, number>();
     private companion?: Phaser.GameObjects.Sprite;
     private companionCooldown = 0;
@@ -206,7 +207,7 @@ export class CombatSystem {
         }
         if (nearest && this.playerCooldown === 0) {
             this.firePlayer(nearest);
-            this.playerCooldown = this.playerStats.fireInterval;
+            this.playerCooldown = this.playerStats.fireInterval / this.playerFireRateMultiplier;
         }
         this.updateCompanion(delta);
     }
@@ -323,6 +324,13 @@ export class CombatSystem {
     clear() {
         for (const shot of this.projectiles.keys()) this.removeShot(shot);
         for (const shot of this.partnerShotLifetimes.keys()) this.removePartnerShot(shot);
+    }
+
+    setPlayerFireRateMultiplier(multiplier: number) {
+        const nextMultiplier = Math.max(0.01, multiplier);
+        this.playerCooldown *= this.playerFireRateMultiplier / nextMultiplier;
+        this.companionCooldown *= this.playerFireRateMultiplier / nextMultiplier;
+        this.playerFireRateMultiplier = nextMultiplier;
     }
 
     /** Precisa vir antes dos inimigos, para eles também interceptarem os tiros do parceiro. */
@@ -480,7 +488,7 @@ export class CombatSystem {
             color: 0x39ff14
         };
         this.createProjectile(origin, angle, this.playerShots, weapon, 0);
-        this.companionCooldown = weapon.fireInterval;
+        this.companionCooldown = weapon.fireInterval / this.playerFireRateMultiplier;
     }
 
     private findNearestEnemy(origin: { x: number; y: number }, range: number) {

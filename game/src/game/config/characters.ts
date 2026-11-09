@@ -1,7 +1,18 @@
-/** Personagens jogáveis: as folhas usam o mesmo layout, então hitbox e animações são iguais. */
+/** Personagens jogáveis: as folhas usam o mesmo layout, mas têm proporções visuais diferentes. */
 export const CHARACTERS = {
-    padrao: { label: 'PADRÃO', texture: 'player-walk', path: 'assets/character.png' },
-    gaucho: { label: 'GAÚCHO', texture: 'player-gaucho', path: 'assets/characters/gaucho.png' }
+    padrao: {
+        label: 'PADRÃO',
+        texture: 'player-walk',
+        path: 'assets/character.png',
+        scaleMultiplier: 1
+    },
+    gaucho: {
+        label: 'GAÚCHO',
+        texture: 'player-gaucho',
+        path: 'assets/characters/gaucho.png',
+        // 35 px de altura no frame contra 30 px do padrão: ambos ficam com 21 px no jogo.
+        scaleMultiplier: 6 / 7
+    }
 } as const;
 
 export type CharacterId = keyof typeof CHARACTERS;

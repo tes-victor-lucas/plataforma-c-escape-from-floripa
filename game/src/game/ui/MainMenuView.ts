@@ -12,7 +12,7 @@ export type MainMenuViewOptions = {
     onMultiplayer?: () => void;
     onLeaderboard?: () => void;
     /** Rótulo do personagem atual e textura da prévia; sem isso o menu não oferece a troca. */
-    character?: () => { label: string; texture: string };
+    character?: () => { label: string; texture: string; scaleMultiplier: number };
     onToggleCharacter?: () => void;
 };
 
@@ -244,9 +244,10 @@ export class MainMenuView {
             return;
         }
         createWalkAnimations(this.scene, character.texture);
-        this.characterPreview ??= this.scene.add.sprite(0, 0, character.texture).setScale(1.5).setScrollFactor(0);
+        this.characterPreview ??= this.scene.add.sprite(0, 0, character.texture).setScrollFactor(0);
         this.characterPreview
             .setVisible(true)
+            .setScale(1.5 * character.scaleMultiplier)
             .setPosition(MENU_LAYOUT.menuX + 150, action.y - 8)
             .play(walkAnimationKey(character.texture, 'down'), true);
     }

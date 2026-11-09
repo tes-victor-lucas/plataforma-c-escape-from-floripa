@@ -18,6 +18,7 @@ type VictoryPayload = Readonly<{
     scoreVersion: number;
     enemiesDefeated: number;
     hitsTaken: number;
+    dungeonsCompleted: number;
     multiKills: readonly number[];
 }>;
 

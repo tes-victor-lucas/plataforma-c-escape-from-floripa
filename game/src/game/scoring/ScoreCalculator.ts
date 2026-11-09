@@ -2,6 +2,7 @@ import { SCORE_CONFIG } from '../config/score';
 
 export type ScoreBreakdown = Readonly<{
     victoryPoints: number;
+    dungeonPoints: number;
     timePoints: number;
     enemyPoints: number;
     multiKillPoints: number;
@@ -12,6 +13,7 @@ export type ScoreBreakdown = Readonly<{
 export type ScoreInput = Readonly<{
     won: boolean;
     completed?: boolean;
+    dungeonsCompleted?: number;
     elapsedTimeMs: number;
     enemiesDefeated: number;
     hitsTaken: number;
@@ -44,6 +46,8 @@ export function calculateMultiKillBonus(killCount: number) {
 export function calculateScore(input: ScoreInput): ScoreBreakdown {
     const completed = input.completed ?? true;
     const victoryPoints = completed && input.won ? SCORE_CONFIG.victory : 0;
+    const dungeonPoints = Math.max(0, Math.floor(input.dungeonsCompleted ?? 0))
+        * SCORE_CONFIG.dungeonCompletion;
     const timePoints = completed ? calculateTimePoints(input.elapsedTimeMs) : 0;
     const enemyPoints = Math.max(0, Math.floor(input.enemiesDefeated)) * SCORE_CONFIG.enemyKill;
     const multiKillPoints = input.multiKillBonuses.reduce(
@@ -53,9 +57,17 @@ export function calculateScore(input: ScoreInput): ScoreBreakdown {
     const damagePoints = completed ? calculateDamagePoints(input.hitsTaken) : 0;
     const total = Math.max(
         0,
-        victoryPoints + timePoints + enemyPoints + multiKillPoints + damagePoints
+        victoryPoints + dungeonPoints + timePoints + enemyPoints + multiKillPoints + damagePoints
     );
-    return { victoryPoints, timePoints, enemyPoints, multiKillPoints, damagePoints, total };
+    return {
+        victoryPoints,
+        dungeonPoints,
+        timePoints,
+        enemyPoints,
+        multiKillPoints,
+        damagePoints,
+        total
+    };
 }
 
 export function formatElapsedTime(elapsedTimeMs: number) {

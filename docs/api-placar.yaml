@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Escape from Floripa — Pontuação
-  version: 1.0.0
+  version: 2.0.0
 paths:
   /runs:
     post:
@@ -43,7 +43,7 @@ paths:
       summary: Lista o melhor resultado de cada jogador
       parameters:
         - {name: mode, in: query, schema: {type: string, enum: [SINGLE_PLAYER, MULTIPLAYER], default: SINGLE_PLAYER}}
-        - {name: scoreVersion, in: query, schema: {type: integer, enum: [1], default: 1}}
+        - {name: scoreVersion, in: query, schema: {type: integer, enum: [2], default: 2}}
       responses:
         '200': {description: Ranking ordenado por pontuação, tempo e data}
 components:
@@ -58,15 +58,16 @@ components:
       properties:
         runId: {type: string}
         mode: {type: string, enum: [SINGLE_PLAYER, MULTIPLAYER]}
-        scoreVersion: {type: integer, enum: [1]}
+        scoreVersion: {type: integer, enum: [2]}
     Victory:
       type: object
-      required: [mode, scoreVersion, enemiesDefeated, hitsTaken, multiKills]
+      required: [mode, scoreVersion, enemiesDefeated, hitsTaken, dungeonsCompleted, multiKills]
       properties:
         mode: {type: string, enum: [SINGLE_PLAYER, MULTIPLAYER]}
-        scoreVersion: {type: integer, enum: [1]}
+        scoreVersion: {type: integer, enum: [2]}
         enemiesDefeated: {type: integer, minimum: 0}
         hitsTaken: {type: integer, minimum: 0}
+        dungeonsCompleted: {type: integer, minimum: 0, maximum: 2}
         multiKills:
           type: array
           items: {type: integer, minimum: 2}

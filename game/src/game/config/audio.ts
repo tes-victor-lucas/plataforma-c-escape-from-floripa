@@ -32,6 +32,11 @@ export const AUDIO_CONFIG = {
             path: 'assets/audio/enemy-shot.wav',
             volume: 0.035
         },
+        waveThreat: {
+            key: 'wave-threat',
+            path: 'assets/audio/horror-tension.wav',
+            volume: 0.16
+        }
     },
     music: {
         fadeDuration: 1800,

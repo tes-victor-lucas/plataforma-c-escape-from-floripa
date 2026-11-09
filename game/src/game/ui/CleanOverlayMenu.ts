@@ -23,7 +23,7 @@ export type CleanMenuBounds = Readonly<{
 }>;
 
 type MenuTone = 'neutral' | 'danger' | 'success';
-type MenuIcon = 'pause' | 'defeat' | 'victory';
+type MenuIcon = 'pause' | 'defeat' | 'victory' | 'leaderboard';
 
 type CleanOverlayMenuOptions = Readonly<{
     bounds: CleanMenuBounds;
@@ -63,6 +63,34 @@ function toneColor(tone: MenuTone) {
     if (tone === 'danger') return CLEAN_MENU_COLORS.danger;
     if (tone === 'success') return CLEAN_MENU_COLORS.success;
     return CLEAN_MENU_COLORS.buttonHover;
+}
+
+/** Desenha a caixa pixelada usada por painéis, botões e seções internas. */
+export function drawCleanMenuBox(
+    graphics: Phaser.GameObjects.Graphics,
+    bounds: CleanMenuBounds,
+    fillColor: number,
+    borderColor: number,
+    step: number,
+    border: number
+) {
+    const { x, y, width, height } = bounds;
+    graphics.fillStyle(borderColor, 1);
+    graphics.fillRect(x + step, y, width - step * 2, height);
+    graphics.fillRect(x, y + step, width, height - step * 2);
+    graphics.fillStyle(fillColor, 1);
+    graphics.fillRect(
+        x + step,
+        y + border,
+        width - step * 2,
+        height - border * 2
+    );
+    graphics.fillRect(
+        x + border,
+        y + step,
+        width - border * 2,
+        height - step * 2
+    );
 }
 
 /**
@@ -138,7 +166,7 @@ export class CleanOverlayMenu {
 
         groups.forEach((group, index) => {
             const keycap = this.scene.add.graphics();
-            this.drawSteppedBox(
+            drawCleanMenuBox(
                 keycap,
                 { x, y: y - 12, width: group.keyWidth, height: 24 },
                 CLEAN_MENU_COLORS.panel,
@@ -260,7 +288,7 @@ export class CleanOverlayMenu {
     private createPanel() {
         const { x, y, width, height } = this.options.bounds;
         const panel = this.scene.add.graphics();
-        this.drawSteppedBox(
+        drawCleanMenuBox(
             panel,
             { x, y, width, height },
             CLEAN_MENU_COLORS.panel,
@@ -281,7 +309,7 @@ export class CleanOverlayMenu {
     private createStatusBadge(y: number, icon: MenuIcon, tone: MenuTone) {
         const color = tone === 'neutral' ? CLEAN_MENU_COLORS.frame : toneColor(tone);
         const badge = this.scene.add.graphics();
-        this.drawSteppedBox(
+        drawCleanMenuBox(
             badge,
             { x: GAME_WIDTH / 2 - 21, y: y - 19, width: 42, height: 38 },
             CLEAN_MENU_COLORS.panel,
@@ -299,12 +327,17 @@ export class CleanOverlayMenu {
                 badge.fillRect(GAME_WIDTH / 2 - 2 + step * 4, y - 2 + step * 4, 5, 5);
                 badge.fillRect(GAME_WIDTH / 2 - 2 + step * 4, y - 2 - step * 4, 5, 5);
             }
-        } else {
+        } else if (icon === 'victory') {
             badge.fillRect(GAME_WIDTH / 2 - 11, y, 6, 6);
             badge.fillRect(GAME_WIDTH / 2 - 6, y + 5, 6, 6);
             badge.fillRect(GAME_WIDTH / 2 - 1, y, 6, 6);
             badge.fillRect(GAME_WIDTH / 2 + 4, y - 5, 6, 6);
             badge.fillRect(GAME_WIDTH / 2 + 9, y - 10, 6, 6);
+        } else {
+            badge.fillRect(GAME_WIDTH / 2 - 12, y + 8, 24, 3);
+            badge.fillRect(GAME_WIDTH / 2 - 10, y + 1, 5, 7);
+            badge.fillRect(GAME_WIDTH / 2 - 2, y - 5, 5, 13);
+            badge.fillRect(GAME_WIDTH / 2 + 6, y - 11, 5, 19);
         }
         return badge;
     }
@@ -332,7 +365,7 @@ export class CleanOverlayMenu {
             const selected = index === this.selectedButton;
             const { x, y, width, height } = button.bounds;
             button.background.clear();
-            this.drawSteppedBox(
+            drawCleanMenuBox(
                 button.background,
                 { x, y, width, height },
                 selected
@@ -365,30 +398,4 @@ export class CleanOverlayMenu {
         });
     }
 
-    private drawSteppedBox(
-        graphics: Phaser.GameObjects.Graphics,
-        bounds: CleanMenuBounds,
-        fillColor: number,
-        borderColor: number,
-        step: number,
-        border: number
-    ) {
-        const { x, y, width, height } = bounds;
-        graphics.fillStyle(borderColor, 1);
-        graphics.fillRect(x + step, y, width - step * 2, height);
-        graphics.fillRect(x, y + step, width, height - step * 2);
-        graphics.fillStyle(fillColor, 1);
-        graphics.fillRect(
-            x + step,
-            y + border,
-            width - step * 2,
-            height - border * 2
-        );
-        graphics.fillRect(
-            x + border,
-            y + step,
-            width - border * 2,
-            height - step * 2
-        );
-    }
 }

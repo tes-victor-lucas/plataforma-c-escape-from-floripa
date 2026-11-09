@@ -114,11 +114,12 @@ const {
     calculateScore,
     calculateTimePoints
 } = load('../src/game/scoring/ScoreCalculator.ts');
-const { RunTracker } = load('../src/game/scoring/RunTracker.ts');
+const { RunTracker, runTracker } = load('../src/game/scoring/RunTracker.ts');
 
-test('pontuação v1 aplica tempo, dano, mortes, multi-kill e vitória', () => {
+test('pontuação v2 aplica dungeon, tempo, dano, mortes, multi-kill e vitória', () => {
     const score = calculateScore({
         won: true,
+        dungeonsCompleted: 1,
         elapsedTimeMs: 12_999,
         enemiesDefeated: 3,
         hitsTaken: 0,
@@ -126,11 +127,12 @@ test('pontuação v1 aplica tempo, dano, mortes, multi-kill e vitória', () => {
     });
     assert.deepEqual(score, {
         victoryPoints: 1_000,
+        dungeonPoints: 1_000,
         timePoints: 5_880,
         enemyPoints: 300,
         multiKillPoints: 350,
         damagePoints: 2_000,
-        total: 9_530
+        total: 10_530
     });
     assert.equal(calculateTimePoints(900_000), 0);
     assert.equal(calculateDamagePoints(1), 1_200);
@@ -156,6 +158,32 @@ test('tracker deduplica mortes, acertos e fechamento do mesmo projétil', () => 
     assert.equal(snapshot.score.total, 450, 'tempo e dano entram apenas ao terminar');
     const finalSnapshot = tracker.lose(new Date('2026-01-01T00:00:10.000Z'));
     assert.equal(finalSnapshot.score.total, 7_550);
+});
+
+test('tracker concede uma vez o bônus de cada dungeon e preserva no checkpoint', () => {
+    const tracker = new RunTracker();
+    tracker.startNew('SINGLE_PLAYER', new Date('2026-01-01T00:00:00.000Z'));
+    assert.equal(tracker.recordDungeonCompletion('dungeon'), true);
+    assert.equal(tracker.recordDungeonCompletion('dungeon'), false);
+    assert.equal(tracker.snapshot().score.dungeonPoints, 1_000);
+
+    const restored = new RunTracker();
+    restored.restore(tracker.checkpoint());
+    assert.equal(restored.recordDungeonCompletion('dungeon'), false);
+    assert.equal(restored.recordDungeonCompletion('gaucho-dungeon'), true);
+    assert.equal(restored.snapshot().score.dungeonPoints, 2_000);
+});
+
+test('conclusão de sala pontua apenas as dungeons', () => {
+    const { recordRoomCompletionScore } = load('../src/game/scenes/World.ts');
+    runTracker.startNew('SINGLE_PLAYER');
+    assert.equal(recordRoomCompletionScore('room1'), false);
+    assert.equal(runTracker.snapshot().score.dungeonPoints, 0);
+    assert.equal(recordRoomCompletionScore('dungeon'), true);
+    assert.equal(recordRoomCompletionScore('dungeon'), false);
+    assert.equal(recordRoomCompletionScore('gaucho-dungeon'), true);
+    assert.equal(runTracker.snapshot().score.dungeonPoints, 2_000);
+    runTracker.abandon();
 });
 
 test('projéteis continuam únicos depois da troca de sala', () => {
@@ -675,6 +703,26 @@ test('jogador escolhe o inimigo vivo mais próximo e respeita o intervalo entre 
     combat.update(1);
     assert.equal(groups[0].shots.length, 2);
     assert.ok(groups[0].shots[1].velocity.x > 0);
+});
+
+test('bônus da cuia aumenta a cadência de tiro em 50%', () => {
+    const { combat, groups } = setup([[150, 100]]);
+    combat.update(0);
+    assert.equal(groups[0].shots.length, 1);
+
+    combat.setPlayerFireRateMultiplier(WORLD_CONFIG.chimarrao.effectMultiplier);
+    const boostedInterval = COMBAT_CONFIG.player.fireInterval
+        / WORLD_CONFIG.chimarrao.effectMultiplier;
+    combat.update(boostedInterval - 1);
+    assert.equal(groups[0].shots.length, 1);
+    combat.update(1);
+    assert.equal(groups[0].shots.length, 2);
+
+    combat.setPlayerFireRateMultiplier(1);
+    combat.update(COMBAT_CONFIG.player.fireInterval - 1);
+    assert.equal(groups[0].shots.length, 2);
+    combat.update(1);
+    assert.equal(groups[0].shots.length, 3);
 });
 
 test('drones mantêm intervalos de disparo independentes', () => {
@@ -1699,6 +1747,8 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     const stoppedScenes = [];
     world.player = { health: new Health(100), update() { movementUpdates++; } };
     world.combat = { update() { combatUpdates++; }, clear() {} };
+    world.activeRoomKey = 'dungeon';
+    world.activeSpawn = ROOM_DEFINITIONS.dungeon.spawn;
     world.physics = { resume() { resumes++; }, pause() {} };
     world.scene = {
         launch(key, data) { launches.push({ key, data }); },
@@ -1720,6 +1770,8 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     world.player.health.takeDamage(100);
     world.update(2016, 16);
     assert.equal(restartData, undefined, 'a derrota sozinha não pode reiniciar a partida');
+    runTracker.startNew('SINGLE_PLAYER');
+    runTracker.recordDungeonCompletion('dungeon');
     launches[0].data.onRestart();
     assert.deepEqual(stoppedScenes, [
         'PauseMenu',
@@ -1730,6 +1782,8 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     assert.equal(restartData.waitForReveal, false);
     assert.equal(restartData.roomKey, 'room1');
     assert.deepEqual(restartData.spawn, ROOM_DEFINITIONS.room1.spawn);
+    assert.equal(runTracker.snapshot().score.dungeonPoints, 0, 'o placar deve pertencer à nova partida');
+    runTracker.abandon();
 });
 
 test('voltar ao menu após derrota usa a transição suave de saída', () => {
@@ -2455,8 +2509,26 @@ function itemWorld() {
     const world = new World();
     const player = Object.create(Player.prototype);
     player.movementSpeedMultiplier = 1;
+    player.temporaryMovementSpeedMultiplier = 1;
     player.sprite = {};
     world.player = player;
+    const fireRateMultipliers = [];
+    world.combat = {
+        setPlayerFireRateMultiplier(multiplier) { fireRateMultipliers.push(multiplier); }
+    };
+    const timers = [];
+    world.time = {
+        delayedCall(delay, callback) {
+            const timer = {
+                delay,
+                callback,
+                removed: false,
+                remove() { this.removed = true; }
+            };
+            timers.push(timer);
+            return timer;
+        }
+    };
     const pickups = [];
     world.physics = {
         add: {
@@ -2468,23 +2540,42 @@ function itemWorld() {
     const originalSend = multiplayerClient.sendEvent;
     multiplayerClient.sendEvent = (event) => sent.push(event);
     const restore = () => { multiplayerClient.sendEvent = originalSend; multiplayerClient.disconnect(); };
-    return { world, player, pickups, sent, multiplayerClient, restore };
+    return { world, player, pickups, fireRateMultipliers, timers, sent, multiplayerClient, restore };
 }
 
-test('chimarrão de gaúcho aumenta a velocidade de forma permanente até o teto', () => {
-    const { world, player, pickups, restore } = itemWorld();
+test('cuia de gaúcho aumenta movimento e tiro em 50% por três segundos', () => {
+    const { world, player, pickups, fireRateMultipliers, timers, restore } = itemWorld();
     world.dropChimarrao(0, 0, () => 0.99);
     assert.equal(pickups.length, 0);
 
     world.dropChimarrao(0, 0, () => 0);
     pickups.pop()();
-    assert.equal(player.getMovementSpeedMultiplier(), 1 + WORLD_CONFIG.chimarrao.speedBonus);
+    assert.equal(player.getMovementSpeedMultiplier(), 1, 'não altera o bônus permanente da build');
+    assert.equal(player.getEffectiveMovementSpeedMultiplier(), WORLD_CONFIG.chimarrao.effectMultiplier);
+    assert.deepEqual(fireRateMultipliers, [WORLD_CONFIG.chimarrao.effectMultiplier]);
+    assert.equal(timers[0].delay, WORLD_CONFIG.chimarrao.effectDuration);
 
-    for (let i = 0; i < 20; i++) {
-        world.dropChimarrao(0, 0, () => 0);
-        pickups.pop()();
-    }
-    assert.equal(player.getMovementSpeedMultiplier(), WORLD_CONFIG.player.maxSpeedMultiplier);
+    timers[0].callback();
+    assert.equal(player.getEffectiveMovementSpeedMultiplier(), 1);
+    assert.deepEqual(fireRateMultipliers, [WORLD_CONFIG.chimarrao.effectMultiplier, 1]);
+    restore();
+});
+
+test('pegar outra cuia renova os três segundos sem acumular o bônus', () => {
+    const { world, player, pickups, fireRateMultipliers, timers, restore } = itemWorld();
+    world.dropChimarrao(0, 0, () => 0);
+    pickups.pop()();
+    world.dropChimarrao(0, 0, () => 0);
+    pickups.pop()();
+
+    assert.equal(timers.length, 2);
+    assert.equal(timers[0].removed, true);
+    assert.equal(timers[1].delay, WORLD_CONFIG.chimarrao.effectDuration);
+    assert.equal(player.getEffectiveMovementSpeedMultiplier(), WORLD_CONFIG.chimarrao.effectMultiplier);
+    assert.deepEqual(fireRateMultipliers, [
+        WORLD_CONFIG.chimarrao.effectMultiplier,
+        WORLD_CONFIG.chimarrao.effectMultiplier
+    ]);
     restore();
 });
 
@@ -2504,13 +2595,13 @@ test('multiplayer: só o anfitrião sorteia o chimarrão e quem pega primeiro fi
     // O parceiro pegou antes: o item some aqui e não dá bônus.
     world.handleCoopEvent({ kind: 'item.collected', id: 1 });
     assert.equal(world.droppedItems.size, 0);
-    assert.equal(player.getMovementSpeedMultiplier(), 1);
+    assert.equal(player.getEffectiveMovementSpeedMultiplier(), 1);
 
     world.handleCoopEvent({ kind: 'item.drop', id: 2, x: 0, y: 0 });
     sent.length = 0;
     pickups.pop()();
     assert.deepEqual(sent, [{ kind: 'item.collected', id: 2 }]);
-    assert.equal(player.getMovementSpeedMultiplier(), 1 + WORLD_CONFIG.chimarrao.speedBonus);
+    assert.equal(player.getEffectiveMovementSpeedMultiplier(), WORLD_CONFIG.chimarrao.effectMultiplier);
     delete multiplayerClient.isHost;
     restore();
 });
@@ -2698,7 +2789,7 @@ test('menu de jogar mostra a troca de personagem antes de voltar', () => {
     const actions = createPlayMenuActions({
         onNewGame() {},
         onMultiplayer() {},
-        character: () => ({ label: 'GAÚCHO', texture: 'player-gaucho' }),
+        character: () => ({ label: 'GAÚCHO', texture: 'player-gaucho', scaleMultiplier: 6 / 7 }),
         onToggleCharacter: () => { toggled += 1; }
     }, () => {});
     assert.deepEqual(actions.map(({ label }) => label), [
@@ -2719,4 +2810,6 @@ test('folha do gaúcho segue o layout do personagem atual', () => {
     const [width, height] = size(CHARACTERS.gaucho.path);
     assert.equal(Math.floor(width / 38), Math.floor(originalWidth / 38), 'mesma numeração de quadros');
     assert.ok(height >= 12 * 38, 'cabe a linha de caminhada para a direita');
+    assert.equal(WORLD_CONFIG.player.scale * CHARACTERS.padrao.scaleMultiplier, 0.7);
+    assert.ok(Math.abs(WORLD_CONFIG.player.scale * CHARACTERS.gaucho.scaleMultiplier - 0.6) < 1e-9);
 });
