@@ -2606,6 +2606,40 @@ test('multiplayer: efeitos das cartas de área vão ao parceiro e se repetem na 
     }
 });
 
+test('multiplayer: detonação do convidado sai quando o anfitrião confirma o abate', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('death-blast'));
+    const { combat, drones, effects } = setup([[140, 100], [160, 100], [400, 100]], [], upgrades);
+    const record = { swings: [], hits: [] };
+    const sent = [];
+    combat.setNetwork({ ...coopNetwork(false, record), onPlayerEffect: (e) => sent.push(e) });
+    // O anfitrião já matou o alvo e avisou o convidado.
+    drones[0].health.current = 0;
+    combat.detonateConfirmedKill(drones[0], 'abate');
+
+    assert.deepEqual(record.hits.map((hit) => hit.enemy), [drones[1]], 'só o vizinho no raio, sem o abatido');
+    assert.equal(record.hits[0].damage, upgrades.damage * 1.5);
+    assert.equal(drones[1].health.current, COMBAT_CONFIG.drone.maxHealth, 'quem aplica o dano é o anfitrião');
+    assert.deepEqual(sent.map((e) => e.effect), ['explosion']);
+    assert.equal(effects.length, 1, 'a explosão aparece também para o convidado');
+});
+
+test('multiplayer: abate confirmado pelo anfitrião dispara a detonação do convidado', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const enemy = { id: 'enemy-0' };
+    const detonated = [];
+    world.drones = [enemy];
+    world.combat = { detonateConfirmedKill: (target, id) => detonated.push({ target, id }) };
+    world.playHitStop = () => {};
+    world.handleCoopEvent({ kind: 'enemy.killed', index: 0 });
+    world.handleCoopEvent({ kind: 'enemy.killed', index: 5 });
+
+    assert.equal(detonated.length, 1, 'índice inexistente é ignorado');
+    assert.equal(detonated[0].target, enemy);
+    assert.equal(detonated[0].id, 'enemy-0:coop-kill');
+});
+
 test('multiplayer: golpe do anfitrião causa dano e só avisa o parceiro do movimento', () => {
     const { combat, drones, player } = setup([[125, 100]], [], new PlayerUpgradeState(), undefined, true);
     player.getAimDirection = () => ({ x: 1, y: 0 });
