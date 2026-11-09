@@ -330,7 +330,7 @@ export class World extends Scene {
             room.openExit();
             this.player?.clearBlockedDirection();
             this.activateRoomExit();
-            if (roomKey === 'room2') {
+            if (roomKey === 'room3') {
                 this.isGameOver = true;
                 this.combat?.clear();
                 this.physics.pause();
