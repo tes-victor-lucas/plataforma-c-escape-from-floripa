@@ -77,8 +77,66 @@ export const UPGRADE_CARDS = [
         description: 'Ao concluir cada sala, recupera 2 pontos de vida (1 coração).',
         maxLevel: 1,
         effect: { type: 'heal-on-room-complete', amount: 2 }
+    },
+    {
+        id: 'shock-pulse',
+        kind: 'ability',
+        title: 'Pulso de choque',
+        description: 'A cada 0,8 s, uma onda atinge todos à sua volta. +25 px de raio por nível.',
+        maxLevel: 3,
+        effect: { type: 'shock-pulse', radius: 100, radiusPerLevel: 25, interval: 800, damageRatio: 1.5 }
+    },
+    {
+        id: 'blast-shot',
+        kind: 'ability',
+        title: 'Tiro explosivo',
+        description: 'O tiro explode ao acertar e causa 150% do dano ao redor. +15 px por nível.',
+        maxLevel: 2,
+        effect: { type: 'blast-shot', radius: 50, radiusPerLevel: 15, damageRatio: 1.5 }
+    },
+    {
+        id: 'spark-orbit',
+        kind: 'ability',
+        title: 'Faíscas orbitais',
+        description: '4 faíscas giram em volta de você e ferem quem encostar. +2 por nível.',
+        maxLevel: 3,
+        effect: { type: 'spark-orbit', count: 4, countPerLevel: 2, radius: 52, damageRatio: 1.5, hitInterval: 300 }
+    },
+    {
+        id: 'chain-lightning',
+        kind: 'ability',
+        title: 'Raio em cadeia',
+        description: 'A cada 0,8 s, um raio salta entre até 8 inimigos. +4 saltos por nível.',
+        maxLevel: 3,
+        effect: { type: 'chain-lightning', interval: 800, jumps: 8, jumpsPerLevel: 4, jumpRange: 90, damageRatio: 2 }
+    },
+    {
+        id: 'death-blast',
+        kind: 'ability',
+        title: 'Detonação',
+        description: 'Inimigos abatidos explodem com 150% do dano em volta. +15 px por nível.',
+        maxLevel: 2,
+        effect: { type: 'death-blast', radius: 55, radiusPerLevel: 15, damageRatio: 1.5 }
+    },
+    {
+        id: 'light-beams',
+        kind: 'ability',
+        title: 'Feixes de luz',
+        description: 'A cada 1 s, 6 feixes cruzam a tela e ferem tudo na linha. +2 por nível.',
+        maxLevel: 3,
+        effect: { type: 'light-beams', beams: 6, beamsPerLevel: 2, length: 300, interval: 1_000, damageRatio: 2 }
     }
 ] as const satisfies readonly UpgradeCardDefinition[];
+
+/** Cartas de dano em área, oferecidas antes da horda maior da Sala II. */
+export const AREA_UPGRADE_IDS: readonly UpgradeId[] = [
+    'shock-pulse',
+    'blast-shot',
+    'spark-orbit',
+    'chain-lightning',
+    'death-blast',
+    'light-beams'
+];
 
 export function getUpgradeCard(id: UpgradeId): UpgradeCardDefinition {
     const card = UPGRADE_CARDS.find((candidate) => candidate.id === id);

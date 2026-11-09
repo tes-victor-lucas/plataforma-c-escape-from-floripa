@@ -136,6 +136,44 @@ export function createUpgradeIcon(
                 .fillRect(-11, 1, 22, 6);
             drawLine(icon, 17, 13, 29, 25);
             break;
+        case 'shock-pulse':
+            icon.fillCircle(0, 0, 5);
+            icon.strokeCircle(0, 0, 14).strokeCircle(0, 0, 25);
+            break;
+        case 'blast-shot':
+            drawBullet(icon, -12, 0, 0.6);
+            icon.strokeCircle(16, 0, 9);
+            drawLine(icon, 16, -20, 16, -14);
+            drawLine(icon, 16, 14, 16, 20);
+            drawLine(icon, 30, 0, 36, 0);
+            drawLine(icon, 26, -10, 30, -14);
+            drawLine(icon, 26, 10, 30, 14);
+            break;
+        case 'spark-orbit':
+            icon.strokeCircle(0, 0, 20);
+            icon.fillCircle(0, -20, 6).fillCircle(17, 10, 6).fillCircle(-17, 10, 6);
+            break;
+        case 'chain-lightning':
+            icon.beginPath();
+            icon.moveTo(6, -28);
+            icon.lineTo(-10, 2);
+            icon.lineTo(4, 2);
+            icon.lineTo(-6, 28);
+            icon.lineTo(14, -4);
+            icon.lineTo(0, -4);
+            icon.closePath().strokePath();
+            break;
+        case 'death-blast':
+            drawImpact(icon);
+            icon.fillCircle(0, 0, 6);
+            break;
+        case 'light-beams':
+            for (let index = 0; index < 8; index += 1) {
+                const angle = index * Math.PI / 4;
+                drawLine(icon, Math.cos(angle) * 10, Math.sin(angle) * 10, Math.cos(angle) * 27, Math.sin(angle) * 27);
+            }
+            icon.fillCircle(0, 0, 5);
+            break;
         case 'gin-tropical':
             drawDrink(icon, true);
             break;

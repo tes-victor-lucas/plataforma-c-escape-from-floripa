@@ -1,5 +1,5 @@
 import { UPGRADE_CARDS } from './catalog';
-import type { UpgradeCardDefinition } from './types';
+import type { UpgradeCardDefinition, UpgradeId } from './types';
 
 type RandomSource = () => number;
 
@@ -38,4 +38,20 @@ export function drawUpgradeCards(
     }
 
     return selected;
+}
+
+/** Coloca as cartas em destaque que ainda podem ser escolhidas e completa com o sorteio normal. */
+export function drawUpgradeCardsFeaturing(
+    featured: readonly UpgradeId[],
+    random: RandomSource = Math.random,
+    availableCards: readonly UpgradeCardDefinition[] = UPGRADE_CARDS
+) {
+    const highlighted: UpgradeCardDefinition[] = [];
+    const featuredPool = availableCards.filter((card) => featured.includes(card.id));
+    while (highlighted.length < 3 && featuredPool.length > 0) highlighted.push(takeRandom(featuredPool, random));
+    const others = availableCards.filter((card) => !featured.includes(card.id));
+    if (highlighted.length === 0 || others.length < 3 || !others.some((card) => card.kind === 'ability')) {
+        return drawUpgradeCards(random, availableCards);
+    }
+    return [...highlighted, ...drawUpgradeCards(random, others).slice(0, 3 - highlighted.length)];
 }

@@ -37,6 +37,9 @@ export type CombatNetwork = {
     onEnemyHit(enemy: CombatEnemy, damage: number, direction: { x: number; y: number }): void;
 };
 
+// Metade da largura do feixe de luz, em pixels do mundo.
+const BEAM_HALF_WIDTH = 10;
+
 let fallbackProjectileSequence = 0;
 
 /** Mantém a identidade do projétil única mesmo ao trocar de sala. */
@@ -58,6 +61,13 @@ export class CombatSystem {
     private companionCooldown = 0;
     private heldSword?: Phaser.GameObjects.Image;
     private isSwingQueued = false;
+    private pulseCooldown = 0;
+    private chainCooldown = 0;
+    private beamCooldown = 0;
+    private beamAngle = 0;
+    private orbitAngle = 0;
+    private readonly orbitSparks: Phaser.GameObjects.Arc[] = [];
+    private readonly orbitHits = new Map<CombatEnemy, number>();
     private network?: CombatNetwork;
     private partnerShots?: Physics.Arcade.Group;
     private readonly partnerShotLifetimes = new Map<Physics.Arcade.Image, number>();
@@ -121,6 +131,7 @@ export class CombatSystem {
                     x: Math.cos(projectile.rotation),
                     y: Math.sin(projectile.rotation)
                 });
+                this.explode(enemy, state.damage, state.id);
                 if (state.remainingPierces > 0) state.remainingPierces -= 1;
                 else this.removeShot(projectile);
                 return;
@@ -138,8 +149,10 @@ export class CombatSystem {
             if (wasAlive && !enemy.health.isAlive) {
                 this.tracker.recordEnemyDeath(enemy.id, state.id);
                 this.onEnemyKilled();
+                this.detonate(enemy, state.id);
             }
             if (damage > 0) playDamageNumber(this.scene, center.x, center.y, damage);
+            this.explode(enemy, state.damage, state.id);
             if (state.remainingPierces > 0) {
                 state.remainingPierces -= 1;
             } else {
@@ -209,6 +222,188 @@ export class CombatSystem {
             this.playerCooldown = this.playerStats.fireInterval;
         }
         this.updateCompanion(delta);
+        this.updatePulse(delta);
+        this.updateOrbit(delta);
+        this.updateChainLightning(delta);
+        this.updateBeams(delta);
+    }
+
+    /** Faíscas orbitais: cada inimigo leva no máximo um toque por intervalo. */
+    private updateOrbit(delta: number) {
+        const { orbitCount, orbitRadius, orbitDamageRatio, orbitHitInterval, damage } = this.playerStats;
+        if (orbitCount <= 0) return;
+        while (this.orbitSparks.length < orbitCount) {
+            this.orbitSparks.push(this.scene.add.circle(0, 0, 4, 0x9ff8ff).setDepth(14));
+        }
+        // Cerca de uma volta a cada 1,6 s.
+        this.orbitAngle += delta * 0.004;
+        for (const [enemy, cooldown] of this.orbitHits) {
+            if (cooldown <= delta) this.orbitHits.delete(enemy);
+            else this.orbitHits.set(enemy, cooldown - delta);
+        }
+        const center = this.getCenter(this.player);
+        this.orbitSparks.forEach((spark, index) => {
+            const angle = this.orbitAngle + index * Math.PI * 2 / orbitCount;
+            const x = center.x + Math.cos(angle) * orbitRadius;
+            const y = center.y + Math.sin(angle) * orbitRadius;
+            spark.setPosition(x, y);
+            for (const enemy of this.enemies) {
+                if (!enemy.health.isAlive || this.orbitHits.has(enemy)) continue;
+                const target = this.getCenter(enemy);
+                if (Math.hypot(target.x - x, target.y - y) > 12) continue;
+                this.orbitHits.set(enemy, orbitHitInterval);
+                this.withAttack((id) => this.hitEnemy(enemy, damage * orbitDamageRatio, {
+                    x: Math.cos(angle + Math.PI / 2),
+                    y: Math.sin(angle + Math.PI / 2)
+                }, id));
+            }
+        });
+    }
+
+    /** Raio em cadeia: nasce no inimigo mais perto à vista e salta para os vizinhos. */
+    private updateChainLightning(delta: number) {
+        const { chainJumps, chainInterval, chainRange, chainDamageRatio, damage, range } = this.playerStats;
+        if (chainJumps <= 0) return;
+        this.chainCooldown -= delta;
+        if (this.chainCooldown > 0) return;
+        const origin = this.getCenter(this.player);
+        let current = this.findNearestEnemy(origin, range * 1.5);
+        // Sem alvo, tenta de novo logo em vez de gastar a recarga inteira.
+        if (!current) {
+            this.chainCooldown = 200;
+            return;
+        }
+        this.chainCooldown = chainInterval;
+        const struck = new Set<CombatEnemy>();
+        this.withAttack((id) => {
+            let from = origin;
+            for (let jump = 0; jump < chainJumps && current; jump += 1) {
+                const enemy: CombatEnemy = current;
+                struck.add(enemy);
+                const target = this.getCenter(enemy);
+                const distance = Math.hypot(target.x - from.x, target.y - from.y) || 1;
+                playBolt(this.scene, from, target);
+                this.hitEnemy(enemy, damage * chainDamageRatio, {
+                    x: (target.x - from.x) / distance,
+                    y: (target.y - from.y) / distance
+                }, id);
+                from = target;
+                current = this.findNearestEnemy(target, chainRange, struck);
+            }
+        });
+    }
+
+    /** Feixes de luz: atravessam a tela a partir do jogador e giram meio espaço a cada disparo. */
+    private updateBeams(delta: number) {
+        const { beamCount, beamLength, beamInterval, beamDamageRatio, damage } = this.playerStats;
+        if (beamCount <= 0) return;
+        this.beamCooldown -= delta;
+        if (this.beamCooldown > 0 || !this.enemies.some((enemy) => enemy.health.isAlive)) return;
+        this.beamCooldown = beamInterval;
+        this.beamAngle += Math.PI / beamCount;
+        const origin = this.getCenter(this.player);
+        this.withAttack((id) => {
+            const struck = new Set<CombatEnemy>();
+            for (let index = 0; index < beamCount; index += 1) {
+                const angle = this.beamAngle + index * Math.PI * 2 / beamCount;
+                const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+                playBolt(this.scene, origin, {
+                    x: origin.x + direction.x * beamLength,
+                    y: origin.y + direction.y * beamLength
+                }, 0x9ff8ff, 5);
+                for (const enemy of this.enemies) {
+                    if (!enemy.health.isAlive || struck.has(enemy)) continue;
+                    const target = this.getCenter(enemy);
+                    const along = (target.x - origin.x) * direction.x + (target.y - origin.y) * direction.y;
+                    const across = Math.abs((target.x - origin.x) * direction.y - (target.y - origin.y) * direction.x);
+                    if (along < 0 || along > beamLength || across > BEAM_HALF_WIDTH) continue;
+                    struck.add(enemy);
+                    this.hitEnemy(enemy, damage * beamDamageRatio, direction, id);
+                }
+            }
+        });
+        const sound = AUDIO_CONFIG.effects.playerShot;
+        this.scene.sound.play(sound.key, { volume: sound.volume });
+    }
+
+    /** Detonação: o abatido explode; outra morte na explosão continua a cadeia. */
+    private detonate(enemy: CombatEnemy, attackId: string) {
+        const { deathBlastRadius, deathBlastDamageRatio, damage } = this.playerStats;
+        if (deathBlastRadius <= 0) return;
+        const center = this.getCenter(enemy);
+        playRing(this.scene, center.x, center.y, deathBlastRadius, 0xff5a5a);
+        this.damageArea(center, deathBlastRadius, damage * deathBlastDamageRatio, enemy, attackId);
+    }
+
+    /** Um ataque conta como um disparo para multi-kills. */
+    private withAttack(strike: (id: string) => void) {
+        const id = createProjectileId(this.tracker.snapshot().runId);
+        this.tracker.registerProjectile(id);
+        strike(id);
+        this.tracker.finalizeProjectile(id);
+    }
+
+    /** Pulso de choque: atinge todos em volta do jogador, no ritmo da carta. */
+    private updatePulse(delta: number) {
+        const { pulseRadius, pulseInterval, pulseDamageRatio, damage } = this.playerStats;
+        if (pulseRadius <= 0) return;
+        this.pulseCooldown -= delta;
+        if (this.pulseCooldown > 0) return;
+        this.pulseCooldown = pulseInterval;
+        const origin = this.getCenter(this.player);
+        playRing(this.scene, origin.x, origin.y, pulseRadius, COMBAT_CONFIG.player.color);
+        this.damageArea(origin, pulseRadius, damage * pulseDamageRatio);
+    }
+
+    /** Tiro explosivo: o inimigo atingido já levou o dano cheio, os vizinhos levam uma parte. */
+    private explode(target: CombatEnemy, damage: number, attackId: string) {
+        const { blastRadius, blastDamageRatio } = this.playerStats;
+        if (blastRadius <= 0) return;
+        const center = this.getCenter(target);
+        playRing(this.scene, center.x, center.y, blastRadius, 0xff9a3c);
+        this.damageArea(center, blastRadius, damage * blastDamageRatio, target, attackId);
+    }
+
+    private damageArea(
+        origin: { x: number; y: number },
+        radius: number,
+        damage: number,
+        except?: CombatEnemy,
+        attackId?: string
+    ) {
+        const strike = (id: string) => {
+            for (const enemy of this.enemies) {
+                if (enemy === except || !enemy.health.isAlive) continue;
+                const target = this.getCenter(enemy);
+                const dx = target.x - origin.x;
+                const dy = target.y - origin.y;
+                const distance = Math.hypot(dx, dy);
+                if (distance > radius || !hasLineOfSight(this.walls, origin, target)) continue;
+                this.hitEnemy(enemy, damage, distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 1 }, id);
+            }
+        };
+        if (attackId) strike(attackId);
+        else this.withAttack(strike);
+    }
+
+    /** Dano fora do projétil (espada e área); no convidado, quem decide é o anfitrião. */
+    private hitEnemy(enemy: CombatEnemy, damage: number, direction: { x: number; y: number }, attackId: string) {
+        if (this.network && !this.network.isHost) {
+            this.network.onEnemyHit(enemy, damage, direction);
+            return;
+        }
+        const target = this.getCenter(enemy);
+        const previousHealth = enemy.health.current;
+        const reportedDamage = enemy.takeDamage(damage, direction);
+        const dealt = typeof reportedDamage === 'number'
+            ? reportedDamage
+            : previousHealth - enemy.health.current;
+        if (dealt > 0) playDamageNumber(this.scene, target.x, target.y, dealt);
+        if (!enemy.health.isAlive) {
+            this.tracker.recordEnemyDeath(enemy.id, attackId);
+            this.onEnemyKilled();
+            this.detonate(enemy, attackId);
+        }
     }
 
     /** A espada coletada fica na mão do personagem até o próximo golpe. */
@@ -256,21 +451,7 @@ export class CombatSystem {
 
             playSwordHit(this.scene, target.x, target.y);
             const direction = distance > 0 ? { x: dx / distance, y: dy / distance } : { x: Math.cos(angle), y: Math.sin(angle) };
-            if (this.network && !this.network.isHost) {
-                // Como nos tiros, quem decide o dano é o anfitrião.
-                this.network.onEnemyHit(enemy, swordDamage, direction);
-                continue;
-            }
-            const previousHealth = enemy.health.current;
-            const reportedDamage = enemy.takeDamage(swordDamage, direction);
-            const damage = typeof reportedDamage === 'number'
-                ? reportedDamage
-                : previousHealth - enemy.health.current;
-            if (!enemy.health.isAlive) {
-                this.tracker.recordEnemyDeath(enemy.id, id);
-                this.onEnemyKilled();
-            }
-            if (damage > 0) playDamageNumber(this.scene, target.x, target.y, damage);
+            this.hitEnemy(enemy, swordDamage, direction, id);
         }
         this.tracker.finalizeProjectile(id);
         return true;
@@ -487,11 +668,11 @@ export class CombatSystem {
         this.companionCooldown = weapon.fireInterval;
     }
 
-    private findNearestEnemy(origin: { x: number; y: number }, range: number) {
+    private findNearestEnemy(origin: { x: number; y: number }, range: number, except?: ReadonlySet<CombatEnemy>) {
         let nearest: CombatEnemy | undefined;
         let nearestDistance = range ** 2;
         for (const enemy of this.enemies) {
-            if (!enemy.health.isAlive) continue;
+            if (!enemy.health.isAlive || except?.has(enemy)) continue;
             const target = this.getCenter(enemy);
             const distance = (origin.x - target.x) ** 2 + (origin.y - target.y) ** 2;
             if (distance <= nearestDistance && hasLineOfSight(this.walls, origin, target)) {
@@ -508,4 +689,23 @@ export class CombatSystem {
         this.projectiles.delete(shot);
         if (shot.active) shot.destroy();
     }
+}
+
+/** Anel que se expande e some: mostra o alcance real do golpe em área. */
+function playRing(scene: Scene, x: number, y: number, radius: number, color: number) {
+    const ring = scene.add.circle(x, y, radius).setStrokeStyle(2, color, 0.9).setDepth(9).setScale(0.3);
+    scene.tweens?.add({
+        targets: ring,
+        scale: 1,
+        alpha: 0,
+        duration: 260,
+        ease: 'Expo.easeOut',
+        onComplete: () => ring.destroy()
+    });
+}
+
+/** Raio curto e brilhante entre dois pontos. */
+function playBolt(scene: Scene, from: { x: number; y: number }, to: { x: number; y: number }, color = 0xfff27a, width = 2) {
+    const bolt = scene.add.line(0, 0, from.x, from.y, to.x, to.y, color).setOrigin(0, 0).setDepth(14).setLineWidth(width);
+    scene.tweens?.add({ targets: bolt, alpha: 0, duration: 180, ease: 'Expo.easeOut', onComplete: () => bolt.destroy() });
 }
