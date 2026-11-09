@@ -1452,6 +1452,10 @@ test('postes, teto, placas e grades ficam na frente do personagem', () => {
     assert.ok(getRoom2LayerDepth('poste-old-terminal') > 10);
     assert.ok(getRoom2LayerDepth('placa-onibus') > 10);
     assert.ok(getRoom2LayerDepth('grades') > 10);
+    // Sala III: tronco e vigas da pérgola cobrem o jogador.
+    for (const name of ['figueira-topo', 'figueira-tronco', 'pendulo', 'pendulo-back', 'detalhe-penduloi']) {
+        assert.ok(getRoom2LayerDepth(name) > 10, name);
+    }
     assert.ok(getRoom2LayerDepth('terminal/grades') > 10);
     assert.ok(getRoom2LayerDepth('grades') < getRoom2LayerDepth('old-terminal-teto-front'));
     assert.ok(getRoom2LayerDepth('grades') < getRoom2LayerDepth('old-terminal-teto-back'));
