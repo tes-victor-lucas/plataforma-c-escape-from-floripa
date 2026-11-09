@@ -64,6 +64,12 @@ export class Preloader extends Scene {
         );
 
         this.load.spritesheet(
+            'electric-bike',
+            'assets/enemies/bicicleta-eletrica/bicicleta-eletrica.png',
+            { frameWidth: 32, frameHeight: 32 }
+        );
+
+        this.load.spritesheet(
             'cyber-guard-walk',
             'assets/enemies/guarda-municipal-cyber/guarda-municipal-cyber.png',
             { frameWidth: 32, frameHeight: 32 }

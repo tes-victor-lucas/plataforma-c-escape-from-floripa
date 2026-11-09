@@ -624,7 +624,8 @@ export class World extends Scene {
     private createEnemy(kind: EnemyKind, spawn: EnemySpawn) {
         switch (kind) {
             case 'scooter':
-                return new Patinete(this, spawn, this.collisionLayers);
+            case 'bike':
+                return new Patinete(this, spawn, this.collisionLayers, kind);
             case 'guard':
                 return new GuardaCyber(this, spawn, this.collisionLayers);
             case 'drone':

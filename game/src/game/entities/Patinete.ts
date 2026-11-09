@@ -14,19 +14,21 @@ import type { Player } from './Player';
 
 type ScooterState = 'approach' | 'windup' | 'charge' | 'recover';
 
-function createScooterId() {
+/** Veículos que avisam e investem: o patinete e a bicicleta elétrica, com números e folhas próprios. */
+export type ChargerKind = 'scooter' | 'bike';
+
+function createChargerId(kind: ChargerKind) {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-        return `scooter-${crypto.randomUUID()}`;
+        return `${kind}-${crypto.randomUUID()}`;
     }
-    return `scooter-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return `${kind}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-/** Patinete autônomo que avisa, trava a direção e investe contra o jogador. */
+/** Patinete autônomo (ou bicicleta elétrica) que avisa, trava a direção e investe contra o jogador. */
 export class Patinete implements CombatEnemy {
-    readonly kind = 'scooter' as const;
-    readonly id = createScooterId();
+    readonly id: string;
     readonly sprite: Phaser.Physics.Arcade.Sprite;
-    readonly health = new Health(COMBAT_CONFIG.scooter.maxHealth);
+    readonly health: Health;
 
     private readonly healthBar: Phaser.GameObjects.Graphics;
     private state: ScooterState = 'approach';
@@ -41,9 +43,12 @@ export class Patinete implements CombatEnemy {
     constructor(
         private readonly scene: Scene,
         private readonly spawn: EnemySpawn,
-        private readonly walls: Phaser.Tilemaps.TilemapLayer[]
+        private readonly walls: Phaser.Tilemaps.TilemapLayer[],
+        readonly kind: ChargerKind = 'scooter'
     ) {
-        const config = WORLD_CONFIG.scooter;
+        this.id = createChargerId(kind);
+        this.health = new Health(COMBAT_CONFIG[kind].maxHealth);
+        const config = WORLD_CONFIG[kind];
         this.sprite = scene.physics.add.sprite(spawn.x, spawn.y, config.texture, 0)
             .setScale(config.scale)
             .setDepth(10)
@@ -56,6 +61,10 @@ export class Patinete implements CombatEnemy {
         }
         this.healthBar = scene.add.graphics().setDepth(25);
         this.drawHealthBar();
+    }
+
+    private get stats() {
+        return COMBAT_CONFIG[this.kind];
     }
 
     update(player?: Player, delta = 0) {
@@ -74,7 +83,7 @@ export class Patinete implements CombatEnemy {
             this.stateTimer -= delta;
             if (this.stateTimer <= 0) {
                 this.state = 'charge';
-                this.stateTimer = COMBAT_CONFIG.scooter.chargeDuration;
+                this.stateTimer = this.stats.chargeDuration;
                 this.sprite.setFrame(enemyFrame(this.direction, 5));
             }
             this.drawHealthBar();
@@ -84,11 +93,11 @@ export class Patinete implements CombatEnemy {
         if (this.state === 'charge') {
             this.stateTimer -= delta;
             body.setVelocity(
-                this.chargeVector.x * COMBAT_CONFIG.scooter.chargeSpeed,
-                this.chargeVector.y * COMBAT_CONFIG.scooter.chargeSpeed
+                this.chargeVector.x * this.stats.chargeSpeed,
+                this.chargeVector.y * this.stats.chargeSpeed
             );
-            if (target && distance <= COMBAT_CONFIG.scooter.impactDistance) {
-                player?.takeDamage(COMBAT_CONFIG.scooter.contactDamage);
+            if (target && distance <= this.stats.impactDistance) {
+                player?.takeDamage(this.stats.contactDamage);
                 this.startRecovery();
             } else if (
                 this.stateTimer <= 0
@@ -114,7 +123,7 @@ export class Patinete implements CombatEnemy {
         if (
             target
             && (this.relentless || (
-                distance <= COMBAT_CONFIG.scooter.detectionRadius
+                distance <= this.stats.detectionRadius
                 && hasLineOfSight(this.walls, origin, target)
             ))
         ) {
@@ -122,21 +131,21 @@ export class Patinete implements CombatEnemy {
             this.direction = directionFromVector(heading?.x ?? dx, heading?.y ?? dy, this.direction);
             // Na horda ele pode estar atrás de um obstáculo: só investe com caminho livre.
             if (
-                distance <= COMBAT_CONFIG.scooter.chargeRange
+                distance <= this.stats.chargeRange
                 && (!this.relentless || hasLineOfSight(this.walls, origin, target))
             ) {
                 const length = Math.max(1, distance);
                 this.chargeVector = { x: dx / length, y: dy / length };
                 this.state = 'windup';
-                this.stateTimer = COMBAT_CONFIG.scooter.chargeWindup;
+                this.stateTimer = this.stats.chargeWindup;
                 body.setVelocity(0, 0);
                 this.sprite.anims.stop();
                 this.sprite.setFrame(enemyFrame(this.direction, 4));
             } else {
                 const move = heading ?? { x: dx / distance, y: dy / distance };
                 body.setVelocity(
-                    move.x * COMBAT_CONFIG.scooter.approachSpeed,
-                    move.y * COMBAT_CONFIG.scooter.approachSpeed
+                    move.x * this.stats.approachSpeed,
+                    move.y * this.stats.approachSpeed
                 );
                 this.playMovement();
             }
@@ -144,7 +153,7 @@ export class Patinete implements CombatEnemy {
             if (this.sprite.x <= this.spawn.patrolLeft || body.blocked.left) this.patrolDirection = 1;
             else if (this.sprite.x >= this.spawn.patrolRight || body.blocked.right) this.patrolDirection = -1;
             this.direction = this.patrolDirection < 0 ? 'left' : 'right';
-            body.setVelocity(this.patrolDirection * COMBAT_CONFIG.scooter.approachSpeed * 0.55, 0);
+            body.setVelocity(this.patrolDirection * this.stats.approachSpeed * 0.55, 0);
             this.playMovement();
         }
         this.drawHealthBar();
@@ -162,25 +171,31 @@ export class Patinete implements CombatEnemy {
     }
 
     private startRecovery() {
+        // Sem recuperação (bicicleta), volta a perseguir e já pode avisar a próxima investida.
+        if (this.stats.recoveryDuration <= 0) {
+            this.state = 'approach';
+            this.playMovement();
+            return;
+        }
         this.state = 'recover';
-        this.stateTimer = COMBAT_CONFIG.scooter.recoveryDuration;
+        this.stateTimer = this.stats.recoveryDuration;
         this.sprite.setVelocity(0, 0);
         this.sprite.anims.stop();
         this.sprite.setFrame(enemyFrame(this.direction, 6));
     }
 
     private playMovement() {
-        this.sprite.play(`scooter-move-${this.direction}`, true);
+        this.sprite.play(`${this.kind}-move-${this.direction}`, true);
     }
 
     private createAnimations() {
         for (const direction of ['down', 'left', 'right', 'up'] as const) {
-            const key = `scooter-move-${direction}`;
+            const key = `${this.kind}-move-${direction}`;
             if (this.scene.anims.exists(key)) continue;
             this.scene.anims.create({
                 key,
                 frames: enemyWalkFrames(direction).map((frame) => ({
-                    key: WORLD_CONFIG.scooter.texture,
+                    key: WORLD_CONFIG[this.kind].texture,
                     frame
                 })),
                 frameRate: 10,
@@ -227,7 +242,7 @@ export class Patinete implements CombatEnemy {
     private configureBody() {
         const body = this.sprite.body;
         if (!(body instanceof Physics.Arcade.Body)) return;
-        const { hitbox } = WORLD_CONFIG.scooter;
+        const { hitbox } = WORLD_CONFIG[this.kind];
         body.setSize(hitbox.width, hitbox.height);
         body.setOffset(hitbox.offsetX, hitbox.offsetY);
         body.pushable = false;

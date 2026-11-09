@@ -42,6 +42,12 @@ export const WORLD_CONFIG = {
         scale: 0.9,
         hitbox: { width: 18, height: 13, offsetX: 7, offsetY: 13 }
     },
+    // Mesma folha do patinete (32x32, 4 direções, mesmas colunas), então o mesmo corpo.
+    bike: {
+        texture: 'electric-bike',
+        scale: 0.9,
+        hitbox: { width: 18, height: 13, offsetX: 7, offsetY: 13 }
+    },
     guard: {
         texture: 'cyber-guard-walk',
         scale: 0.92,

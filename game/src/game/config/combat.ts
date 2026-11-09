@@ -5,14 +5,24 @@ export const ROOM2_STAIR_GUARD_SPAWNS = [
     { x: 240, y: 352, patrolLeft: 232, patrolRight: 248 }
 ] as const;
 
-export type EnemyKind = 'drone' | 'scooter' | 'guard' | 'gaucho';
+export type EnemyKind = 'drone' | 'scooter' | 'bike' | 'guard' | 'gaucho';
 
-/** Horda da Sala II depois da carta: quantos de cada tipo (+10 de cada sobre a versão anterior). */
+/** Primeira horda da Sala II: quantos de cada tipo, além dos dois guardas da escada. */
+export const ROOM2_FIRST_HORDE: Readonly<Partial<Record<EnemyKind, number>>> = {
+    guard: 4,
+    drone: 2,
+    scooter: 2,
+    gaucho: 2,
+    bike: 5
+};
+
+/** Horda da Sala II depois da carta: quantos de cada tipo. */
 export const ROOM2_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
     gaucho: 46,
     guard: 22,
     scooter: 22,
-    drone: 22
+    drone: 22,
+    bike: 20
 };
 
 /** Espalha os tipos ao longo da onda, para não chegarem todos os drones juntos no fim. */
@@ -32,6 +42,8 @@ export function interleaveEnemyCounts(counts: Readonly<Partial<Record<EnemyKind,
     });
 }
 
+// Os dois primeiros nascem nos pontos fixos da escada e precisam ser guardas.
+const ROOM2_FIRST_HORDE_KINDS: readonly EnemyKind[] = ['guard', 'guard', ...interleaveEnemyCounts(ROOM2_FIRST_HORDE)];
 const ROOM2_SECOND_HORDE_KINDS = interleaveEnemyCounts(ROOM2_SECOND_HORDE);
 
 /** Distâncias em pixels do mundo; intervalos e duração em milissegundos. */
@@ -61,6 +73,20 @@ export const COMBAT_CONFIG = {
         chargeSpeed: 260,
         approachSpeed: 78,
         recoveryDuration: 680,
+        impactDistance: 24
+    },
+    // Bicicleta elétrica: como o patinete, mas investe uma vez atrás da outra, sem recuperação.
+    // O aviso antes de cada investida continua, para o jogador ter como desviar.
+    bike: {
+        maxHealth: 3,
+        contactDamage: 1,
+        detectionRadius: 260,
+        chargeRange: 170,
+        chargeWindup: 380,
+        chargeDuration: 450,
+        chargeSpeed: 300,
+        approachSpeed: 90,
+        recoveryDuration: 0,
         impactDistance: 24
     },
     guard: {
@@ -100,7 +126,7 @@ export const COMBAT_CONFIG = {
     wavesByRoom: {
         room1: [10, 8],
         // A segunda onda vem depois da carta e é bem maior: a horda cresce.
-        room2: [12, ROOM2_SECOND_HORDE_KINDS.length],
+        room2: [ROOM2_FIRST_HORDE_KINDS.length, ROOM2_SECOND_HORDE_KINDS.length],
         dungeon: [10],
         'gaucho-dungeon': [10]
     },
@@ -146,8 +172,7 @@ const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
         ['drone', 'scooter', 'drone', 'guard', 'drone', 'scooter', 'drone', 'drone', 'scooter', 'guard']
     ],
     room2: [
-        // Um a cada cinco inimigos da Sala II é um gaúcho.
-        ['guard', 'guard', 'drone', 'scooter', 'gaucho'],
+        ROOM2_FIRST_HORDE_KINDS,
         // Horda: a composição exata vem de ROOM2_SECOND_HORDE.
         ROOM2_SECOND_HORDE_KINDS
     ],
