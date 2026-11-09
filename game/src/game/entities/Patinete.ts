@@ -30,6 +30,7 @@ export class Patinete implements CombatEnemy {
 
     private readonly healthBar: Phaser.GameObjects.Graphics;
     private state: ScooterState = 'approach';
+    relentless = false;
     private stateTimer = 0;
     private direction: EnemyDirection = 'down';
     private chargeVector = { x: 0, y: 1 };
@@ -111,8 +112,10 @@ export class Patinete implements CombatEnemy {
 
         if (
             target
-            && distance <= COMBAT_CONFIG.scooter.detectionRadius
-            && hasLineOfSight(this.walls, origin, target)
+            && (this.relentless || (
+                distance <= COMBAT_CONFIG.scooter.detectionRadius
+                && hasLineOfSight(this.walls, origin, target)
+            ))
         ) {
             this.direction = directionFromVector(dx, dy, this.direction);
             if (distance <= COMBAT_CONFIG.scooter.chargeRange) {

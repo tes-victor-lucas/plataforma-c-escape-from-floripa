@@ -73,7 +73,7 @@ export const COMBAT_CONFIG = {
     wavesByRoom: {
         room1: [10, 8],
         // A segunda onda vem depois da carta e é bem maior: a horda cresce.
-        room2: [24, 72],
+        room2: [12, 72],
         dungeon: [10],
         'gaucho-dungeon': [10]
     },
@@ -83,16 +83,16 @@ export const COMBAT_CONFIG = {
      */
     hordeByRoom: {
         room2: [
-            { maxAlive: 10, batchSize: 3, interval: 1_500 },
+            { maxAlive: 10, batchSize: 4, interval: 1_000 },
             { maxAlive: 28, batchSize: 6, interval: 800 }
         ]
     } as Partial<Record<RoomKey, readonly { maxAlive: number; batchSize: number; interval: number }[]>>,
-    // Lotes da horda nascem à vista e dentro do menor raio de percepção (guarda, 210),
-    // para todo inimigo já nascer perseguindo o jogador; o mínimo evita nascer colado.
-    hordeSpawnMinDistance: 110,
-    hordeSpawnMaxDistance: 205,
-    // Quem fica longe ou atrás de um muro volta para perto, senão a onda nunca termina.
-    hordeRecall: { interval: 2_000, distance: 280 },
+    // A câmera mostra ~508×286 px do mapa (zoom 1,75): a horda nasce logo depois da borda
+    // da tela, e os inimigos dela perseguem de qualquer distância.
+    hordeSpawnMinDistance: 300,
+    hordeSpawnMaxDistance: 380,
+    // Quem ficou bem para trás volta para fora da tela à frente, senão a onda nunca termina.
+    hordeRecall: { interval: 2_000, distance: 480 },
     multiplayer: {
         // Dois jogadores causam o dobro de dano nos mesmos inimigos; acima de 2 fica mais difícil.
         enemyHealthMultiplier: 2.5,

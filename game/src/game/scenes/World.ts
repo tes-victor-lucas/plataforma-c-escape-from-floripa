@@ -87,7 +87,6 @@ import {
 import { createLampLight } from '../map/createLampLights';
 import { getGamepadInput } from '../input/GamepadInput';
 import { isTouchScreen, touchInput } from '../input/TouchInput';
-import { hasLineOfSight } from '../map/hasLineOfSight';
 
 const ROOM2_WALKABLE_LAYERS = [
     'floor',
@@ -484,15 +483,14 @@ export class World extends Scene {
         if (this.isPartnerRoomReady()) this.waves?.update(this.drones, delta);
     }
 
-    /** Na horda, inimigo que nasce longe ou atrás de um muro só patrulha e a onda empaca. */
+    /** Na horda, prefere pontos logo fora da tela: nem em cima do jogador, nem longe demais. */
     private readonly isHordeSpawnPoint = (point: { x: number; y: number }) => {
         if (!COMBAT_CONFIG.hordeByRoom[this.activeRoomKey] || !this.player) return true;
         const target = this.player.sprite.body?.center ?? this.player.sprite;
-        return Math.hypot(point.x - target.x, point.y - target.y) <= COMBAT_CONFIG.hordeSpawnMaxDistance
-            && hasLineOfSight(this.collisionLayers, point, target);
+        return Math.hypot(point.x - target.x, point.y - target.y) <= COMBAT_CONFIG.hordeSpawnMaxDistance;
     };
 
-    /** Roda no anfitrião: traz de volta quem se perdeu longe do jogador ou atrás de um muro. */
+    /** Roda no anfitrião: quem ficou bem para trás reaparece fora da tela, mais perto. */
     private recallHordeStragglers(delta: number) {
         if (!COMBAT_CONFIG.hordeByRoom[this.activeRoomKey] || !this.player || this.isMultiplayerGuest()) return;
         this.hordeRecallElapsed += delta;
@@ -504,8 +502,7 @@ export class World extends Scene {
         const lost = this.drones.filter((enemy) => {
             if (!enemy.health.isAlive) return false;
             const center = enemy.sprite.body?.center ?? enemy.sprite;
-            return Math.hypot(center.x - target.x, center.y - target.y) > distance
-                || !hasLineOfSight(this.collisionLayers, center, target);
+            return Math.hypot(center.x - target.x, center.y - target.y) > distance;
         }).slice(0, 6);
         if (lost.length === 0) return;
         const points = selectDroneSpawns(
@@ -558,8 +555,10 @@ export class World extends Scene {
         this.waveSpawned += spawns.length;
         if (shouldSpawnStairGuards) this.hasSpawnedRoom2Guards = true;
         this.savedEnemies = undefined;
+        const isHorde = !!COMBAT_CONFIG.hordeByRoom[this.activeRoomKey];
         const created = spawns.map((spawn, index) => {
             const enemy = this.createEnemy(kinds[index], spawn);
+            enemy.relentless = isHorde;
             if (this.isMultiplayerEnabled()) {
                 const { enemyHealthMultiplier } = COMBAT_CONFIG.multiplayer;
                 const maxHealth = enemy.health.max * enemyHealthMultiplier;

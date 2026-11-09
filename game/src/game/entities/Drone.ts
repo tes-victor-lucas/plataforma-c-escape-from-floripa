@@ -24,6 +24,7 @@ export class Drone implements CombatEnemy {
 
     private direction = 1;
     private isChasing = false;
+    relentless = false;
     private readonly healthBar: Phaser.GameObjects.Graphics;
     private knockbackRemaining = 0;
     private hitFlashSequence = 0;
@@ -75,7 +76,8 @@ export class Drone implements CombatEnemy {
         const distance = target ? Math.hypot(target.x - body.center.x, target.y - body.center.y) : Infinity;
         // A margem de saída evita alternar entre patrulha e perseguição na borda do raio.
         const radius = this.isChasing ? drone.loseTargetRadius : drone.detectionRadius;
-        this.isChasing = !!target && distance <= radius && hasLineOfSight(this.walls, body.center, target);
+        this.isChasing = !!target
+            && (this.relentless || (distance <= radius && hasLineOfSight(this.walls, body.center, target)));
 
         if (this.isChasing && target) {
             if (distance > drone.stopDistance) {

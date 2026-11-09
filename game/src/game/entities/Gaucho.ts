@@ -33,6 +33,7 @@ export class Gaucho implements CombatEnemy {
     private readonly healthBar: Phaser.GameObjects.Graphics;
     private patrolDirection = 1;
     private isChasing = false;
+    relentless = false;
     private attackCooldown = 0;
     private knockbackRemaining = 0;
     private hitFlashSequence = 0;
@@ -82,7 +83,8 @@ export class Gaucho implements CombatEnemy {
         const target = player?.health.isAlive ? player.sprite.body?.center : undefined;
         const distance = target ? Math.hypot(target.x - body.center.x, target.y - body.center.y) : Infinity;
         const radius = this.isChasing ? drone.loseTargetRadius : drone.detectionRadius;
-        this.isChasing = !!target && distance <= radius && hasLineOfSight(this.walls, body.center, target);
+        this.isChasing = !!target
+            && (this.relentless || (distance <= radius && hasLineOfSight(this.walls, body.center, target)));
 
         if (this.isChasing && target && player) {
             const dx = target.x - body.center.x;

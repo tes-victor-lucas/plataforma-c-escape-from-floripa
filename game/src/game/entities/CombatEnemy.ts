@@ -16,6 +16,8 @@ export interface CombatEnemy {
     readonly kind: EnemyKind;
     readonly sprite: Phaser.Physics.Arcade.Sprite;
     readonly health: Health;
+    /** Na horda o inimigo persegue de qualquer distância, mesmo sem ver o jogador. */
+    relentless: boolean;
 
     update(player?: Player, delta?: number): void;
     takeDamage(amount: number, impactDirection?: Readonly<{ x: number; y: number }>): number;

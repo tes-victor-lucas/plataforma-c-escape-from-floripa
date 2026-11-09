@@ -43,6 +43,7 @@ export class GuardaCyber implements CombatEnemy {
 
     private readonly healthBar: Phaser.GameObjects.Graphics;
     private state: GuardState = 'approach';
+    relentless = false;
     private stateTimer = 0;
     private attackCooldown = 0;
     private direction: EnemyDirection = 'down';
@@ -108,8 +109,10 @@ export class GuardaCyber implements CombatEnemy {
 
         if (
             target
-            && distance <= COMBAT_CONFIG.guard.detectionRadius
-            && hasLineOfSight(this.walls, origin, target)
+            && (this.relentless || (
+                distance <= COMBAT_CONFIG.guard.detectionRadius
+                && hasLineOfSight(this.walls, origin, target)
+            ))
         ) {
             if (distance <= COMBAT_CONFIG.guard.meleeRange && this.attackCooldown === 0) {
                 this.state = 'windup';
