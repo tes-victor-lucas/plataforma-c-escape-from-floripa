@@ -2383,8 +2383,11 @@ test('espada acerta só quem está no arco e no alcance, sem tiro automático', 
     assert.equal(groups[0].getLength(), 0);
 
     assert.equal(combat.swing(0), false);
+    assert.equal(combat.hasSword(), false, 'botão USAR de toque não mostra a espada antes da coleta');
     combat.equipSword();
+    assert.equal(combat.hasSword(), true);
     assert.equal(combat.swing(0), true);
+    assert.equal(combat.hasSword(), true, 'a espada continua na mão depois do golpe');
     assert.equal(front.health.current, maxHealth - swordDamage);
     assert.equal(behind.health.current, maxHealth);
     assert.equal(far.health.current, maxHealth);
