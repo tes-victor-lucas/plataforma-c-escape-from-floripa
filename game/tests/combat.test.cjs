@@ -103,7 +103,9 @@ const {
     isTouchingSecretDungeonEntrance,
     ROOM1_TO_GAUCHO_DUNGEON_GATEWAY,
     ROOM1_TO_ROOM2_GATEWAY,
-    ROOM2_TO_DUNGEON_GATEWAY
+    ROOM2_TO_DUNGEON_GATEWAY,
+    ROOM2_TO_ROOM3_GATEWAY,
+    ROOM_EXIT_GATEWAYS
 } = load('../src/game/config/roomGateway.ts');
 const {
     generateDungeonLayout,
@@ -3317,6 +3319,41 @@ test('fora da horda da Sala II os sorteios só trazem as cartas básicas', () =>
         const cards = drawUpgradeCards(() => roll, basic);
         assert.ok(cards.every((card) => !AREA_UPGRADE_IDS.includes(card.id)), `sorteio ${roll}`);
     }
+});
+
+test('room3 abre pela rota direta e recebe a saída da room2', () => {
+    assert.equal(ROOM_DEFINITIONS.room3.title, 'Sala III');
+    assert.equal(getRequestedRoomKey('?room=3'), 'room3');
+    assert.equal(getRoomSearch('room3', '?debug=1'), '?debug=1&room=3');
+    assert.deepEqual(getInitialSceneRoute('?room=3'), { key: 'RoomTransition', data: { roomKey: 'room3' } });
+
+    const { area, portal } = ROOM2_TO_ROOM3_GATEWAY;
+    assert.equal(ROOM2_TO_ROOM3_GATEWAY.from, 'room2');
+    assert.equal(ROOM2_TO_ROOM3_GATEWAY.to, 'room3');
+    assert.equal(isInsideRoomGateway(portal.x, portal.y, ROOM2_TO_ROOM3_GATEWAY), true);
+    assert.equal(isInsideRoomGateway(area.left - 1, portal.y, ROOM2_TO_ROOM3_GATEWAY), false);
+    // Cada sala tem no máximo uma saída que abre ao vencer.
+    const origins = ROOM_EXIT_GATEWAYS.map((gateway) => gateway.from);
+    assert.deepEqual(origins, [...new Set(origins)]);
+});
+
+test('room3 abre com a horda final da room2 e termina numa horda maior', () => {
+    const [first, second] = COMBAT_CONFIG.wavesByRoom.room3;
+    assert.equal(first, COMBAT_CONFIG.wavesByRoom.room2[1]);
+    assert.ok(second > first);
+    assert.equal(COMBAT_CONFIG.hordeByRoom.room3.length, 2);
+});
+
+test('checkpoint da room3 libera o continuar', () => {
+    const storage = new Map();
+    const memory = {
+        getItem: (key) => storage.get(key) ?? null,
+        setItem: (key, value) => storage.set(key, value),
+        removeItem: (key) => storage.delete(key)
+    };
+    const playerProgress = { currentHealth: 4, maxHealth: 4, movementSpeedMultiplier: 1, upgrades: [] };
+    saveCampaignProgress({ roomKey: 'room3', playerProgress }, memory);
+    assert.equal(loadCampaignProgress(memory)?.roomKey, 'room3');
 });
 
 test('cartas exclusivas da room3 não aparecem nas salas anteriores', () => {
