@@ -67,7 +67,7 @@ import {
     isInsideRoomGateway,
     isTouchingDungeonReturn,
     isTouchingSecretDungeonEntrance,
-    ROOM1_TO_ROOM2_GATEWAY,
+    ROOM_EXIT_GATEWAYS,
     SECRET_DUNGEON_GATEWAYS,
     type SecretDungeonGateway
 } from '../config/roomGateway';
@@ -329,7 +329,7 @@ export class World extends Scene {
             if (this.player?.health.isAlive) this.upgrades.repairAfterRoom(this.player.health);
             room.openExit();
             this.player?.clearBlockedDirection();
-            if (roomKey === ROOM1_TO_ROOM2_GATEWAY.from) this.activateRoomExit();
+            this.activateRoomExit();
             if (roomKey === 'room2') {
                 this.isGameOver = true;
                 this.combat?.clear();
@@ -798,9 +798,10 @@ export class World extends Scene {
     }
 
     private activateRoomExit() {
-        if (this.isRoomExitOpen || this.activeRoomKey !== ROOM1_TO_ROOM2_GATEWAY.from) return;
+        const gateway = ROOM_EXIT_GATEWAYS.find(({ from }) => from === this.activeRoomKey);
+        if (this.isRoomExitOpen || !gateway) return;
         this.isRoomExitOpen = true;
-        const { x, y } = ROOM1_TO_ROOM2_GATEWAY.portal;
+        const { x, y } = gateway.portal;
         this.roomExitPortal = new RoomExitPortal(this, x, y);
     }
 
@@ -841,15 +842,16 @@ export class World extends Scene {
             });
             return;
         }
+        const exitGateway = ROOM_EXIT_GATEWAYS.find(({ from }) => from === this.activeRoomKey);
         if (
-            this.activeRoomKey !== ROOM1_TO_ROOM2_GATEWAY.from
+            !exitGateway
             || !this.isRoomExitOpen
-            || !isInsideRoomGateway(center.x, center.y)
+            || !isInsideRoomGateway(center.x, center.y, exitGateway)
         ) return;
 
         // Leva o estado junto para os dois jogadores continuarem com a mesma semente.
         this.transitionToRoom(
-            ROOM1_TO_ROOM2_GATEWAY.to,
+            exitGateway.to,
             this.dungeonState ? { dungeonState: this.dungeonState } : {}
         );
     }

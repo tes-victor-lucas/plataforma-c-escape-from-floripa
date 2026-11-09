@@ -17,6 +17,18 @@ export const ROOM1_TO_ROOM2_GATEWAY: RoomGatewayDefinition = {
     portal: { x: 11 * 16, y: 0.25 * 16 }
 };
 
+/** Fim da rua na borda direita da Room 2, liberado depois da última horda. */
+export const ROOM2_TO_ROOM3_GATEWAY: RoomGatewayDefinition = {
+    from: 'room2',
+    to: 'room3',
+    // A parede fica na coluna 45: o centro do jogador para logo antes dela.
+    area: { left: 43 * 16, right: 45 * 16, top: 18 * 16, bottom: 22 * 16 },
+    portal: { x: 44.5 * 16, y: 20 * 16 }
+};
+
+/** Saídas que abrem ao vencer a sala; no máximo uma por sala. */
+export const ROOM_EXIT_GATEWAYS = [ROOM1_TO_ROOM2_GATEWAY, ROOM2_TO_ROOM3_GATEWAY];
+
 /** Passagem para uma dungeon: sem parede, basta pisar na área (bueiro); com parede, é preciso encostar nela. */
 export type SecretDungeonGateway = RoomGatewayDefinition & {
     wall?: 'left' | 'right';
