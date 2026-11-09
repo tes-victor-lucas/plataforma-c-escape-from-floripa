@@ -193,13 +193,14 @@ export function getRequestedRoomKey(
 ): RoomKey {
     const requestedRoom = new URLSearchParams(search).get('room');
     if (requestedRoom === 'dungeon' || requestedRoom === 'gaucho-dungeon') return requestedRoom;
+    if (requestedRoom === '3' || requestedRoom === 'room3') return 'room3';
     return requestedRoom === '2' || requestedRoom === 'room2' ? 'room2' : 'room1';
 }
 
 export function getRoomSearch(roomKey: RoomKey, search = '') {
     const parameters = new URLSearchParams(search);
     if (roomKey === 'room1') parameters.delete('room');
-    else parameters.set('room', roomKey === 'room2' ? '2' : roomKey);
+    else parameters.set('room', roomKey === 'room2' ? '2' : roomKey === 'room3' ? '3' : roomKey);
     const serialized = parameters.toString();
     return serialized ? `?${serialized}` : '';
 }
