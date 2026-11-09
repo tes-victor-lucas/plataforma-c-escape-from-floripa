@@ -132,9 +132,12 @@ export class PlayerUpgradeState {
                 );
                 break;
             case 'shock-pulse':
-                this.pulseRadius = this.pulseRadius === 0 ? effect.radius : this.pulseRadius + effect.radiusPerLevel;
-                this.pulseInterval = effect.interval;
-                this.pulseDamageRatio = effect.damageRatio;
+                this.pulseRadius = this.pulseRadius === 0
+                    ? effect.radius
+                    : Math.max(this.pulseRadius + effect.radiusPerLevel, effect.radius);
+                // A Nova de choque e o Pulso dividem o efeito: o mais forte de cada valor prevalece.
+                this.pulseInterval = this.pulseInterval ? Math.min(this.pulseInterval, effect.interval) : effect.interval;
+                this.pulseDamageRatio = Math.max(this.pulseDamageRatio, effect.damageRatio);
                 break;
             case 'blast-shot':
                 this.blastRadius = this.blastRadius === 0 ? effect.radius : this.blastRadius + effect.radiusPerLevel;
@@ -147,10 +150,13 @@ export class PlayerUpgradeState {
                 this.orbitHitInterval = effect.hitInterval;
                 break;
             case 'chain-lightning':
-                this.chainJumps = this.chainJumps === 0 ? effect.jumps : this.chainJumps + effect.jumpsPerLevel;
-                this.chainInterval = effect.interval;
-                this.chainRange = effect.jumpRange;
-                this.chainDamageRatio = effect.damageRatio;
+                this.chainJumps = this.chainJumps === 0
+                    ? effect.jumps
+                    : Math.max(this.chainJumps + effect.jumpsPerLevel, effect.jumps);
+                // A Tempestade e o Raio dividem o efeito: o mais forte de cada valor prevalece.
+                this.chainInterval = this.chainInterval ? Math.min(this.chainInterval, effect.interval) : effect.interval;
+                this.chainRange = Math.max(this.chainRange, effect.jumpRange);
+                this.chainDamageRatio = Math.max(this.chainDamageRatio, effect.damageRatio);
                 break;
             case 'death-blast':
                 this.deathBlastRadius = this.deathBlastRadius === 0
