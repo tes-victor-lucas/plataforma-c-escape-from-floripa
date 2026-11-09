@@ -1074,7 +1074,7 @@ test('segunda onda aguarda o fim da vinheta sem dispará-la mais de uma vez', ()
 
 test('Sala I tem duas ondas e a horda da Sala II cresce depois da carta', () => {
     assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room1], [10, 8]);
-    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room2], [12, 72]);
+    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room2], [12, 112]);
     const [first, second] = COMBAT_CONFIG.hordeByRoom.room2;
     assert.ok(second.maxAlive > first.maxAlive * 2, 'a segunda horda precisa ser bem maior');
     assert.ok(second.interval < first.interval);
@@ -3038,4 +3038,15 @@ test('raio em cadeia desenha um zigue-zague passando por cada alvo', () => {
     assert.deepEqual(firstLayer[9].slice(2), [100, 100]);
     assert.ok(firstLayer.slice(0, 4).some(([, , , y]) => y !== 0), 'o caminho entre alvos é quebrado');
     assert.equal(layer.impacts, 2 * 2, 'clarão em cada alvo atingido');
+});
+
+test('horda depois da carta tem +10 de cada tipo e mistura os tipos ao longo da onda', () => {
+    const kinds = getWaveEnemyKinds('room2', 1, COMBAT_CONFIG.wavesByRoom.room2[1]);
+    const counts = {};
+    for (const kind of kinds) counts[kind] = (counts[kind] ?? 0) + 1;
+    assert.deepEqual(counts, { gaucho: 46, guard: 22, scooter: 22, drone: 22 });
+    // Cada lote de 6 já traz pelo menos três tipos diferentes.
+    for (let start = 0; start < kinds.length; start += 6) {
+        assert.ok(new Set(kinds.slice(start, start + 6)).size >= 3, `lote ${start}`);
+    }
 });
