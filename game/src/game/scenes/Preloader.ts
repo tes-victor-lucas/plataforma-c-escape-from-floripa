@@ -124,6 +124,11 @@ export class Preloader extends Scene {
         );
 
         this.load.audio(
+            AUDIO_CONFIG.effects.waveThreat.key,
+            AUDIO_CONFIG.effects.waveThreat.path
+        );
+
+        this.load.audio(
             AUDIO_CONFIG.music.mainMenu.key,
             AUDIO_CONFIG.music.mainMenu.path
         );

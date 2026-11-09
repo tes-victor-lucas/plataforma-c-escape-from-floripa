@@ -38,21 +38,22 @@ export class RunResultView {
         const { score } = this.options.result;
         const parts: readonly [string, number][] = [
             ['VITORIA', score.victoryPoints],
+            ['DUNGEONS', score.dungeonPoints],
             ['TEMPO', score.timePoints],
             ['INIMIGOS', score.enemyPoints],
             ['MULTI-KILLS', score.multiKillPoints],
             ['BONUS DE DANO', score.damagePoints]
         ];
         parts.forEach(([label, value], index) =>
-            this.addResultRow(menu, VICTORY_PANEL, label, formatPoints(value), 174 + index * 22));
+            this.addResultRow(menu, VICTORY_PANEL, label, formatPoints(value), 168 + index * 19));
 
-        menu.addDivider(274, 42);
+        menu.addDivider(278, 42);
         this.addResultRow(
             menu,
             VICTORY_PANEL,
             'TOTAL',
             formatPoints(score.total),
-            298,
+            301,
             { labelSize: '20px', valueSize: '32px', valueColor: CLEAN_MENU_COLORS.frameCss }
         );
         menu.addButton('VOLTAR AO MENU', 350, this.options.onPrimary, {

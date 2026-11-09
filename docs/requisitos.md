@@ -18,7 +18,7 @@ Este documento descreve os requisitos do MVP de **Plataforma C: Escape from Flor
 - **RF12:** Ao final da área, o jogador deve enfrentar um chefe com ataques diferentes dos inimigos comuns.
 - **RF13:** Ao derrotar o chefe e chegar à Plataforma C, o sistema deve exibir a tela de vitória.
 - **RF14:** Quando a vida do jogador chegar a zero, o sistema deve encerrar a run, remover a build e as melhorias obtidas e exibir a tela de derrota, sem persistir esses elementos para partidas futuras.
-- **RF15:** O sistema deve permitir reiniciar uma partida após a derrota.
+- **RF15:** O sistema deve permitir iniciar uma nova partida na primeira sala após a derrota, sem reaproveitar o estado da run encerrada.
 - **RF16:** Durante a partida, a interface deve exibir ao menos a barra de vida, indicadores de armas/habilidades e a tela de escolha de melhorias.
 - **RF17:** O sistema deve oferecer um menu de pausa durante a partida.
 
@@ -54,5 +54,4 @@ A aplicação será publicada em nuvem utilizando recursos da AWS.
 - **RNF10:** O sistema deve permitir a realização de cópias de segurança dos dados persistidos e sua recuperação em caso de falha.
 - **RNF11:** A aplicação deve ser estruturada de forma modular e documentada para facilitar sua manutenção e evolução.
 - **RNF12:** O sistema deve ser capaz de suportar o aumento de usuários sem exigir alterações significativas em sua arquitetura.
-
 

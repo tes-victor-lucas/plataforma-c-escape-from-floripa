@@ -39,7 +39,7 @@ export class RemotePlayer {
         const { player } = WORLD_CONFIG;
         createWalkAnimations(scene, CHARACTERS.padrao.texture);
         this.sprite = scene.add.sprite(x, y, CHARACTERS.padrao.texture, player.initialFrame)
-            .setScale(player.scale)
+            .setScale(player.scale * CHARACTERS.padrao.scaleMultiplier)
             .setDepth(9)
             .setTint(0x66ccff);
         this.bar = scene.add.graphics().setDepth(25);
@@ -73,6 +73,7 @@ export class RemotePlayer {
             this.characterId = state.character;
             createWalkAnimations(this.sprite.scene, CHARACTERS[state.character].texture);
             this.sprite.setTexture(CHARACTERS[state.character].texture, WORLD_CONFIG.player.initialFrame);
+            this.sprite.setScale(WORLD_CONFIG.player.scale * CHARACTERS[state.character].scaleMultiplier);
         }
     }
 

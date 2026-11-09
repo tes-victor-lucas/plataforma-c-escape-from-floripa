@@ -64,7 +64,8 @@ export const WORLD_CONFIG = {
     chimarrao: {
         texture: 'chimarrao',
         dropChance: 0.5,
-        speedBonus: 0.04
+        effectMultiplier: 1.5,
+        effectDuration: 3_000
     },
     camera: {
         // Mantém a mesma área vertical visível após a mudança para 16:9.

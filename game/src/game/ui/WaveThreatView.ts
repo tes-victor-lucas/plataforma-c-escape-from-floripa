@@ -1,4 +1,5 @@
 import { Scene } from 'phaser';
+import { AUDIO_CONFIG } from '../config/audio';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 
 const DEPTH = 150;
@@ -23,7 +24,8 @@ export class WaveThreatView {
     constructor(
         private readonly scene: Scene,
         private readonly worldCamera?: Phaser.Cameras.Scene2D.Camera,
-        text = 'VOCÊ NÃO VAI ESCAPAR'
+        text = 'VOCÊ NÃO VAI ESCAPAR',
+        private readonly playSound = true
     ) {
         this.dim = scene.add.rectangle(
             GAME_WIDTH / 2,
@@ -67,6 +69,10 @@ export class WaveThreatView {
     }
 
     play(onComplete: () => void) {
+        if (this.playSound) {
+            const sound = AUDIO_CONFIG.effects.waveThreat;
+            this.scene.sound.play(sound.key, { volume: sound.volume });
+        }
         this.shake(320, 0.012);
         this.scene.tweens.add({ targets: this.dim, fillAlpha: 0.52, duration: 100 });
         this.scene.tweens.add({

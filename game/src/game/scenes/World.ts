@@ -120,6 +120,11 @@ export function shouldOfferRoomCompletionUpgrade(roomKey: RoomKey) {
     return roomKey === 'room1';
 }
 
+export function recordRoomCompletionScore(roomKey: RoomKey) {
+    if (!isDungeonRoom(roomKey)) return false;
+    return runTracker.recordDungeonCompletion(roomKey);
+}
+
 export class World extends Scene {
     private player?: Player;
     private playerRangeIndicator?: Phaser.GameObjects.Arc;
@@ -148,6 +153,7 @@ export class World extends Scene {
     private readonly hordeLastPositions = new Map<CombatEnemy, { x: number; y: number }>();
     private isRoomCombatComplete = false;
     private nauseaEndsAt = 0;
+    private chimarraoBuffTimer?: Phaser.Time.TimerEvent;
     private normalCameraZoom: number = WORLD_CONFIG.camera.zoom;
     private activeRoomKey: RoomKey = 'room1';
     private activeSpawn: Readonly<{ x: number; y: number }> = ROOM_DEFINITIONS.room1.spawn;
@@ -204,6 +210,7 @@ export class World extends Scene {
         this.lowHealthDesaturation = -1;
         this.room1SecretCode.reset();
         this.nauseaEndsAt = 0;
+        this.chimarraoBuffTimer = undefined;
         this.multiplayerSyncElapsed = 0;
         this.reviveElapsed = 0;
         this.enemySnapshot = [];
@@ -325,6 +332,7 @@ export class World extends Scene {
             if (this.isRoomCombatComplete) return;
             this.isRoomCombatComplete = true;
             this.waves = undefined;
+            recordRoomCompletionScore(roomKey);
             if (this.isMultiplayerHost()) {
                 this.sendEnemySnapshot();
                 multiplayerClient.sendEvent({
@@ -420,7 +428,7 @@ export class World extends Scene {
         this.isWaveIntermissionOpen = true;
         // O CombatHud acabou de ser lançado; o aviso só pode ser desenhado depois do create dele.
         overlayScene.events.once(Phaser.Scenes.Events.CREATE, () => {
-            new WaveThreatView(overlayScene, this.cameras.main, 'MATE OS GAUCHOS').play(() => {
+            new WaveThreatView(overlayScene, this.cameras.main, 'MATE OS GAUCHOS', false).play(() => {
                 this.isWaveIntermissionOpen = false;
                 if (!this.isGameOver && !this.isPauseMenuOpen) this.physics.resume();
             });
@@ -431,11 +439,12 @@ export class World extends Scene {
     private restartFromDefeatMenu() {
         clearCampaignProgress();
         runTracker.startNew(this.isMultiplayerEnabled() ? 'MULTIPLAYER' : 'SINGLE_PLAYER');
+        replaceRequestedRoomKey('room1');
         this.stopGameplayOverlays();
         this.scene.restart({
             waitForReveal: false,
-            roomKey: this.activeRoomKey,
-            spawn: this.activeSpawn
+            roomKey: 'room1',
+            spawn: ROOM_DEFINITIONS.room1.spawn
         });
     }
 
@@ -724,21 +733,32 @@ export class World extends Scene {
         if (this.isMultiplayerEnabled()) multiplayerClient.sendEvent({ kind: 'item.drop', id, x, y });
     }
 
-    /** Velocidade permanente para quem pegar primeiro, limitada pelo teto do Player. */
+    /** A primeira pessoa que pega recebe 50% de movimento e cadência por três segundos. */
     private spawnChimarrao(id: number, x: number, y: number) {
         if (!this.player) return;
         const { chimarrao } = WORLD_CONFIG;
         const item = this.physics.add.image(x, y, chimarrao.texture).setDepth(9);
         const pickup = this.physics.add.overlap(this.player.sprite, item, () => {
             this.removeDroppedItem(id);
-            this.player?.setMovementSpeedMultiplier(
-                this.player.getMovementSpeedMultiplier() + chimarrao.speedBonus
-            );
+            this.activateChimarraoBuff();
             if (this.isMultiplayerEnabled()) multiplayerClient.sendEvent({ kind: 'item.collected', id });
         });
         this.droppedItems.set(id, () => {
             pickup.destroy();
             item.destroy();
+        });
+    }
+
+    private activateChimarraoBuff() {
+        if (!this.player || !this.combat) return;
+        const { effectMultiplier, effectDuration } = WORLD_CONFIG.chimarrao;
+        this.chimarraoBuffTimer?.remove(false);
+        this.player.setTemporaryMovementSpeedMultiplier(effectMultiplier);
+        this.combat.setPlayerFireRateMultiplier(effectMultiplier);
+        this.chimarraoBuffTimer = this.time.delayedCall(effectDuration, () => {
+            this.player?.setTemporaryMovementSpeedMultiplier(1);
+            this.combat?.setPlayerFireRateMultiplier(1);
+            this.chimarraoBuffTimer = undefined;
         });
     }
 
@@ -1206,6 +1226,8 @@ export class World extends Scene {
         this.isHitStopActive = false;
         this.hitStopTimer?.remove(false);
         this.hitStopTimer = undefined;
+        this.chimarraoBuffTimer?.remove(false);
+        this.chimarraoBuffTimer = undefined;
         this.room1SecretCode.reset();
         this.scene.stop('CombatHud');
         this.combat?.clear();
