@@ -26,8 +26,13 @@ import {
 import { WaveThreatView } from '../ui/WaveThreatView';
 import { FlowField } from '../combat/FlowField';
 import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
-import { basicUpgradeCards, drawUpgradeCards, drawUpgradeCardsFeaturing } from '../upgrades/drawUpgradeCards';
-import { AREA_UPGRADE_IDS } from '../upgrades/catalog';
+import {
+    basicUpgradeCards,
+    drawUpgradeCards,
+    drawUpgradeCardsFeaturing,
+    withoutRoom3Cards
+} from '../upgrades/drawUpgradeCards';
+import { AREA_UPGRADE_IDS, ROOM3_UPGRADE_IDS } from '../upgrades/catalog';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
 import { drawPlayerBar, RemotePlayer } from '../entities/RemotePlayer';
@@ -988,10 +993,13 @@ export class World extends Scene {
         this.isWaveIntermissionOpen = true;
         this.piranhasBarPrompt?.setVisible(false);
         const overlayScene = this.scene.get('CombatHud') as Scene;
-        // Antes da horda maior da Sala II, as cartas de dano em área ficam garantidas na mesa.
-        const cards = this.activeRoomKey === 'room2'
-            ? drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, undefined, this.upgrades.availableCards())
-            : drawUpgradeCards(undefined, basicUpgradeCards(this.upgrades.availableCards()));
+        // Antes das hordas maiores, as cartas fortes de cada sala ficam garantidas na mesa.
+        const availableCards = this.upgrades.availableCards();
+        const cards = this.activeRoomKey === 'room3'
+            ? drawUpgradeCardsFeaturing(ROOM3_UPGRADE_IDS, undefined, availableCards)
+            : this.activeRoomKey === 'room2'
+                ? drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, undefined, withoutRoom3Cards(availableCards))
+                : drawUpgradeCards(undefined, basicUpgradeCards(availableCards));
         new UpgradeSelectionView(overlayScene, cards).play((selected) => {
             this.acquireUpgrade(selected);
             this.waitForPartnerCard(() => {
