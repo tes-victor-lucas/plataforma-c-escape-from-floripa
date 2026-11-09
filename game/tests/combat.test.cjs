@@ -52,8 +52,8 @@ const {
     selectDroneSpawns,
     selectDroneSpawnsWithPriority
 } = load('../src/game/combat/DroneWaves.ts');
-const { drawUpgradeCards } = load('../src/game/upgrades/drawUpgradeCards.ts');
-const { getUpgradeCard } = load('../src/game/upgrades/catalog.ts');
+const { drawUpgradeCards, drawUpgradeCardsFeaturing } = load('../src/game/upgrades/drawUpgradeCards.ts');
+const { getUpgradeCard, AREA_UPGRADE_IDS } = load('../src/game/upgrades/catalog.ts');
 const { PlayerUpgradeState } = load('../src/game/upgrades/PlayerUpgradeState.ts');
 const {
     capturePlayerProgress,
@@ -354,6 +354,7 @@ test('sair pela rota secreta guarda drones vivos, ondas restantes e o item do ba
             patrolRight: 116
         }],
         pendingWaves: [20],
+        hordeRemaining: 0,
         cleared: false
     });
 });
@@ -479,6 +480,8 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
     }
     const damageLabels = [];
     const companions = [];
+    const rings = [];
+    const bolts = [];
     const scene = {
         sound: { play() {} },
         tweens: { add() {} },
@@ -503,6 +506,27 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
                 };
                 companions.push(companion);
                 return companion;
+            },
+            circle(x, y, radius) {
+                const circle = {
+                    x, y, radius,
+                    setStrokeStyle() { return this; },
+                    setDepth() { return this; },
+                    setScale() { return this; },
+                    setPosition(nextX, nextY) { this.x = nextX; this.y = nextY; return this; },
+                    destroy() {}
+                };
+                rings.push(circle);
+                return circle;
+            },
+            line(x, y, x1, y1, x2, y2) {
+                bolts.push({ x1, y1, x2, y2 });
+                return {
+                    setOrigin() { return this; },
+                    setDepth() { return this; },
+                    setLineWidth() { return this; },
+                    destroy() {}
+                };
             },
             text(x, y, text) {
                 const label = {
@@ -560,7 +584,7 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
     };
     const walls = [{ getTilesWithinWorldXY: () => wallTiles }];
     const combat = new CombatSystem(scene, player, drones, walls, upgrades, tracker, undefined, melee);
-    return { combat, player, drones, groups, colliders, overlaps, attachBody, damageLabels, companions };
+    return { combat, player, drones, groups, colliders, overlaps, attachBody, damageLabels, companions, rings, bolts };
 }
 
 test('vida diminui, não cura com dano negativo e não fica abaixo de zero', () => {
@@ -1045,9 +1069,12 @@ test('segunda onda aguarda o fim da vinheta sem dispará-la mais de uma vez', ()
     assert.deepEqual(counts, [10, 8]);
 });
 
-test('somente a Sala I possui segunda onda', () => {
+test('Sala I tem duas ondas e a horda da Sala II cresce depois da carta', () => {
     assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room1], [10, 8]);
-    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room2], [10]);
+    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room2], [24, 72]);
+    const [first, second] = COMBAT_CONFIG.hordeByRoom.room2;
+    assert.ok(second.maxAlive > first.maxAlive * 2, 'a segunda horda precisa ser bem maior');
+    assert.ok(second.interval < first.interval);
     assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.dungeon], [10]);
 });
 
@@ -2552,7 +2579,7 @@ test('sala vencida fica marcada ao sair para reabrir a saída na volta', () => {
     world.drones = [];
     world.isRoomCombatComplete = true;
     world.rememberCombatProgress();
-    assert.deepEqual(world.dungeonState.savedCombat.room1, { enemies: [], pendingWaves: [], cleared: true });
+    assert.deepEqual(world.dungeonState.savedCombat.room1, { enemies: [], pendingWaves: [], hordeRemaining: 0, cleared: true });
 });
 
 test('recompensa do esconderijo não gasta a da dungeon principal', () => {
@@ -2732,4 +2759,246 @@ test('folha do gaúcho segue o layout do personagem atual', () => {
     const [width, height] = size(CHARACTERS.gaucho.path);
     assert.equal(Math.floor(width / 38), Math.floor(originalWidth / 38), 'mesma numeração de quadros');
     assert.ok(height >= 12 * 38, 'cabe a linha de caminhada para a direita');
+});
+
+test('horda nasce em lotes até a meta, sem passar do limite de vivos', () => {
+    const batches = [];
+    const alive = [];
+    const spawnBatch = (count, startsWave) => {
+        batches.push({ count, startsWave });
+        for (let index = 0; index < count; index++) alive.push({ health: { isAlive: true } });
+    };
+    let intermission;
+    let completed = false;
+    const waves = new DroneWaves(
+        spawnBatch,
+        () => { completed = true; },
+        (resume) => { intermission = resume; },
+        [7, 4],
+        [{ maxAlive: 4, batchSize: 3, interval: 1_000 }, { maxAlive: 10, batchSize: 10, interval: 0 }]
+    );
+    waves.update(alive, 0);
+    assert.deepEqual(batches, [{ count: 3, startsWave: true }]);
+    waves.update(alive, 999);
+    assert.equal(batches.length, 1, 'espera o intervalo');
+    waves.update(alive, 1);
+    assert.deepEqual(batches[1], { count: 1, startsWave: false }, 'só completa até o limite de vivos');
+    waves.update(alive, 5_000);
+    assert.equal(batches.length, 2, 'no limite, não nasce mais ninguém');
+    assert.equal(waves.currentWaveRemaining(), 3);
+
+    alive.forEach((enemy) => { enemy.health.isAlive = false; });
+    waves.update(alive, 0);
+    assert.deepEqual(batches[2], { count: 3, startsWave: false }, 'sem ninguém vivo, o lote sai na hora');
+    alive.forEach((enemy) => { enemy.health.isAlive = false; });
+    waves.update(alive, 0);
+    assert.equal(typeof intermission, 'function', 'meta cumprida: abre a carta antes da próxima onda');
+    assert.equal(batches.length, 3);
+    intermission();
+    assert.deepEqual(batches[3], { count: 4, startsWave: true });
+    alive.forEach((enemy) => { enemy.health.isAlive = false; });
+    waves.update(alive, 0);
+    assert.equal(completed, true);
+});
+
+test('horda conta quem nasceu de fato e não trava sem lugar para nascer', () => {
+    const restored = new DroneWaves(() => 5, () => {}, (resume) => resume(), [6], [{ maxAlive: 3, batchSize: 2, interval: 0 }]);
+    restored.update([], 0);
+    assert.equal(restored.currentWaveRemaining(), 1, 'os sobreviventes salvos nascem juntos no primeiro lote');
+
+    const blocked = new DroneWaves(() => 0, () => {}, (resume) => resume(), [6], [{ maxAlive: 3, batchSize: 2, interval: 0 }]);
+    blocked.update([], 0);
+    assert.equal(blocked.currentWaveRemaining(), 0);
+});
+
+test('lotes da horda nascem perto do jogador quando há pontos suficientes', () => {
+    const points = [300, 400, 900].map((x) => ({ x, y: 1_200, patrolLeft: x - 16, patrolRight: x + 16 }));
+    const player = { x: 100, y: 1_200 };
+    const near = (point) => point.x - player.x <= 320;
+    assert.deepEqual(selectDroneSpawns(2, player, points, near).map(({ x }) => x), [300, 400]);
+    assert.deepEqual(selectDroneSpawns(3, player, points, near).map(({ x }) => x), [300, 400, 900], 'sem pontos perto, usa todos');
+});
+
+test('lotes da mesma onda continuam o padrão de inimigos', () => {
+    const whole = getWaveEnemyKinds('room2', 1, 9);
+    const inBatches = [
+        ...getWaveEnemyKinds('room2', 1, 4, 0),
+        ...getWaveEnemyKinds('room2', 1, 5, 4)
+    ];
+    assert.deepEqual(inBatches, whole);
+});
+
+test('cartas de área crescem de raio por nível e respeitam o máximo', () => {
+    const upgrades = new PlayerUpgradeState();
+    for (let level = 0; level < 4; level++) upgrades.acquire(getUpgradeCard('shock-pulse'));
+    assert.equal(upgrades.pulseRadius, 100 + 25 * 2);
+    assert.equal(upgrades.pulseInterval, 800);
+    for (let level = 0; level < 3; level++) upgrades.acquire(getUpgradeCard('blast-shot'));
+    assert.equal(upgrades.blastRadius, 50 + 15);
+    assert.equal(upgrades.blastDamageRatio, 1.5);
+    for (let level = 0; level < 4; level++) upgrades.acquire(getUpgradeCard('spark-orbit'));
+    assert.equal(upgrades.orbitCount, 8);
+    for (let level = 0; level < 4; level++) upgrades.acquire(getUpgradeCard('chain-lightning'));
+    assert.equal(upgrades.chainJumps, 16);
+    for (let level = 0; level < 3; level++) upgrades.acquire(getUpgradeCard('death-blast'));
+    assert.equal(upgrades.deathBlastRadius, 70);
+    for (let level = 0; level < 4; level++) upgrades.acquire(getUpgradeCard('light-beams'));
+    assert.equal(upgrades.beamCount, 10);
+    upgrades.reset();
+    for (const stat of ['pulseRadius', 'blastRadius', 'orbitCount', 'chainJumps', 'deathBlastRadius', 'beamCount']) {
+        assert.equal(upgrades[stat], 0, stat);
+    }
+});
+
+test('antes da horda maior as cartas de área vêm garantidas', () => {
+    for (const roll of [0, 0.4, 0.99]) {
+        const cards = drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, () => roll);
+        assert.equal(cards.length, 3);
+        assert.ok(cards.every((card) => AREA_UPGRADE_IDS.includes(card.id)), `sorteio ${roll}`);
+        assert.equal(new Set(cards.map((card) => card.id)).size, 3);
+    }
+
+    const upgrades = new PlayerUpgradeState();
+    for (const id of AREA_UPGRADE_IDS.slice(0, 5)) {
+        for (let level = 0; level < 3; level++) upgrades.acquire(getUpgradeCard(id));
+    }
+    const lastArea = drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, () => 0.4, upgrades.availableCards());
+    assert.equal(lastArea.length, 3);
+    assert.deepEqual(lastArea.filter((card) => AREA_UPGRADE_IDS.includes(card.id)).map((card) => card.id), ['light-beams'],
+        'só a carta de área que sobrou, completada com as comuns');
+});
+
+test('pulso de choque atinge todos dentro do raio no ritmo da carta', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('shock-pulse'));
+    // Fora do alcance do tiro, para medir só o pulso.
+    upgrades.range = 1;
+    const { combat, drones, rings } = setup([[140, 100], [100, 150], [300, 100]], [], upgrades);
+    const full = COMBAT_CONFIG.drone.maxHealth;
+    const pulse = upgrades.damage * 1.5;
+    combat.update(0);
+    assert.equal(drones[0].health.current, full - pulse);
+    assert.equal(drones[1].health.current, full - pulse);
+    assert.equal(drones[2].health.current, full, 'fora do raio');
+    assert.deepEqual(rings.map(({ radius }) => radius), [100]);
+    combat.update(799);
+    assert.equal(drones[0].health.current, full - pulse, 'espera o intervalo');
+    combat.update(1);
+    assert.equal(drones[1].health.current, 0);
+});
+
+test('tiro explosivo fere os vizinhos do alvo sem acertar o alvo duas vezes', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('blast-shot'));
+    const { combat, drones, overlaps, groups } = setup([[150, 100], [170, 100], [250, 100]], [], upgrades);
+    const full = COMBAT_CONFIG.drone.maxHealth;
+    combat.update(0);
+    overlaps[0].hit(groups[0].shots[0]);
+    assert.equal(drones[0].health.current, full - upgrades.damage);
+    assert.equal(drones[1].health.current, full - upgrades.damage * 1.5);
+    assert.equal(drones[2].health.current, full, 'fora do raio da explosão');
+});
+
+test('faíscas orbitais ferem quem encostar, uma vez por intervalo', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('spark-orbit'));
+    upgrades.range = 1;
+    // A primeira faísca começa à direita do jogador, a 52 px.
+    const { combat, drones } = setup([[152, 100], [100, 300]], [], upgrades);
+    const full = COMBAT_CONFIG.drone.maxHealth;
+    combat.update(0);
+    assert.equal(drones[0].health.current, full - upgrades.damage * 1.5);
+    assert.equal(drones[1].health.current, full, 'longe das faíscas');
+    combat.update(1);
+    assert.equal(drones[0].health.current, full - upgrades.damage * 1.5, 'não acerta de novo antes do intervalo');
+});
+
+test('raio em cadeia salta entre vizinhos sem repetir alvo', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('chain-lightning'));
+    upgrades.range = 100;
+    const positions = Array.from({ length: 10 }, (_, index) => [150 + index * 50, 100]);
+    const { combat, drones, bolts } = setup(positions, [], upgrades);
+    // Sem tiro comum neste teste: só o raio causa dano.
+    combat.playerCooldown = 99_999;
+    const full = COMBAT_CONFIG.drone.maxHealth;
+    combat.update(0);
+    const hit = drones.filter((drone) => drone.health.current < full).length;
+    assert.equal(hit, 8, 'nível 1 salta por 8 inimigos');
+    assert.equal(bolts.length, 8);
+    assert.equal(drones[9].health.current, full);
+});
+
+test('detonação faz o abatido explodir e pode seguir em cadeia', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('death-blast'));
+    upgrades.acquire(getUpgradeCard('shock-pulse'));
+    upgrades.damage = COMBAT_CONFIG.drone.maxHealth;
+    upgrades.range = 1;
+    // O pulso derruba o primeiro; a explosão dele derruba o segundo, que derruba o terceiro.
+    const { combat, drones } = setup([[150, 100], [205, 100], [258, 100], [400, 100]], [], upgrades);
+    combat.update(0);
+    assert.deepEqual(drones.map((drone) => drone.health.isAlive), [false, false, false, true]);
+});
+
+test('feixes de luz cruzam a tela e ferem quem está na linha', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('light-beams'));
+    upgrades.range = 1;
+    // Com 6 feixes, o primeiro disparo sai a 30°, 90°, 150°...: o de 90° desce reto.
+    const { combat, drones, bolts } = setup([[100, 300], [300, 100]], [], upgrades);
+    const full = COMBAT_CONFIG.drone.maxHealth;
+    combat.update(0);
+    assert.equal(bolts.length, 6);
+    assert.equal(drones[0].health.isAlive, false, 'na linha de 90°, a 200 px');
+    assert.equal(drones[1].health.current, full, 'entre dois feixes');
+    combat.update(999);
+    assert.equal(bolts.length, 6, 'espera o intervalo');
+    combat.update(1);
+    assert.equal(bolts.length, 12, 'o leque gira e dispara de novo');
+});
+
+test('jogador fica imune por um instante depois de levar um golpe', () => {
+    const { Player } = load('../src/game/entities/Player.ts');
+    const player = Object.create(Player.prototype);
+    const time = { now: 1_000, delayedCall() {} };
+    player.scene = { time, sound: { play() {} } };
+    player.health = new Health(4);
+    player.sprite = { active: true, setTint() {}, clearTint() {} };
+    player.invulnerableUntil = 0;
+
+    player.takeDamage(1);
+    player.takeDamage(1);
+    assert.equal(player.health.current, 3, 'o segundo golpe cai na imunidade');
+    time.now += WORLD_CONFIG.player.hurtInvulnerability;
+    player.takeDamage(1);
+    assert.equal(player.health.current, 2);
+});
+
+test('horda traz de volta quem se perdeu longe do jogador', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    world.activeRoomKey = 'room2';
+    world.collisionLayers = [];
+    world.player = { sprite: { x: 100, y: 1_200, body: { center: { x: 100, y: 1_200 } } } };
+    const near = fighter(150, 1_200, 4);
+    const lost = fighter(900, 1_200, 4);
+    const moved = [];
+    for (const enemy of [near, lost]) {
+        enemy.sprite.setPosition = (x, y) => { moved.push({ enemy, x, y }); };
+        enemy.sprite.body.reset = () => {};
+    }
+    world.drones = [near, lost];
+    world.droneSpawnPoints = [230, 260].map((x) => ({ x, y: 1_200, patrolLeft: x - 16, patrolRight: x + 16 }));
+
+    world.recallHordeStragglers(COMBAT_CONFIG.hordeRecall.interval - 1);
+    assert.equal(moved.length, 0, 'espera o intervalo');
+    world.recallHordeStragglers(1);
+    assert.equal(moved.length, 1);
+    assert.equal(moved[0].enemy, lost);
+    assert.ok(moved[0].x <= 100 + COMBAT_CONFIG.hordeSpawnMaxDistance);
+
+    world.activeRoomKey = 'room1';
+    world.recallHordeStragglers(COMBAT_CONFIG.hordeRecall.interval);
+    assert.equal(moved.length, 1, 'fora da horda ninguém é puxado');
 });
