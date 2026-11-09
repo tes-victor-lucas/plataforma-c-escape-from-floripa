@@ -119,7 +119,7 @@ const {
 } = load('../src/game/config/dungeon.ts');
 const { ROOM_EXIT_LIGHT_STYLE } = load('../src/game/map/RoomExitPortal.ts');
 const { LAMP_LIGHT_TEXTURE } = load('../src/game/map/createLampLights.ts');
-const { ROOM1_CLEAR_CODE, SecretCodeMatcher } = load('../src/game/config/secretCodes.ts');
+const { ROOM_CLEAR_CODE, SecretCodeMatcher } = load('../src/game/config/secretCodes.ts');
 const { getInitialSceneRoute } = load('../src/game/scenes/Preloader.ts');
 const {
     calculateDamagePoints,
@@ -225,7 +225,7 @@ test('run inicia com zero e recebe o bônus de tempo somente ao terminar', () =>
 });
 
 test('código secreto reconhece 9090 mesmo após teclas anteriores', () => {
-    const matcher = new SecretCodeMatcher(ROOM1_CLEAR_CODE);
+    const matcher = new SecretCodeMatcher(ROOM_CLEAR_CODE);
     assert.equal(matcher.push('1'), false);
     assert.equal(matcher.push('9'), false);
     assert.equal(matcher.push('0'), false);
@@ -1756,7 +1756,7 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
     assert.equal(clears, 1);
 });
 
-test('9090 elimina os drones e conclui o combate somente na room1', () => {
+test('9090 elimina os drones e conclui o combate nas salas da campanha, fora das dungeons', () => {
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();
     let clears = 0;
@@ -1789,10 +1789,17 @@ test('9090 elimina os drones e conclui o combate somente na room1', () => {
     assert.equal(completions, 1);
     assert.equal(world.waves, undefined);
 
-    world.activeRoomKey = 'room2';
+    for (const roomKey of ['room2', 'room3']) {
+        world.activeRoomKey = roomKey;
+        world.isRoomCombatComplete = false;
+        for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
+    }
+    assert.equal(completions, 3);
+
+    world.activeRoomKey = 'dungeon';
     world.isRoomCombatComplete = false;
     for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(completions, 1, 'o segredo não deve concluir a room2');
+    assert.equal(completions, 3, 'o segredo não deve concluir a dungeon');
 });
 
 test('mundo bloqueia combate e HUD até a revelação; reinício não espera outra transição', () => {

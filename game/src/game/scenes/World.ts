@@ -72,7 +72,7 @@ import {
     type SecretDungeonGateway
 } from '../config/roomGateway';
 import { RoomExitPortal } from '../map/RoomExitPortal';
-import { ROOM1_CLEAR_CODE, SecretCodeMatcher } from '../config/secretCodes';
+import { ROOM_CLEAR_CODE, SecretCodeMatcher } from '../config/secretCodes';
 import {
     capturePlayerProgress,
     restorePlayerProgress,
@@ -179,7 +179,7 @@ export class World extends Scene {
     /** Convidado aguardando o anfitrião liberar as cartas. */
     private cardRelease?: () => void;
     private isRoomRequestPending = false;
-    private readonly room1SecretCode = new SecretCodeMatcher(ROOM1_CLEAR_CODE);
+    private readonly roomClearCode = new SecretCodeMatcher(ROOM_CLEAR_CODE);
     private completeRoomCombat?: () => void;
     private dungeonReturnArea?: Readonly<{ left: number; right: number; top: number; bottom: number }>;
     private dungeonState?: DungeonSessionState;
@@ -213,7 +213,7 @@ export class World extends Scene {
         this.hitStopTimer = undefined;
         this.lowHealthFilter = undefined;
         this.lowHealthDesaturation = -1;
-        this.room1SecretCode.reset();
+        this.roomClearCode.reset();
         this.nauseaEndsAt = 0;
         this.chimarraoBuffTimer = undefined;
         this.multiplayerSyncElapsed = 0;
@@ -778,10 +778,11 @@ export class World extends Scene {
 
     private handleSecretCodeKey(event: KeyboardEvent) {
         if (
-            event.repeat || this.activeRoomKey !== 'room1' || this.isMultiplayerGuest()
+            // Atalho de teste das salas da campanha; as dungeons ficam de fora.
+            event.repeat || isDungeonRoom(this.activeRoomKey) || this.isMultiplayerGuest()
             || !this.isGameplayReady || this.isGameOver || this.isRoomCombatComplete
         ) return;
-        if (!this.room1SecretCode.push(event.key)) return;
+        if (!this.roomClearCode.push(event.key)) return;
 
         this.combat?.clear();
         this.waves = undefined;
@@ -1246,7 +1247,7 @@ export class World extends Scene {
         this.hitStopTimer = undefined;
         this.chimarraoBuffTimer?.remove(false);
         this.chimarraoBuffTimer = undefined;
-        this.room1SecretCode.reset();
+        this.roomClearCode.reset();
         this.scene.stop('CombatHud');
         this.combat?.clear();
         this.combat = undefined;

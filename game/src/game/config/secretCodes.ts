@@ -1,4 +1,4 @@
-export const ROOM1_CLEAR_CODE = '9090';
+export const ROOM_CLEAR_CODE = '9090';
 
 /** Mantém somente o trecho necessário para reconhecer uma sequência secreta. */
 export class SecretCodeMatcher {
