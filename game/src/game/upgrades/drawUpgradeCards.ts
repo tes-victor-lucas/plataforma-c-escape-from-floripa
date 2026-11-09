@@ -1,4 +1,4 @@
-import { UPGRADE_CARDS } from './catalog';
+import { AREA_UPGRADE_IDS, UPGRADE_CARDS } from './catalog';
 import type { UpgradeCardDefinition, UpgradeId } from './types';
 
 type RandomSource = () => number;
@@ -54,4 +54,9 @@ export function drawUpgradeCardsFeaturing(
         return drawUpgradeCards(random, availableCards);
     }
     return [...highlighted, ...drawUpgradeCards(random, others).slice(0, 3 - highlighted.length)];
+}
+
+/** Cartas de área são só para a horda da Sala II; nos outros sorteios ficam as básicas. */
+export function basicUpgradeCards(availableCards: readonly UpgradeCardDefinition[]) {
+    return availableCards.filter((card) => !AREA_UPGRADE_IDS.includes(card.id));
 }

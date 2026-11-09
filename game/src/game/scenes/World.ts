@@ -26,7 +26,7 @@ import {
 import { WaveThreatView } from '../ui/WaveThreatView';
 import { FlowField } from '../combat/FlowField';
 import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
-import { drawUpgradeCards, drawUpgradeCardsFeaturing } from '../upgrades/drawUpgradeCards';
+import { basicUpgradeCards, drawUpgradeCards, drawUpgradeCardsFeaturing } from '../upgrades/drawUpgradeCards';
 import { AREA_UPGRADE_IDS } from '../upgrades/catalog';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
@@ -967,7 +967,7 @@ export class World extends Scene {
         // Antes da horda maior da Sala II, as cartas de dano em área ficam garantidas na mesa.
         const cards = this.activeRoomKey === 'room2'
             ? drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, undefined, this.upgrades.availableCards())
-            : drawUpgradeCards(undefined, this.upgrades.availableCards());
+            : drawUpgradeCards(undefined, basicUpgradeCards(this.upgrades.availableCards()));
         new UpgradeSelectionView(overlayScene, cards).play((selected) => {
             this.acquireUpgrade(selected);
             this.waitForPartnerCard(() => {
@@ -991,7 +991,7 @@ export class World extends Scene {
         const overlayScene = this.scene.get('CombatHud') as Scene;
         new UpgradeSelectionView(
             overlayScene,
-            drawUpgradeCards(undefined, this.upgrades.availableCards()),
+            drawUpgradeCards(undefined, basicUpgradeCards(this.upgrades.availableCards())),
             {
                 title: 'SALA I CONCLUÍDA',
                 hint: 'Escolha uma recompensa'
@@ -1024,7 +1024,7 @@ export class World extends Scene {
         const overlayScene = this.scene.get('CombatHud') as Scene;
         new UpgradeSelectionView(
             overlayScene,
-            drawUpgradeCards(undefined, this.upgrades.availableCards()),
+            drawUpgradeCards(undefined, basicUpgradeCards(this.upgrades.availableCards())),
             {
                 title: 'DUNGEON CONCLUÍDA',
                 hint: 'Escolha sua recompensa'
