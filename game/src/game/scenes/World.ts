@@ -400,7 +400,7 @@ export class World extends Scene {
         this.isWaveIntermissionOpen = true;
         // O CombatHud acabou de ser lançado; o aviso só pode ser desenhado depois do create dele.
         overlayScene.events.once(Phaser.Scenes.Events.CREATE, () => {
-            new WaveThreatView(overlayScene, this.cameras.main, 'MATE OS GAUCHOS').play(() => {
+            new WaveThreatView(overlayScene, this.cameras.main, 'MATE OS GAUCHOS', false).play(() => {
                 this.isWaveIntermissionOpen = false;
                 if (!this.isGameOver && !this.isPauseMenuOpen) this.physics.resume();
             });
