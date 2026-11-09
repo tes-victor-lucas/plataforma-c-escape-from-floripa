@@ -7,6 +7,33 @@ export const ROOM2_STAIR_GUARD_SPAWNS = [
 
 export type EnemyKind = 'drone' | 'scooter' | 'guard' | 'gaucho';
 
+/** Horda da Sala II depois da carta: quantos de cada tipo (+10 de cada sobre a versão anterior). */
+export const ROOM2_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
+    gaucho: 46,
+    guard: 22,
+    scooter: 22,
+    drone: 22
+};
+
+/** Espalha os tipos ao longo da onda, para não chegarem todos os drones juntos no fim. */
+export function interleaveEnemyCounts(counts: Readonly<Partial<Record<EnemyKind, number>>>) {
+    const entries = Object.entries(counts) as [EnemyKind, number][];
+    const total = entries.reduce((sum, [, count]) => sum + count, 0);
+    const used = new Map<EnemyKind, number>();
+    return Array.from({ length: total }, (_, index) => {
+        // O tipo mais atrasado em relação à sua fatia entra agora.
+        const [kind] = entries.reduce((best, entry) => {
+            const lag = (index + 1) * entry[1] / total - (used.get(entry[0]) ?? 0);
+            const bestLag = (index + 1) * best[1] / total - (used.get(best[0]) ?? 0);
+            return lag > bestLag ? entry : best;
+        });
+        used.set(kind, (used.get(kind) ?? 0) + 1);
+        return kind;
+    });
+}
+
+const ROOM2_SECOND_HORDE_KINDS = interleaveEnemyCounts(ROOM2_SECOND_HORDE);
+
 /** Distâncias em pixels do mundo; intervalos e duração em milissegundos. */
 const PLAYER_COMBAT_STATS = {
     maxHealth: 4,
@@ -73,7 +100,7 @@ export const COMBAT_CONFIG = {
     wavesByRoom: {
         room1: [10, 8],
         // A segunda onda vem depois da carta e é bem maior: a horda cresce.
-        room2: [12, 72],
+        room2: [12, ROOM2_SECOND_HORDE_KINDS.length],
         dungeon: [10],
         'gaucho-dungeon': [10]
     },
@@ -120,8 +147,8 @@ const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
     room2: [
         // Um a cada cinco inimigos da Sala II é um gaúcho.
         ['guard', 'guard', 'drone', 'scooter', 'gaucho'],
-        // Horda: maioria corpo a corpo, poucos drones atirando.
-        ['gaucho', 'guard', 'scooter', 'gaucho', 'drone', 'gaucho']
+        // Horda: a composição exata vem de ROOM2_SECOND_HORDE.
+        ROOM2_SECOND_HORDE_KINDS
     ],
     dungeon: [
         ['scooter', 'drone', 'guard', 'drone', 'scooter']
