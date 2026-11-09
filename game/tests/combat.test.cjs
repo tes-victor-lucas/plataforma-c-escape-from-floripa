@@ -2640,6 +2640,37 @@ test('multiplayer: abate confirmado pelo anfitrião dispara a detonação do con
     assert.equal(detonated[0].id, 'enemy-0:coop-kill');
 });
 
+test('multiplayer: tiro perfurante atravessa inimigos também na tela do parceiro', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('piercing-shot'));
+    const { combat, drones, groups, overlaps } = setup([[150, 100], [170, 100], [190, 100]], [], upgrades);
+    const shots = [];
+    combat.setNetwork({ ...coopNetwork(true, { swings: [], hits: [] }), onPlayerShot: (...args) => shots.push(args) });
+    combat.update(0);
+    assert.equal(shots[0][5], upgrades.piercingTargets, 'quem atira avisa quantas perfurações o tiro tem');
+
+    // No jogo os inimigos nascem depois do setNetwork; aqui entram de novo para ganhar o overlap do parceiro.
+    combat.enemyCooldowns.clear();
+    const start = overlaps.length;
+    drones.forEach((drone) => combat.registerDrone(drone));
+    const partnerShots = groups[groups.length - 1];
+    const partnerHit = (index, shot) => overlaps[start + index * 2].hit(shot);
+
+    combat.spawnPartnerShot(100, 100, 0, 300, 0xffffff, 1);
+    const piercing = partnerShots.shots[0];
+    partnerHit(0, piercing);
+    assert.equal(piercing.active, true, 'atravessa o primeiro');
+    partnerHit(0, piercing);
+    assert.equal(piercing.active, true, 'o mesmo inimigo não gasta outra perfuração');
+    partnerHit(1, piercing);
+    assert.equal(piercing.active, false, 'para no segundo');
+
+    combat.spawnPartnerShot(100, 100, 0, 300, 0xffffff);
+    const common = partnerShots.shots[1];
+    partnerHit(2, common);
+    assert.equal(common.active, false, 'tiro comum para no primeiro');
+});
+
 test('multiplayer: golpe do anfitrião causa dano e só avisa o parceiro do movimento', () => {
     const { combat, drones, player } = setup([[125, 100]], [], new PlayerUpgradeState(), undefined, true);
     player.getAimDirection = () => ({ x: 1, y: 0 });
