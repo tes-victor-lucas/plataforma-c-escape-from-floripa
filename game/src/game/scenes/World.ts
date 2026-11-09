@@ -1370,8 +1370,8 @@ export class World extends Scene {
             isHost: this.isMultiplayerHost(),
             getEnemyTarget: (origin) => this.getEnemyTarget(origin) as Player | undefined,
             onEnemyShot: (x, y, angle) => multiplayerClient.sendEvent({ kind: 'enemy.shot', x, y, angle }),
-            onPlayerShot: (x, y, angle, speed, color) => multiplayerClient.sendEvent({
-                kind: 'player.shot', x, y, angle, speed, color
+            onPlayerShot: (x, y, angle, speed, color, pierces) => multiplayerClient.sendEvent({
+                kind: 'player.shot', x, y, angle, speed, color, pierces
             }),
             onPlayerSwing: (x, y, angle) => multiplayerClient.sendEvent({ kind: 'player.swing', x, y, angle }),
             onPlayerEffect: (effect) => multiplayerClient.sendEvent({ kind: 'player.effect', ...effect }),
@@ -1580,7 +1580,7 @@ export class World extends Scene {
                 break;
             }
             case 'player.shot':
-                this.combat?.spawnPartnerShot(event.x, event.y, event.angle, event.speed, event.color);
+                this.combat?.spawnPartnerShot(event.x, event.y, event.angle, event.speed, event.color, event.pierces);
                 break;
             case 'player.swing':
                 this.combat?.playPartnerSwing(event.x, event.y, event.angle);

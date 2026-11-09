@@ -34,7 +34,7 @@ export type CombatNetwork = {
     isHost: boolean;
     getEnemyTarget(origin: { x: number; y: number }): Fighter | undefined;
     onEnemyShot(x: number, y: number, angle: number): void;
-    onPlayerShot(x: number, y: number, angle: number, speed: number, color: number): void;
+    onPlayerShot(x: number, y: number, angle: number, speed: number, color: number, pierces: number): void;
     onPlayerSwing(x: number, y: number, angle: number): void;
     onPlayerEffect(effect: PlayerEffect): void;
     onEnemyHit(enemy: CombatEnemy, damage: number, direction: { x: number; y: number }): void;
@@ -74,7 +74,7 @@ export class CombatSystem {
     private readonly orbitHits = new Map<CombatEnemy, number>();
     private network?: CombatNetwork;
     private partnerShots?: Physics.Arcade.Group;
-    private readonly partnerShotLifetimes = new Map<Physics.Arcade.Image, number>();
+    private readonly partnerShotStates = new Map<Physics.Arcade.Image, { lifetime: number; pierces: number; hit: Set<CombatEnemy> }>();
 
     constructor(
         private readonly scene: Scene,
@@ -119,7 +119,13 @@ export class CombatSystem {
         this.enemyCooldowns.set(enemy, isRanged ? COMBAT_CONFIG.drone.fireInterval : 0);
         if (this.partnerShots) {
             this.scene.physics.add.overlap(enemy.sprite, this.partnerShots, (_target, shot) => {
-                if (enemy.health.isAlive) this.removePartnerShot(shot as Physics.Arcade.Image);
+                const projectile = shot as Physics.Arcade.Image;
+                const state = this.partnerShotStates.get(projectile);
+                if (!enemy.health.isAlive || !state || state.hit.has(enemy)) return;
+                // Tiro perfurante do parceiro atravessa aqui também, como na tela de quem atirou.
+                state.hit.add(enemy);
+                if (state.pierces > 0) state.pierces -= 1;
+                else this.removePartnerShot(projectile);
             });
         }
         // Arcade entrega o sprite antes do membro do grupo no callback.
@@ -177,9 +183,9 @@ export class CombatSystem {
                 this.removeShot(shot);
             }
         }
-        for (const [shot, lifetime] of this.partnerShotLifetimes) {
-            if (lifetime <= delta) this.removePartnerShot(shot);
-            else this.partnerShotLifetimes.set(shot, lifetime - delta);
+        for (const [shot, state] of this.partnerShotStates) {
+            state.lifetime -= delta;
+            if (state.lifetime <= 0) this.removePartnerShot(shot);
         }
         const isPlayerAlive = this.player.health.isAlive;
         // No multiplayer os inimigos continuam agindo enquanto o jogador local está caído.
@@ -534,7 +540,7 @@ export class CombatSystem {
 
     clear() {
         for (const shot of this.projectiles.keys()) this.removeShot(shot);
-        for (const shot of this.partnerShotLifetimes.keys()) this.removePartnerShot(shot);
+        for (const shot of this.partnerShotStates.keys()) this.removePartnerShot(shot);
     }
 
     setPlayerFireRateMultiplier(multiplier: number) {
@@ -563,11 +569,11 @@ export class CombatSystem {
     }
 
     /** Tiro do parceiro: apenas visual, o dano é resolvido no cliente de quem atirou. */
-    spawnPartnerShot(x: number, y: number, angle: number, speed: number, color: number) {
+    spawnPartnerShot(x: number, y: number, angle: number, speed: number, color: number, pierces = 0) {
         if (!this.partnerShots) return;
         const shot = this.partnerShots.create(x, y, 'combat-projectile-rounded') as Physics.Arcade.Image;
         this.configureShot(shot, angle, speed, color);
-        this.partnerShotLifetimes.set(shot, COMBAT_CONFIG.projectile.lifetime);
+        this.partnerShotStates.set(shot, { lifetime: COMBAT_CONFIG.projectile.lifetime, pierces, hit: new Set() });
     }
 
     private fireAtNearestPlayer(enemy: CombatEnemy, origin: { x: number; y: number }, cooldown: number) {
@@ -585,7 +591,7 @@ export class CombatSystem {
     }
 
     private removePartnerShot(shot: Physics.Arcade.Image) {
-        this.partnerShotLifetimes.delete(shot);
+        this.partnerShotStates.delete(shot);
         if (shot.active) shot.destroy();
     }
 
@@ -640,7 +646,7 @@ export class CombatSystem {
         const id = createProjectileId(this.tracker.snapshot().runId);
         this.configureShot(shot, angle, weapon.projectileSpeed, weapon.color);
         if (group === this.playerShots) {
-            this.network?.onPlayerShot(origin.x, origin.y, angle, weapon.projectileSpeed, weapon.color);
+            this.network?.onPlayerShot(origin.x, origin.y, angle, weapon.projectileSpeed, weapon.color, remainingPierces);
         }
         this.projectiles.set(shot, {
             id,

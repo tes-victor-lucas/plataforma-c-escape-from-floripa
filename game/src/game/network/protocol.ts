@@ -55,7 +55,7 @@ export type CoopEvent =
     | { kind: 'enemy.shot'; x: number; y: number; angle: number }
     | { kind: 'enemy.hit'; index: number; damage: number; dx: number; dy: number }
     | { kind: 'enemy.killed'; index: number }
-    | { kind: 'player.shot'; x: number; y: number; angle: number; speed: number; color: number }
+    | { kind: 'player.shot'; x: number; y: number; angle: number; speed: number; color: number; pierces?: number }
     | { kind: 'player.swing'; x: number; y: number; angle: number }
     | ({ kind: 'player.effect' } & PlayerEffect)
     | { kind: 'player.damage'; amount: number }
