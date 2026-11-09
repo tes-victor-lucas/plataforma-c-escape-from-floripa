@@ -247,7 +247,7 @@ export class World extends Scene {
                 (tileX + 0.5) * room.map.tileWidth,
                 (tileY + 0.5) * room.map.tileHeight
             )?.collides ?? false);
-        const isWalkableTile = roomKey === 'room2'
+        const isWalkableTile = roomKey === 'room2' || roomKey === 'room3'
             ? (tileX: number, tileY: number) => walkableRoom2Layers.some((layer) =>
                 room.map.hasTileAt(tileX, tileY, layer.name))
             : () => true;
