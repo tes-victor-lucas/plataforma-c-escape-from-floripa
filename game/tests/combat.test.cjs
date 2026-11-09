@@ -2671,6 +2671,40 @@ test('multiplayer: tiro perfurante atravessa inimigos também na tela do parceir
     assert.equal(common.active, false, 'tiro comum para no primeiro');
 });
 
+test('multiplayer: faíscas e drone só aparecem para o parceiro quando estão agindo', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { multiplayerClient } = load('../src/game/network/MultiplayerClient.ts');
+    const world = new World();
+    world.registry = { get: (key) => key === 'multiplayerEnabled' };
+    world.player = {
+        sprite: { x: 0, y: 0, body: { center: { x: 0, y: 0 } } },
+        health: new Health(5),
+        getNetworkState: () => ({ x: 0, y: 0, facing: 'down' })
+    };
+    world.upgrades.acquire(getUpgradeCard('spark-orbit'));
+    world.upgrades.acquire(getUpgradeCard('companion-drone'));
+    const sent = [];
+    const originalSend = multiplayerClient.sendPlayerState;
+    multiplayerClient.sendPlayerState = (state) => sent.push(state);
+    const sync = (roomKey) => {
+        world.activeRoomKey = roomKey;
+        world.multiplayerSyncElapsed = 0;
+        world.updateMultiplayer(50);
+        return sent.at(-1);
+    };
+    try {
+        assert.equal(sync('room2').orbitCount, 4);
+        assert.equal(sync('room2').companion, true);
+        assert.equal(sync('gaucho-dungeon').orbitCount, 0, 'sala corpo a corpo não usa as cartas');
+        assert.equal(sync('gaucho-dungeon').companion, false);
+        world.player.health.takeDamage(5);
+        assert.equal(sync('room2').orbitCount, 0, 'caído não ataca com as faíscas');
+        assert.equal(sync('room2').companion, false);
+    } finally {
+        multiplayerClient.sendPlayerState = originalSend;
+    }
+});
+
 test('multiplayer: golpe do anfitrião causa dano e só avisa o parceiro do movimento', () => {
     const { combat, drones, player } = setup([[125, 100]], [], new PlayerUpgradeState(), undefined, true);
     player.getAimDirection = () => ({ x: 1, y: 0 });
