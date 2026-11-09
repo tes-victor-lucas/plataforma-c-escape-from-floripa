@@ -1574,6 +1574,8 @@ export class World extends Scene {
                 // shortcut: o projétil já terminou aqui, então abates do convidado não somam multi-kill.
                 const killId = `${enemy.id}:coop-kill`;
                 if (runTracker.recordEnemyDeath(enemy.id, killId)) runTracker.finalizeProjectile(killId);
+                // Só o anfitrião manda este evento, e só por golpe do convidado: a carta de detonação é daqui.
+                this.combat?.detonateConfirmedKill(enemy, killId);
                 this.playHitStop();
                 break;
             }

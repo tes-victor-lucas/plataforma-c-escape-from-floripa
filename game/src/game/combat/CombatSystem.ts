@@ -335,6 +335,11 @@ export class CombatSystem {
     }
 
     /** Detonação: o abatido explode; outra morte na explosão continua a cadeia. */
+    /** No convidado, o abate chega confirmado pelo anfitrião; a detonação sai das cartas de quem matou. */
+    detonateConfirmedKill(enemy: CombatEnemy, attackId: string) {
+        this.detonate(enemy, attackId);
+    }
+
     private detonate(enemy: CombatEnemy, attackId: string) {
         const { deathBlastRadius, deathBlastDamageRatio, damage } = this.playerStats;
         if (deathBlastRadius <= 0) return;
