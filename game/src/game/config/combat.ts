@@ -150,6 +150,10 @@ export const COMBAT_CONFIG = {
         room2: [
             { maxAlive: 10, batchSize: 4, interval: 1_000 },
             { maxAlive: 28, batchSize: 6, interval: 800 }
+        ],
+        room3: [
+            { maxAlive: 28, batchSize: 6, interval: 800 },
+            { maxAlive: 36, batchSize: 8, interval: 700 }
         ]
     } as Partial<Record<RoomKey, readonly { maxAlive: number; batchSize: number; interval: number }[]>>,
     // A câmera mostra ~508×286 px do mapa (zoom 1,75): a horda nasce logo depois da borda
