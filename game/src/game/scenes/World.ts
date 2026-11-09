@@ -738,7 +738,8 @@ export class World extends Scene {
     /** O anfitrião sorteia o chimarrão, e o item aparece para os dois jogadores. */
     private dropChimarrao(x: number, y: number, random = Math.random) {
         const { chimarrao } = WORLD_CONFIG;
-        if (!this.player || this.isMultiplayerGuest() || random() >= chimarrao.dropChance) return;
+        const chance = this.activeRoomKey === 'gaucho-dungeon' ? chimarrao.dungeonDropChance : chimarrao.dropChance;
+        if (!this.player || this.isMultiplayerGuest() || random() >= chance) return;
         const id = ++this.droppedItemSequence;
         this.spawnChimarrao(id, x, y);
         if (this.isMultiplayerEnabled()) multiplayerClient.sendEvent({ kind: 'item.drop', id, x, y });

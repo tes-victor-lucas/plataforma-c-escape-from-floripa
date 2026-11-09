@@ -63,7 +63,9 @@ export const WORLD_CONFIG = {
     },
     chimarrao: {
         texture: 'chimarrao',
-        dropChance: 0.5,
+        // Na dungeon dos gaúchos todo gaúcho larga a cuia; nas salas normais, só alguns.
+        dropChance: 0.2,
+        dungeonDropChance: 1,
         effectMultiplier: 1.5,
         effectDuration: 3_000
     },
