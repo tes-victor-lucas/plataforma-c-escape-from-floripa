@@ -72,7 +72,7 @@ import {
     type SecretDungeonGateway
 } from '../config/roomGateway';
 import { RoomExitPortal } from '../map/RoomExitPortal';
-import { ROOM_CLEAR_CODE, SecretCodeMatcher } from '../config/secretCodes';
+import { ROOM3_CARD_CODE, ROOM_CLEAR_CODE, SecretCodeMatcher } from '../config/secretCodes';
 import {
     capturePlayerProgress,
     restorePlayerProgress,
@@ -180,6 +180,7 @@ export class World extends Scene {
     private cardRelease?: () => void;
     private isRoomRequestPending = false;
     private readonly roomClearCode = new SecretCodeMatcher(ROOM_CLEAR_CODE);
+    private readonly room3CardCode = new SecretCodeMatcher(ROOM3_CARD_CODE);
     private completeRoomCombat?: () => void;
     private dungeonReturnArea?: Readonly<{ left: number; right: number; top: number; bottom: number }>;
     private dungeonState?: DungeonSessionState;
@@ -214,6 +215,7 @@ export class World extends Scene {
         this.lowHealthFilter = undefined;
         this.lowHealthDesaturation = -1;
         this.roomClearCode.reset();
+        this.room3CardCode.reset();
         this.nauseaEndsAt = 0;
         this.chimarraoBuffTimer = undefined;
         this.multiplayerSyncElapsed = 0;
@@ -782,6 +784,10 @@ export class World extends Scene {
             event.repeat || isDungeonRoom(this.activeRoomKey) || this.isMultiplayerGuest()
             || !this.isGameplayReady || this.isGameOver || this.isRoomCombatComplete
         ) return;
+        if (this.activeRoomKey === 'room3' && this.room3CardCode.push(event.key)) {
+            this.grantRandomStrongCard();
+            return;
+        }
         if (!this.roomClearCode.push(event.key)) return;
 
         this.combat?.clear();
@@ -791,6 +797,27 @@ export class World extends Scene {
         }
         // Na Sala III concluir o combate é a vitória: o atalho só limpa a horda e a partida segue.
         if (this.activeRoomKey !== 'room3') this.completeRoomCombat?.();
+    }
+
+    /** Atalho de teste da Sala III: aplica na hora uma carta forte que ainda pode subir de nível. */
+    private grantRandomStrongCard(random = Math.random) {
+        const pool = this.upgrades.availableCards().filter((card) => ROOM3_UPGRADE_IDS.includes(card.id));
+        const card = pool[Math.floor(random() * pool.length)];
+        if (card) this.acquireUpgrade(card);
+        this.showFloatingHint(card ? `+ ${card.title.toUpperCase()}` : 'CARTAS FORTES NO MÁXIMO');
+    }
+
+    private showFloatingHint(text: string) {
+        if (!this.player) return;
+        const hint = this.createWorldHint(text).setPosition(this.player.sprite.x, this.player.sprite.y - 26);
+        this.tweens.add({
+            targets: hint,
+            y: hint.y - 12,
+            alpha: 0,
+            delay: 900,
+            duration: 600,
+            onComplete: () => hint.destroy()
+        });
     }
 
     private createDroneBodies() {
@@ -1249,6 +1276,7 @@ export class World extends Scene {
         this.chimarraoBuffTimer?.remove(false);
         this.chimarraoBuffTimer = undefined;
         this.roomClearCode.reset();
+        this.room3CardCode.reset();
         this.scene.stop('CombatHud');
         this.combat?.clear();
         this.combat = undefined;
