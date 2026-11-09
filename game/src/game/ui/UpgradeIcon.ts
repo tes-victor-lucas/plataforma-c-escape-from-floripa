@@ -99,9 +99,11 @@ export function createUpgradeIcon(
             drawLine(icon, -29, 10, -14, 10);
             break;
         case 'projectile-damage':
+        case 'heavy-rounds':
             drawImpact(icon);
             break;
         case 'fire-rate':
+        case 'overclock':
             drawBullet(icon, 9, -15, 0.7);
             drawBullet(icon, 2, 0, 0.7);
             drawBullet(icon, 9, 15, 0.7);
@@ -137,6 +139,7 @@ export function createUpgradeIcon(
             drawLine(icon, 17, 13, 29, 25);
             break;
         case 'shock-pulse':
+        case 'nova-pulse':
             icon.fillCircle(0, 0, 5);
             icon.strokeCircle(0, 0, 14).strokeCircle(0, 0, 25);
             break;
@@ -154,6 +157,7 @@ export function createUpgradeIcon(
             icon.fillCircle(0, -20, 6).fillCircle(17, 10, 6).fillCircle(-17, 10, 6);
             break;
         case 'chain-lightning':
+        case 'thunder-storm':
             icon.beginPath();
             icon.moveTo(6, -28);
             icon.lineTo(-10, 2);
