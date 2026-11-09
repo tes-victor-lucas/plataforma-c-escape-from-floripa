@@ -7,6 +7,12 @@ export function isTouchScreen(
     return matchMedia?.('(pointer: coarse)').matches ?? false;
 }
 
+/** No celular, deitado pede tela cheia e em pé sai dela; fora do toque a tela cheia fica com o botão. */
+export function orientationFullscreenAction(isTouch: boolean, isLandscape: boolean, isFullscreen: boolean) {
+    if (!isTouch || isLandscape === isFullscreen) return undefined;
+    return isLandscape ? 'enter' : 'exit';
+}
+
 /** Estado dos controles de toque, lido pelo Player e pelo World como se fosse o gamepad. */
 export const touchInput = {
     x: 0,

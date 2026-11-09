@@ -1,4 +1,5 @@
 import { Game, Scale } from 'phaser';
+import { isTouchScreen, orientationFullscreenAction } from '../input/TouchInput';
 
 const BUTTON_ID = 'fullscreen-button';
 
@@ -32,4 +33,21 @@ export function setupFullscreenButton(game: Game) {
     game.scale.on(Scale.Events.FULLSCREEN_UNSUPPORTED, disableButton);
 
     updateButton();
+    setupOrientationFullscreen(game, button);
+}
+
+/** Celular deitado joga em tela cheia; ao ficar em pé sai sozinho. */
+function setupOrientationFullscreen(game: Game, button: HTMLElement) {
+    const landscape = window.matchMedia('(orientation: landscape)');
+    const sync = (isGesture: boolean) => {
+        const action = orientationFullscreenAction(isTouchScreen(), landscape.matches, game.scale.isFullscreen);
+        if (action === 'exit') game.scale.stopFullscreen();
+        // O navegador só abre tela cheia dentro de um gesto: girar não conta, então ela abre no próximo toque.
+        if (action === 'enter' && isGesture) game.scale.startFullscreen();
+    };
+    landscape.addEventListener('change', () => sync(false));
+    window.addEventListener('pointerup', (event) => {
+        // O próprio botão alterna a tela cheia; abrir aqui também faria o clique fechá-la em seguida.
+        if (!button.contains(event.target as Node)) sync(true);
+    }, true);
 }
