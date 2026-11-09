@@ -1,4 +1,4 @@
-export type RoomKey = 'room1' | 'room2' | 'dungeon' | 'gaucho-dungeon';
+export type RoomKey = 'room1' | 'room2' | 'room3' | 'dungeon' | 'gaucho-dungeon';
 
 export function isDungeonRoom(roomKey: RoomKey) {
     return roomKey === 'dungeon' || roomKey === 'gaucho-dungeon';
@@ -36,6 +36,109 @@ const SHARED_TILESETS = [
     }
 ] as const;
 
+const ROOM2_TILESETS = [
+    ...SHARED_TILESETS,
+    {
+        mapName: 'centro-cultural-marinha-facade',
+        textureKey: 'centro-cultural-marinha-facade',
+        path: 'assets/props/centro-cultural-marinha-facade.png'
+    },
+    {
+        mapName: 'centro-cultural-marinha-facade-18x12',
+        textureKey: 'centro-cultural-marinha-facade-18x12',
+        path: 'assets/props/centro-cultural-marinha-facade-18x12.png'
+    },
+    {
+        mapName: 'centro-cultural-marinha-facade-v2-18x12',
+        textureKey: 'centro-cultural-marinha-facade-v2-18x12',
+        path: 'assets/props/centro-cultural-marinha-facade-v2-18x12.png'
+    },
+    {
+        mapName: 'piranhas-bar-facade-12x8',
+        textureKey: 'piranhas-bar-facade-12x8',
+        path: 'assets/props/piranhas-bar-facade-12x8.png'
+    },
+    {
+        mapName: 'piranhas-bar-facade-11x7',
+        textureKey: 'piranhas-bar-facade-11x7',
+        path: 'assets/props/piranhas-bar-facade-11x7.png'
+    },
+    {
+        mapName: 'piranhas-bar-facade-12x8',
+        textureKey: 'piranhas-bar-facade-12x8',
+        path: 'assets/props/piranhas-bar-facade-12x8.png'
+    },
+    {
+        mapName: 'piranhas-bar-sign-18x6',
+        textureKey: 'piranhas-bar-sign-18x6',
+        path: 'assets/props/piranhas-bar-sign-18x6.png'
+    },
+    {
+        mapName: 'piranhas-bar-facade-12x8',
+        textureKey: 'piranhas-bar-facade-12x8',
+        path: 'assets/props/piranhas-bar-facade-12x8.png'
+    },
+    {
+        mapName: 'terminal-antigo-modular-v2-256',
+        textureKey: 'terminal-antigo-modular-v2-256',
+        path: 'assets/tilesets/terminal-antigo-modular-v2-256.png'
+    },
+    {
+        mapName: 'terminal-antigo-modular-v3-224',
+        textureKey: 'terminal-antigo-modular-v3-224',
+        path: 'assets/tilesets/terminal-antigo-modular-v3-224.png'
+    },
+    {
+        mapName: 'terminal-antigo-props-256',
+        textureKey: 'terminal-antigo-props-256',
+        path: 'assets/tilesets/terminal-antigo-props-256.png'
+    },
+    {
+        mapName: 'mural-franklin-cascaes-8x12',
+        textureKey: 'mural-franklin-cascaes-8x12',
+        path: 'assets/props/mural-franklin-cascaes-8x12.png'
+    },
+    {
+        mapName: 'mural-cruz-e-sousa-8x12',
+        textureKey: 'mural-cruz-e-sousa-8x12',
+        path: 'assets/props/mural-cruz-e-sousa-8x12.png'
+    },
+    {
+        mapName: 'terminal-placa-pendente-3x3',
+        textureKey: 'terminal-placa-pendente-3x3',
+        path: 'assets/props/terminal-placa-pendente-3x3.png'
+    },
+    {
+        mapName: 'curva-faixa-rua-256',
+        textureKey: 'curva-faixa-rua-256',
+        path: 'assets/tilesets/curva-faixa-rua-256.png'
+    }
+] as const;
+
+// A Praça XV repete os tilesets da Sala II na mesma ordem e acrescenta os seus.
+const ROOM3_TILESETS = [
+    ...ROOM2_TILESETS,
+    { mapName: 'praca_xv_itens', textureKey: 'praca_xv_itens', path: 'assets/tilesets/praca_xv_itens.png' },
+    { mapName: 'figueira_copa', textureKey: 'figueira_copa', path: 'assets/tilesets/figueira_copa.png' },
+    { mapName: 'figueira_tronco', textureKey: 'figueira_tronco', path: 'assets/tilesets/figueira_tronco.png' },
+    { mapName: 'catedral', textureKey: 'catedral', path: 'assets/tilesets/catedral.png' },
+    { mapName: 'catedral_predio', textureKey: 'catedral_predio', path: 'assets/tilesets/catedral_predio.png' },
+    { mapName: 'catedral_escadaria', textureKey: 'catedral_escadaria', path: 'assets/tilesets/catedral_escadaria.png' },
+    { mapName: 'praca_canteiros', textureKey: 'praca_canteiros', path: 'assets/tilesets/praca_canteiros.png' },
+    { mapName: 'monumento', textureKey: 'monumento', path: 'assets/tilesets/monumento.png' },
+    { mapName: 'pergola_modulo', textureKey: 'pergola_modulo', path: 'assets/tilesets/pergola_modulo.png' },
+    { mapName: 'poste_3_globos', textureKey: 'poste_3_globos', path: 'assets/tilesets/poste_3_globos.png' },
+    { mapName: 'pedra_placa', textureKey: 'pedra_placa', path: 'assets/tilesets/pedra_placa.png' },
+    { mapName: 'praca_detalhes_tiles', textureKey: 'praca_detalhes_tiles', path: 'assets/tilesets/praca_detalhes_tiles.png' },
+    { mapName: 'paredao_tiles', textureKey: 'paredao_tiles', path: 'assets/tilesets/paredao_tiles.png' },
+    { mapName: 'antena', textureKey: 'antena', path: 'assets/tilesets/antena.png' },
+    { mapName: 'pichacao', textureKey: 'pichacao', path: 'assets/tilesets/pichacao.png' },
+    { mapName: 'letreiro_farmacia', textureKey: 'letreiro_farmacia', path: 'assets/tilesets/letreiro_farmacia.png' },
+    { mapName: 'letreiro_farmacia', textureKey: 'letreiro_farmacia', path: 'assets/tilesets/letreiro_farmacia.png' },
+    { mapName: 'neon_bar', textureKey: 'neon_bar', path: 'assets/tilesets/neon_bar.png' },
+    { mapName: 'outdoor_floria', textureKey: 'outdoor_floria', path: 'assets/tilesets/outdoor_floria.png' }
+] as const;
+
 export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
     room1: {
         mapKey: 'room1',
@@ -49,84 +152,15 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
         mapPath: 'assets/maps/room2.json',
         title: 'Sala II',
         spawn: { x: 184, y: 536 },
-        tilesets: [
-            ...SHARED_TILESETS,
-            {
-                mapName: 'centro-cultural-marinha-facade',
-                textureKey: 'centro-cultural-marinha-facade',
-                path: 'assets/props/centro-cultural-marinha-facade.png'
-            },
-            {
-                mapName: 'centro-cultural-marinha-facade-18x12',
-                textureKey: 'centro-cultural-marinha-facade-18x12',
-                path: 'assets/props/centro-cultural-marinha-facade-18x12.png'
-            },
-            {
-                mapName: 'centro-cultural-marinha-facade-v2-18x12',
-                textureKey: 'centro-cultural-marinha-facade-v2-18x12',
-                path: 'assets/props/centro-cultural-marinha-facade-v2-18x12.png'
-            },
-            {
-                mapName: 'piranhas-bar-facade-12x8',
-                textureKey: 'piranhas-bar-facade-12x8',
-                path: 'assets/props/piranhas-bar-facade-12x8.png'
-            },
-            {
-                mapName: 'piranhas-bar-facade-11x7',
-                textureKey: 'piranhas-bar-facade-11x7',
-                path: 'assets/props/piranhas-bar-facade-11x7.png'
-            },
-            {
-                mapName: 'piranhas-bar-facade-12x8',
-                textureKey: 'piranhas-bar-facade-12x8',
-                path: 'assets/props/piranhas-bar-facade-12x8.png'
-            },
-            {
-                mapName: 'piranhas-bar-sign-18x6',
-                textureKey: 'piranhas-bar-sign-18x6',
-                path: 'assets/props/piranhas-bar-sign-18x6.png'
-            },
-            {
-                mapName: 'piranhas-bar-facade-12x8',
-                textureKey: 'piranhas-bar-facade-12x8',
-                path: 'assets/props/piranhas-bar-facade-12x8.png'
-            },
-            {
-                mapName: 'terminal-antigo-modular-v2-256',
-                textureKey: 'terminal-antigo-modular-v2-256',
-                path: 'assets/tilesets/terminal-antigo-modular-v2-256.png'
-            },
-            {
-                mapName: 'terminal-antigo-modular-v3-224',
-                textureKey: 'terminal-antigo-modular-v3-224',
-                path: 'assets/tilesets/terminal-antigo-modular-v3-224.png'
-            },
-            {
-                mapName: 'terminal-antigo-props-256',
-                textureKey: 'terminal-antigo-props-256',
-                path: 'assets/tilesets/terminal-antigo-props-256.png'
-            },
-            {
-                mapName: 'mural-franklin-cascaes-8x12',
-                textureKey: 'mural-franklin-cascaes-8x12',
-                path: 'assets/props/mural-franklin-cascaes-8x12.png'
-            },
-            {
-                mapName: 'mural-cruz-e-sousa-8x12',
-                textureKey: 'mural-cruz-e-sousa-8x12',
-                path: 'assets/props/mural-cruz-e-sousa-8x12.png'
-            },
-            {
-                mapName: 'terminal-placa-pendente-3x3',
-                textureKey: 'terminal-placa-pendente-3x3',
-                path: 'assets/props/terminal-placa-pendente-3x3.png'
-            },
-            {
-                mapName: 'curva-faixa-rua-256',
-                textureKey: 'curva-faixa-rua-256',
-                path: 'assets/tilesets/curva-faixa-rua-256.png'
-            }
-        ]
+        tilesets: ROOM2_TILESETS
+    },
+    room3: {
+        mapKey: 'room3',
+        mapPath: 'assets/maps/room3.json',
+        title: 'Sala III',
+        // Continua a rua que sai pela direita da Sala II: entra pela borda esquerda.
+        spawn: { x: 6 * 16, y: 20 * 16 },
+        tilesets: ROOM3_TILESETS
     },
     dungeon: {
         mapKey: 'dungeon',

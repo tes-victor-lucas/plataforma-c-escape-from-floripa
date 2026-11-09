@@ -25,6 +25,15 @@ export const ROOM2_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
     bike: 20
 };
 
+/** Horda da Sala III depois da carta: metade maior que a última da Sala II. */
+export const ROOM3_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
+    gaucho: 69,
+    guard: 33,
+    scooter: 33,
+    drone: 33,
+    bike: 30
+};
+
 /** Espalha os tipos ao longo da onda, para não chegarem todos os drones juntos no fim. */
 export function interleaveEnemyCounts(counts: Readonly<Partial<Record<EnemyKind, number>>>) {
     const entries = Object.entries(counts) as [EnemyKind, number][];
@@ -45,6 +54,7 @@ export function interleaveEnemyCounts(counts: Readonly<Partial<Record<EnemyKind,
 // Os dois primeiros nascem nos pontos fixos da escada e precisam ser guardas.
 const ROOM2_FIRST_HORDE_KINDS: readonly EnemyKind[] = ['guard', 'guard', ...interleaveEnemyCounts(ROOM2_FIRST_HORDE)];
 const ROOM2_SECOND_HORDE_KINDS = interleaveEnemyCounts(ROOM2_SECOND_HORDE);
+const ROOM3_SECOND_HORDE_KINDS = interleaveEnemyCounts(ROOM3_SECOND_HORDE);
 
 /** Distâncias em pixels do mundo; intervalos e duração em milissegundos. */
 const PLAYER_COMBAT_STATS = {
@@ -127,6 +137,8 @@ export const COMBAT_CONFIG = {
         room1: [10, 8],
         // A segunda onda vem depois da carta e é bem maior: a horda cresce.
         room2: [ROOM2_FIRST_HORDE_KINDS.length, ROOM2_SECOND_HORDE_KINDS.length],
+        // A Sala III já abre com a horda final da Sala II.
+        room3: [ROOM2_SECOND_HORDE_KINDS.length, ROOM3_SECOND_HORDE_KINDS.length],
         dungeon: [10],
         'gaucho-dungeon': [10]
     },
@@ -176,6 +188,7 @@ const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
         // Horda: a composição exata vem de ROOM2_SECOND_HORDE.
         ROOM2_SECOND_HORDE_KINDS
     ],
+    room3: [ROOM2_SECOND_HORDE_KINDS, ROOM3_SECOND_HORDE_KINDS],
     dungeon: [
         ['scooter', 'drone', 'guard', 'drone', 'scooter']
     ],
