@@ -59,7 +59,7 @@ export function createRoom(scene: Scene, mapKey: string, dungeonSeed = Date.now(
     if (mapKey === 'dungeon') return createProceduralDungeon(scene, dungeonSeed);
     // A semente é da partida inteira; o esconderijo não pode repetir a planta da dungeon.
     if (mapKey === 'gaucho-dungeon') return createProceduralDungeon(scene, (dungeonSeed ^ 0x9e3779b9) >>> 0);
-    if (mapKey === 'room2') return createRoom2(scene);
+    if (mapKey === 'room2' || mapKey === 'room3') return createLayeredRoom(scene, mapKey);
 
     const map = scene.make.tilemap({ key: mapKey });
     const tilesets = ROOM_DEFINITIONS.room1.tilesets.map(({ mapName, textureKey }) =>
@@ -123,12 +123,12 @@ export function createRoom(scene: Scene, mapKey: string, dungeonSeed = Date.now(
     return { map, collisionLayers, openExit: () => openRoomExit(collisionLayers) };
 }
 
-/** Monta todas as camadas da Room 2 na ordem do Tiled e respeita seus colliders por camada. */
-function createRoom2(scene: Scene): Room | null {
-    const roomDefinition = ROOM_DEFINITIONS.room2;
+/** Monta todas as camadas das Salas II e III na ordem do Tiled e respeita seus colliders por camada. */
+function createLayeredRoom(scene: Scene, roomKey: 'room2' | 'room3'): Room | null {
+    const roomDefinition = ROOM_DEFINITIONS[roomKey];
     const map = scene.make.tilemap({ key: roomDefinition.mapKey });
     if (map.tilesets.length !== roomDefinition.tilesets.length) {
-        console.error('A quantidade de tilesets da room2 não corresponde à configuração.');
+        console.error(`A quantidade de tilesets da ${roomKey} não corresponde à configuração.`);
         return null;
     }
 
@@ -144,10 +144,10 @@ function createRoom2(scene: Scene): Room | null {
     for (let index = 0; index < map.layers.length; index += 1) {
         const createdLayer = map.createLayer(index, resolvedTilesets);
         if (!createdLayer) {
-            console.error(`Não foi possível criar a camada ${map.layers[index].name} da room2.`);
+            console.error(`Não foi possível criar a camada ${map.layers[index].name} da ${roomKey}.`);
             return null;
         }
-        // A Room 2 usa o renderizador clássico, que oferece tint e colisão Arcade.
+        // As salas montadas no Tiled usam o renderizador clássico, que oferece tint e colisão Arcade.
         const layer = createdLayer as Phaser.Tilemaps.TilemapLayer;
 
         layer.setDepth(getRoom2LayerDepth(layer.layer.name)).setTint(ROOM_AMBIENT_TINT);
