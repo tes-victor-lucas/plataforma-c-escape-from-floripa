@@ -13,7 +13,11 @@ export type UpgradeId =
     | 'spark-orbit'
     | 'chain-lightning'
     | 'death-blast'
-    | 'light-beams';
+    | 'light-beams'
+    | 'heavy-rounds'
+    | 'overclock'
+    | 'thunder-storm'
+    | 'nova-pulse';
 
 export type UpgradeKind = 'stat' | 'ability';
 
