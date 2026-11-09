@@ -150,10 +150,12 @@ function createLayeredRoom(scene: Scene, roomKey: 'room2' | 'room3'): Room | nul
         // As salas montadas no Tiled usam o renderizador clássico, que oferece tint e colisão Arcade.
         const layer = createdLayer as Phaser.Tilemaps.TilemapLayer;
 
-        layer.setDepth(getRoom2LayerDepth(layer.layer.name)).setTint(ROOM_AMBIENT_TINT);
+        const isCollider = hasColliderProperty(layer.layer.properties);
+        // O Tiled repete nomes (`pendulo` são as vigas e também os pilares): o que colide fica no chão.
+        layer.setDepth(isCollider ? SCENERY_DEPTH : getRoom2LayerDepth(layer.layer.name)).setTint(ROOM_AMBIENT_TINT);
         if (isRoom2LampLayer(layer.layer.name)) createLampLights(scene, layer);
         if (layer.layer.name === 'stairs') stairsLayer = layer;
-        if (hasColliderProperty(layer.layer.properties)) {
+        if (isCollider) {
             layer.setCollisionByExclusion([-1]);
             collisionLayers.push(layer);
         }
