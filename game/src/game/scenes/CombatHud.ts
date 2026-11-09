@@ -7,15 +7,15 @@ import { RunStatsHudView } from '../ui/RunStatsHudView';
 import { RunResultView } from '../ui/RunResultView';
 import { runTracker } from '../scoring/RunTracker';
 import { DashCooldownView } from '../ui/DashCooldownView';
-import { TouchControlsView } from '../ui/TouchControlsView';
+import { TouchControlsView, type UseAction } from '../ui/TouchControlsView';
 
 type HudData = {
     player: Player;
     onPause: () => void;
     onRestart: () => void;
     onQuit: () => void;
-    /** Troca o ícone do botão USAR de toque para a espada. */
-    hasSword?: () => boolean;
+    /** O que o botão USAR de toque faz agora; sem ação, o botão some. */
+    getUseAction?: () => UseAction | undefined;
     /** Só existe no multiplayer. */
     getCoopStatus?: () => { partnerHealth?: { current: number; max: number }; message: string };
 };
@@ -79,7 +79,7 @@ export class CombatHud extends Scene {
         this.hearts.update(player.health.current, player.health.max);
         this.runStats.update();
         this.dashCooldown.update(player.getDashCharge());
-        this.touchControls.showSword(this.dataSource.hasSword?.() ?? false);
+        this.touchControls.showUse(this.dataSource.getUseAction?.());
         const coop = this.dataSource.getCoopStatus?.();
         if (coop) {
             this.coopMessage?.setText(coop.message);
