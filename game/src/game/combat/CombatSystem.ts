@@ -6,6 +6,7 @@ import type { Player } from '../entities/Player';
 import { hasLineOfSight } from '../map/hasLineOfSight';
 import { playDamageNumber } from '../effects/playDamageNumber';
 import { playSwordHit } from '../effects/playSwordHit';
+import { playBeams, playExplosion, playLightning, playShockwave } from '../effects/playAreaEffects';
 import { WORLD_CONFIG } from '../config/world';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import { runTracker, type RunTracker } from '../scoring/RunTracker';
@@ -66,7 +67,7 @@ export class CombatSystem {
     private beamCooldown = 0;
     private beamAngle = 0;
     private orbitAngle = 0;
-    private readonly orbitSparks: Phaser.GameObjects.Arc[] = [];
+    private readonly orbitSparks: { core: Phaser.GameObjects.Arc; glow: Phaser.GameObjects.Arc }[] = [];
     private readonly orbitHits = new Map<CombatEnemy, number>();
     private network?: CombatNetwork;
     private partnerShots?: Physics.Arcade.Group;
@@ -233,7 +234,11 @@ export class CombatSystem {
         const { orbitCount, orbitRadius, orbitDamageRatio, orbitHitInterval, damage } = this.playerStats;
         if (orbitCount <= 0) return;
         while (this.orbitSparks.length < orbitCount) {
-            this.orbitSparks.push(this.scene.add.circle(0, 0, 4, 0x9ff8ff).setDepth(14));
+            this.orbitSparks.push({
+                // Halo somado ao mapa e núcleo claro: a faísca brilha mesmo no escuro.
+                glow: this.scene.add.circle(0, 0, 11, 0x5ce5f1, 0.4).setDepth(14).setBlendMode(1),
+                core: this.scene.add.circle(0, 0, 5, 0xe8ffff).setDepth(15)
+            });
         }
         // Cerca de uma volta a cada 1,6 s.
         this.orbitAngle += delta * 0.004;
@@ -246,7 +251,8 @@ export class CombatSystem {
             const angle = this.orbitAngle + index * Math.PI * 2 / orbitCount;
             const x = center.x + Math.cos(angle) * orbitRadius;
             const y = center.y + Math.sin(angle) * orbitRadius;
-            spark.setPosition(x, y);
+            spark.glow.setPosition(x, y);
+            spark.core.setPosition(x, y);
             for (const enemy of this.enemies) {
                 if (!enemy.health.isAlive || this.orbitHits.has(enemy)) continue;
                 const target = this.getCenter(enemy);
@@ -275,6 +281,7 @@ export class CombatSystem {
         }
         this.chainCooldown = chainInterval;
         const struck = new Set<CombatEnemy>();
+        const path = [origin];
         this.withAttack((id) => {
             let from = origin;
             for (let jump = 0; jump < chainJumps && current; jump += 1) {
@@ -282,7 +289,7 @@ export class CombatSystem {
                 struck.add(enemy);
                 const target = this.getCenter(enemy);
                 const distance = Math.hypot(target.x - from.x, target.y - from.y) || 1;
-                playBolt(this.scene, from, target);
+                path.push(target);
                 this.hitEnemy(enemy, damage * chainDamageRatio, {
                     x: (target.x - from.x) / distance,
                     y: (target.y - from.y) / distance
@@ -291,6 +298,7 @@ export class CombatSystem {
                 current = this.findNearestEnemy(target, chainRange, struck);
             }
         });
+        playLightning(this.scene, path, 0xfff27a);
     }
 
     /** Feixes de luz: atravessam a tela a partir do jogador e giram meio espaço a cada disparo. */
@@ -302,15 +310,12 @@ export class CombatSystem {
         this.beamCooldown = beamInterval;
         this.beamAngle += Math.PI / beamCount;
         const origin = this.getCenter(this.player);
+        const angles = Array.from({ length: beamCount }, (_, index) => this.beamAngle + index * Math.PI * 2 / beamCount);
+        playBeams(this.scene, origin, angles, beamLength, 0x5ce5f1);
         this.withAttack((id) => {
             const struck = new Set<CombatEnemy>();
-            for (let index = 0; index < beamCount; index += 1) {
-                const angle = this.beamAngle + index * Math.PI * 2 / beamCount;
+            for (const angle of angles) {
                 const direction = { x: Math.cos(angle), y: Math.sin(angle) };
-                playBolt(this.scene, origin, {
-                    x: origin.x + direction.x * beamLength,
-                    y: origin.y + direction.y * beamLength
-                }, 0x9ff8ff, 5);
                 for (const enemy of this.enemies) {
                     if (!enemy.health.isAlive || struck.has(enemy)) continue;
                     const target = this.getCenter(enemy);
@@ -331,7 +336,7 @@ export class CombatSystem {
         const { deathBlastRadius, deathBlastDamageRatio, damage } = this.playerStats;
         if (deathBlastRadius <= 0) return;
         const center = this.getCenter(enemy);
-        playRing(this.scene, center.x, center.y, deathBlastRadius, 0xff5a5a);
+        playExplosion(this.scene, center.x, center.y, deathBlastRadius, 0xff4f6d);
         this.damageArea(center, deathBlastRadius, damage * deathBlastDamageRatio, enemy, attackId);
     }
 
@@ -351,7 +356,7 @@ export class CombatSystem {
         if (this.pulseCooldown > 0) return;
         this.pulseCooldown = pulseInterval;
         const origin = this.getCenter(this.player);
-        playRing(this.scene, origin.x, origin.y, pulseRadius, COMBAT_CONFIG.player.color);
+        playShockwave(this.scene, origin.x, origin.y, pulseRadius, COMBAT_CONFIG.player.color);
         this.damageArea(origin, pulseRadius, damage * pulseDamageRatio);
     }
 
@@ -360,7 +365,7 @@ export class CombatSystem {
         const { blastRadius, blastDamageRatio } = this.playerStats;
         if (blastRadius <= 0) return;
         const center = this.getCenter(target);
-        playRing(this.scene, center.x, center.y, blastRadius, 0xff9a3c);
+        playExplosion(this.scene, center.x, center.y, blastRadius, 0xff9a3c);
         this.damageArea(center, blastRadius, damage * blastDamageRatio, target, attackId);
     }
 
@@ -689,23 +694,4 @@ export class CombatSystem {
         this.projectiles.delete(shot);
         if (shot.active) shot.destroy();
     }
-}
-
-/** Anel que se expande e some: mostra o alcance real do golpe em área. */
-function playRing(scene: Scene, x: number, y: number, radius: number, color: number) {
-    const ring = scene.add.circle(x, y, radius).setStrokeStyle(2, color, 0.9).setDepth(9).setScale(0.3);
-    scene.tweens?.add({
-        targets: ring,
-        scale: 1,
-        alpha: 0,
-        duration: 260,
-        ease: 'Expo.easeOut',
-        onComplete: () => ring.destroy()
-    });
-}
-
-/** Raio curto e brilhante entre dois pontos. */
-function playBolt(scene: Scene, from: { x: number; y: number }, to: { x: number; y: number }, color = 0xfff27a, width = 2) {
-    const bolt = scene.add.line(0, 0, from.x, from.y, to.x, to.y, color).setOrigin(0, 0).setDepth(14).setLineWidth(width);
-    scene.tweens?.add({ targets: bolt, alpha: 0, duration: 180, ease: 'Expo.easeOut', onComplete: () => bolt.destroy() });
 }
