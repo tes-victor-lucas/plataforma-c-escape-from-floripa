@@ -905,9 +905,13 @@ export class World extends Scene {
         this.combat?.clear();
         this.physics.pause();
         const playerProgress = capturePlayerProgress(this.player, this.upgrades);
-        if (!this.isMultiplayerEnabled() && (roomKey === 'room2' || roomKey === 'dungeon')) {
-            // O checkpoint oficial continua sendo a fase 2; a dungeon é uma rota secreta.
-            saveCampaignProgress({ roomKey: 'room2', playerProgress, run: runTracker.checkpoint() });
+        if (!this.isMultiplayerEnabled() && (roomKey === 'room2' || roomKey === 'room3' || roomKey === 'dungeon')) {
+            // Checkpoints oficiais são as fases 2 e 3; a dungeon é uma rota secreta da fase 2.
+            saveCampaignProgress({
+                roomKey: roomKey === 'room3' ? 'room3' : 'room2',
+                playerProgress,
+                run: runTracker.checkpoint()
+            });
         }
         this.scene.launch('RoomTransition', {
             roomKey,
@@ -975,7 +979,7 @@ export class World extends Scene {
     private persistContinuationCheckpoint() {
         if (
             this.isMultiplayerEnabled() || !this.player
-            || this.activeRoomKey !== 'room2' || !loadCampaignProgress()
+            || (this.activeRoomKey !== 'room2' && this.activeRoomKey !== 'room3') || !loadCampaignProgress()
         ) return;
         saveCampaignProgress({
             roomKey: this.activeRoomKey,
