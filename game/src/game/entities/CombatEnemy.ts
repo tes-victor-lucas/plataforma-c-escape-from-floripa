@@ -18,6 +18,8 @@ export interface CombatEnemy {
     readonly health: Health;
     /** Na horda o inimigo persegue de qualquer distância, mesmo sem ver o jogador. */
     relentless: boolean;
+    /** Direção do caminho contornando obstáculos; sem resposta, vai em linha reta. */
+    pathfinder?: (from: Readonly<{ x: number; y: number }>) => Readonly<{ x: number; y: number }> | undefined;
 
     update(player?: Player, delta?: number): void;
     takeDamage(amount: number, impactDirection?: Readonly<{ x: number; y: number }>): number;

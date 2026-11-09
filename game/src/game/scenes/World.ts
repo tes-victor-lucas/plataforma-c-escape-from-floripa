@@ -24,6 +24,7 @@ import {
     type DroneSpawnPoint
 } from '../combat/DroneWaves';
 import { WaveThreatView } from '../ui/WaveThreatView';
+import { FlowField } from '../combat/FlowField';
 import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
 import { drawUpgradeCards, drawUpgradeCardsFeaturing } from '../upgrades/drawUpgradeCards';
 import { AREA_UPGRADE_IDS } from '../upgrades/catalog';
@@ -143,6 +144,7 @@ export class World extends Scene {
     private currentWaveIndex = 0;
     private waveSpawned = 0;
     private hordeRecallElapsed = 0;
+    private flowField?: FlowField;
     private isRoomCombatComplete = false;
     private nauseaEndsAt = 0;
     private normalCameraZoom: number = WORLD_CONFIG.camera.zoom;
@@ -230,18 +232,24 @@ export class World extends Scene {
         const walkableRoom2Layers = room.map.layers.filter((layer) =>
             isRoom2WalkableLayer(layer.name));
 
+        const isBlockedTile = (tileX: number, tileY: number) => room.collisionLayers.some((layer) =>
+            layer.getTileAt(tileX, tileY)?.collides ?? false);
+        const isWalkableTile = roomKey === 'room2'
+            ? (tileX: number, tileY: number) => walkableRoom2Layers.some((layer) =>
+                room.map.hasTileAt(tileX, tileY, layer.name))
+            : () => true;
         this.droneSpawnPoints = roomKey !== 'room1'
-            ? createReachableDroneSpawns(
-                room.map,
-                (tileX, tileY) => room.collisionLayers.some((layer) =>
-                    layer.getTileAt(tileX, tileY)?.collides ?? false),
-                spawn,
-                roomKey === 'room2'
-                    ? (tileX, tileY) => walkableRoom2Layers.some((layer) =>
-                        room.map.hasTileAt(tileX, tileY, layer.name))
-                    : () => true
-            )
+            ? createReachableDroneSpawns(room.map, isBlockedTile, spawn, isWalkableTile)
             : COMBAT_CONFIG.droneSpawns;
+        // A horda contorna obstáculos seguindo um único campo de fluxo até o jogador.
+        this.flowField = COMBAT_CONFIG.hordeByRoom[roomKey] && !this.isMultiplayerEnabled()
+            ? new FlowField(
+                room.map.width,
+                room.map.height,
+                room.map.tileWidth,
+                (tileX, tileY) => isBlockedTile(tileX, tileY) || !isWalkableTile(tileX, tileY)
+            )
+            : undefined;
 
         const mode = this.isMultiplayerEnabled() ? 'MULTIPLAYER' : 'SINGLE_PLAYER';
         runTracker.ensureRunning(mode);
@@ -356,6 +364,8 @@ export class World extends Scene {
                 hordes
             )
             : undefined;
+        // O primeiro lote já precisa saber de onde existe caminho até o jogador.
+        this.flowField?.update(this.player.sprite.body?.center ?? this.player.sprite);
         if (this.isPartnerRoomReady()) this.waves?.update(this.drones);
         if (savedCombat?.cleared) {
             // Sala vencida numa visita anterior: reabre a saída sem repetir o reparo.
@@ -479,18 +489,25 @@ export class World extends Scene {
             }
         }
         this.combat?.update(delta);
+        if (this.flowField && this.player) this.flowField.update(this.player.sprite.body?.center ?? this.player.sprite);
         this.recallHordeStragglers(delta);
         if (this.isPartnerRoomReady()) this.waves?.update(this.drones, delta);
     }
 
-    /** Na horda, prefere pontos logo fora da tela: nem em cima do jogador, nem longe demais. */
+    /**
+     * Na horda, prefere pontos logo fora da tela, nem longe demais e com caminho de verdade
+     * até o jogador: quem nasce num canto sem saída fica entalado.
+     */
     private readonly isHordeSpawnPoint = (point: { x: number; y: number }) => {
         if (!COMBAT_CONFIG.hordeByRoom[this.activeRoomKey] || !this.player) return true;
         const target = this.player.sprite.body?.center ?? this.player.sprite;
-        return Math.hypot(point.x - target.x, point.y - target.y) <= COMBAT_CONFIG.hordeSpawnMaxDistance;
+        return Math.hypot(point.x - target.x, point.y - target.y) <= COMBAT_CONFIG.hordeSpawnMaxDistance
+            && (this.flowField?.isReachable(point) ?? true);
     };
 
-    /** Roda no anfitrião: quem ficou bem para trás reaparece fora da tela, mais perto. */
+    private readonly followFlowField = (from: Readonly<{ x: number; y: number }>) => this.flowField?.directionFrom(from);
+
+    /** Roda no anfitrião: quem ficou bem para trás ou sem saída reaparece fora da tela, mais perto. */
     private recallHordeStragglers(delta: number) {
         if (!COMBAT_CONFIG.hordeByRoom[this.activeRoomKey] || !this.player || this.isMultiplayerGuest()) return;
         this.hordeRecallElapsed += delta;
@@ -502,7 +519,8 @@ export class World extends Scene {
         const lost = this.drones.filter((enemy) => {
             if (!enemy.health.isAlive) return false;
             const center = enemy.sprite.body?.center ?? enemy.sprite;
-            return Math.hypot(center.x - target.x, center.y - target.y) > distance;
+            return Math.hypot(center.x - target.x, center.y - target.y) > distance
+                || !(this.flowField?.isReachable(center) ?? true);
         }).slice(0, 6);
         if (lost.length === 0) return;
         const points = selectDroneSpawns(
@@ -559,6 +577,7 @@ export class World extends Scene {
         const created = spawns.map((spawn, index) => {
             const enemy = this.createEnemy(kinds[index], spawn);
             enemy.relentless = isHorde;
+            if (this.flowField) enemy.pathfinder = this.followFlowField;
             if (this.isMultiplayerEnabled()) {
                 const { enemyHealthMultiplier } = COMBAT_CONFIG.multiplayer;
                 const maxHealth = enemy.health.max * enemyHealthMultiplier;
@@ -1171,6 +1190,7 @@ export class World extends Scene {
         this.currentWaveIndex = 0;
         this.waveSpawned = 0;
         this.hordeRecallElapsed = 0;
+        this.flowField = undefined;
         this.isRoomCombatComplete = false;
         this.isHitStopActive = false;
         this.hitStopTimer?.remove(false);

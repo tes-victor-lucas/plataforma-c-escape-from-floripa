@@ -44,6 +44,7 @@ export class GuardaCyber implements CombatEnemy {
     private readonly healthBar: Phaser.GameObjects.Graphics;
     private state: GuardState = 'approach';
     relentless = false;
+    pathfinder?: CombatEnemy['pathfinder'];
     private stateTimer = 0;
     private attackCooldown = 0;
     private direction: EnemyDirection = 'down';
@@ -121,9 +122,12 @@ export class GuardaCyber implements CombatEnemy {
                 this.sprite.anims.stop();
                 this.sprite.setFrame(enemyFrame(this.direction, 5));
             } else if (distance > COMBAT_CONFIG.guard.stopDistance) {
+                const heading = this.relentless ? this.pathfinder?.(origin) : undefined;
+                if (heading) this.direction = directionFromVector(heading.x, heading.y, this.direction);
+                const move = heading ?? { x: dx / distance, y: dy / distance };
                 body.setVelocity(
-                    dx / distance * COMBAT_CONFIG.guard.movementSpeed,
-                    dy / distance * COMBAT_CONFIG.guard.movementSpeed
+                    move.x * COMBAT_CONFIG.guard.movementSpeed,
+                    move.y * COMBAT_CONFIG.guard.movementSpeed
                 );
                 this.playMovement();
             } else {

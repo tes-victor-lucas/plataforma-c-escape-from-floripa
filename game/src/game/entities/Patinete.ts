@@ -31,6 +31,7 @@ export class Patinete implements CombatEnemy {
     private readonly healthBar: Phaser.GameObjects.Graphics;
     private state: ScooterState = 'approach';
     relentless = false;
+    pathfinder?: CombatEnemy['pathfinder'];
     private stateTimer = 0;
     private direction: EnemyDirection = 'down';
     private chargeVector = { x: 0, y: 1 };
@@ -117,8 +118,13 @@ export class Patinete implements CombatEnemy {
                 && hasLineOfSight(this.walls, origin, target)
             ))
         ) {
-            this.direction = directionFromVector(dx, dy, this.direction);
-            if (distance <= COMBAT_CONFIG.scooter.chargeRange) {
+            const heading = this.relentless ? this.pathfinder?.(origin) : undefined;
+            this.direction = directionFromVector(heading?.x ?? dx, heading?.y ?? dy, this.direction);
+            // Na horda ele pode estar atrás de um obstáculo: só investe com caminho livre.
+            if (
+                distance <= COMBAT_CONFIG.scooter.chargeRange
+                && (!this.relentless || hasLineOfSight(this.walls, origin, target))
+            ) {
                 const length = Math.max(1, distance);
                 this.chargeVector = { x: dx / length, y: dy / length };
                 this.state = 'windup';
@@ -127,9 +133,10 @@ export class Patinete implements CombatEnemy {
                 this.sprite.anims.stop();
                 this.sprite.setFrame(enemyFrame(this.direction, 4));
             } else {
+                const move = heading ?? { x: dx / distance, y: dy / distance };
                 body.setVelocity(
-                    dx / distance * COMBAT_CONFIG.scooter.approachSpeed,
-                    dy / distance * COMBAT_CONFIG.scooter.approachSpeed
+                    move.x * COMBAT_CONFIG.scooter.approachSpeed,
+                    move.y * COMBAT_CONFIG.scooter.approachSpeed
                 );
                 this.playMovement();
             }
