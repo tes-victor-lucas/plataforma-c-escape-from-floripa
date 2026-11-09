@@ -108,7 +108,7 @@ export const UPGRADE_CARDS = [
         title: 'Raio em cadeia',
         description: 'A cada 0,8 s, um raio salta entre até 8 inimigos. +4 saltos por nível.',
         maxLevel: 3,
-        effect: { type: 'chain-lightning', interval: 800, jumps: 8, jumpsPerLevel: 4, jumpRange: 90, damageRatio: 2 }
+        effect: { type: 'chain-lightning', interval: 800, jumps: 8, jumpsPerLevel: 4, jumpRange: 90, damageRatio: 1 }
     },
     {
         id: 'death-blast',
@@ -146,9 +146,9 @@ export const UPGRADE_CARDS = [
         id: 'thunder-storm',
         kind: 'ability',
         title: 'Tempestade elétrica',
-        description: 'A cada 0,5 s, um raio de 300% salta entre 12 inimigos. +6 por nível.',
+        description: 'A cada 0,5 s, um raio de 150% salta entre 12 inimigos. +6 por nível.',
         maxLevel: 2,
-        effect: { type: 'chain-lightning', interval: 500, jumps: 12, jumpsPerLevel: 6, jumpRange: 130, damageRatio: 3 }
+        effect: { type: 'chain-lightning', interval: 500, jumps: 12, jumpsPerLevel: 6, jumpRange: 130, damageRatio: 1.5 }
     },
     {
         id: 'nova-pulse',
