@@ -1698,7 +1698,7 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     const launches = [];
     const stoppedScenes = [];
     world.player = { health: new Health(100), update() { movementUpdates++; } };
-    world.combat = { update() { combatUpdates++; }, clear() {} };
+    world.combat = { update() { combatUpdates++; }, clear() {}, hasSword: () => false };
     world.physics = { resume() { resumes++; }, pause() {} };
     world.scene = {
         launch(key, data) { launches.push({ key, data }); },
@@ -1714,6 +1714,16 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     assert.equal(resumes, 1);
     assert.equal(launches.length, 1);
     assert.equal(launches[0].key, 'CombatHud');
+    const { getUseAction } = launches[0].data;
+    assert.equal(getUseAction(), undefined, 'sem espada e longe do bar, o botão USAR de toque some');
+    world.piranhasBarPrompt = { visible: true };
+    assert.equal(getUseAction(), 'interact');
+    world.combat.hasSword = () => true;
+    assert.equal(getUseAction(), 'sword');
+    world.player.health.takeDamage(100);
+    assert.equal(getUseAction(), undefined, 'na derrota o botão USAR some');
+    world.player.health = new Health(100);
+    world.piranhasBarPrompt = undefined;
     world.update(2000, 16);
     assert.equal(combatUpdates, 1);
     assert.equal(movementUpdates, 1);
