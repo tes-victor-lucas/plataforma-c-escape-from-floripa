@@ -2777,6 +2777,19 @@ test('cuia de gaúcho aumenta movimento e tiro em 50% por três segundos', () =>
     restore();
 });
 
+test('todo gaúcho larga cuia na dungeon dele, e só 20% nas salas normais', () => {
+    const { world, pickups, restore } = itemWorld();
+    world.activeRoomKey = 'room2';
+    world.dropChimarrao(0, 0, () => 0.19);
+    world.dropChimarrao(0, 0, () => 0.2);
+    assert.equal(pickups.length, 1, 'sala normal sorteia 20%');
+
+    world.activeRoomKey = 'gaucho-dungeon';
+    world.dropChimarrao(0, 0, () => 0.999);
+    assert.equal(pickups.length, 2, 'na dungeon sempre larga');
+    restore();
+});
+
 test('pegar outra cuia renova os três segundos sem acumular o bônus', () => {
     const { world, player, pickups, fireRateMultipliers, timers, restore } = itemWorld();
     world.dropChimarrao(0, 0, () => 0);
