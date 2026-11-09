@@ -85,6 +85,7 @@ import {
 } from '../config/dungeon';
 import { createLampLight } from '../map/createLampLights';
 import { getGamepadInput } from '../input/GamepadInput';
+import { touchInput } from '../input/TouchInput';
 
 const ROOM2_WALKABLE_LAYERS = [
     'floor',
@@ -444,7 +445,7 @@ export class World extends Scene {
         }
         if (this.isHitStopActive) return;
         this.updatePiranhasBarInteraction();
-        if (this.gamepad?.justPressed('interact')) {
+        if (this.gamepad?.justPressed('interact') || touchInput.consume('interact')) {
             if (this.piranhasBarPrompt?.visible) this.openPiranhasMenu();
             else this.handleSwordGamepad();
         }

@@ -6,6 +6,7 @@ import { COMBAT_CONFIG } from '../config/combat';
 import { Health } from '../combat/Health';
 import { DashState } from './DashState';
 import { getGamepadInput } from '../input/GamepadInput';
+import { touchInput } from '../input/TouchInput';
 import { CHARACTERS, type CharacterId } from '../config/characters';
 import { createWalkAnimations, walkAnimationKey, WALK_FRAMES, type Direction } from './PlayerAnimations';
 
@@ -92,7 +93,8 @@ export class Player {
         const isReceivingMovementInput = x !== 0 || y !== 0;
         if (isReceivingMovementInput) this.aimDirection = direction;
 
-        if (Phaser.Input.Keyboard.JustDown(this.dashKey) || this.gamepad.justPressed('dash')) {
+        if (Phaser.Input.Keyboard.JustDown(this.dashKey) || this.gamepad.justPressed('dash')
+            || touchInput.consume('dash')) {
             const dashDirection = isReceivingMovementInput
                 ? direction
                 : this.getFacingVector();
@@ -228,10 +230,10 @@ export class Player {
         const gamepad = this.gamepad.getMovement();
         let x = Number(this.cursors.right.isDown || this.wasd.right.isDown)
             - Number(this.cursors.left.isDown || this.wasd.left.isDown)
-            + gamepad.x;
+            + gamepad.x + touchInput.x;
         let y = Number(this.cursors.down.isDown || this.wasd.down.isDown)
             - Number(this.cursors.up.isDown || this.wasd.up.isDown)
-            + gamepad.y;
+            + gamepad.y + touchInput.y;
 
         x = Math.max(-1, Math.min(1, x));
         y = Math.max(-1, Math.min(1, y));

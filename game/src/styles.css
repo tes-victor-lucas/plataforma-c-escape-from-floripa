@@ -359,3 +359,29 @@ kbd {
         transition-duration: 0.01ms !important;
     }
 }
+
+/* Celular deitado: a altura é curta, então a barra vira só o botão de tela cheia. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+    #app { padding: 0; }
+    .game-player { border: 0; height: 100%; }
+    .player-bar { min-height: 0; padding: 4px 8px; justify-content: flex-end; }
+    .game-identity,
+    #controls-button,
+    .player-action span { display: none; }
+    .player-action { width: 40px; min-height: 36px; padding: 0; }
+}
+
+/* No celular em pé, o jogo 16:9 fica minúsculo: pede para girar. */
+@media (pointer: coarse) and (orientation: portrait) {
+    #app::after {
+        content: 'Gire o celular para jogar';
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        background: #08080d;
+        font: 700 1.1rem/1.4 system-ui, sans-serif;
+    }
+}

@@ -7,6 +7,7 @@ import { RunStatsHudView } from '../ui/RunStatsHudView';
 import { RunResultView } from '../ui/RunResultView';
 import { runTracker } from '../scoring/RunTracker';
 import { DashCooldownView } from '../ui/DashCooldownView';
+import { TouchControlsView } from '../ui/TouchControlsView';
 
 type HudData = {
     player: Player;
@@ -41,6 +42,7 @@ export class CombatHud extends Scene {
         this.runStats = new RunStatsHudView(this);
         this.dashCooldown = new DashCooldownView(this, 20, 84);
         new PauseButtonView(this, data.onPause).create();
+        new TouchControlsView(this).create();
         if (data.getCoopStatus) {
             this.partnerLabel = this.add.text(20, 116, 'PARCEIRO', {
                 fontFamily: 'Pixeboy, monospace',
