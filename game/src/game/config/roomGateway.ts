@@ -5,6 +5,8 @@ export type RoomGatewayDefinition = {
     to: RoomKey;
     area: Readonly<{ left: number; right: number; top: number; bottom: number }>;
     portal: Readonly<{ x: number; y: number }>;
+    /** Parede onde o halo da saída se apoia; sem ela o halo é um círculo inteiro. */
+    portalWall?: 'right';
 };
 
 /** Passagem liberada no topo da Room 1 depois da última onda. */
@@ -21,9 +23,11 @@ export const ROOM1_TO_ROOM2_GATEWAY: RoomGatewayDefinition = {
 export const ROOM2_TO_ROOM3_GATEWAY: RoomGatewayDefinition = {
     from: 'room2',
     to: 'room3',
-    // A parede fica na coluna 45: o centro do jogador para logo antes dela.
-    area: { left: 43 * 16, right: 45 * 16, top: 18 * 16, bottom: 22 * 16 },
-    portal: { x: 44.5 * 16, y: 20 * 16 }
+    // O collider ocupa a coluna 45: o centro do jogador para logo antes dela.
+    area: { left: 43 * 16, right: 46 * 16, top: 18 * 16, bottom: 22 * 16 },
+    // O halo nasce na linha desenhada da parede, na borda direita da coluna 45.
+    portal: { x: 46 * 16 - 2, y: 20 * 16 },
+    portalWall: 'right'
 };
 
 /** Saídas que abrem ao vencer a sala; no máximo uma por sala. */

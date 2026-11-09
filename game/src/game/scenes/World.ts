@@ -802,7 +802,7 @@ export class World extends Scene {
         if (this.isRoomExitOpen || !gateway) return;
         this.isRoomExitOpen = true;
         const { x, y } = gateway.portal;
-        this.roomExitPortal = new RoomExitPortal(this, x, y);
+        this.roomExitPortal = new RoomExitPortal(this, x, y, gateway.portalWall);
     }
 
     private updateRoomGateway() {
