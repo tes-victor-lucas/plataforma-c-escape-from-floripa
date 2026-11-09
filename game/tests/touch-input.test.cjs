@@ -28,3 +28,10 @@ test('botão de toque dispara a ação uma vez e reset limpa tudo', () => {
     assert.equal(touchInput.consume('interact'), false);
     assert.equal(touchInput.x, 0);
 });
+
+test('controles de toque só valem para ponteiro grosso, como no CSS', () => {
+    const { isTouchScreen } = compiled.exports;
+    assert.equal(isTouchScreen((query) => ({ matches: query === '(pointer: coarse)' })), true);
+    assert.equal(isTouchScreen(() => ({ matches: false })), false);
+    assert.equal(isTouchScreen(undefined), false);
+});
