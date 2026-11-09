@@ -3402,3 +3402,28 @@ test('carta comum pega depois da forte não enfraquece o efeito', () => {
     upgrades.acquire(getUpgradeCard('heavy-rounds'));
     assert.equal(upgrades.damage, COMBAT_CONFIG.player.damage + 3);
 });
+
+test('8080 dá uma carta forte aleatória só na room3', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const hints = [];
+    world.isGameplayReady = true;
+    world.showFloatingHint = (text) => hints.push(text);
+    world.activeRoomKey = 'room2';
+    for (const key of '8080') world.handleSecretCodeKey({ key, repeat: false });
+    assert.deepEqual(world.upgrades.exportProgress(), []);
+
+    world.activeRoomKey = 'room3';
+    for (const key of '8080') world.handleSecretCodeKey({ key, repeat: false });
+    const [[id, level]] = world.upgrades.exportProgress();
+    assert.ok(ROOM3_UPGRADE_IDS.includes(id));
+    assert.equal(level, 1);
+    assert.match(hints[0], /^\+ /);
+
+    // Com todas no nível máximo, avisa em vez de falhar.
+    for (const cardId of ROOM3_UPGRADE_IDS) {
+        while (world.upgrades.acquire(getUpgradeCard(cardId)));
+    }
+    for (const key of '8080') world.handleSecretCodeKey({ key, repeat: false });
+    assert.equal(hints[1], 'CARTAS FORTES NO MÁXIMO');
+});
