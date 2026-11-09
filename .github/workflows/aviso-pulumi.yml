@@ -32,7 +32,7 @@ jobs:
           fi
           files=$(gh pr diff "$PR" -R "$REPO" --name-only | grep -E '^(server|backend|pulumi)/' | sed "s/.*/- \`&\`/")
           gh pr comment "$PR" -R "$REPO" --body "$marker
-          ### ⚠️ Este PR precisa de \`pulumi up\` depois do merge
+          ### Este PR precisa de \`pulumi up\` depois do merge
 
           O merge publica só o jogo. Estes arquivos só chegam à AWS quando quem tem a conta rodar o \`pulumi up\`:
 
