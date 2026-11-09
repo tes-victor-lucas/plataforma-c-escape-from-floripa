@@ -1,6 +1,7 @@
 import type { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 import { bindGamepadActions } from '../input/GamepadInput';
+import { isTouchScreen } from '../input/TouchInput';
 
 export const CLEAN_MENU_COLORS = {
     panel: 0x00171b,
@@ -150,6 +151,8 @@ export class CleanOverlayMenu {
     }
 
     addControlHints(hints: readonly ControlHint[], y: number) {
+        // No celular as opções são tocadas, não há teclas para indicar.
+        if (isTouchScreen()) return;
         const groups = hints.map(({ key, label }) => {
             const labelText = this.scene.add.text(0, y, label, {
                 fontFamily: FONT,

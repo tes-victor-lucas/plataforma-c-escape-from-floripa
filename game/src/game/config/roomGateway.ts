@@ -5,6 +5,8 @@ export type RoomGatewayDefinition = {
     to: RoomKey;
     area: Readonly<{ left: number; right: number; top: number; bottom: number }>;
     portal: Readonly<{ x: number; y: number }>;
+    /** Parede onde o halo da saída se apoia; sem ela o halo é um círculo inteiro. */
+    portalWall?: 'right';
 };
 
 /** Passagem liberada no topo da Room 1 depois da última onda. */
@@ -16,6 +18,20 @@ export const ROOM1_TO_ROOM2_GATEWAY: RoomGatewayDefinition = {
     // Centraliza somente no eixo horizontal e mantém o halo junto à borda superior.
     portal: { x: 11 * 16, y: 0.25 * 16 }
 };
+
+/** Fim da rua na borda direita da Room 2, liberado depois da última horda. */
+export const ROOM2_TO_ROOM3_GATEWAY: RoomGatewayDefinition = {
+    from: 'room2',
+    to: 'room3',
+    // O collider ocupa a coluna 45: o centro do jogador para logo antes dela.
+    area: { left: 43 * 16, right: 46 * 16, top: 18 * 16, bottom: 22 * 16 },
+    // O halo nasce na linha desenhada da parede, na borda direita da coluna 45.
+    portal: { x: 46 * 16 - 2, y: 20 * 16 },
+    portalWall: 'right'
+};
+
+/** Saídas que abrem ao vencer a sala; no máximo uma por sala. */
+export const ROOM_EXIT_GATEWAYS = [ROOM1_TO_ROOM2_GATEWAY, ROOM2_TO_ROOM3_GATEWAY];
 
 /** Passagem para uma dungeon: sem parede, basta pisar na área (bueiro); com parede, é preciso encostar nela. */
 export type SecretDungeonGateway = RoomGatewayDefinition & {

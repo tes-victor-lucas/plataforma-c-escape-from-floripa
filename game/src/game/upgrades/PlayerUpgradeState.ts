@@ -17,6 +17,25 @@ export class PlayerUpgradeState {
     companionStatRatio = 0;
     companionDamageRatio = 0;
     emergencyRepairAmount = 0;
+    pulseRadius = 0;
+    pulseInterval = 0;
+    blastRadius = 0;
+    blastDamageRatio = 0;
+    orbitCount = 0;
+    orbitRadius = 0;
+    orbitDamageRatio = 0;
+    orbitHitInterval = 0;
+    chainJumps = 0;
+    chainInterval = 0;
+    chainRange = 0;
+    chainDamageRatio = 0;
+    deathBlastRadius = 0;
+    deathBlastDamageRatio = 0;
+    pulseDamageRatio = 0;
+    beamCount = 0;
+    beamLength = 0;
+    beamInterval = 0;
+    beamDamageRatio = 0;
 
     reset() {
         this.levels.clear();
@@ -31,6 +50,25 @@ export class PlayerUpgradeState {
         this.companionStatRatio = 0;
         this.companionDamageRatio = 0;
         this.emergencyRepairAmount = 0;
+        this.pulseRadius = 0;
+        this.pulseInterval = 0;
+        this.blastRadius = 0;
+        this.blastDamageRatio = 0;
+        this.orbitCount = 0;
+        this.orbitRadius = 0;
+        this.orbitDamageRatio = 0;
+        this.orbitHitInterval = 0;
+        this.chainJumps = 0;
+        this.chainInterval = 0;
+        this.chainRange = 0;
+        this.chainDamageRatio = 0;
+        this.deathBlastRadius = 0;
+        this.deathBlastDamageRatio = 0;
+        this.pulseDamageRatio = 0;
+        this.beamCount = 0;
+        this.beamLength = 0;
+        this.beamInterval = 0;
+        this.beamDamageRatio = 0;
     }
 
     exportProgress(): UpgradeProgress {
@@ -92,6 +130,45 @@ export class PlayerUpgradeState {
                     this.emergencyRepairAmount,
                     effect.amount
                 );
+                break;
+            case 'shock-pulse':
+                this.pulseRadius = this.pulseRadius === 0
+                    ? effect.radius
+                    : Math.max(this.pulseRadius + effect.radiusPerLevel, effect.radius);
+                // A Nova de choque e o Pulso dividem o efeito: o mais forte de cada valor prevalece.
+                this.pulseInterval = this.pulseInterval ? Math.min(this.pulseInterval, effect.interval) : effect.interval;
+                this.pulseDamageRatio = Math.max(this.pulseDamageRatio, effect.damageRatio);
+                break;
+            case 'blast-shot':
+                this.blastRadius = this.blastRadius === 0 ? effect.radius : this.blastRadius + effect.radiusPerLevel;
+                this.blastDamageRatio = effect.damageRatio;
+                break;
+            case 'spark-orbit':
+                this.orbitCount = this.orbitCount === 0 ? effect.count : this.orbitCount + effect.countPerLevel;
+                this.orbitRadius = effect.radius;
+                this.orbitDamageRatio = effect.damageRatio;
+                this.orbitHitInterval = effect.hitInterval;
+                break;
+            case 'chain-lightning':
+                this.chainJumps = this.chainJumps === 0
+                    ? effect.jumps
+                    : Math.max(this.chainJumps + effect.jumpsPerLevel, effect.jumps);
+                // A Tempestade e o Raio dividem o efeito: o mais forte de cada valor prevalece.
+                this.chainInterval = this.chainInterval ? Math.min(this.chainInterval, effect.interval) : effect.interval;
+                this.chainRange = Math.max(this.chainRange, effect.jumpRange);
+                this.chainDamageRatio = Math.max(this.chainDamageRatio, effect.damageRatio);
+                break;
+            case 'death-blast':
+                this.deathBlastRadius = this.deathBlastRadius === 0
+                    ? effect.radius
+                    : this.deathBlastRadius + effect.radiusPerLevel;
+                this.deathBlastDamageRatio = effect.damageRatio;
+                break;
+            case 'light-beams':
+                this.beamCount = this.beamCount === 0 ? effect.beams : this.beamCount + effect.beamsPerLevel;
+                this.beamLength = effect.length;
+                this.beamInterval = effect.interval;
+                this.beamDamageRatio = effect.damageRatio;
                 break;
         }
         return true;

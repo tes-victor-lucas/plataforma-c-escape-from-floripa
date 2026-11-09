@@ -24,8 +24,15 @@ import {
     type DroneSpawnPoint
 } from '../combat/DroneWaves';
 import { WaveThreatView } from '../ui/WaveThreatView';
+import { FlowField } from '../combat/FlowField';
 import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
-import { drawUpgradeCards } from '../upgrades/drawUpgradeCards';
+import {
+    basicUpgradeCards,
+    drawUpgradeCards,
+    drawUpgradeCardsFeaturing,
+    withoutRoom3Cards
+} from '../upgrades/drawUpgradeCards';
+import { AREA_UPGRADE_IDS, ROOM3_UPGRADE_IDS } from '../upgrades/catalog';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
 import { drawPlayerBar, RemotePlayer } from '../entities/RemotePlayer';
@@ -60,12 +67,12 @@ import {
     isInsideRoomGateway,
     isTouchingDungeonReturn,
     isTouchingSecretDungeonEntrance,
-    ROOM1_TO_ROOM2_GATEWAY,
+    ROOM_EXIT_GATEWAYS,
     SECRET_DUNGEON_GATEWAYS,
     type SecretDungeonGateway
 } from '../config/roomGateway';
 import { RoomExitPortal } from '../map/RoomExitPortal';
-import { ROOM1_CLEAR_CODE, SecretCodeMatcher } from '../config/secretCodes';
+import { ROOM3_CARD_CODE, ROOM_CLEAR_CODE, SecretCodeMatcher } from '../config/secretCodes';
 import {
     capturePlayerProgress,
     restorePlayerProgress,
@@ -85,6 +92,7 @@ import {
 } from '../config/dungeon';
 import { createLampLight } from '../map/createLampLights';
 import { getGamepadInput } from '../input/GamepadInput';
+import { isTouchScreen, touchInput } from '../input/TouchInput';
 
 const ROOM2_WALKABLE_LAYERS = [
     'floor',
@@ -143,6 +151,11 @@ export class World extends Scene {
     private isRoomTransitioning = false;
     private hasSpawnedRoom2Guards = false;
     private waveIndex = 0;
+    private currentWaveIndex = 0;
+    private waveSpawned = 0;
+    private hordeRecallElapsed = 0;
+    private flowField?: FlowField;
+    private readonly hordeLastPositions = new Map<CombatEnemy, { x: number; y: number }>();
     private isRoomCombatComplete = false;
     private nauseaEndsAt = 0;
     private chimarraoBuffTimer?: Phaser.Time.TimerEvent;
@@ -166,7 +179,8 @@ export class World extends Scene {
     /** Convidado aguardando o anfitrião liberar as cartas. */
     private cardRelease?: () => void;
     private isRoomRequestPending = false;
-    private readonly room1SecretCode = new SecretCodeMatcher(ROOM1_CLEAR_CODE);
+    private readonly roomClearCode = new SecretCodeMatcher(ROOM_CLEAR_CODE);
+    private readonly room3CardCode = new SecretCodeMatcher(ROOM3_CARD_CODE);
     private completeRoomCombat?: () => void;
     private dungeonReturnArea?: Readonly<{ left: number; right: number; top: number; bottom: number }>;
     private dungeonState?: DungeonSessionState;
@@ -191,12 +205,17 @@ export class World extends Scene {
         this.isRoomTransitioning = false;
         this.hasSpawnedRoom2Guards = false;
         this.waveIndex = 0;
+        this.currentWaveIndex = 0;
+        this.waveSpawned = 0;
+        this.hordeRecallElapsed = 0;
+        this.hordeLastPositions.clear();
         this.isRoomCombatComplete = false;
         this.isHitStopActive = false;
         this.hitStopTimer = undefined;
         this.lowHealthFilter = undefined;
         this.lowHealthDesaturation = -1;
-        this.room1SecretCode.reset();
+        this.roomClearCode.reset();
+        this.room3CardCode.reset();
         this.nauseaEndsAt = 0;
         this.chimarraoBuffTimer = undefined;
         this.multiplayerSyncElapsed = 0;
@@ -229,18 +248,28 @@ export class World extends Scene {
         const walkableRoom2Layers = room.map.layers.filter((layer) =>
             isRoom2WalkableLayer(layer.name));
 
+        // Consulta pelo centro do tile no mundo para respeitar o offset em pixels das camadas do Tiled.
+        const isBlockedTile = (tileX: number, tileY: number) => room.collisionLayers.some((layer) =>
+            layer.getTileAtWorldXY(
+                (tileX + 0.5) * room.map.tileWidth,
+                (tileY + 0.5) * room.map.tileHeight
+            )?.collides ?? false);
+        const isWalkableTile = roomKey === 'room2' || roomKey === 'room3'
+            ? (tileX: number, tileY: number) => walkableRoom2Layers.some((layer) =>
+                room.map.hasTileAt(tileX, tileY, layer.name))
+            : () => true;
         this.droneSpawnPoints = roomKey !== 'room1'
-            ? createReachableDroneSpawns(
-                room.map,
-                (tileX, tileY) => room.collisionLayers.some((layer) =>
-                    layer.getTileAt(tileX, tileY)?.collides ?? false),
-                spawn,
-                roomKey === 'room2'
-                    ? (tileX, tileY) => walkableRoom2Layers.some((layer) =>
-                        room.map.hasTileAt(tileX, tileY, layer.name))
-                    : () => true
-            )
+            ? createReachableDroneSpawns(room.map, isBlockedTile, spawn, isWalkableTile)
             : COMBAT_CONFIG.droneSpawns;
+        // A horda contorna obstáculos seguindo um único campo de fluxo até o jogador.
+        this.flowField = COMBAT_CONFIG.hordeByRoom[roomKey] && !this.isMultiplayerEnabled()
+            ? new FlowField(
+                room.map.width,
+                room.map.height,
+                room.map.tileWidth,
+                (tileX, tileY) => isBlockedTile(tileX, tileY) || !isWalkableTile(tileX, tileY)
+            )
+            : undefined;
 
         const mode = this.isMultiplayerEnabled() ? 'MULTIPLAYER' : 'SINGLE_PLAYER';
         runTracker.ensureRunning(mode);
@@ -302,8 +331,8 @@ export class World extends Scene {
             if (this.player?.health.isAlive) this.upgrades.repairAfterRoom(this.player.health);
             room.openExit();
             this.player?.clearBlockedDirection();
-            if (roomKey === ROOM1_TO_ROOM2_GATEWAY.from) this.activateRoomExit();
-            if (roomKey === 'room2') {
+            this.activateRoomExit();
+            if (roomKey === 'room3') {
                 this.isGameOver = true;
                 this.combat?.clear();
                 this.physics.pause();
@@ -333,24 +362,31 @@ export class World extends Scene {
             finishRoomCombat();
         };
         // Ao voltar, os drones vivos formam a primeira onda; uma sala já limpa não tem combate.
+        // Quem ainda não tinha nascido na horda volta junto com os sobreviventes.
         const waveCounts = savedCombat
-            ? [savedCombat.enemies.length, ...savedCombat.pendingWaves]
+            ? [savedCombat.enemies.length + (savedCombat.hordeRemaining ?? 0), ...savedCombat.pendingWaves]
             : isDungeon
                 ? [DUNGEON_WAVE_ENEMY_COUNT]
                 : COMBAT_CONFIG.wavesByRoom[roomKey];
+        // Ao retomar, as ondas que restam usam a horda das últimas posições.
+        const roomHordes = COMBAT_CONFIG.hordeByRoom[roomKey] ?? [];
+        const hordes = roomHordes.slice(Math.max(0, roomHordes.length - waveCounts.length));
         // O convidado recebe ondas e inimigos prontos do anfitrião.
         // Uma sala salva sem inimigos e não vencida ainda precisa da onda vazia para concluir.
         this.waves = !this.isMultiplayerGuest() && !savedCombat?.cleared
             && (savedCombat !== undefined || waveCounts.some((count) => count > 0))
             ? new DroneWaves(
-                (count) => this.spawnDrones(count),
+                (count, startsWave) => this.spawnDrones(count, startsWave),
                 () => {
                     this.completeRoomCombat?.();
                 },
                 (resume) => this.playWaveIntermission(resume),
-                waveCounts
+                waveCounts,
+                hordes
             )
             : undefined;
+        // O primeiro lote já precisa saber de onde existe caminho até o jogador.
+        this.flowField?.update(this.player.sprite.body?.center ?? this.player.sprite);
         if (this.isPartnerRoomReady()) this.waves?.update(this.drones);
         if (savedCombat?.cleared) {
             // Sala vencida numa visita anterior: reabre a saída sem repetir o reparo.
@@ -389,6 +425,9 @@ export class World extends Scene {
                 ? this.returnToMainMenuFromDefeat()
                 : this.restartFromDefeatMenu(),
             onQuit: () => this.returnToMainMenuFromDefeat(),
+            getUseAction: () => !this.player?.health.isAlive ? undefined
+                : this.combat?.hasSword() ? 'sword'
+                : this.piranhasBarPrompt?.visible ? 'interact' : undefined,
             ...(this.isMultiplayerEnabled() ? { getCoopStatus: () => this.getCoopStatus() } : {})
         });
         if (this.activeRoomKey === 'gaucho-dungeon' && !this.isRoomCombatComplete) this.playGauchoDungeonWarning();
@@ -453,7 +492,7 @@ export class World extends Scene {
         }
         if (this.isHitStopActive) return;
         this.updatePiranhasBarInteraction();
-        if (this.gamepad?.justPressed('interact')) {
+        if (this.gamepad?.justPressed('interact') || touchInput.consume('interact')) {
             if (this.piranhasBarPrompt?.visible) this.openPiranhasMenu();
             else this.handleSwordGamepad();
         }
@@ -472,11 +511,65 @@ export class World extends Scene {
             }
         }
         this.combat?.update(delta);
-        if (this.isPartnerRoomReady()) this.waves?.update(this.drones);
+        if (this.flowField && this.player) this.flowField.update(this.player.sprite.body?.center ?? this.player.sprite);
+        this.recallHordeStragglers(delta);
+        if (this.isPartnerRoomReady()) this.waves?.update(this.drones, delta);
     }
 
-    private spawnDrones(count: number) {
-        if (!this.player || !this.combat || this.isRoomCombatComplete) return;
+    /**
+     * Na horda, prefere pontos logo fora da tela, nem longe demais e com caminho de verdade
+     * até o jogador: quem nasce num canto sem saída fica entalado.
+     */
+    private readonly isHordeSpawnPoint = (point: { x: number; y: number }) => {
+        if (!COMBAT_CONFIG.hordeByRoom[this.activeRoomKey] || !this.player) return true;
+        const target = this.player.sprite.body?.center ?? this.player.sprite;
+        return Math.hypot(point.x - target.x, point.y - target.y) <= COMBAT_CONFIG.hordeSpawnMaxDistance
+            && (this.flowField?.isReachable(point) ?? true);
+    };
+
+    private readonly followFlowField = (from: Readonly<{ x: number; y: number }>) => this.flowField?.directionFrom(from);
+
+    /** Roda no anfitrião: quem ficou bem para trás ou sem saída reaparece fora da tela, mais perto. */
+    private recallHordeStragglers(delta: number) {
+        if (!COMBAT_CONFIG.hordeByRoom[this.activeRoomKey] || !this.player || this.isMultiplayerGuest()) return;
+        this.hordeRecallElapsed += delta;
+        const { interval, distance, stuckDistance, nearDistance } = COMBAT_CONFIG.hordeRecall;
+        if (this.hordeRecallElapsed < interval) return;
+        this.hordeRecallElapsed = 0;
+        const target = this.player.sprite.body?.center ?? this.player.sprite;
+        // Poucos por vez: a volta é gradual e nunca pede mais pontos do que o mapa tem.
+        const lost = this.drones.filter((enemy) => {
+            if (!enemy.health.isAlive) return false;
+            const center = enemy.sprite.body?.center ?? enemy.sprite;
+            const previous = this.hordeLastPositions.get(enemy);
+            this.hordeLastPositions.set(enemy, { x: center.x, y: center.y });
+            const fromPlayer = Math.hypot(center.x - target.x, center.y - target.y);
+            // Parado longe do jogador por um intervalo inteiro: está entalado em algo.
+            const isStuck = previous !== undefined
+                && Math.hypot(center.x - previous.x, center.y - previous.y) < stuckDistance
+                && fromPlayer > nearDistance;
+            return fromPlayer > distance || isStuck || !(this.flowField?.isReachable(center) ?? true);
+        }).slice(0, 6);
+        if (lost.length === 0) return;
+        const points = selectDroneSpawns(
+            lost.length,
+            this.player.sprite,
+            this.droneSpawnPoints,
+            this.isHordeSpawnPoint,
+            COMBAT_CONFIG.hordeSpawnMinDistance
+        );
+        lost.forEach((enemy, index) => {
+            const point = points[index % points.length];
+            if (!point) return;
+            enemy.sprite.setPosition(point.x, point.y);
+            (enemy.sprite.body as Phaser.Physics.Arcade.Body | null)?.reset(point.x, point.y);
+            this.hordeLastPositions.delete(enemy);
+        });
+    }
+
+    /** Devolve quantos inimigos nasceram, para a horda saber quantos ainda faltam. */
+    private spawnDrones(count: number, startsWave = true) {
+        if (!this.player || !this.combat || this.isRoomCombatComplete) return 0;
         const shouldSpawnStairGuards = this.activeRoomKey === 'room2'
             && !this.hasSpawnedRoom2Guards;
         const savedEnemies = this.savedEnemies;
@@ -489,16 +582,31 @@ export class World extends Scene {
                         spawnPoint.x === prioritySpawn.x && spawnPoint.y === prioritySpawn.y)),
                 this.droneSpawnPoints
             )
-            : selectDroneSpawns(count, this.player.sprite, this.droneSpawnPoints));
+            : selectDroneSpawns(
+                count,
+                this.player.sprite,
+                this.droneSpawnPoints,
+                this.isHordeSpawnPoint,
+                COMBAT_CONFIG.hordeByRoom[this.activeRoomKey] ? COMBAT_CONFIG.hordeSpawnMinDistance : undefined
+            ));
+        if (startsWave) {
+            this.currentWaveIndex = this.waveIndex;
+            this.waveIndex += 1;
+            this.waveSpawned = 0;
+            // Lotes no meio da horda não podem apagar os tiros em voo.
+            this.combat.clear();
+        }
         const kinds = savedEnemies
             ? savedEnemies.map((enemy) => enemy.kind ?? 'drone')
-            : getWaveEnemyKinds(this.activeRoomKey, this.waveIndex, spawns.length);
-        this.waveIndex += 1;
+            : getWaveEnemyKinds(this.activeRoomKey, this.currentWaveIndex, spawns.length, this.waveSpawned);
+        this.waveSpawned += spawns.length;
         if (shouldSpawnStairGuards) this.hasSpawnedRoom2Guards = true;
         this.savedEnemies = undefined;
-        this.combat.clear();
+        const isHorde = !!COMBAT_CONFIG.hordeByRoom[this.activeRoomKey];
         const created = spawns.map((spawn, index) => {
             const enemy = this.createEnemy(kinds[index], spawn);
+            enemy.relentless = isHorde;
+            if (this.flowField) enemy.pathfinder = this.followFlowField;
             if (this.isMultiplayerEnabled()) {
                 const { enemyHealthMultiplier } = COMBAT_CONFIG.multiplayer;
                 const maxHealth = enemy.health.max * enemyHealthMultiplier;
@@ -524,6 +632,7 @@ export class World extends Scene {
                 }))
             });
         }
+        return created.length;
     }
 
     private addEnemyToCombat(enemy: CombatEnemy) {
@@ -535,7 +644,8 @@ export class World extends Scene {
     private createEnemy(kind: EnemyKind, spawn: EnemySpawn) {
         switch (kind) {
             case 'scooter':
-                return new Patinete(this, spawn, this.collisionLayers);
+            case 'bike':
+                return new Patinete(this, spawn, this.collisionLayers, kind);
             case 'guard':
                 return new GuardaCyber(this, spawn, this.collisionLayers);
             case 'drone':
@@ -592,7 +702,8 @@ export class World extends Scene {
     /** O tiro automático some nesta sala, então o jogador precisa ver como atacar. */
     private equipSword() {
         this.combat?.equipSword();
-        this.swordHint = this.createWorldHint('BOTÃO DIREITO / BOTÃO PRINCIPAL: ATACAR');
+        // No celular o próprio botão USAR vira a espada, que já indica o ataque.
+        if (!isTouchScreen()) this.swordHint = this.createWorldHint('BOTÃO DIREITO / BOTÃO PRINCIPAL: ATACAR');
     }
 
     private createWorldHint(text: string) {
@@ -627,7 +738,8 @@ export class World extends Scene {
     /** O anfitrião sorteia o chimarrão, e o item aparece para os dois jogadores. */
     private dropChimarrao(x: number, y: number, random = Math.random) {
         const { chimarrao } = WORLD_CONFIG;
-        if (!this.player || this.isMultiplayerGuest() || random() >= chimarrao.dropChance) return;
+        const chance = this.activeRoomKey === 'gaucho-dungeon' ? chimarrao.dungeonDropChance : chimarrao.dropChance;
+        if (!this.player || this.isMultiplayerGuest() || random() >= chance) return;
         const id = ++this.droppedItemSequence;
         this.spawnChimarrao(id, x, y);
         if (this.isMultiplayerEnabled()) multiplayerClient.sendEvent({ kind: 'item.drop', id, x, y });
@@ -669,17 +781,44 @@ export class World extends Scene {
 
     private handleSecretCodeKey(event: KeyboardEvent) {
         if (
-            event.repeat || this.activeRoomKey !== 'room1' || this.isMultiplayerGuest()
+            // Atalho de teste das salas da campanha; as dungeons ficam de fora.
+            event.repeat || isDungeonRoom(this.activeRoomKey) || this.isMultiplayerGuest()
             || !this.isGameplayReady || this.isGameOver || this.isRoomCombatComplete
         ) return;
-        if (!this.room1SecretCode.push(event.key)) return;
+        if (this.activeRoomKey === 'room3' && this.room3CardCode.push(event.key)) {
+            this.grantRandomStrongCard();
+            return;
+        }
+        if (!this.roomClearCode.push(event.key)) return;
 
         this.combat?.clear();
         this.waves = undefined;
         for (const enemy of this.drones) {
             if (enemy.health.isAlive) enemy.takeDamage(enemy.health.current);
         }
-        this.completeRoomCombat?.();
+        // Na Sala III concluir o combate é a vitória: o atalho só limpa a horda e a partida segue.
+        if (this.activeRoomKey !== 'room3') this.completeRoomCombat?.();
+    }
+
+    /** Atalho de teste da Sala III: aplica na hora uma carta forte que ainda pode subir de nível. */
+    private grantRandomStrongCard(random = Math.random) {
+        const pool = this.upgrades.availableCards().filter((card) => ROOM3_UPGRADE_IDS.includes(card.id));
+        const card = pool[Math.floor(random() * pool.length)];
+        if (card) this.acquireUpgrade(card);
+        this.showFloatingHint(card ? `+ ${card.title.toUpperCase()}` : 'CARTAS FORTES NO MÁXIMO');
+    }
+
+    private showFloatingHint(text: string) {
+        if (!this.player) return;
+        const hint = this.createWorldHint(text).setPosition(this.player.sprite.x, this.player.sprite.y - 26);
+        this.tweens.add({
+            targets: hint,
+            y: hint.y - 12,
+            alpha: 0,
+            delay: 900,
+            duration: 600,
+            onComplete: () => hint.destroy()
+        });
     }
 
     private createDroneBodies() {
@@ -689,10 +828,11 @@ export class World extends Scene {
     }
 
     private activateRoomExit() {
-        if (this.isRoomExitOpen || this.activeRoomKey !== ROOM1_TO_ROOM2_GATEWAY.from) return;
+        const gateway = ROOM_EXIT_GATEWAYS.find(({ from }) => from === this.activeRoomKey);
+        if (this.isRoomExitOpen || !gateway) return;
         this.isRoomExitOpen = true;
-        const { x, y } = ROOM1_TO_ROOM2_GATEWAY.portal;
-        this.roomExitPortal = new RoomExitPortal(this, x, y);
+        const { x, y } = gateway.portal;
+        this.roomExitPortal = new RoomExitPortal(this, x, y, gateway.portalWall);
     }
 
     private updateRoomGateway() {
@@ -732,15 +872,16 @@ export class World extends Scene {
             });
             return;
         }
+        const exitGateway = ROOM_EXIT_GATEWAYS.find(({ from }) => from === this.activeRoomKey);
         if (
-            this.activeRoomKey !== ROOM1_TO_ROOM2_GATEWAY.from
+            !exitGateway
             || !this.isRoomExitOpen
-            || !isInsideRoomGateway(center.x, center.y)
+            || !isInsideRoomGateway(center.x, center.y, exitGateway)
         ) return;
 
         // Leva o estado junto para os dois jogadores continuarem com a mesma semente.
         this.transitionToRoom(
-            ROOM1_TO_ROOM2_GATEWAY.to,
+            exitGateway.to,
             this.dungeonState ? { dungeonState: this.dungeonState } : {}
         );
     }
@@ -794,9 +935,13 @@ export class World extends Scene {
         this.combat?.clear();
         this.physics.pause();
         const playerProgress = capturePlayerProgress(this.player, this.upgrades);
-        if (!this.isMultiplayerEnabled() && (roomKey === 'room2' || roomKey === 'dungeon')) {
-            // O checkpoint oficial continua sendo a fase 2; a dungeon é uma rota secreta.
-            saveCampaignProgress({ roomKey: 'room2', playerProgress, run: runTracker.checkpoint() });
+        if (!this.isMultiplayerEnabled() && (roomKey === 'room2' || roomKey === 'room3' || roomKey === 'dungeon')) {
+            // Checkpoints oficiais são as fases 2 e 3; a dungeon é uma rota secreta da fase 2.
+            saveCampaignProgress({
+                roomKey: roomKey === 'room3' ? 'room3' : 'room2',
+                playerProgress,
+                run: runTracker.checkpoint()
+            });
         }
         this.scene.launch('RoomTransition', {
             roomKey,
@@ -825,6 +970,7 @@ export class World extends Scene {
         this.dungeonState.savedCombat[this.activeRoomKey] = {
             enemies,
             pendingWaves: this.waves?.pendingWaves() ?? [],
+            hordeRemaining: this.waves?.currentWaveRemaining() ?? 0,
             cleared: this.isRoomCombatComplete
         };
     }
@@ -863,7 +1009,7 @@ export class World extends Scene {
     private persistContinuationCheckpoint() {
         if (
             this.isMultiplayerEnabled() || !this.player
-            || this.activeRoomKey !== 'room2' || !loadCampaignProgress()
+            || (this.activeRoomKey !== 'room2' && this.activeRoomKey !== 'room3') || !loadCampaignProgress()
         ) return;
         saveCampaignProgress({
             roomKey: this.activeRoomKey,
@@ -883,7 +1029,14 @@ export class World extends Scene {
         this.isWaveIntermissionOpen = true;
         this.piranhasBarPrompt?.setVisible(false);
         const overlayScene = this.scene.get('CombatHud') as Scene;
-        new UpgradeSelectionView(overlayScene, drawUpgradeCards(undefined, this.upgrades.availableCards())).play((selected) => {
+        // Antes das hordas maiores, as cartas fortes de cada sala ficam garantidas na mesa.
+        const availableCards = this.upgrades.availableCards();
+        const cards = this.activeRoomKey === 'room3'
+            ? drawUpgradeCardsFeaturing(ROOM3_UPGRADE_IDS, undefined, availableCards)
+            : this.activeRoomKey === 'room2'
+                ? drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, undefined, withoutRoom3Cards(availableCards))
+                : drawUpgradeCards(undefined, basicUpgradeCards(availableCards));
+        new UpgradeSelectionView(overlayScene, cards).play((selected) => {
             this.acquireUpgrade(selected);
             this.waitForPartnerCard(() => {
                 new WaveThreatView(overlayScene, this.cameras.main).play(() => {
@@ -906,7 +1059,7 @@ export class World extends Scene {
         const overlayScene = this.scene.get('CombatHud') as Scene;
         new UpgradeSelectionView(
             overlayScene,
-            drawUpgradeCards(undefined, this.upgrades.availableCards()),
+            drawUpgradeCards(undefined, basicUpgradeCards(this.upgrades.availableCards())),
             {
                 title: 'SALA I CONCLUÍDA',
                 hint: 'Escolha uma recompensa'
@@ -939,7 +1092,7 @@ export class World extends Scene {
         const overlayScene = this.scene.get('CombatHud') as Scene;
         new UpgradeSelectionView(
             overlayScene,
-            drawUpgradeCards(undefined, this.upgrades.availableCards()),
+            drawUpgradeCards(undefined, basicUpgradeCards(this.upgrades.availableCards())),
             {
                 title: 'DUNGEON CONCLUÍDA',
                 hint: 'Escolha sua recompensa'
@@ -971,7 +1124,7 @@ export class World extends Scene {
 
     private createPiranhasBarPrompt() {
         const { x, y } = PIRANHAS_BAR_CONFIG.prompt;
-        this.piranhasBarPrompt = this.add.text(x, y, '[ G / BOTÃO PRINCIPAL ]  CARDÁPIO', {
+        this.piranhasBarPrompt = this.add.text(x, y, isTouchScreen() ? '[ USAR ]  CARDÁPIO' : '[ G / BOTÃO PRINCIPAL ]  CARDÁPIO', {
             fontFamily: 'PixelGamer, monospace',
             fontSize: '8px',
             color: '#ffffff',
@@ -1112,13 +1265,19 @@ export class World extends Scene {
         this.isRoomTransitioning = false;
         this.hasSpawnedRoom2Guards = false;
         this.waveIndex = 0;
+        this.currentWaveIndex = 0;
+        this.waveSpawned = 0;
+        this.hordeRecallElapsed = 0;
+        this.flowField = undefined;
+        this.hordeLastPositions.clear();
         this.isRoomCombatComplete = false;
         this.isHitStopActive = false;
         this.hitStopTimer?.remove(false);
         this.hitStopTimer = undefined;
         this.chimarraoBuffTimer?.remove(false);
         this.chimarraoBuffTimer = undefined;
-        this.room1SecretCode.reset();
+        this.roomClearCode.reset();
+        this.room3CardCode.reset();
         this.scene.stop('CombatHud');
         this.combat?.clear();
         this.combat = undefined;
@@ -1212,10 +1371,11 @@ export class World extends Scene {
             isHost: this.isMultiplayerHost(),
             getEnemyTarget: (origin) => this.getEnemyTarget(origin) as Player | undefined,
             onEnemyShot: (x, y, angle) => multiplayerClient.sendEvent({ kind: 'enemy.shot', x, y, angle }),
-            onPlayerShot: (x, y, angle, speed, color) => multiplayerClient.sendEvent({
-                kind: 'player.shot', x, y, angle, speed, color
+            onPlayerShot: (x, y, angle, speed, color, pierces) => multiplayerClient.sendEvent({
+                kind: 'player.shot', x, y, angle, speed, color, pierces
             }),
             onPlayerSwing: (x, y, angle) => multiplayerClient.sendEvent({ kind: 'player.swing', x, y, angle }),
+            onPlayerEffect: (effect) => multiplayerClient.sendEvent({ kind: 'player.effect', ...effect }),
             onEnemyHit: (enemy, damage, direction) => multiplayerClient.sendEvent({
                 kind: 'enemy.hit',
                 index: this.drones.indexOf(enemy),
@@ -1238,13 +1398,18 @@ export class World extends Scene {
         if (this.multiplayerSyncElapsed < 50) return;
         this.multiplayerSyncElapsed = 0;
         const state = this.player.getNetworkState();
+        // Faíscas e drone só agem fora da sala corpo a corpo e com o jogador de pé, como no CombatSystem.
+        const cardsActive = this.activeRoomKey !== 'gaucho-dungeon' && this.player.health.isAlive;
         multiplayerClient.sendPlayerState({
             ...state,
             health: this.player.health.current,
             maxHealth: this.player.health.max,
             reviveProgress: this.getReviveProgress(),
             revivesLeft: this.getRevivesLeft(),
-            character: this.characterId
+            character: this.characterId,
+            orbitCount: cardsActive ? this.upgrades.orbitCount : 0,
+            orbitRadius: this.upgrades.orbitRadius,
+            companion: cardsActive && this.upgrades.companionCount > 0
         });
         if (this.isMultiplayerHost()) this.sendEnemySnapshot();
     }
@@ -1412,14 +1577,19 @@ export class World extends Scene {
                 // shortcut: o projétil já terminou aqui, então abates do convidado não somam multi-kill.
                 const killId = `${enemy.id}:coop-kill`;
                 if (runTracker.recordEnemyDeath(enemy.id, killId)) runTracker.finalizeProjectile(killId);
+                // Só o anfitrião manda este evento, e só por golpe do convidado: a carta de detonação é daqui.
+                this.combat?.detonateConfirmedKill(enemy, killId);
                 this.playHitStop();
                 break;
             }
             case 'player.shot':
-                this.combat?.spawnPartnerShot(event.x, event.y, event.angle, event.speed, event.color);
+                this.combat?.spawnPartnerShot(event.x, event.y, event.angle, event.speed, event.color, event.pierces);
                 break;
             case 'player.swing':
                 this.combat?.playPartnerSwing(event.x, event.y, event.angle);
+                break;
+            case 'player.effect':
+                this.combat?.playPartnerEffect(event);
                 break;
             case 'player.damage':
                 this.player?.takeDamage(event.amount);

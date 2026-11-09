@@ -16,6 +16,8 @@ export type DungeonEnemyState = Readonly<{
 export type SavedRoomCombat = Readonly<{
     enemies: readonly DungeonEnemyState[];
     pendingWaves: readonly number[];
+    /** Inimigos da horda em andamento que ainda não tinham nascido. */
+    hordeRemaining?: number;
     /** A sala já foi vencida: reabre a saída sem repetir combate nem recompensa. */
     cleared: boolean;
 }>;

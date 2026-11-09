@@ -297,15 +297,22 @@ canvas {
 }
 
 .key-group kbd:first-child { grid-column: 2; }
+/* A abre a segunda linha, com S e D em seguida, como no teclado. */
+.key-group kbd:nth-child(2) { grid-column: 1; }
 
 .key-group--wide { grid-template-columns: repeat(4, 30px); }
-.key-group--wide kbd:first-child { grid-column: auto; }
+/* Setas ficam numa linha só: desfaz as posições do W e do A. */
+.key-group--wide kbd:nth-child(n) { grid-column: auto; }
 
 kbd {
     display: inline-grid;
-    width: 34px;
+    /* Rótulos como D-PAD e START alargam a tecla em vez de quebrar a linha. */
+    min-width: 34px;
     height: 34px;
+    padding: 0 7px;
     place-items: center;
+    justify-self: start;
+    white-space: nowrap;
     color: #fff;
     background: linear-gradient(#393343, #282431);
     border: 1px solid rgba(255, 255, 255, 0.16);
@@ -357,5 +364,31 @@ kbd {
     *::after {
         scroll-behavior: auto !important;
         transition-duration: 0.01ms !important;
+    }
+}
+
+/* Celular deitado: a altura é curta, então a barra vira só o botão de tela cheia. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+    #app { padding: 0; }
+    .game-player { border: 0; height: 100%; }
+    .player-bar { min-height: 0; padding: 4px 8px; justify-content: flex-end; }
+    .game-identity,
+    #controls-button,
+    .player-action span { display: none; }
+    .player-action { width: 40px; min-height: 36px; padding: 0; }
+}
+
+/* No celular em pé, o jogo 16:9 fica minúsculo: pede para girar. */
+@media (pointer: coarse) and (orientation: portrait) {
+    #app::after {
+        content: 'Gire o celular para jogar';
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        background: #08080d;
+        font: 700 1.1rem/1.4 system-ui, sans-serif;
     }
 }

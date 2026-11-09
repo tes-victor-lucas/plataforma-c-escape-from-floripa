@@ -7,12 +7,15 @@ import { RunStatsHudView } from '../ui/RunStatsHudView';
 import { RunResultView } from '../ui/RunResultView';
 import { runTracker } from '../scoring/RunTracker';
 import { DashCooldownView } from '../ui/DashCooldownView';
+import { TouchControlsView, type UseAction } from '../ui/TouchControlsView';
 
 type HudData = {
     player: Player;
     onPause: () => void;
     onRestart: () => void;
     onQuit: () => void;
+    /** O que o botão USAR de toque faz agora; sem ação, o botão some. */
+    getUseAction?: () => UseAction | undefined;
     /** Só existe no multiplayer. */
     getCoopStatus?: () => { partnerHealth?: { current: number; max: number }; message: string };
 };
@@ -24,6 +27,7 @@ export class CombatHud extends Scene {
     private resultShown = false;
     private runStats: RunStatsHudView;
     private dashCooldown: DashCooldownView;
+    private touchControls: TouchControlsView;
     private partnerHearts?: HeartHealthView;
     private partnerLabel?: Phaser.GameObjects.Text;
     private coopMessage?: Phaser.GameObjects.Text;
@@ -41,6 +45,8 @@ export class CombatHud extends Scene {
         this.runStats = new RunStatsHudView(this);
         this.dashCooldown = new DashCooldownView(this, 20, 84);
         new PauseButtonView(this, data.onPause).create();
+        this.touchControls = new TouchControlsView(this);
+        this.touchControls.create();
         if (data.getCoopStatus) {
             this.partnerLabel = this.add.text(20, 116, 'PARCEIRO', {
                 fontFamily: 'Pixeboy, monospace',
@@ -73,6 +79,7 @@ export class CombatHud extends Scene {
         this.hearts.update(player.health.current, player.health.max);
         this.runStats.update();
         this.dashCooldown.update(player.getDashCharge());
+        this.touchControls.showUse(this.dataSource.getUseAction?.());
         const coop = this.dataSource.getCoopStatus?.();
         if (coop) {
             this.coopMessage?.setText(coop.message);

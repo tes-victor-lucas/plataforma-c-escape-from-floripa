@@ -3,6 +3,7 @@ import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 import type { UpgradeCardDefinition } from '../upgrades';
 import { createUpgradeIcon } from './UpgradeIcon';
 import { bindGamepadActions } from '../input/GamepadInput';
+import { isTouchScreen } from '../input/TouchInput';
 
 const DEPTH = 180;
 const CARD_WIDTH = 176;
@@ -146,7 +147,7 @@ export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefini
         const controls = this.scene.add.text(
             GAME_WIDTH / 2,
             438,
-            '← → / DIRECIONAL   •   ENTER / BOTÃO PRINCIPAL',
+            isTouchScreen() ? 'TOQUE EM UMA CARTA PARA ESCOLHER' : '← → / DIRECIONAL   •   ENTER / BOTÃO PRINCIPAL',
             {
                 fontFamily: 'PixelGamer, monospace',
                 fontSize: '11px',

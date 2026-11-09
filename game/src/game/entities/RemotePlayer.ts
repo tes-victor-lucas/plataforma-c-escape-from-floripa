@@ -34,6 +34,11 @@ export class RemotePlayer {
     private reviveProgress = 0;
     revivesLeft: number = COMBAT_CONFIG.multiplayer.maxRevives;
     private characterId: CharacterId = 'padrao';
+    private orbitCount = 0;
+    private orbitRadius = 0;
+    private readonly orbitSparks: Phaser.GameObjects.Arc[] = [];
+    private hasCompanion = false;
+    private companion?: Phaser.GameObjects.Sprite;
 
     constructor(scene: Scene, x: number, y: number, onDamage: (amount: number) => void) {
         const { player } = WORLD_CONFIG;
@@ -68,6 +73,9 @@ export class RemotePlayer {
         this.health.restore(state.health, state.maxHealth);
         this.reviveProgress = state.reviveProgress;
         this.revivesLeft = state.revivesLeft;
+        this.orbitCount = state.orbitCount ?? 0;
+        this.orbitRadius = state.orbitRadius ?? 0;
+        this.hasCompanion = state.companion ?? false;
         // Cliente antigo não envia o personagem: o parceiro continua no padrão.
         if (isCharacterId(state.character) && state.character !== this.characterId) {
             this.characterId = state.character;
@@ -106,9 +114,40 @@ export class RemotePlayer {
             isAlive ? this.health.current / this.health.max : this.reviveProgress,
             isAlive ? 0x5ce5f1 : 0x8affc1
         );
+        this.updateCardVisuals();
+    }
+
+    /** Mesmo visual das faíscas e do drone do CombatSystem, só que em volta do parceiro. */
+    private updateCardVisuals() {
+        const scene = this.sprite.scene;
+        while (this.orbitSparks.length < this.orbitCount * 2) {
+            this.orbitSparks.push(
+                scene.add.circle(0, 0, 11, 0x5ce5f1, 0.4).setDepth(14).setBlendMode(1),
+                scene.add.circle(0, 0, 5, 0xe8ffff).setDepth(15)
+            );
+        }
+        // Cerca de uma volta a cada 1,6 s, como no jogador local.
+        const turn = scene.time.now * 0.004;
+        this.orbitSparks.forEach((spark, index) => {
+            const slot = Math.floor(index / 2);
+            const angle = turn + slot * Math.PI * 2 / Math.max(1, this.orbitCount);
+            spark.setVisible(slot < this.orbitCount)
+                .setPosition(this.center.x + Math.cos(angle) * this.orbitRadius, this.center.y + Math.sin(angle) * this.orbitRadius);
+        });
+
+        if (this.hasCompanion && !this.companion) {
+            this.companion = scene.add.sprite(this.center.x - 18, this.center.y - 18, WORLD_CONFIG.drone.texture, 0)
+                .setScale(WORLD_CONFIG.drone.scale * 0.48).setTint(0x8affc1).setDepth(9);
+        }
+        this.companion?.setVisible(this.hasCompanion).setPosition(
+            Phaser.Math.Linear(this.companion.x, this.center.x - 18, 0.15),
+            Phaser.Math.Linear(this.companion.y, this.center.y - 18, 0.15)
+        );
     }
 
     destroy() {
+        for (const spark of this.orbitSparks) spark.destroy();
+        this.companion?.destroy();
         this.bar.destroy();
         this.sprite.destroy();
     }

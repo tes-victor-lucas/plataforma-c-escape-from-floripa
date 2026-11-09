@@ -7,6 +7,8 @@ export const WORLD_CONFIG = {
         spawn: { x: 400, y: 536 },
         spawnSafeRadius: 240,
         speed: 120,
+        // Depois de um golpe, o jogador fica imune por um instante: sem isso a horda mata num piscar.
+        hurtInvulnerability: 700,
         // Teto somado de chimarrões e gin tropical, para não desbalancear a fuga.
         maxSpeedMultiplier: 1.4,
         velocityResponsiveness: 14,
@@ -40,6 +42,12 @@ export const WORLD_CONFIG = {
         scale: 0.9,
         hitbox: { width: 18, height: 13, offsetX: 7, offsetY: 13 }
     },
+    // Mesma folha do patinete (32x32, 4 direções, mesmas colunas), então o mesmo corpo.
+    bike: {
+        texture: 'electric-bike',
+        scale: 0.9,
+        hitbox: { width: 18, height: 13, offsetX: 7, offsetY: 13 }
+    },
     guard: {
         texture: 'cyber-guard-walk',
         scale: 0.92,
@@ -55,7 +63,9 @@ export const WORLD_CONFIG = {
     },
     chimarrao: {
         texture: 'chimarrao',
-        dropChance: 0.5,
+        // Na dungeon dos gaúchos todo gaúcho larga a cuia; nas salas normais, só alguns.
+        dropChance: 0.2,
+        dungeonDropChance: 1,
         effectMultiplier: 1.5,
         effectDuration: 3_000
     },

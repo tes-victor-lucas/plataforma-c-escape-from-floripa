@@ -5,7 +5,56 @@ export const ROOM2_STAIR_GUARD_SPAWNS = [
     { x: 240, y: 352, patrolLeft: 232, patrolRight: 248 }
 ] as const;
 
-export type EnemyKind = 'drone' | 'scooter' | 'guard' | 'gaucho';
+export type EnemyKind = 'drone' | 'scooter' | 'bike' | 'guard' | 'gaucho';
+
+/** Primeira horda da Sala II: quantos de cada tipo, além dos dois guardas da escada. */
+export const ROOM2_FIRST_HORDE: Readonly<Partial<Record<EnemyKind, number>>> = {
+    guard: 4,
+    drone: 2,
+    scooter: 2,
+    gaucho: 2,
+    bike: 5
+};
+
+/** Horda da Sala II depois da carta: quantos de cada tipo. */
+export const ROOM2_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
+    gaucho: 46,
+    guard: 22,
+    scooter: 22,
+    drone: 22,
+    bike: 20
+};
+
+/** Horda da Sala III depois da carta: metade maior que a última da Sala II. */
+export const ROOM3_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
+    gaucho: 69,
+    guard: 33,
+    scooter: 33,
+    drone: 33,
+    bike: 30
+};
+
+/** Espalha os tipos ao longo da onda, para não chegarem todos os drones juntos no fim. */
+export function interleaveEnemyCounts(counts: Readonly<Partial<Record<EnemyKind, number>>>) {
+    const entries = Object.entries(counts) as [EnemyKind, number][];
+    const total = entries.reduce((sum, [, count]) => sum + count, 0);
+    const used = new Map<EnemyKind, number>();
+    return Array.from({ length: total }, (_, index) => {
+        // O tipo mais atrasado em relação à sua fatia entra agora.
+        const [kind] = entries.reduce((best, entry) => {
+            const lag = (index + 1) * entry[1] / total - (used.get(entry[0]) ?? 0);
+            const bestLag = (index + 1) * best[1] / total - (used.get(best[0]) ?? 0);
+            return lag > bestLag ? entry : best;
+        });
+        used.set(kind, (used.get(kind) ?? 0) + 1);
+        return kind;
+    });
+}
+
+// Os dois primeiros nascem nos pontos fixos da escada e precisam ser guardas.
+const ROOM2_FIRST_HORDE_KINDS: readonly EnemyKind[] = ['guard', 'guard', ...interleaveEnemyCounts(ROOM2_FIRST_HORDE)];
+const ROOM2_SECOND_HORDE_KINDS = interleaveEnemyCounts(ROOM2_SECOND_HORDE);
+const ROOM3_SECOND_HORDE_KINDS = interleaveEnemyCounts(ROOM3_SECOND_HORDE);
 
 /** Distâncias em pixels do mundo; intervalos e duração em milissegundos. */
 const PLAYER_COMBAT_STATS = {
@@ -34,6 +83,20 @@ export const COMBAT_CONFIG = {
         chargeSpeed: 260,
         approachSpeed: 78,
         recoveryDuration: 680,
+        impactDistance: 24
+    },
+    // Bicicleta elétrica: como o patinete, mas investe uma vez atrás da outra, sem recuperação.
+    // O aviso antes de cada investida continua, para o jogador ter como desviar.
+    bike: {
+        maxHealth: 3,
+        contactDamage: 1,
+        detectionRadius: 260,
+        chargeRange: 170,
+        chargeWindup: 380,
+        chargeDuration: 450,
+        chargeSpeed: 300,
+        approachSpeed: 90,
+        recoveryDuration: 0,
         impactDistance: 24
     },
     guard: {
@@ -72,10 +135,34 @@ export const COMBAT_CONFIG = {
     waves: [10, 8],
     wavesByRoom: {
         room1: [10, 8],
-        room2: [10],
+        // A segunda onda vem depois da carta e é bem maior: a horda cresce.
+        room2: [ROOM2_FIRST_HORDE_KINDS.length, ROOM2_SECOND_HORDE_KINDS.length],
+        // A Sala III já abre com a horda final da Sala II.
+        room3: [ROOM2_SECOND_HORDE_KINDS.length, ROOM3_SECOND_HORDE_KINDS.length],
         dungeon: [10],
         'gaucho-dungeon': [10]
     },
+    /**
+     * Horda contínua: em vez de nascer tudo de uma vez, a onda chega em lotes até a meta,
+     * sem passar de `maxAlive` vivos. Uma entrada por onda; salas sem entrada nascem de uma vez.
+     */
+    hordeByRoom: {
+        room2: [
+            { maxAlive: 10, batchSize: 4, interval: 1_000 },
+            { maxAlive: 28, batchSize: 6, interval: 800 }
+        ],
+        room3: [
+            { maxAlive: 28, batchSize: 6, interval: 800 },
+            { maxAlive: 36, batchSize: 8, interval: 700 }
+        ]
+    } as Partial<Record<RoomKey, readonly { maxAlive: number; batchSize: number; interval: number }[]>>,
+    // A câmera mostra ~508×286 px do mapa (zoom 1,75): a horda nasce logo depois da borda
+    // da tela, e os inimigos dela perseguem de qualquer distância.
+    hordeSpawnMinDistance: 300,
+    hordeSpawnMaxDistance: 380,
+    // Quem ficou bem para trás, ou parado preso em algum canto, volta para fora da tela à frente.
+    // `nearDistance` passa da distância em que o drone para e atira (64), para ele não contar como preso.
+    hordeRecall: { interval: 2_000, distance: 480, stuckDistance: 12, nearDistance: 96 },
     multiplayer: {
         // Dois jogadores causam o dobro de dano nos mesmos inimigos; acima de 2 fica mais difícil.
         enemyHealthMultiplier: 2.5,
@@ -101,10 +188,11 @@ const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
         ['drone', 'scooter', 'drone', 'guard', 'drone', 'scooter', 'drone', 'drone', 'scooter', 'guard']
     ],
     room2: [
-        // Um a cada cinco inimigos da Sala II é um gaúcho.
-        ['guard', 'guard', 'drone', 'scooter', 'gaucho'],
-        ['drone', 'scooter', 'guard', 'drone', 'gaucho']
+        ROOM2_FIRST_HORDE_KINDS,
+        // Horda: a composição exata vem de ROOM2_SECOND_HORDE.
+        ROOM2_SECOND_HORDE_KINDS
     ],
+    room3: [ROOM2_SECOND_HORDE_KINDS, ROOM3_SECOND_HORDE_KINDS],
     dungeon: [
         ['scooter', 'drone', 'guard', 'drone', 'scooter']
     ],
@@ -117,9 +205,11 @@ const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
 export function getWaveEnemyKinds(
     roomKey: RoomKey,
     waveIndex: number,
-    count: number
+    count: number,
+    // Lotes da mesma onda continuam o padrão de onde o anterior parou.
+    offset = 0
 ) {
     const roomPatterns = WAVE_PATTERNS[roomKey];
     const pattern = roomPatterns[Math.min(Math.max(0, waveIndex), roomPatterns.length - 1)];
-    return Array.from({ length: count }, (_, index) => pattern[index % pattern.length]);
+    return Array.from({ length: count }, (_, index) => pattern[(offset + index) % pattern.length]);
 }

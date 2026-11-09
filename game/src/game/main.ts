@@ -20,6 +20,8 @@ const config: Phaser.Types.Core.GameConfig = {
     height: GAME_HEIGHT,
     parent: 'game-container',
     pixelArt: true,
+    // Joystick e botões de toque ao mesmo tempo.
+    input: { activePointers: 3 },
     scale: {
         mode: Scale.FIT,
         autoCenter: Scale.CENTER_BOTH,

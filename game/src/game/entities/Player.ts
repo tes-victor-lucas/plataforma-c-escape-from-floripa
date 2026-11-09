@@ -6,6 +6,7 @@ import { COMBAT_CONFIG } from '../config/combat';
 import { Health } from '../combat/Health';
 import { DashState } from './DashState';
 import { getGamepadInput } from '../input/GamepadInput';
+import { touchInput } from '../input/TouchInput';
 import { CHARACTERS, type CharacterId } from '../config/characters';
 import { createWalkAnimations, walkAnimationKey, WALK_FRAMES, type Direction } from './PlayerAnimations';
 
@@ -34,6 +35,7 @@ export class Player {
     /** Última direção pedida pelo teclado; muda na hora, antes de a velocidade inverter. */
     private aimDirection: { x: number; y: number } = { x: 0, y: 1 };
     private movementSpeedMultiplier = 1;
+    private invulnerableUntil = 0;
     private temporaryMovementSpeedMultiplier = 1;
     private controlsInverted = false;
     /**
@@ -93,7 +95,8 @@ export class Player {
         const isReceivingMovementInput = x !== 0 || y !== 0;
         if (isReceivingMovementInput) this.aimDirection = direction;
 
-        if (Phaser.Input.Keyboard.JustDown(this.dashKey) || this.gamepad.justPressed('dash')) {
+        if (Phaser.Input.Keyboard.JustDown(this.dashKey) || this.gamepad.justPressed('dash')
+            || touchInput.consume('dash')) {
             const dashDirection = isReceivingMovementInput
                 ? direction
                 : this.getFacingVector();
@@ -199,10 +202,13 @@ export class Player {
 
     takeDamage(amount: number) {
         if (!this.health.isAlive) return;
+        const now = this.scene.time?.now ?? 0;
+        if (now < this.invulnerableUntil) return;
         const previousHealth = this.health.current;
         this.health.takeDamage(amount);
         const healthLost = previousHealth - this.health.current;
         if (healthLost <= 0) return;
+        this.invulnerableUntil = now + WORLD_CONFIG.player.hurtInvulnerability;
         this.onDamageApplied?.(healthLost);
         const sound = this.health.isAlive
             ? AUDIO_CONFIG.effects.playerHurt
@@ -237,10 +243,10 @@ export class Player {
         const gamepad = this.gamepad.getMovement();
         let x = Number(this.cursors.right.isDown || this.wasd.right.isDown)
             - Number(this.cursors.left.isDown || this.wasd.left.isDown)
-            + gamepad.x;
+            + gamepad.x + touchInput.x;
         let y = Number(this.cursors.down.isDown || this.wasd.down.isDown)
             - Number(this.cursors.up.isDown || this.wasd.up.isDown)
-            + gamepad.y;
+            + gamepad.y + touchInput.y;
 
         x = Math.max(-1, Math.min(1, x));
         y = Math.max(-1, Math.min(1, y));

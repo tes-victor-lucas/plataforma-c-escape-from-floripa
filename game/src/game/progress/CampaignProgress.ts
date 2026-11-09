@@ -55,7 +55,7 @@ export function loadCampaignProgress(
         const serialized = storage.getItem(STORAGE_KEY);
         if (!serialized) return undefined;
         const progress = JSON.parse(serialized) as Partial<CampaignProgress>;
-        if (progress.roomKey !== 'room2' || !isPlayerProgress(progress.playerProgress)) {
+        if ((progress.roomKey !== 'room2' && progress.roomKey !== 'room3') || !isPlayerProgress(progress.playerProgress)) {
             return undefined;
         }
         if (progress.run !== undefined && !isRunCheckpoint(progress.run)) return undefined;

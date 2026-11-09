@@ -2,6 +2,7 @@ import type { Scene } from 'phaser';
 import { createLampLights } from './createLampLights';
 import { openRoomExit } from './openRoomExit';
 import { ROOM_DEFINITIONS } from '../config/rooms';
+import { getActorDepth } from '../config/world';
 import {
     toStairPassageArea,
     type StairPassageArea
@@ -32,8 +33,18 @@ const ROOM2_FOREGROUND_LAYERS = new Set([
     'linhas-placa',
     'poste-old-terminal',
     'placa-onibus',
-    'grades'
+    'grades',
+    // Sala III: copa e tronco da figueira, vigas da pérgola e cabeças dos postes.
+    'figueira-topo',
+    'figueira-tronco',
+    'pendulo',
+    'pendulo-back',
+    'detalhe-penduloi',
+    'postes'
 ]);
+
+/** Objetos altos que o jogador contorna pelos dois lados: ordenados pela base, como os personagens. */
+const Y_SORTED_LAYERS = new Set(['floria-outdoor']);
 
 export interface Room {
     map: Phaser.Tilemaps.Tilemap;
@@ -59,7 +70,7 @@ export function createRoom(scene: Scene, mapKey: string, dungeonSeed = Date.now(
     if (mapKey === 'dungeon') return createProceduralDungeon(scene, dungeonSeed);
     // A semente é da partida inteira; o esconderijo não pode repetir a planta da dungeon.
     if (mapKey === 'gaucho-dungeon') return createProceduralDungeon(scene, (dungeonSeed ^ 0x9e3779b9) >>> 0);
-    if (mapKey === 'room2') return createRoom2(scene);
+    if (mapKey === 'room2' || mapKey === 'room3') return createLayeredRoom(scene, mapKey);
 
     const map = scene.make.tilemap({ key: mapKey });
     const tilesets = ROOM_DEFINITIONS.room1.tilesets.map(({ mapName, textureKey }) =>
@@ -123,12 +134,12 @@ export function createRoom(scene: Scene, mapKey: string, dungeonSeed = Date.now(
     return { map, collisionLayers, openExit: () => openRoomExit(collisionLayers) };
 }
 
-/** Monta todas as camadas da Room 2 na ordem do Tiled e respeita seus colliders por camada. */
-function createRoom2(scene: Scene): Room | null {
-    const roomDefinition = ROOM_DEFINITIONS.room2;
+/** Monta todas as camadas das Salas II e III na ordem do Tiled e respeita seus colliders por camada. */
+function createLayeredRoom(scene: Scene, roomKey: 'room2' | 'room3'): Room | null {
+    const roomDefinition = ROOM_DEFINITIONS[roomKey];
     const map = scene.make.tilemap({ key: roomDefinition.mapKey });
     if (map.tilesets.length !== roomDefinition.tilesets.length) {
-        console.error('A quantidade de tilesets da room2 não corresponde à configuração.');
+        console.error(`A quantidade de tilesets da ${roomKey} não corresponde à configuração.`);
         return null;
     }
 
@@ -144,16 +155,21 @@ function createRoom2(scene: Scene): Room | null {
     for (let index = 0; index < map.layers.length; index += 1) {
         const createdLayer = map.createLayer(index, resolvedTilesets);
         if (!createdLayer) {
-            console.error(`Não foi possível criar a camada ${map.layers[index].name} da room2.`);
+            console.error(`Não foi possível criar a camada ${map.layers[index].name} da ${roomKey}.`);
             return null;
         }
-        // A Room 2 usa o renderizador clássico, que oferece tint e colisão Arcade.
+        // As salas montadas no Tiled usam o renderizador clássico, que oferece tint e colisão Arcade.
         const layer = createdLayer as Phaser.Tilemaps.TilemapLayer;
 
-        layer.setDepth(getRoom2LayerDepth(layer.layer.name)).setTint(ROOM_AMBIENT_TINT);
+        const isCollider = hasColliderProperty(layer.layer.properties);
+        // O Tiled repete nomes (`pendulo` são as vigas e também os pilares): o que colide fica no chão.
+        layer.setDepth(isCollider ? SCENERY_DEPTH : getRoom2LayerDepth(layer.layer.name)).setTint(ROOM_AMBIENT_TINT);
+        if (!isCollider && Y_SORTED_LAYERS.has(layer.layer.name.split('/').pop() ?? '')) {
+            layer.setDepth(getYSortedLayerDepth(layer));
+        }
         if (isRoom2LampLayer(layer.layer.name)) createLampLights(scene, layer);
         if (layer.layer.name === 'stairs') stairsLayer = layer;
-        if (hasColliderProperty(layer.layer.properties)) {
+        if (isCollider) {
             layer.setCollisionByExclusion([-1]);
             collisionLayers.push(layer);
         }
@@ -170,6 +186,16 @@ function createRoom2(scene: Scene): Room | null {
             : undefined,
         openExit: () => {}
     };
+}
+
+// shortcut: uma profundidade por camada, pela base do tile mais baixo; objetos em alturas
+// diferentes alcançáveis pelo jogador precisam de camadas separadas.
+function getYSortedLayerDepth(layer: Phaser.Tilemaps.TilemapLayer) {
+    let lowestRow = -1;
+    layer.forEachTile((tile) => {
+        if (tile.index >= 0) lowestRow = Math.max(lowestRow, tile.y);
+    });
+    return getActorDepth((lowestRow + 1) * layer.tilemap.tileHeight + layer.y);
 }
 
 function hasColliderProperty(properties: Phaser.Types.Tilemaps.LayerDataConfig['properties']) {

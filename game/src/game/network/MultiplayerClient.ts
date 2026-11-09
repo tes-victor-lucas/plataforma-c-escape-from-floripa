@@ -155,6 +155,9 @@ export class MultiplayerClient {
         reviveProgress: number;
         revivesLeft: number;
         character: CharacterId;
+        orbitCount: number;
+        orbitRadius: number;
+        companion: boolean;
     }) {
         if (this.socket?.readyState !== WebSocket.OPEN) return;
         this.socket.send(JSON.stringify({
