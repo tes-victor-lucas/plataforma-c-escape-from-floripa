@@ -21,7 +21,16 @@ const BUTTONS: readonly { action: TouchAction; label: string; x: number; y: numb
 
 /** Joystick na metade esquerda e botões à direita; só aparece em telas de toque. */
 export class TouchControlsView {
+    private swordIcon?: Phaser.GameObjects.Image;
+    private useIcon?: Phaser.GameObjects.Graphics;
+
     constructor(private readonly scene: Scene) {}
+
+    /** A espada só aparece no botão depois de coletada, nas salas onde ela ataca. */
+    showSword(visible: boolean) {
+        this.swordIcon?.setVisible(visible);
+        this.useIcon?.setVisible(!visible);
+    }
 
     create() {
         if (!this.scene.sys.game?.device?.input?.touch) return;
@@ -76,7 +85,12 @@ export class TouchControlsView {
             };
             draw(false);
             if (action === 'dash') drawDashIcon(scene.add.graphics().setDepth(DEPTH + 1), x, y);
-            else scene.add.image(x, y, 'sword').setDepth(DEPTH + 1).setScale(2.6);
+            else {
+                this.useIcon = scene.add.graphics().setDepth(DEPTH + 1);
+                drawUseIcon(this.useIcon, x, y);
+                this.swordIcon = scene.add.image(x, y, 'sword').setDepth(DEPTH + 1).setScale(2.6)
+                    .setVisible(false);
+            }
             scene.add.text(x, y - BUTTON_RADIUS - 10, label, {
                 fontFamily: 'Pixeboy, monospace',
                 fontSize: '16px',
@@ -116,4 +130,11 @@ function drawDashIcon(graphics: Phaser.GameObjects.Graphics, x: number, y: numbe
             graphics.fillRect(x + offset + i * 4, y + 13 - i * 4, 5, 5);
         }
     }
+}
+
+/** Exclamação em pixels: o sinal de "interagir" quando não há espada. */
+function drawUseIcon(graphics: Phaser.GameObjects.Graphics, x: number, y: number) {
+    graphics.fillStyle(COLORS.icon, 1);
+    graphics.fillRect(x - 4, y - 18, 8, 22);
+    graphics.fillRect(x - 4, y + 9, 8, 8);
 }

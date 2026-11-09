@@ -218,6 +218,10 @@ export class CombatSystem {
         this.updateHeldSword();
     }
 
+    hasSword() {
+        return this.heldSword !== undefined;
+    }
+
     /** Golpe em arco para onde o personagem olha; cada golpe conta como um ataque para multi-kills. */
     swing(angle = this.getAimAngle()) {
         if (!this.heldSword || !this.player.health.isAlive) return false;

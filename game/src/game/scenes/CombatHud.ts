@@ -14,6 +14,8 @@ type HudData = {
     onPause: () => void;
     onRestart: () => void;
     onQuit: () => void;
+    /** Troca o ícone do botão USAR de toque para a espada. */
+    hasSword?: () => boolean;
     /** Só existe no multiplayer. */
     getCoopStatus?: () => { partnerHealth?: { current: number; max: number }; message: string };
 };
@@ -25,6 +27,7 @@ export class CombatHud extends Scene {
     private resultShown = false;
     private runStats: RunStatsHudView;
     private dashCooldown: DashCooldownView;
+    private touchControls: TouchControlsView;
     private partnerHearts?: HeartHealthView;
     private partnerLabel?: Phaser.GameObjects.Text;
     private coopMessage?: Phaser.GameObjects.Text;
@@ -42,7 +45,8 @@ export class CombatHud extends Scene {
         this.runStats = new RunStatsHudView(this);
         this.dashCooldown = new DashCooldownView(this, 20, 84);
         new PauseButtonView(this, data.onPause).create();
-        new TouchControlsView(this).create();
+        this.touchControls = new TouchControlsView(this);
+        this.touchControls.create();
         if (data.getCoopStatus) {
             this.partnerLabel = this.add.text(20, 116, 'PARCEIRO', {
                 fontFamily: 'Pixeboy, monospace',
@@ -75,6 +79,7 @@ export class CombatHud extends Scene {
         this.hearts.update(player.health.current, player.health.max);
         this.runStats.update();
         this.dashCooldown.update(player.getDashCharge());
+        this.touchControls.showSword(this.dataSource.hasSword?.() ?? false);
         const coop = this.dataSource.getCoopStatus?.();
         if (coop) {
             this.coopMessage?.setText(coop.message);

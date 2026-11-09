@@ -382,6 +382,7 @@ export class World extends Scene {
                 ? this.returnToMainMenuFromDefeat()
                 : this.restartFromDefeatMenu(),
             onQuit: () => this.returnToMainMenuFromDefeat(),
+            hasSword: () => this.combat?.hasSword() ?? false,
             ...(this.isMultiplayerEnabled() ? { getCoopStatus: () => this.getCoopStatus() } : {})
         });
         if (this.activeRoomKey === 'gaucho-dungeon' && !this.isRoomCombatComplete) this.playGauchoDungeonWarning();
