@@ -2579,6 +2579,33 @@ test('multiplayer: golpe do convidado vai ao anfitrião e não aplica dano local
     assert.deepEqual(record.hits[0].direction, { x: 1, y: 0 });
 });
 
+test('multiplayer: efeitos das cartas de área vão ao parceiro e se repetem na tela dele', () => {
+    for (const [id, effect] of [
+        ['shock-pulse', 'shockwave'],
+        ['blast-shot', 'explosion'],
+        ['chain-lightning', 'lightning'],
+        ['death-blast', 'explosion'],
+        ['light-beams', 'beams'],
+        ['nova-pulse', 'shockwave'],
+        ['thunder-storm', 'lightning']
+    ]) {
+        const upgrades = new PlayerUpgradeState();
+        upgrades.acquire(getUpgradeCard(id));
+        const { combat, drones, overlaps, groups, effects } = setup([[140, 100], [160, 100]], [], upgrades);
+        drones[0].health.current = 1;
+        const sent = [];
+        combat.setNetwork({ ...coopNetwork(true, { swings: [], hits: [] }), onPlayerEffect: (e) => sent.push(e) });
+        combat.update(0);
+        for (const shot of groups[0].shots) overlaps[0].hit(shot);
+        combat.update(1_000);
+        assert.ok(sent.some((e) => e.effect === effect), `${id} envia ${effect}`);
+
+        const before = effects.length;
+        for (const e of sent) combat.playPartnerEffect(JSON.parse(JSON.stringify(e)));
+        assert.equal(effects.length, before + sent.length, `${id} desenha o efeito recebido`);
+    }
+});
+
 test('multiplayer: golpe do anfitrião causa dano e só avisa o parceiro do movimento', () => {
     const { combat, drones, player } = setup([[125, 100]], [], new PlayerUpgradeState(), undefined, true);
     player.getAimDirection = () => ({ x: 1, y: 0 });
