@@ -3113,3 +3113,26 @@ test('com o alvo numa passagem estreita, o campo não declara todo mundo sem sa�
     assert.equal(field.isReachable({ x: 8, y: 8 }), true);
     assert.equal(field.directionFrom({ x: 8, y: 8 }), undefined, 'sem campo, vai em linha reta');
 });
+
+test('horda tira do lugar quem ficou entalado longe do jogador', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    world.activeRoomKey = 'room2';
+    world.collisionLayers = [];
+    world.player = { sprite: { x: 100, y: 1_200, body: { center: { x: 100, y: 1_200 } } } };
+    const stuck = fighter(300, 1_200, 4);
+    const drone = fighter(100 + 64, 1_200, 4);
+    const moved = [];
+    for (const enemy of [stuck, drone]) {
+        enemy.sprite.setPosition = (x, y) => { moved.push({ enemy, x, y }); };
+        enemy.sprite.body.reset = () => {};
+    }
+    world.drones = [stuck, drone];
+    world.droneSpawnPoints = [430, 460].map((x) => ({ x, y: 1_200, patrolLeft: x - 16, patrolRight: x + 16 }));
+    const { interval } = COMBAT_CONFIG.hordeRecall;
+
+    world.recallHordeStragglers(interval);
+    assert.equal(moved.length, 0, 'na primeira olhada ainda não dá para saber se está parado');
+    world.recallHordeStragglers(interval);
+    assert.deepEqual(moved.map(({ enemy }) => enemy), [stuck], 'o drone parado a 64 px está atirando, não preso');
+});
