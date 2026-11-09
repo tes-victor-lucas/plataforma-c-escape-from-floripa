@@ -241,8 +241,12 @@ export class World extends Scene {
         const walkableRoom2Layers = room.map.layers.filter((layer) =>
             isRoom2WalkableLayer(layer.name));
 
+        // Consulta pelo centro do tile no mundo para respeitar o offset em pixels das camadas do Tiled.
         const isBlockedTile = (tileX: number, tileY: number) => room.collisionLayers.some((layer) =>
-            layer.getTileAt(tileX, tileY)?.collides ?? false);
+            layer.getTileAtWorldXY(
+                (tileX + 0.5) * room.map.tileWidth,
+                (tileY + 0.5) * room.map.tileHeight
+            )?.collides ?? false);
         const isWalkableTile = roomKey === 'room2'
             ? (tileX: number, tileY: number) => walkableRoom2Layers.some((layer) =>
                 room.map.hasTileAt(tileX, tileY, layer.name))
