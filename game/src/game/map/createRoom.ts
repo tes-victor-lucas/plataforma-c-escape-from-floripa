@@ -2,6 +2,7 @@ import type { Scene } from 'phaser';
 import { createLampLights } from './createLampLights';
 import { openRoomExit } from './openRoomExit';
 import { ROOM_DEFINITIONS } from '../config/rooms';
+import { getActorDepth } from '../config/world';
 import {
     toStairPassageArea,
     type StairPassageArea
@@ -41,6 +42,9 @@ const ROOM2_FOREGROUND_LAYERS = new Set([
     'detalhe-penduloi',
     'postes'
 ]);
+
+/** Objetos altos que o jogador contorna pelos dois lados: ordenados pela base, como os personagens. */
+const Y_SORTED_LAYERS = new Set(['floria-outdoor']);
 
 export interface Room {
     map: Phaser.Tilemaps.Tilemap;
@@ -160,6 +164,9 @@ function createLayeredRoom(scene: Scene, roomKey: 'room2' | 'room3'): Room | nul
         const isCollider = hasColliderProperty(layer.layer.properties);
         // O Tiled repete nomes (`pendulo` são as vigas e também os pilares): o que colide fica no chão.
         layer.setDepth(isCollider ? SCENERY_DEPTH : getRoom2LayerDepth(layer.layer.name)).setTint(ROOM_AMBIENT_TINT);
+        if (!isCollider && Y_SORTED_LAYERS.has(layer.layer.name.split('/').pop() ?? '')) {
+            layer.setDepth(getYSortedLayerDepth(layer));
+        }
         if (isRoom2LampLayer(layer.layer.name)) createLampLights(scene, layer);
         if (layer.layer.name === 'stairs') stairsLayer = layer;
         if (isCollider) {
@@ -179,6 +186,16 @@ function createLayeredRoom(scene: Scene, roomKey: 'room2' | 'room3'): Room | nul
             : undefined,
         openExit: () => {}
     };
+}
+
+// shortcut: uma profundidade por camada, pela base do tile mais baixo; objetos em alturas
+// diferentes alcançáveis pelo jogador precisam de camadas separadas.
+function getYSortedLayerDepth(layer: Phaser.Tilemaps.TilemapLayer) {
+    let lowestRow = -1;
+    layer.forEachTile((tile) => {
+        if (tile.index >= 0) lowestRow = Math.max(lowestRow, tile.y);
+    });
+    return getActorDepth((lowestRow + 1) * layer.tilemap.tileHeight + layer.y);
 }
 
 function hasColliderProperty(properties: Phaser.Types.Tilemaps.LayerDataConfig['properties']) {
