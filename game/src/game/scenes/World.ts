@@ -145,6 +145,7 @@ export class World extends Scene {
     private waveSpawned = 0;
     private hordeRecallElapsed = 0;
     private flowField?: FlowField;
+    private readonly hordeLastPositions = new Map<CombatEnemy, { x: number; y: number }>();
     private isRoomCombatComplete = false;
     private nauseaEndsAt = 0;
     private normalCameraZoom: number = WORLD_CONFIG.camera.zoom;
@@ -195,6 +196,7 @@ export class World extends Scene {
         this.currentWaveIndex = 0;
         this.waveSpawned = 0;
         this.hordeRecallElapsed = 0;
+        this.hordeLastPositions.clear();
         this.isRoomCombatComplete = false;
         this.isHitStopActive = false;
         this.hitStopTimer = undefined;
@@ -511,7 +513,7 @@ export class World extends Scene {
     private recallHordeStragglers(delta: number) {
         if (!COMBAT_CONFIG.hordeByRoom[this.activeRoomKey] || !this.player || this.isMultiplayerGuest()) return;
         this.hordeRecallElapsed += delta;
-        const { interval, distance } = COMBAT_CONFIG.hordeRecall;
+        const { interval, distance, stuckDistance, nearDistance } = COMBAT_CONFIG.hordeRecall;
         if (this.hordeRecallElapsed < interval) return;
         this.hordeRecallElapsed = 0;
         const target = this.player.sprite.body?.center ?? this.player.sprite;
@@ -519,8 +521,14 @@ export class World extends Scene {
         const lost = this.drones.filter((enemy) => {
             if (!enemy.health.isAlive) return false;
             const center = enemy.sprite.body?.center ?? enemy.sprite;
-            return Math.hypot(center.x - target.x, center.y - target.y) > distance
-                || !(this.flowField?.isReachable(center) ?? true);
+            const previous = this.hordeLastPositions.get(enemy);
+            this.hordeLastPositions.set(enemy, { x: center.x, y: center.y });
+            const fromPlayer = Math.hypot(center.x - target.x, center.y - target.y);
+            // Parado longe do jogador por um intervalo inteiro: está entalado em algo.
+            const isStuck = previous !== undefined
+                && Math.hypot(center.x - previous.x, center.y - previous.y) < stuckDistance
+                && fromPlayer > nearDistance;
+            return fromPlayer > distance || isStuck || !(this.flowField?.isReachable(center) ?? true);
         }).slice(0, 6);
         if (lost.length === 0) return;
         const points = selectDroneSpawns(
@@ -535,6 +543,7 @@ export class World extends Scene {
             if (!point) return;
             enemy.sprite.setPosition(point.x, point.y);
             (enemy.sprite.body as Phaser.Physics.Arcade.Body | null)?.reset(point.x, point.y);
+            this.hordeLastPositions.delete(enemy);
         });
     }
 
@@ -1191,6 +1200,7 @@ export class World extends Scene {
         this.waveSpawned = 0;
         this.hordeRecallElapsed = 0;
         this.flowField = undefined;
+        this.hordeLastPositions.clear();
         this.isRoomCombatComplete = false;
         this.isHitStopActive = false;
         this.hitStopTimer?.remove(false);

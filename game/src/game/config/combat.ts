@@ -118,8 +118,9 @@ export const COMBAT_CONFIG = {
     // da tela, e os inimigos dela perseguem de qualquer distância.
     hordeSpawnMinDistance: 300,
     hordeSpawnMaxDistance: 380,
-    // Quem ficou bem para trás volta para fora da tela à frente, senão a onda nunca termina.
-    hordeRecall: { interval: 2_000, distance: 480 },
+    // Quem ficou bem para trás, ou parado preso em algum canto, volta para fora da tela à frente.
+    // `nearDistance` passa da distância em que o drone para e atira (64), para ele não contar como preso.
+    hordeRecall: { interval: 2_000, distance: 480, stuckDistance: 12, nearDistance: 96 },
     multiplayer: {
         // Dois jogadores causam o dobro de dano nos mesmos inimigos; acima de 2 fica mais difícil.
         enemyHealthMultiplier: 2.5,
