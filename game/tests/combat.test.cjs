@@ -481,7 +481,7 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
     const damageLabels = [];
     const companions = [];
     const rings = [];
-    const bolts = [];
+    const effects = [];
     const scene = {
         sound: { play() {} },
         tweens: { add() {} },
@@ -514,19 +514,22 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
                     setDepth() { return this; },
                     setScale() { return this; },
                     setPosition(nextX, nextY) { this.x = nextX; this.y = nextY; return this; },
+                    setBlendMode() { return this; },
                     destroy() {}
                 };
                 rings.push(circle);
                 return circle;
             },
-            line(x, y, x1, y1, x2, y2) {
-                bolts.push({ x1, y1, x2, y2 });
-                return {
-                    setOrigin() { return this; },
-                    setDepth() { return this; },
-                    setLineWidth() { return this; },
-                    destroy() {}
-                };
+            graphics() {
+                // Registra o que os efeitos em área desenham, sem renderizar nada.
+                const layer = { circles: [], lines: 0 };
+                for (const method of ['setDepth', 'setBlendMode', 'setPosition', 'setScale', 'fillStyle', 'lineStyle', 'fillCircle', 'fillRect', 'destroy']) {
+                    layer[method] = function () { return this; };
+                }
+                layer.strokeCircle = function (_x, _y, radius) { this.circles.push(radius); return this; };
+                layer.lineBetween = function () { this.lines += 1; return this; };
+                effects.push(layer);
+                return layer;
             },
             text(x, y, text) {
                 const label = {
@@ -584,7 +587,7 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
     };
     const walls = [{ getTilesWithinWorldXY: () => wallTiles }];
     const combat = new CombatSystem(scene, player, drones, walls, upgrades, tracker, undefined, melee);
-    return { combat, player, drones, groups, colliders, overlaps, attachBody, damageLabels, companions, rings, bolts };
+    return { combat, player, drones, groups, colliders, overlaps, attachBody, damageLabels, companions, rings, effects };
 }
 
 test('vida diminui, não cura com dano negativo e não fica abaixo de zero', () => {
@@ -2885,14 +2888,14 @@ test('pulso de choque atinge todos dentro do raio no ritmo da carta', () => {
     upgrades.acquire(getUpgradeCard('shock-pulse'));
     // Fora do alcance do tiro, para medir só o pulso.
     upgrades.range = 1;
-    const { combat, drones, rings } = setup([[140, 100], [100, 150], [300, 100]], [], upgrades);
+    const { combat, drones, effects } = setup([[140, 100], [100, 150], [300, 100]], [], upgrades);
     const full = COMBAT_CONFIG.drone.maxHealth;
     const pulse = upgrades.damage * 1.5;
     combat.update(0);
     assert.equal(drones[0].health.current, full - pulse);
     assert.equal(drones[1].health.current, full - pulse);
     assert.equal(drones[2].health.current, full, 'fora do raio');
-    assert.deepEqual(rings.map(({ radius }) => radius), [100]);
+    assert.ok(effects.some((layer) => layer.circles.includes(100)), 'a onda mostra o raio real');
     combat.update(799);
     assert.equal(drones[0].health.current, full - pulse, 'espera o intervalo');
     combat.update(1);
@@ -2930,14 +2933,14 @@ test('raio em cadeia salta entre vizinhos sem repetir alvo', () => {
     upgrades.acquire(getUpgradeCard('chain-lightning'));
     upgrades.range = 100;
     const positions = Array.from({ length: 10 }, (_, index) => [150 + index * 50, 100]);
-    const { combat, drones, bolts } = setup(positions, [], upgrades);
+    const { combat, drones, effects } = setup(positions, [], upgrades);
     // Sem tiro comum neste teste: só o raio causa dano.
     combat.playerCooldown = 99_999;
     const full = COMBAT_CONFIG.drone.maxHealth;
     combat.update(0);
     const hit = drones.filter((drone) => drone.health.current < full).length;
     assert.equal(hit, 8, 'nível 1 salta por 8 inimigos');
-    assert.equal(bolts.length, 8);
+    assert.equal(effects.length, 1, 'um raio desenhado para a cadeia inteira');
     assert.equal(drones[9].health.current, full);
 });
 
@@ -2958,16 +2961,18 @@ test('feixes de luz cruzam a tela e ferem quem está na linha', () => {
     upgrades.acquire(getUpgradeCard('light-beams'));
     upgrades.range = 1;
     // Com 6 feixes, o primeiro disparo sai a 30°, 90°, 150°...: o de 90° desce reto.
-    const { combat, drones, bolts } = setup([[100, 300], [300, 100]], [], upgrades);
+    const { combat, drones, effects } = setup([[100, 300], [300, 100]], [], upgrades);
     const full = COMBAT_CONFIG.drone.maxHealth;
     combat.update(0);
-    assert.equal(bolts.length, 6);
+    // Três camadas (halo, cor e núcleo) por feixe.
+    assert.equal(effects.length, 1);
+    assert.equal(effects[0].lines, 6 * 3);
     assert.equal(drones[0].health.isAlive, false, 'na linha de 90°, a 200 px');
     assert.equal(drones[1].health.current, full, 'entre dois feixes');
     combat.update(999);
-    assert.equal(bolts.length, 6, 'espera o intervalo');
+    assert.equal(effects.length, 1, 'espera o intervalo');
     combat.update(1);
-    assert.equal(bolts.length, 12, 'o leque gira e dispara de novo');
+    assert.equal(effects.length, 2, 'o leque gira e dispara de novo');
 });
 
 test('jogador fica imune por um instante depois de levar um golpe', () => {
@@ -3015,4 +3020,22 @@ test('horda traz de volta quem se perdeu longe do jogador', () => {
     world.activeRoomKey = 'room1';
     world.recallHordeStragglers(COMBAT_CONFIG.hordeRecall.interval);
     assert.equal(moved.length, 1, 'fora da horda ninguém é puxado');
+});
+
+test('raio em cadeia desenha um zigue-zague passando por cada alvo', () => {
+    const { playLightning } = load('../src/game/effects/playAreaEffects.ts');
+    const layer = { lines: [], impacts: 0 };
+    for (const method of ['setDepth', 'setBlendMode', 'lineStyle', 'fillStyle', 'destroy']) layer[method] = function () { return this; };
+    layer.lineBetween = function (x1, y1, x2, y2) { this.lines.push([x1, y1, x2, y2]); return this; };
+    layer.fillCircle = function () { this.impacts += 1; return this; };
+    const scene = { add: { graphics: () => layer }, tweens: { add() {} } };
+    playLightning(scene, [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }], 0xffffff, () => 1);
+
+    // 2 trechos em 5 pedaços cada, desenhados em 3 camadas.
+    assert.equal(layer.lines.length, 2 * 5 * 3);
+    const firstLayer = layer.lines.slice(0, 10);
+    assert.deepEqual(firstLayer[4].slice(2), [100, 0], 'passa exatamente pelo primeiro alvo');
+    assert.deepEqual(firstLayer[9].slice(2), [100, 100]);
+    assert.ok(firstLayer.slice(0, 4).some(([, , , y]) => y !== 0), 'o caminho entre alvos é quebrado');
+    assert.equal(layer.impacts, 2 * 2, 'clarão em cada alvo atingido');
 });
