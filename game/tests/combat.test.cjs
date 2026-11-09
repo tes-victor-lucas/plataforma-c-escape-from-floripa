@@ -1071,7 +1071,7 @@ test('segunda onda aguarda o fim da vinheta sem dispará-la mais de uma vez', ()
 
 test('Sala I tem duas ondas e a horda da Sala II cresce depois da carta', () => {
     assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room1], [10, 8]);
-    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room2], [24, 72]);
+    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room2], [12, 72]);
     const [first, second] = COMBAT_CONFIG.hordeByRoom.room2;
     assert.ok(second.maxAlive > first.maxAlive * 2, 'a segunda horda precisa ser bem maior');
     assert.ok(second.interval < first.interval);
@@ -1543,6 +1543,18 @@ test('drone persegue jogador visível em qualquer direção sem acelerar na diag
     assert.ok(sprite.body.velocity.x > 0);
     assert.ok(sprite.body.velocity.y < 0);
     assert.equal(sprite.flipX, false);
+});
+
+test('drone da horda persegue de qualquer distância e mesmo atrás de parede', () => {
+    const wall = [{ collides: true, getBounds: () => new phaser.Geom.Rectangle(0, 0, 2_000, 2_000) }];
+    const { drone, sprite, playerAt } = chasingDrone(wall);
+    const far = WORLD_CONFIG.drone.detectionRadius * 3;
+    const { chaseSpeed } = WORLD_CONFIG.drone;
+    drone.update(playerAt(far));
+    assert.notEqual(Math.abs(sprite.body.velocity.x), chaseSpeed, 'fora da horda, longe e sem visão, só patrulha');
+    drone.relentless = true;
+    drone.update(playerAt(far));
+    assert.equal(sprite.body.velocity.x, chaseSpeed);
 });
 
 test('drone só detecta no raio configurado e não oscila na borda durante a perseguição', () => {
@@ -2989,14 +3001,16 @@ test('horda traz de volta quem se perdeu longe do jogador', () => {
         enemy.sprite.body.reset = () => {};
     }
     world.drones = [near, lost];
-    world.droneSpawnPoints = [230, 260].map((x) => ({ x, y: 1_200, patrolLeft: x - 16, patrolRight: x + 16 }));
+    // Logo fora da tela: entre 300 e 380 px do jogador.
+    world.droneSpawnPoints = [430, 460].map((x) => ({ x, y: 1_200, patrolLeft: x - 16, patrolRight: x + 16 }));
 
     world.recallHordeStragglers(COMBAT_CONFIG.hordeRecall.interval - 1);
     assert.equal(moved.length, 0, 'espera o intervalo');
     world.recallHordeStragglers(1);
     assert.equal(moved.length, 1);
     assert.equal(moved[0].enemy, lost);
-    assert.ok(moved[0].x <= 100 + COMBAT_CONFIG.hordeSpawnMaxDistance);
+    assert.ok(moved[0].x - 100 >= COMBAT_CONFIG.hordeSpawnMinDistance, 'reaparece fora da tela');
+    assert.ok(moved[0].x - 100 <= COMBAT_CONFIG.hordeSpawnMaxDistance);
 
     world.activeRoomKey = 'room1';
     world.recallHordeStragglers(COMBAT_CONFIG.hordeRecall.interval);
