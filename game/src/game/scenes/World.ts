@@ -1397,6 +1397,8 @@ export class World extends Scene {
         if (this.multiplayerSyncElapsed < 50) return;
         this.multiplayerSyncElapsed = 0;
         const state = this.player.getNetworkState();
+        // Faíscas e drone só agem fora da sala corpo a corpo e com o jogador de pé, como no CombatSystem.
+        const cardsActive = this.activeRoomKey !== 'gaucho-dungeon' && this.player.health.isAlive;
         multiplayerClient.sendPlayerState({
             ...state,
             health: this.player.health.current,
@@ -1404,9 +1406,9 @@ export class World extends Scene {
             reviveProgress: this.getReviveProgress(),
             revivesLeft: this.getRevivesLeft(),
             character: this.characterId,
-            orbitCount: this.upgrades.orbitCount,
+            orbitCount: cardsActive ? this.upgrades.orbitCount : 0,
             orbitRadius: this.upgrades.orbitRadius,
-            companion: this.upgrades.companionCount > 0
+            companion: cardsActive && this.upgrades.companionCount > 0
         });
         if (this.isMultiplayerHost()) this.sendEnemySnapshot();
     }
