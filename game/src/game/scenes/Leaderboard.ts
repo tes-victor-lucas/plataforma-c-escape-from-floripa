@@ -26,8 +26,7 @@ export class Leaderboard extends Scene {
         for (const key of ['LEFT', 'RIGHT', 'A', 'D']) this.input.keyboard?.on(`keydown-${key}`, toggle);
         bindGamepadActions(this, {
             left: toggle,
-            right: toggle,
-            cancel: () => this.scene.stop()
+            right: toggle
         });
         show(mode);
     }
