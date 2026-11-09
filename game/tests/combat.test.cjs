@@ -3195,6 +3195,16 @@ test('faíscas orbitais ferem quem encostar, uma vez por intervalo', () => {
     assert.equal(drones[0].health.current, full - upgrades.damage * 1.5, 'não acerta de novo antes do intervalo');
 });
 
+test('tempestade elétrica causa 150% do dano por salto', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('thunder-storm'));
+    upgrades.range = 100;
+    const { combat, drones } = setup([[150, 100], [200, 100]], [], upgrades);
+    combat.playerCooldown = 99_999;
+    combat.update(0);
+    assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth - upgrades.damage * 1.5);
+});
+
 test('raio em cadeia salta entre vizinhos sem repetir alvo', () => {
     const upgrades = new PlayerUpgradeState();
     upgrades.acquire(getUpgradeCard('chain-lightning'));
@@ -3207,6 +3217,7 @@ test('raio em cadeia salta entre vizinhos sem repetir alvo', () => {
     combat.update(0);
     const hit = drones.filter((drone) => drone.health.current < full).length;
     assert.equal(hit, 8, 'nível 1 salta por 8 inimigos');
+    assert.equal(drones[0].health.current, full - upgrades.damage, 'cada salto causa 100% do dano');
     assert.equal(effects.length, 1, 'um raio desenhado para a cadeia inteira');
     assert.equal(drones[9].health.current, full);
 });
@@ -3528,7 +3539,7 @@ test('carta comum pega depois da forte não enfraquece o efeito', () => {
     upgrades.acquire(getUpgradeCard('thunder-storm'));
     upgrades.acquire(getUpgradeCard('chain-lightning'));
     assert.equal(upgrades.chainInterval, 500);
-    assert.equal(upgrades.chainDamageRatio, 3);
+    assert.equal(upgrades.chainDamageRatio, 1.5);
     assert.equal(upgrades.chainRange, 130);
     assert.equal(upgrades.chainJumps, 16);
 
