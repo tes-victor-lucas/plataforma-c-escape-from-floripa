@@ -72,10 +72,27 @@ export const COMBAT_CONFIG = {
     waves: [10, 8],
     wavesByRoom: {
         room1: [10, 8],
-        room2: [10],
+        // A segunda onda vem depois da carta e é bem maior: a horda cresce.
+        room2: [24, 72],
         dungeon: [10],
         'gaucho-dungeon': [10]
     },
+    /**
+     * Horda contínua: em vez de nascer tudo de uma vez, a onda chega em lotes até a meta,
+     * sem passar de `maxAlive` vivos. Uma entrada por onda; salas sem entrada nascem de uma vez.
+     */
+    hordeByRoom: {
+        room2: [
+            { maxAlive: 10, batchSize: 3, interval: 1_500 },
+            { maxAlive: 28, batchSize: 6, interval: 800 }
+        ]
+    } as Partial<Record<RoomKey, readonly { maxAlive: number; batchSize: number; interval: number }[]>>,
+    // Lotes da horda nascem à vista e dentro do menor raio de percepção (guarda, 210),
+    // para todo inimigo já nascer perseguindo o jogador; o mínimo evita nascer colado.
+    hordeSpawnMinDistance: 110,
+    hordeSpawnMaxDistance: 205,
+    // Quem fica longe ou atrás de um muro volta para perto, senão a onda nunca termina.
+    hordeRecall: { interval: 2_000, distance: 280 },
     multiplayer: {
         // Dois jogadores causam o dobro de dano nos mesmos inimigos; acima de 2 fica mais difícil.
         enemyHealthMultiplier: 2.5,
@@ -103,7 +120,8 @@ const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
     room2: [
         // Um a cada cinco inimigos da Sala II é um gaúcho.
         ['guard', 'guard', 'drone', 'scooter', 'gaucho'],
-        ['drone', 'scooter', 'guard', 'drone', 'gaucho']
+        // Horda: maioria corpo a corpo, poucos drones atirando.
+        ['gaucho', 'guard', 'scooter', 'gaucho', 'drone', 'gaucho']
     ],
     dungeon: [
         ['scooter', 'drone', 'guard', 'drone', 'scooter']
@@ -117,9 +135,11 @@ const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
 export function getWaveEnemyKinds(
     roomKey: RoomKey,
     waveIndex: number,
-    count: number
+    count: number,
+    // Lotes da mesma onda continuam o padrão de onde o anterior parou.
+    offset = 0
 ) {
     const roomPatterns = WAVE_PATTERNS[roomKey];
     const pattern = roomPatterns[Math.min(Math.max(0, waveIndex), roomPatterns.length - 1)];
-    return Array.from({ length: count }, (_, index) => pattern[index % pattern.length]);
+    return Array.from({ length: count }, (_, index) => pattern[(offset + index) % pattern.length]);
 }

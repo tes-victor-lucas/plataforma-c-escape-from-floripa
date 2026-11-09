@@ -35,6 +35,7 @@ export class Player {
     /** Última direção pedida pelo teclado; muda na hora, antes de a velocidade inverter. */
     private aimDirection: { x: number; y: number } = { x: 0, y: 1 };
     private movementSpeedMultiplier = 1;
+    private invulnerableUntil = 0;
     private controlsInverted = false;
     /**
      * `body.blocked` é limpo pelo Arcade Physics antes do próximo passo. Guardamos
@@ -192,10 +193,13 @@ export class Player {
 
     takeDamage(amount: number) {
         if (!this.health.isAlive) return;
+        const now = this.scene.time?.now ?? 0;
+        if (now < this.invulnerableUntil) return;
         const previousHealth = this.health.current;
         this.health.takeDamage(amount);
         const healthLost = previousHealth - this.health.current;
         if (healthLost <= 0) return;
+        this.invulnerableUntil = now + WORLD_CONFIG.player.hurtInvulnerability;
         this.onDamageApplied?.(healthLost);
         const sound = this.health.isAlive
             ? AUDIO_CONFIG.effects.playerHurt

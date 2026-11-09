@@ -25,7 +25,8 @@ import {
 } from '../combat/DroneWaves';
 import { WaveThreatView } from '../ui/WaveThreatView';
 import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
-import { drawUpgradeCards } from '../upgrades/drawUpgradeCards';
+import { drawUpgradeCards, drawUpgradeCardsFeaturing } from '../upgrades/drawUpgradeCards';
+import { AREA_UPGRADE_IDS } from '../upgrades/catalog';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
 import { drawPlayerBar, RemotePlayer } from '../entities/RemotePlayer';
@@ -86,6 +87,7 @@ import {
 import { createLampLight } from '../map/createLampLights';
 import { getGamepadInput } from '../input/GamepadInput';
 import { isTouchScreen, touchInput } from '../input/TouchInput';
+import { hasLineOfSight } from '../map/hasLineOfSight';
 
 const ROOM2_WALKABLE_LAYERS = [
     'floor',
@@ -139,6 +141,9 @@ export class World extends Scene {
     private isRoomTransitioning = false;
     private hasSpawnedRoom2Guards = false;
     private waveIndex = 0;
+    private currentWaveIndex = 0;
+    private waveSpawned = 0;
+    private hordeRecallElapsed = 0;
     private isRoomCombatComplete = false;
     private nauseaEndsAt = 0;
     private normalCameraZoom: number = WORLD_CONFIG.camera.zoom;
@@ -186,6 +191,9 @@ export class World extends Scene {
         this.isRoomTransitioning = false;
         this.hasSpawnedRoom2Guards = false;
         this.waveIndex = 0;
+        this.currentWaveIndex = 0;
+        this.waveSpawned = 0;
+        this.hordeRecallElapsed = 0;
         this.isRoomCombatComplete = false;
         this.isHitStopActive = false;
         this.hitStopTimer = undefined;
@@ -326,22 +334,27 @@ export class World extends Scene {
             finishRoomCombat();
         };
         // Ao voltar, os drones vivos formam a primeira onda; uma sala já limpa não tem combate.
+        // Quem ainda não tinha nascido na horda volta junto com os sobreviventes.
         const waveCounts = savedCombat
-            ? [savedCombat.enemies.length, ...savedCombat.pendingWaves]
+            ? [savedCombat.enemies.length + (savedCombat.hordeRemaining ?? 0), ...savedCombat.pendingWaves]
             : isDungeon
                 ? [DUNGEON_WAVE_ENEMY_COUNT]
                 : COMBAT_CONFIG.wavesByRoom[roomKey];
+        // Ao retomar, as ondas que restam usam a horda das últimas posições.
+        const roomHordes = COMBAT_CONFIG.hordeByRoom[roomKey] ?? [];
+        const hordes = roomHordes.slice(Math.max(0, roomHordes.length - waveCounts.length));
         // O convidado recebe ondas e inimigos prontos do anfitrião.
         // Uma sala salva sem inimigos e não vencida ainda precisa da onda vazia para concluir.
         this.waves = !this.isMultiplayerGuest() && !savedCombat?.cleared
             && (savedCombat !== undefined || waveCounts.some((count) => count > 0))
             ? new DroneWaves(
-                (count) => this.spawnDrones(count),
+                (count, startsWave) => this.spawnDrones(count, startsWave),
                 () => {
                     this.completeRoomCombat?.();
                 },
                 (resume) => this.playWaveIntermission(resume),
-                waveCounts
+                waveCounts,
+                hordes
             )
             : undefined;
         if (this.isPartnerRoomReady()) this.waves?.update(this.drones);
@@ -467,11 +480,52 @@ export class World extends Scene {
             }
         }
         this.combat?.update(delta);
-        if (this.isPartnerRoomReady()) this.waves?.update(this.drones);
+        this.recallHordeStragglers(delta);
+        if (this.isPartnerRoomReady()) this.waves?.update(this.drones, delta);
     }
 
-    private spawnDrones(count: number) {
-        if (!this.player || !this.combat || this.isRoomCombatComplete) return;
+    /** Na horda, inimigo que nasce longe ou atrás de um muro só patrulha e a onda empaca. */
+    private readonly isHordeSpawnPoint = (point: { x: number; y: number }) => {
+        if (!COMBAT_CONFIG.hordeByRoom[this.activeRoomKey] || !this.player) return true;
+        const target = this.player.sprite.body?.center ?? this.player.sprite;
+        return Math.hypot(point.x - target.x, point.y - target.y) <= COMBAT_CONFIG.hordeSpawnMaxDistance
+            && hasLineOfSight(this.collisionLayers, point, target);
+    };
+
+    /** Roda no anfitrião: traz de volta quem se perdeu longe do jogador ou atrás de um muro. */
+    private recallHordeStragglers(delta: number) {
+        if (!COMBAT_CONFIG.hordeByRoom[this.activeRoomKey] || !this.player || this.isMultiplayerGuest()) return;
+        this.hordeRecallElapsed += delta;
+        const { interval, distance } = COMBAT_CONFIG.hordeRecall;
+        if (this.hordeRecallElapsed < interval) return;
+        this.hordeRecallElapsed = 0;
+        const target = this.player.sprite.body?.center ?? this.player.sprite;
+        // Poucos por vez: a volta é gradual e nunca pede mais pontos do que o mapa tem.
+        const lost = this.drones.filter((enemy) => {
+            if (!enemy.health.isAlive) return false;
+            const center = enemy.sprite.body?.center ?? enemy.sprite;
+            return Math.hypot(center.x - target.x, center.y - target.y) > distance
+                || !hasLineOfSight(this.collisionLayers, center, target);
+        }).slice(0, 6);
+        if (lost.length === 0) return;
+        const points = selectDroneSpawns(
+            lost.length,
+            this.player.sprite,
+            this.droneSpawnPoints,
+            this.isHordeSpawnPoint,
+            COMBAT_CONFIG.hordeSpawnMinDistance
+        );
+        lost.forEach((enemy, index) => {
+            const point = points[index % points.length];
+            if (!point) return;
+            enemy.sprite.setPosition(point.x, point.y);
+            (enemy.sprite.body as Phaser.Physics.Arcade.Body | null)?.reset(point.x, point.y);
+        });
+    }
+
+    /** Devolve quantos inimigos nasceram, para a horda saber quantos ainda faltam. */
+    private spawnDrones(count: number, startsWave = true) {
+        if (!this.player || !this.combat || this.isRoomCombatComplete) return 0;
         const shouldSpawnStairGuards = this.activeRoomKey === 'room2'
             && !this.hasSpawnedRoom2Guards;
         const savedEnemies = this.savedEnemies;
@@ -484,14 +538,26 @@ export class World extends Scene {
                         spawnPoint.x === prioritySpawn.x && spawnPoint.y === prioritySpawn.y)),
                 this.droneSpawnPoints
             )
-            : selectDroneSpawns(count, this.player.sprite, this.droneSpawnPoints));
+            : selectDroneSpawns(
+                count,
+                this.player.sprite,
+                this.droneSpawnPoints,
+                this.isHordeSpawnPoint,
+                COMBAT_CONFIG.hordeByRoom[this.activeRoomKey] ? COMBAT_CONFIG.hordeSpawnMinDistance : undefined
+            ));
+        if (startsWave) {
+            this.currentWaveIndex = this.waveIndex;
+            this.waveIndex += 1;
+            this.waveSpawned = 0;
+            // Lotes no meio da horda não podem apagar os tiros em voo.
+            this.combat.clear();
+        }
         const kinds = savedEnemies
             ? savedEnemies.map((enemy) => enemy.kind ?? 'drone')
-            : getWaveEnemyKinds(this.activeRoomKey, this.waveIndex, spawns.length);
-        this.waveIndex += 1;
+            : getWaveEnemyKinds(this.activeRoomKey, this.currentWaveIndex, spawns.length, this.waveSpawned);
+        this.waveSpawned += spawns.length;
         if (shouldSpawnStairGuards) this.hasSpawnedRoom2Guards = true;
         this.savedEnemies = undefined;
-        this.combat.clear();
         const created = spawns.map((spawn, index) => {
             const enemy = this.createEnemy(kinds[index], spawn);
             if (this.isMultiplayerEnabled()) {
@@ -519,6 +585,7 @@ export class World extends Scene {
                 }))
             });
         }
+        return created.length;
     }
 
     private addEnemyToCombat(enemy: CombatEnemy) {
@@ -810,6 +877,7 @@ export class World extends Scene {
         this.dungeonState.savedCombat[this.activeRoomKey] = {
             enemies,
             pendingWaves: this.waves?.pendingWaves() ?? [],
+            hordeRemaining: this.waves?.currentWaveRemaining() ?? 0,
             cleared: this.isRoomCombatComplete
         };
     }
@@ -868,7 +936,11 @@ export class World extends Scene {
         this.isWaveIntermissionOpen = true;
         this.piranhasBarPrompt?.setVisible(false);
         const overlayScene = this.scene.get('CombatHud') as Scene;
-        new UpgradeSelectionView(overlayScene, drawUpgradeCards(undefined, this.upgrades.availableCards())).play((selected) => {
+        // Antes da horda maior da Sala II, as cartas de dano em área ficam garantidas na mesa.
+        const cards = this.activeRoomKey === 'room2'
+            ? drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, undefined, this.upgrades.availableCards())
+            : drawUpgradeCards(undefined, this.upgrades.availableCards());
+        new UpgradeSelectionView(overlayScene, cards).play((selected) => {
             this.acquireUpgrade(selected);
             this.waitForPartnerCard(() => {
                 new WaveThreatView(overlayScene, this.cameras.main).play(() => {
@@ -1097,6 +1169,9 @@ export class World extends Scene {
         this.isRoomTransitioning = false;
         this.hasSpawnedRoom2Guards = false;
         this.waveIndex = 0;
+        this.currentWaveIndex = 0;
+        this.waveSpawned = 0;
+        this.hordeRecallElapsed = 0;
         this.isRoomCombatComplete = false;
         this.isHitStopActive = false;
         this.hitStopTimer?.remove(false);

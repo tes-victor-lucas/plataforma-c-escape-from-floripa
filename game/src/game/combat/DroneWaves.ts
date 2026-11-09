@@ -15,43 +15,85 @@ type TileGrid = {
     tileHeight: number;
 };
 
-/** Avança uma única vez por onda, preservando a vida do jogador. */
+export type HordeConfig = Readonly<{ maxAlive: number; batchSize: number; interval: number }>;
+
+const ALL_AT_ONCE: HordeConfig = { maxAlive: Infinity, batchSize: Infinity, interval: 0 };
+
+/**
+ * Avança uma única vez por onda, preservando a vida do jogador.
+ * Com horda, a onda nasce em lotes até a meta; a próxima só começa quando todos morrem.
+ */
 export class DroneWaves {
     private nextWave = 0;
+    private currentWave = 0;
+    private remaining = 0;
+    private spawnElapsed = 0;
     private completed = false;
     private waitingForIntermission = false;
 
     constructor(
-        private readonly spawn: (count: number) => void,
+        /** Recebe quantos criar e se é o começo da onda; devolve quantos criou de fato. */
+        private readonly spawn: (count: number, startsWave: boolean) => number | void,
         private readonly onComplete: () => void = () => {},
         private readonly playIntermission: (resume: () => void) => void = (resume) => resume(),
-        private readonly waveCounts: readonly number[] = COMBAT_CONFIG.waves
+        private readonly waveCounts: readonly number[] = COMBAT_CONFIG.waves,
+        private readonly hordes: readonly HordeConfig[] = []
     ) {}
 
-    update(drones: ReadonlyArray<{ health: { isAlive: boolean } }>) {
-        if (this.completed || this.waitingForIntermission || drones.some((drone) => drone.health.isAlive)) return;
-        const count = this.waveCounts[this.nextWave];
+    update(drones: ReadonlyArray<{ health: { isAlive: boolean } }>, delta = 0) {
+        if (this.completed || this.waitingForIntermission) return;
+        const alive = drones.filter((drone) => drone.health.isAlive).length;
+        if (this.remaining > 0) {
+            this.spawnElapsed += delta;
+            const horde = this.hordes[this.currentWave] ?? ALL_AT_ONCE;
+            if (alive === 0 || (alive < horde.maxAlive && this.spawnElapsed >= horde.interval)) {
+                this.spawnBatch(alive, false);
+            }
+            return;
+        }
+        if (alive > 0) return;
+        const waveIndex = this.nextWave;
+        const count = this.waveCounts[waveIndex];
         if (count === undefined) {
             this.completed = true;
             this.onComplete();
             return;
         }
-
-        if (this.nextWave === 0) {
-            this.spawn(count);
+        this.nextWave += 1;
+        const start = () => {
+            this.currentWave = waveIndex;
+            this.remaining = count;
+            this.spawnBatch(0, true);
+        };
+        if (waveIndex === 0) {
+            start();
         } else {
             this.waitingForIntermission = true;
             this.playIntermission(() => {
                 this.waitingForIntermission = false;
-                this.spawn(count);
+                start();
             });
         }
-        this.nextWave += 1;
     }
 
     /** Ondas que ainda não começaram, para retomar a sala em outra visita. */
     pendingWaves() {
         return this.waveCounts.slice(this.nextWave);
+    }
+
+    /** Inimigos da onda atual que ainda não nasceram. */
+    currentWaveRemaining() {
+        return this.remaining;
+    }
+
+    private spawnBatch(alive: number, startsWave: boolean) {
+        const horde = this.hordes[this.currentWave] ?? ALL_AT_ONCE;
+        const count = Math.min(this.remaining, horde.batchSize, Math.max(1, horde.maxAlive - alive));
+        const spawned = this.spawn(count, startsWave);
+        const created = typeof spawned === 'number' ? spawned : count;
+        // Sem onde nascer, encerra a onda em vez de travar a sala esperando.
+        this.remaining = created === 0 ? 0 : Math.max(0, this.remaining - created);
+        this.spawnElapsed = 0;
     }
 }
 
@@ -59,19 +101,24 @@ export class DroneWaves {
 export function selectDroneSpawns(
     count: number,
     playerPosition: { x: number; y: number },
-    spawnPoints: readonly DroneSpawnPoint[] = COMBAT_CONFIG.droneSpawns
+    spawnPoints: readonly DroneSpawnPoint[] = COMBAT_CONFIG.droneSpawns,
+    // Prefere os pontos aprovados aqui, se houver o suficiente; senão usa todos os seguros.
+    prefer: (point: DroneSpawnPoint) => boolean = () => true,
+    minDistance: number = COMBAT_CONFIG.spawnDistanceFromPlayer
 ) {
     const { spawn, spawnSafeRadius } = WORLD_CONFIG.player;
     const candidates = spawnPoints.filter((point) => {
         // Inclui toda a patrulha e uma margem para o corpo do drone.
         const closestX = Math.max(point.patrolLeft, Math.min(spawn.x, point.patrolRight));
         return Math.hypot(closestX - spawn.x, point.y - spawn.y) >= spawnSafeRadius + 16
-            && Math.hypot(point.x - playerPosition.x, point.y - playerPosition.y) >= COMBAT_CONFIG.spawnDistanceFromPlayer;
+            && Math.hypot(point.x - playerPosition.x, point.y - playerPosition.y) >= minDistance;
     });
     if (candidates.length < count) {
         throw new Error(`Não há posições seguras suficientes para criar ${count} drones.`);
     }
-    return Array.from({ length: count }, (_, index) => candidates[Math.floor(index * candidates.length / count)]);
+    const preferred = candidates.filter(prefer);
+    const pool = preferred.length >= count ? preferred : candidates;
+    return Array.from({ length: count }, (_, index) => pool[Math.floor(index * pool.length / count)]);
 }
 
 /** Reserva sentinelas em pontos narrativos e completa a onda com os pontos comuns. */

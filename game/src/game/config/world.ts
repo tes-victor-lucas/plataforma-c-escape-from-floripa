@@ -7,6 +7,8 @@ export const WORLD_CONFIG = {
         spawn: { x: 400, y: 536 },
         spawnSafeRadius: 240,
         speed: 120,
+        // Depois de um golpe, o jogador fica imune por um instante: sem isso a horda mata num piscar.
+        hurtInvulnerability: 700,
         // Teto somado de chimarrões e gin tropical, para não desbalancear a fuga.
         maxSpeedMultiplier: 1.4,
         velocityResponsiveness: 14,
