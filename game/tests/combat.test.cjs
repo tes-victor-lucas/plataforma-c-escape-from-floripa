@@ -3198,3 +3198,15 @@ test('patinete continua parando para se recuperar depois da investida', () => {
     charger.update(player, recoveryDuration - 1);
     assert.equal(charger.state, 'recover');
 });
+
+test('fora da horda da Sala II os sorteios só trazem as cartas básicas', () => {
+    const { basicUpgradeCards } = load('../src/game/upgrades/drawUpgradeCards.ts');
+    const { UPGRADE_CARDS } = load('../src/game/upgrades/catalog.ts');
+    const basic = basicUpgradeCards(UPGRADE_CARDS);
+    assert.ok(basic.length >= 3 && basic.some((card) => card.kind === 'ability'), 'ainda dá para sortear três com uma habilidade');
+    assert.ok(basic.every((card) => !AREA_UPGRADE_IDS.includes(card.id)));
+    for (const roll of [0, 0.25, 0.5, 0.75, 0.99]) {
+        const cards = drawUpgradeCards(() => roll, basic);
+        assert.ok(cards.every((card) => !AREA_UPGRADE_IDS.includes(card.id)), `sorteio ${roll}`);
+    }
+});
