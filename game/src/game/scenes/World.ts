@@ -789,7 +789,8 @@ export class World extends Scene {
         for (const enemy of this.drones) {
             if (enemy.health.isAlive) enemy.takeDamage(enemy.health.current);
         }
-        this.completeRoomCombat?.();
+        // Na Sala III concluir o combate é a vitória: o atalho só limpa a horda e a partida segue.
+        if (this.activeRoomKey !== 'room3') this.completeRoomCombat?.();
     }
 
     private createDroneBodies() {
