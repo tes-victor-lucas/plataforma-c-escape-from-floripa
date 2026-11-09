@@ -85,7 +85,7 @@ import {
 } from '../config/dungeon';
 import { createLampLight } from '../map/createLampLights';
 import { getGamepadInput } from '../input/GamepadInput';
-import { touchInput } from '../input/TouchInput';
+import { isTouchScreen, touchInput } from '../input/TouchInput';
 
 const ROOM2_WALKABLE_LAYERS = [
     'floor',
@@ -585,7 +585,8 @@ export class World extends Scene {
     /** O tiro automático some nesta sala, então o jogador precisa ver como atacar. */
     private equipSword() {
         this.combat?.equipSword();
-        this.swordHint = this.createWorldHint('BOTÃO DIREITO / BOTÃO PRINCIPAL: ATACAR');
+        // No celular o próprio botão USAR vira a espada, que já indica o ataque.
+        if (!isTouchScreen()) this.swordHint = this.createWorldHint('BOTÃO DIREITO / BOTÃO PRINCIPAL: ATACAR');
     }
 
     private createWorldHint(text: string) {
@@ -953,7 +954,7 @@ export class World extends Scene {
 
     private createPiranhasBarPrompt() {
         const { x, y } = PIRANHAS_BAR_CONFIG.prompt;
-        this.piranhasBarPrompt = this.add.text(x, y, '[ G / BOTÃO PRINCIPAL ]  CARDÁPIO', {
+        this.piranhasBarPrompt = this.add.text(x, y, isTouchScreen() ? '[ USAR ]  CARDÁPIO' : '[ G / BOTÃO PRINCIPAL ]  CARDÁPIO', {
             fontFamily: 'PixelGamer, monospace',
             fontSize: '8px',
             color: '#ffffff',

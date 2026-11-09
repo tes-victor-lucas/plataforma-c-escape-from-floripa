@@ -1,6 +1,6 @@
 import type { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
-import { joystickDirection, touchInput, type TouchAction } from '../input/TouchInput';
+import { isTouchScreen, joystickDirection, touchInput, type TouchAction } from '../input/TouchInput';
 
 const DEPTH = 120;
 const STICK = { x: 96, y: GAME_HEIGHT - 96, radius: 52 };
@@ -33,7 +33,7 @@ export class TouchControlsView {
     }
 
     create() {
-        if (!this.scene.sys.game?.device?.input?.touch) return;
+        if (!isTouchScreen()) return;
         const { scene } = this;
         touchInput.reset();
         scene.events.once('shutdown', () => touchInput.reset());

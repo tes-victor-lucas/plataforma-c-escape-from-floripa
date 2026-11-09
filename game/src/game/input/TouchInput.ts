@@ -1,5 +1,12 @@
 export type TouchAction = 'dash' | 'interact';
 
+/** Celular e tablet: o mesmo critério do CSS, para notebooks com tela de toque continuarem no teclado. */
+export function isTouchScreen(
+    matchMedia = typeof window === 'undefined' ? undefined : window.matchMedia?.bind(window)
+) {
+    return matchMedia?.('(pointer: coarse)').matches ?? false;
+}
+
 /** Estado dos controles de toque, lido pelo Player e pelo World como se fosse o gamepad. */
 export const touchInput = {
     x: 0,

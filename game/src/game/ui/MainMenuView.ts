@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 import { getMenuLayout, MENU_CONFIG } from '../config/menu';
 import { bindGamepadActions } from '../input/GamepadInput';
+import { isTouchScreen } from '../input/TouchInput';
 import { createWalkAnimations, walkAnimationKey } from '../entities/PlayerAnimations';
 
 const MENU_LAYOUT = getMenuLayout();
@@ -176,6 +177,13 @@ export class MainMenuView {
         this.onEscape = undefined;
         this.renderActions([]);
         this.setStatus('');
+        if (isTouchScreen()) {
+            // Sem teclado físico, o prompt nativo abre o teclado do celular; a filtragem é a mesma.
+            const name = [...(window.prompt('Nome da sala') ?? '')].reduce(editRoomName, '');
+            if (name) onConfirm(name);
+            else onCancel();
+            return;
+        }
         const textAt = (y: number, text: string, fontSize: string, color = '#ffffff') => this.scene.add
             .text(MENU_LAYOUT.menuX, y, text, { color, fontFamily: ACTION_FONT, fontSize, shadow: MENU_LAYOUT.actions.shadow })
             .setOrigin(0.5).setScrollFactor(0).setResolution(2);
