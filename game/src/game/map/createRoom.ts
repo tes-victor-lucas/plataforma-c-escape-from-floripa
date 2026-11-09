@@ -32,7 +32,14 @@ const ROOM2_FOREGROUND_LAYERS = new Set([
     'linhas-placa',
     'poste-old-terminal',
     'placa-onibus',
-    'grades'
+    'grades',
+    // Sala III: copa e tronco da figueira, vigas da pérgola e cabeças dos postes.
+    'figueira-topo',
+    'figueira-tronco',
+    'pendulo',
+    'pendulo-back',
+    'detalhe-penduloi',
+    'postes'
 ]);
 
 export interface Room {
