@@ -1074,7 +1074,7 @@ test('segunda onda aguarda o fim da vinheta sem dispará-la mais de uma vez', ()
 
 test('Sala I tem duas ondas e a horda da Sala II cresce depois da carta', () => {
     assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room1], [10, 8]);
-    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room2], [12, 112]);
+    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room2], [17, 132]);
     const [first, second] = COMBAT_CONFIG.hordeByRoom.room2;
     assert.ok(second.maxAlive > first.maxAlive * 2, 'a segunda horda precisa ser bem maior');
     assert.ok(second.interval < first.interval);
@@ -2339,11 +2339,13 @@ test('bueiro da Room 1 leva ao esconderijo dos gaúchos sem precisar de parede',
     assert.equal(getRequestedRoomKey('?room=gaucho-dungeon'), 'gaucho-dungeon');
 });
 
-test('esconderijo só tem gaúchos e a Sala II recebe um a cada cinco', () => {
+test('esconderijo só tem gaúchos e a primeira horda da Sala II traz 5 bicicletas', () => {
     assert.deepEqual(new Set(getWaveEnemyKinds('gaucho-dungeon', 0, 10)), new Set(['gaucho']));
-    const room2 = getWaveEnemyKinds('room2', 0, 10);
-    assert.deepEqual([room2[4], room2[9]], ['gaucho', 'gaucho']);
-    assert.equal(room2.filter((kind) => kind === 'gaucho').length, 2);
+    const room2 = getWaveEnemyKinds('room2', 0, COMBAT_CONFIG.wavesByRoom.room2[0]);
+    assert.deepEqual(room2.slice(0, 2), ['guard', 'guard'], 'os guardas da escada vêm primeiro');
+    const counts = {};
+    for (const kind of room2) counts[kind] = (counts[kind] ?? 0) + 1;
+    assert.deepEqual(counts, { guard: 6, drone: 2, scooter: 2, gaucho: 2, bike: 5 });
     assert.equal(new Set(getWaveEnemyKinds('room1', 1, 20)).has('gaucho'), false);
 });
 
@@ -3040,11 +3042,11 @@ test('raio em cadeia desenha um zigue-zague passando por cada alvo', () => {
     assert.equal(layer.impacts, 2 * 2, 'clarão em cada alvo atingido');
 });
 
-test('horda depois da carta tem +10 de cada tipo e mistura os tipos ao longo da onda', () => {
+test('horda depois da carta tem a quantidade de cada tipo e mistura os tipos ao longo da onda', () => {
     const kinds = getWaveEnemyKinds('room2', 1, COMBAT_CONFIG.wavesByRoom.room2[1]);
     const counts = {};
     for (const kind of kinds) counts[kind] = (counts[kind] ?? 0) + 1;
-    assert.deepEqual(counts, { gaucho: 46, guard: 22, scooter: 22, drone: 22 });
+    assert.deepEqual(counts, { gaucho: 46, guard: 22, scooter: 22, drone: 22, bike: 20 });
     // Cada lote de 6 já traz pelo menos três tipos diferentes.
     for (let start = 0; start < kinds.length; start += 6) {
         assert.ok(new Set(kinds.slice(start, start + 6)).size >= 3, `lote ${start}`);
@@ -3135,4 +3137,64 @@ test('horda tira do lugar quem ficou entalado longe do jogador', () => {
     assert.equal(moved.length, 0, 'na primeira olhada ainda não dá para saber se está parado');
     world.recallHordeStragglers(interval);
     assert.deepEqual(moved.map(({ enemy }) => enemy), [stuck], 'o drone parado a 64 px está atirando, não preso');
+});
+
+function chargerAt(kind) {
+    const { Patinete } = load('../src/game/entities/Patinete.ts');
+    const world = new ArcadeWorld({ sys: { scale: { width: 800, height: 640 } } }, {});
+    const frames = [];
+    const sprite = {
+        x: 300, y: 208, active: true, body: new ArcadeBody(world),
+        anims: { stop() {} },
+        setScale() { return this; }, setDepth() { return this; }, setCollideWorldBounds() { return this; },
+        play(key) { this.animation = key; }, setTint() {}, clearTint() {}, setTintMode() {},
+        setFrame(frame) { frames.push(frame); return this; },
+        setVelocity() { return this; }
+    };
+    const graphics = { clear() { return this; }, fillStyle() { return this; }, fillRect() { return this; }, setDepth() { return this; } };
+    const scene = {
+        cameras: { main: { shake() {} } },
+        physics: { add: { sprite: () => sprite } },
+        anims: { exists: () => true, create() {} },
+        time: { delayedCall() {} },
+        tweens: { add() {} },
+        add: { graphics: () => graphics }
+    };
+    const charger = new Patinete(scene, { x: 300, y: 208, patrolLeft: 260, patrolRight: 360 }, [{ getTilesWithinWorldXY: () => [] }], kind);
+    sprite.body.position.set(sprite.x - sprite.body.halfWidth, sprite.y - sprite.body.halfHeight);
+    sprite.body.updateCenter();
+    const player = fighter(sprite.body.center.x + 100, sprite.body.center.y, COMBAT_CONFIG.player.maxHealth);
+    player.takeDamage = () => {};
+    return { charger, sprite, frames, player };
+}
+
+test('bicicleta elétrica emenda uma investida na outra, sem recuperação', () => {
+    const { charger, sprite, frames, player } = chargerAt('bike');
+    const { chargeWindup, chargeDuration } = COMBAT_CONFIG.bike;
+    assert.equal(charger.kind, 'bike');
+    assert.equal(charger.health.max, COMBAT_CONFIG.bike.maxHealth);
+    assert.equal(sprite.animation, 'bike-move-down');
+
+    charger.update(player, 0);
+    assert.equal(charger.state, 'windup', 'avisa antes de investir');
+    charger.update(player, chargeWindup);
+    assert.equal(charger.state, 'charge');
+    charger.update(player, chargeDuration);
+    assert.equal(charger.state, 'approach', 'sem pausa depois da investida');
+    charger.update(player, 16);
+    assert.equal(charger.state, 'windup', 'já prepara a próxima');
+    // Coluna 6 da folha é o quadro de atordoado depois da investida.
+    assert.ok(frames.every((frame) => frame % 8 !== 6), 'não mostra o quadro de atordoado');
+});
+
+test('patinete continua parando para se recuperar depois da investida', () => {
+    const { charger, frames, player } = chargerAt('scooter');
+    const { chargeWindup, chargeDuration, recoveryDuration } = COMBAT_CONFIG.scooter;
+    charger.update(player, 0);
+    charger.update(player, chargeWindup);
+    charger.update(player, chargeDuration);
+    assert.equal(charger.state, 'recover');
+    assert.equal(frames.at(-1) % 8, 6, 'mostra o quadro de atordoado');
+    charger.update(player, recoveryDuration - 1);
+    assert.equal(charger.state, 'recover');
 });
