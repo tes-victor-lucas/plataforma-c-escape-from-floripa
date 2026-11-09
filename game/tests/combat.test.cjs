@@ -3050,3 +3050,66 @@ test('horda depois da carta tem +10 de cada tipo e mistura os tipos ao longo da 
         assert.ok(new Set(kinds.slice(start, start + 6)).size >= 3, `lote ${start}`);
     }
 });
+
+test('campo de fluxo contorna a parede em vez de ir reto contra ela', () => {
+    const { FlowField } = load('../src/game/combat/FlowField.ts');
+    // Parede na coluna 3, com passagem de dois quadrados só embaixo (linhas 5 e 6).
+    const wall = (x, y) => x === 3 && y < 5;
+    const field = new FlowField(8, 7, 16, wall);
+    field.update({ x: 7 * 16 + 8, y: 8 });
+
+    const start = field.directionFrom({ x: 8, y: 8 });
+    assert.ok(start.y > 0.5, 'desce em direção à passagem');
+    // Seguindo o campo, chega do outro lado da parede.
+    let position = { x: 8, y: 8 };
+    for (let step = 0; step < 200; step++) {
+        const direction = field.directionFrom(position);
+        if (!direction) break;
+        position = { x: position.x + direction.x * 2, y: position.y + direction.y * 2 };
+        assert.equal(wall(Math.floor(position.x / 16), Math.floor(position.y / 16)), false, 'nunca entra na parede');
+    }
+    assert.ok(position.x > 4 * 16, 'atravessou pela passagem');
+    assert.equal(field.directionFrom({ x: 6 * 16 + 8, y: 8 }), undefined, 'perto do alvo vai em linha reta');
+});
+
+test('campo de fluxo só recalcula quando o alvo troca de quadrado', () => {
+    const { FlowField } = load('../src/game/combat/FlowField.ts');
+    let checks = 0;
+    const field = new FlowField(4, 4, 16, () => { checks++; return false; });
+    const afterBuild = checks;
+    field.update({ x: 8, y: 8 });
+    const first = field.directionFrom({ x: 56, y: 56 });
+    field.update({ x: 10, y: 12 });
+    assert.deepEqual(field.directionFrom({ x: 56, y: 56 }), first);
+    assert.equal(checks, afterBuild, 'a parede só é lida ao montar o campo');
+});
+
+test('drone da horda segue o caminho do campo de fluxo', () => {
+    const { drone, sprite, playerAt } = chasingDrone();
+    const { chaseSpeed } = WORLD_CONFIG.drone;
+    drone.relentless = true;
+    drone.pathfinder = () => ({ x: 0, y: 1 });
+    drone.update(playerAt(300));
+    assert.equal(sprite.body.velocity.x, 0);
+    assert.equal(sprite.body.velocity.y, chaseSpeed, 'contorna em vez de ir reto até o jogador');
+    drone.pathfinder = () => undefined;
+    drone.update(playerAt(300));
+    assert.equal(sprite.body.velocity.x, chaseSpeed, 'sem caminho calculado, segue em linha reta');
+});
+
+test('campo de fluxo não usa passagem de um quadrado, onde o corpo entala', () => {
+    const { FlowField } = load('../src/game/combat/FlowField.ts');
+    // Parede inteira na coluna 3, com um furo de um quadrado na linha 3.
+    const field = new FlowField(8, 7, 16, (x, y) => x === 3 && y !== 3);
+    field.update({ x: 7 * 16 + 8, y: 3 * 16 + 8 });
+    assert.equal(field.isReachable({ x: 8, y: 3 * 16 + 8 }), false, 'do outro lado do furo não há caminho');
+    assert.equal(field.isReachable({ x: 6 * 16 + 8, y: 8 }), true);
+});
+
+test('com o alvo numa passagem estreita, o campo não declara todo mundo sem saída', () => {
+    const { FlowField } = load('../src/game/combat/FlowField.ts');
+    const field = new FlowField(8, 7, 16, (x, y) => x === 3 && y !== 3);
+    field.update({ x: 3 * 16 + 8, y: 3 * 16 + 8 });
+    assert.equal(field.isReachable({ x: 8, y: 8 }), true);
+    assert.equal(field.directionFrom({ x: 8, y: 8 }), undefined, 'sem campo, vai em linha reta');
+});
