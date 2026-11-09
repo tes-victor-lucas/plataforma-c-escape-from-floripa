@@ -1374,6 +1374,7 @@ export class World extends Scene {
                 kind: 'player.shot', x, y, angle, speed, color
             }),
             onPlayerSwing: (x, y, angle) => multiplayerClient.sendEvent({ kind: 'player.swing', x, y, angle }),
+            onPlayerEffect: (effect) => multiplayerClient.sendEvent({ kind: 'player.effect', ...effect }),
             onEnemyHit: (enemy, damage, direction) => multiplayerClient.sendEvent({
                 kind: 'enemy.hit',
                 index: this.drones.indexOf(enemy),
@@ -1402,7 +1403,10 @@ export class World extends Scene {
             maxHealth: this.player.health.max,
             reviveProgress: this.getReviveProgress(),
             revivesLeft: this.getRevivesLeft(),
-            character: this.characterId
+            character: this.characterId,
+            orbitCount: this.upgrades.orbitCount,
+            orbitRadius: this.upgrades.orbitRadius,
+            companion: this.upgrades.companionCount > 0
         });
         if (this.isMultiplayerHost()) this.sendEnemySnapshot();
     }
@@ -1578,6 +1582,9 @@ export class World extends Scene {
                 break;
             case 'player.swing':
                 this.combat?.playPartnerSwing(event.x, event.y, event.angle);
+                break;
+            case 'player.effect':
+                this.combat?.playPartnerEffect(event);
                 break;
             case 'player.damage':
                 this.player?.takeDamage(event.amount);

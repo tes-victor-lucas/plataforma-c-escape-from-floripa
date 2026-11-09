@@ -22,7 +22,19 @@ export type RemotePlayerState = {
     reviveProgress: number;
     revivesLeft: number;
     character?: CharacterId;
+    /** Faíscas orbitais e drone companheiro seguem o jogador, então vão no estado e não como evento. */
+    orbitCount?: number;
+    orbitRadius?: number;
+    companion?: boolean;
 };
+
+type Point = Readonly<{ x: number; y: number }>;
+
+/** Efeito visual de carta, repetido na tela do parceiro. */
+export type PlayerEffect =
+    | { effect: 'shockwave' | 'explosion'; x: number; y: number; radius: number; color: number }
+    | { effect: 'lightning'; points: readonly Point[]; color: number }
+    | { effect: 'beams'; origin: Point; angles: readonly number[]; length: number; color: number };
 
 export type EnemySpawnRow = Readonly<{
     kind: EnemyKind;
@@ -45,6 +57,7 @@ export type CoopEvent =
     | { kind: 'enemy.killed'; index: number }
     | { kind: 'player.shot'; x: number; y: number; angle: number; speed: number; color: number }
     | { kind: 'player.swing'; x: number; y: number; angle: number }
+    | ({ kind: 'player.effect' } & PlayerEffect)
     | { kind: 'player.damage'; amount: number }
     /** `hitPeer` diz se o golpe do gaúcho acertou quem recebe o evento. */
     | { kind: 'enemy.strike'; x: number; y: number; hitPeer: boolean }

@@ -10,6 +10,7 @@ import { playBeams, playExplosion, playLightning, playShockwave } from '../effec
 import { WORLD_CONFIG } from '../config/world';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import { runTracker, type RunTracker } from '../scoring/RunTracker';
+import type { PlayerEffect } from '../network/protocol';
 
 type Fighter = Player | CombatEnemy;
 type Weapon = {
@@ -35,6 +36,7 @@ export type CombatNetwork = {
     onEnemyShot(x: number, y: number, angle: number): void;
     onPlayerShot(x: number, y: number, angle: number, speed: number, color: number): void;
     onPlayerSwing(x: number, y: number, angle: number): void;
+    onPlayerEffect(effect: PlayerEffect): void;
     onEnemyHit(enemy: CombatEnemy, damage: number, direction: { x: number; y: number }): void;
 };
 
@@ -299,7 +301,7 @@ export class CombatSystem {
                 current = this.findNearestEnemy(target, chainRange, struck);
             }
         });
-        playLightning(this.scene, path, 0xfff27a);
+        this.shareEffect({ effect: 'lightning', points: path, color: 0xfff27a });
     }
 
     /** Feixes de luz: atravessam a tela a partir do jogador e giram meio espaço a cada disparo. */
@@ -312,7 +314,7 @@ export class CombatSystem {
         this.beamAngle += Math.PI / beamCount;
         const origin = this.getCenter(this.player);
         const angles = Array.from({ length: beamCount }, (_, index) => this.beamAngle + index * Math.PI * 2 / beamCount);
-        playBeams(this.scene, origin, angles, beamLength, 0x5ce5f1);
+        this.shareEffect({ effect: 'beams', origin, angles, length: beamLength, color: 0x5ce5f1 });
         this.withAttack((id) => {
             const struck = new Set<CombatEnemy>();
             for (const angle of angles) {
@@ -337,8 +339,22 @@ export class CombatSystem {
         const { deathBlastRadius, deathBlastDamageRatio, damage } = this.playerStats;
         if (deathBlastRadius <= 0) return;
         const center = this.getCenter(enemy);
-        playExplosion(this.scene, center.x, center.y, deathBlastRadius, 0xff4f6d);
+        this.shareEffect({ effect: 'explosion', ...center, radius: deathBlastRadius, color: 0xff4f6d });
         this.damageArea(center, deathBlastRadius, damage * deathBlastDamageRatio, enemy, attackId);
+    }
+
+    private shareEffect(effect: PlayerEffect) {
+        this.playPartnerEffect(effect);
+        this.network?.onPlayerEffect(effect);
+    }
+
+    playPartnerEffect(effect: PlayerEffect) {
+        switch (effect.effect) {
+            case 'shockwave': return playShockwave(this.scene, effect.x, effect.y, effect.radius, effect.color);
+            case 'explosion': return playExplosion(this.scene, effect.x, effect.y, effect.radius, effect.color);
+            case 'lightning': return playLightning(this.scene, effect.points, effect.color);
+            case 'beams': return playBeams(this.scene, effect.origin, effect.angles, effect.length, effect.color);
+        }
     }
 
     /** Um ataque conta como um disparo para multi-kills. */
@@ -357,7 +373,7 @@ export class CombatSystem {
         if (this.pulseCooldown > 0) return;
         this.pulseCooldown = pulseInterval;
         const origin = this.getCenter(this.player);
-        playShockwave(this.scene, origin.x, origin.y, pulseRadius, COMBAT_CONFIG.player.color);
+        this.shareEffect({ effect: 'shockwave', ...origin, radius: pulseRadius, color: COMBAT_CONFIG.player.color });
         this.damageArea(origin, pulseRadius, damage * pulseDamageRatio);
     }
 
@@ -366,7 +382,7 @@ export class CombatSystem {
         const { blastRadius, blastDamageRatio } = this.playerStats;
         if (blastRadius <= 0) return;
         const center = this.getCenter(target);
-        playExplosion(this.scene, center.x, center.y, blastRadius, 0xff9a3c);
+        this.shareEffect({ effect: 'explosion', ...center, radius: blastRadius, color: 0xff9a3c });
         this.damageArea(center, blastRadius, damage * blastDamageRatio, target, attackId);
     }
 
