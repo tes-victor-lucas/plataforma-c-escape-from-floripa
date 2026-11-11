@@ -133,8 +133,8 @@ CITY_JS = open(os.path.join(HERE, 'lib', 'city3d.js')).read()
 def city3d(sc, film_start, cfg):
     """Canvas 3D da cena: desenha pelo tempo do filme (hf-seek) menos o início da cena."""
     import json
-    sc.add(f'<canvas id="{sc.sid}-c" width="480" height="270" style="position:absolute;left:0;top:0;width:1920px;'
-           f'height:1080px;image-rendering:pixelated;z-index:1;"></canvas>')
+    sc.add(f'<canvas id="{sc.sid}-c" width="1280" height="720" style="position:absolute;left:0;top:0;width:1920px;'
+           f'height:1080px;z-index:1;"></canvas>')
     sc.tl(CITY_JS)
     sc.tl(f'''const street = makeCity3D(document.getElementById("{sc.sid}-c"), {json.dumps(cfg)});
       window.__hf = window.__hf || {{}};
@@ -198,7 +198,7 @@ SCENES.append((s, 0.0))
 # 2. Contra-plongée: o Centro Cultural modelado em 3D visto de baixo; o drone passa com o holofote.
 s = Scene('s2', 3.0)
 city3d(s, 4.0, {
-    'kind': 'facade', 'seed': 12, 'duration': 3.0, 'fov': 64, 'shake': 0.02,
+    'kind': 'facade', 'seed': 12, 'duration': 3.0, 'fov': 64, 'shake': 0.02, 'rain': 600,
     'sky': 0x070b18, 'fog': 0x0a1020, 'fogNear': 30, 'fogFar': 90,
     'skyLight': 0x6a7ab0, 'groundLight': 0x1a1418, 'hemi': 1.05, 'hero': True,
     'drones': [{'x0': 9, 'x1': -6, 'y0': 9.5, 'z': 5.5}],
@@ -215,7 +215,7 @@ SCENES.append((s, 7.0))
 # 4. Rua em chamas em 3D: prédios modelados, carros pegando fogo, multidão fugindo em volta da câmera.
 s = Scene('s4', 4.0)
 city3d(s, 8.8, {
-    'kind': 'street', 'seed': 41, 'length': 150, 'speed': 6.2, 'camX': 0.9, 'camY': 2.1, 'lookY': 1.7,
+    'kind': 'street', 'seed': 41, 'rain': 500, 'length': 150, 'speed': 6.2, 'camX': 0.9, 'camY': 2.1, 'lookY': 1.7,
     'bob': 0.1, 'shake': 0.06, 'heroX': 0.0, 'heroAhead': 3.4, 'fov': 62,
     'sky': 0x1a0a06, 'fog': 0x3a1a0a, 'fogNear': 12, 'fogFar': 80,
     'skyLight': 0x9a6a70, 'groundLight': 0x3a2014, 'hemi': 1.1,
@@ -230,11 +230,12 @@ SCENES.append((s, 8.8))
 s = Scene('s5', 3.0)
 s.add('<div id="s5-shake" class="full">')
 art_shot(s, 'bg', ART + 'background-terminal.png', 1.05, 1.22, '58% 52%')
-for name, x, y, dies in [('g0', 700, 470, 1.25), ('g1', 1080, 450, 2.4)]:
+# Pés no chão da plataforma, em primeiro plano: o tamanho bate com a profundidade e ninguém flutua.
+for name, x, y, dies in [('g0', 560, 730, 1.25), ('g1', 1110, 650, 2.4)]:
     s.sprite(name, SPR + 'guard.png', 32, 7, x, y, z=4)
     walk = [(round(k * 0.15, 2), k % 4) for k in range(int((dies - 0.25) / 0.15))]
     s.frames(name, 32, 7, walk + [(dies - 0.25, 6), (dies, 7)])
-    s.tl(f'tl.fromTo("#s5-{name}", {{ scale: 1 }}, {{ scale: 1.5, duration: {dies}, ease: "none" }}, 0);')
+    s.tl(f'tl.fromTo("#s5-{name}", {{ scale: 1 }}, {{ scale: 1.25, duration: {dies}, ease: "none" }}, 0);')
     burst(s, f'{name}x', x + 112, y + 150, 9, dies, z=5)
 s.sprite('gun', SPR + 'gun.png', 64, 9, 1060, 678, z=7)
 s.tl('tl.fromTo("#s5-gun", { y: 0 }, { y: 18, duration: 0.18, ease: "steps(2)", yoyo: true, repeat: 15 }, 0);')
@@ -242,7 +243,7 @@ s.sprite('muz', SPR + 'muzzle.png', 24, 6, 1276, 624, z=8)
 shots = [0.6, 1.0, 1.4, 2.0, 2.4]
 s.frames('muz', 24, 6, [(0, None)] + [x for t in shots for x in ((t, 0), (t + 0.034, 1), (t + 0.07, None))])
 for k, t in enumerate(shots):
-    tx, ty = (812, 620) if t <= 1.25 else (1192, 600)
+    tx, ty = (672, 840) if t <= 1.25 else (1222, 760)
     tracer(s, f'tr{k}', 1348, 696, tx, ty, t)
 s.add('</div>')
 for t in shots:
@@ -253,7 +254,7 @@ SCENES.append((s, 12.8))
 # 6. Rua em 3D à noite: drones modelados mergulham atirando, explosões ao lado.
 s = Scene('s6', 3.5)
 city3d(s, 15.8, {
-    'kind': 'street', 'seed': 77, 'length': 150, 'speed': 7.2, 'camX': 0.6, 'camY': 1.5, 'lookY': 3.2,
+    'kind': 'street', 'seed': 77, 'rain': 700, 'length': 150, 'speed': 7.2, 'camX': 0.6, 'camY': 1.5, 'lookY': 3.2,
     'bob': 0.12, 'shake': 0.07, 'heroX': 0.0, 'heroAhead': 3.4, 'fov': 64,
     'sky': 0x05080f, 'fog': 0x0a1424, 'fogNear': 14, 'fogFar': 85,
     'skyLight': 0x7a8aba, 'groundLight': 0x1a1a24, 'hemi': 1.0,

@@ -18,20 +18,22 @@
       .plane img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: pixelated; }
   </style>
   <div id="root" data-composition-id="s4" data-width="1920" data-height="1080">
-      <canvas id="s4-c" width="480" height="270" style="position:absolute;left:0;top:0;width:1920px;height:1080px;image-rendering:pixelated;z-index:1;"></canvas>
+      <canvas id="s4-c" width="1280" height="720" style="position:absolute;left:0;top:0;width:1920px;height:1080px;z-index:1;"></canvas>
   </div>
   <script>
       const tl = gsap.timeline({ paused: true });
       /*
- * Centro de Florianópolis em 3D low-poly, modelado peça por peça (nada de foto colada) e animado pelo tempo.
- * Renderiza em 480x270 e o canvas é ampliado sem suavizar: 3D com cara de pixel art.
+ * Centro de Florianópolis em 3D, modelado peça por peça (nada de foto colada) e animado pelo tempo.
+ * Render realista na paleta do jogo: asfalto molhado, chuva, fumaça, brilho nas luzes, pessoas em silhueta.
  * render(t) é função pura de t: o HyperFrames busca quadros fora de ordem.
  */
 function makeCity3D(canvas, cfg) {
-  const W = 480, H = 270;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
+  const W = 1280, H = 720;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
   renderer.setSize(W, H, false);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = cfg.exposure || 1.15;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(cfg.sky);
   scene.fog = new THREE.Fog(cfg.fog, cfg.fogNear, cfg.fogFar);
@@ -50,10 +52,40 @@ function makeCity3D(canvas, cfg) {
   const mats = {};
   const mat = (color, emissive = 0, intensity = 1) => {
     const key = color + ':' + emissive + ':' + intensity;
-    if (!mats[key]) mats[key] = new THREE.MeshLambertMaterial({ color, emissive, emissiveIntensity: intensity });
+    if (!mats[key]) mats[key] = new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity,
+      roughness: 0.82, metalness: 0.04 });
     return mats[key];
   };
-  const glow = (color) => mat(color, color, 1);
+  const glow = (color) => mat(color, color, 1.6);
+  // Brilho difuso: um disco de luz aditivo, para postes, neon, fogo e olhos dos drones.
+  const haloTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.25, 'rgba(255,255,255,0.45)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  })();
+  const smokeTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(32, 32, 4, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(40,36,40,0.85)');
+    grad.addColorStop(1, 'rgba(20,18,22,0)');
+    g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  })();
+  function halo(color, size, opacity = 0.8) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color, transparent: true, opacity,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+    s.scale.set(size, size, 1);
+    scene.add(s);
+    return s;
+  }
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
   function box(parent, w, h, d, x, y, z, material) {
     const m = new THREE.Mesh(boxGeo, material);
@@ -202,42 +234,48 @@ function makeCity3D(canvas, cfg) {
     return g;
   }
 
-  // --- pessoa em blocos, articulada ------------------------------------------------------------------------
+  // --- pessoa articulada, de formas arredondadas -----------------------------------------------------------
   function person(colors) {
     const root = new THREE.Group();
     const body = new THREE.Group();
     root.add(body);
-    const part = (w, h, d, color) => {
+    const cap = (r, len, color) => new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 4, 8), mat(color));
+    const limb = (r, len, color) => {
       const pivot = new THREE.Group();
-      const m = new THREE.Mesh(boxGeo, mat(color));
-      m.scale.set(w, h, d);
-      m.position.y = -h / 2;  // gira pela articulação de cima
+      const m = cap(r, len, color);
+      m.position.y = -(len / 2 + r);  // gira pela articulação de cima
       pivot.add(m);
       return pivot;
     };
-    const torso = new THREE.Mesh(boxGeo, mat(colors.shirt));
-    torso.scale.set(0.62, 0.72, 0.36);
-    torso.position.y = 1.18;
+    const torso = cap(0.24, 0.42, colors.shirt);
+    torso.scale.set(1.15, 1, 0.75);
+    torso.position.y = 1.2;
     body.add(torso);
-    box(body, 0.64, 0.1, 0.38, 0, 0.84, 0, mat(colors.belt || colors.legs));
+    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.08, 10), mat(colors.belt || colors.legs));
+    belt.scale.set(1.12, 1, 0.78);
+    belt.position.y = 0.88;
+    body.add(belt);
     const head = new THREE.Group();
-    head.position.y = 1.56;
-    box(head, 0.42, 0.42, 0.4, 0, 0.21, 0, mat(colors.skin));
-    box(head, 0.46, 0.18, 0.44, 0, 0.4, 0.02, mat(colors.hair));
-    box(head, 0.46, 0.3, 0.12, 0, 0.26, 0.2, mat(colors.hair));  // cabelo atrás (a câmera vê as costas)
+    head.position.y = 1.62;
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), mat(colors.skin));
+    skull.position.y = 0.18;
+    head.add(skull);
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.215, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), mat(colors.hair));
+    hair.position.y = 0.2;
+    head.add(hair);
     body.add(head);
     const arms = [-1, 1].map((s) => {
-      const a = part(0.18, 0.66, 0.2, colors.shirt);
-      a.position.set(s * 0.41, 1.5, 0);
+      const a = limb(0.075, 0.5, colors.shirt);
+      a.position.set(s * 0.33, 1.48, 0);
       body.add(a);
       return a;
     });
     const legs = [-1, 1].map((s) => {
-      const l = part(0.24, 0.84, 0.26, colors.legs);
-      l.position.set(s * 0.16, 0.84, 0);
-      const shoe = new THREE.Mesh(boxGeo, mat(colors.shoes));
-      shoe.scale.set(0.26, 0.14, 0.36);
-      shoe.position.set(0, -0.86, -0.04);
+      const l = limb(0.1, 0.66, colors.legs);
+      l.position.set(s * 0.13, 0.88, 0);
+      const shoe = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.16, 3, 6), mat(colors.shoes));
+      shoe.rotation.x = Math.PI / 2;
+      shoe.position.set(0, -0.9, -0.05);
       l.add(shoe);
       root.add(l);
       return l;
@@ -251,7 +289,7 @@ function makeCity3D(canvas, cfg) {
       arms[0].rotation.x = -s * 0.85 * run;
       arms[1].rotation.x = s * 0.7 * run;   // amplitudes diferentes: nada em uníssono
       arms[0].rotation.z = -0.12; arms[1].rotation.z = 0.12;
-      body.rotation.x = -0.22 * run;          // inclina para a frente (a câmera está atrás, em +z)
+      body.rotation.x = -0.22 * run;
       head.rotation.x = 0.18 * run + Math.sin(phase - 0.6) * 0.06 * run;
       body.position.y = Math.abs(Math.cos(phase)) * 0.09 * run;
     };
@@ -268,99 +306,153 @@ function makeCity3D(canvas, cfg) {
   // --- drone -----------------------------------------------------------------------------------------------
   function drone() {
     const g = new THREE.Group();
-    box(g, 0.9, 0.35, 0.9, 0, 0, 0, mat(0xc8ccd4));
-    box(g, 0.5, 0.2, 0.5, 0, 0.25, 0, mat(0x8a90a0));
-    box(g, 0.22, 0.16, 0.05, 0, 0, 0.47, glow(0x3cff6a));
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 10), new THREE.MeshStandardMaterial({
+      color: 0xc8ccd4, roughness: 0.35, metalness: 0.6 }));
+    shell.scale.set(1, 0.42, 1);
+    g.add(shell);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.05, 6, 20), mat(0x50545e));
+    ring.rotation.x = Math.PI / 2;
+    g.add(ring);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), glow(0x3cff6a));
+    eye.position.set(0, -0.02, 0.5);
+    g.add(eye);
+    const eyeHalo = halo(0x3cff6a, 1.2, 0.9);
     const rotors = [];
-    for (const [x, z] of [[-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]]) {
-      box(g, 0.08, 0.06, 0.08, x / 2, 0.05, z / 2, mat(0x50545e)).scale.set(Math.abs(x) + 0.1, 0.06, 0.1);
+    for (const [x, z] of [[-0.75, -0.75], [0.75, -0.75], [-0.75, 0.75], [0.75, 0.75]]) {
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.0, 6), mat(0x50545e));
+      arm.rotation.z = Math.PI / 2;
+      arm.rotation.y = Math.atan2(z, x);
+      arm.position.set(x / 2, 0.05, z / 2);
+      g.add(arm);
       const rotor = new THREE.Group();
-      rotor.position.set(x, 0.18, z);
-      box(rotor, 0.9, 0.03, 0.1, 0, 0, 0, mat(0x2a2c34));
-      box(rotor, 0.1, 0.03, 0.9, 0, 0, 0, mat(0x2a2c34));
+      rotor.position.set(x, 0.14, z);
+      rotor.add(new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.01, 18),
+        new THREE.MeshBasicMaterial({ color: 0x9aa0b0, transparent: true, opacity: 0.22, depthWrite: false })));
+      const blade = new THREE.Mesh(boxGeo, mat(0x2a2c34));
+      blade.scale.set(0.8, 0.02, 0.06);
+      rotor.add(blade);
       g.add(rotor);
       rotors.push(rotor);
     }
-    for (const x of [-0.3, 0.3]) box(g, 0.06, 0.4, 0.06, x, -0.35, 0, mat(0x50545e));
-    // Holofote: um cone translúcido para baixo e uma luz de verdade.
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(2.4, 9, 12, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0x9ae8ff, transparent: true, opacity: 0.12, depthWrite: false }));
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(2.4, 9, 20, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x9ae8ff, transparent: true, opacity: 0.1, depthWrite: false,
+        blending: THREE.AdditiveBlending }));
     cone.position.y = -4.6;
     g.add(cone);
-    const spot = new THREE.PointLight(0x9ae8ff, 1.4, 14, 1.5);
+    const spot = new THREE.PointLight(0x9ae8ff, 2.2, 16, 1.4);
     spot.position.y = -2;
     g.add(spot);
     scene.add(g);
     g.userData.rotors = rotors;
     g.userData.cone = cone;
+    g.userData.eyeHalo = eyeHalo;
+    g.userData.eye = eye;
     return g;
   }
 
   // --- fogo e explosões ------------------------------------------------------------------------------------
-  const flameMats = [glow(0xffe08a), glow(0xffa030), glow(0xe9401a), mat(0x2a2628)];
+  const flameColors = [0xfff0a0, 0xffb040, 0xff5a1a];
   function fireColumn(x, z, size, seed) {
-    const parts = [];
     const r = rng(seed);
-    for (let i = 0; i < 26; i++) {
-      const m = new THREE.Mesh(boxGeo, flameMats[0]);
-      scene.add(m);
-      parts.push({ m, ox: (r() - 0.5) * size, oz: (r() - 0.5) * size * 0.6, off: r(), speed: 0.9 + r() * 0.7 });
+    const flames = [], smoke = [], embers = [];
+    for (let i = 0; i < 22; i++) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: flameColors[i % 3], transparent: true,
+        blending: THREE.AdditiveBlending, depthWrite: false }));
+      scene.add(s);
+      flames.push({ s, ox: (r() - 0.5) * size, oz: (r() - 0.5) * size * 0.5, off: r(), speed: 1.1 + r() * 0.8 });
     }
-    const light = new THREE.PointLight(0xff7a2a, 0, 36, 1.1);
-    light.position.set(x, 2.2, z);
+    for (let i = 0; i < 10; i++) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false, opacity: 0.8 }));
+      scene.add(s);
+      smoke.push({ s, ox: (r() - 0.5) * size, off: r(), speed: 0.25 + r() * 0.2 });
+    }
+    for (let i = 0; i < 18; i++) {
+      const s = halo(0xffa040, 0.12, 1);
+      embers.push({ s, ox: (r() - 0.5) * size, oz: (r() - 0.5) * size, off: r(), speed: 0.5 + r() * 0.6, drift: (r() - 0.5) * 2 });
+    }
+    const light = new THREE.PointLight(0xff7a2a, 0, 40, 1.1);
+    light.position.set(x, 2.4, z);
     scene.add(light);
-    return { x, z, size, parts, light, seed };
+    const big = halo(0xff8030, size * 4, 0.35);
+    big.position.set(x, size * 0.9, z);
+    return { x, z, size, flames, smoke, embers, light, seed, big };
   }
   function drawFire(f, t, fi) {
-    f.parts.forEach((p, i) => {
-      const age = (t * p.speed + p.off) % 1;                // cada partícula sobe e recomeça
-      const smoke = i % 5 === 4;
-      const h = f.size * (smoke ? 3.4 : 2.4) * age;
-      p.m.material = smoke ? flameMats[3] : flameMats[Math.min(2, Math.floor(age * 3))];
-      const s = (smoke ? 0.9 : 0.75) * f.size * 0.42 * (smoke ? 0.4 + age : 1 - age * 0.7);
-      p.m.scale.set(s, s, s);
-      p.m.position.set(f.x + p.ox * (1 - age * 0.5) + Math.sin(age * 9 + i) * 0.15, h + s / 2, f.z + p.oz);
+    f.flames.forEach((p, i) => {
+      const age = (t * p.speed + p.off) % 1;
+      const sc = f.size * (1.3 - age) * 0.9;
+      p.s.scale.set(sc, sc * 1.4, 1);
+      p.s.material.opacity = 0.9 * (1 - age);
+      p.s.position.set(f.x + p.ox * (1 - age * 0.6) + Math.sin(age * 8 + i) * 0.12, age * f.size * 2.2 + sc * 0.4, f.z + p.oz);
     });
-    f.light.intensity = 6 + hash(fi * 7 + f.seed) * 4;
+    f.smoke.forEach((p, i) => {
+      const age = (t * p.speed + p.off) % 1;
+      const sc = f.size * (1.2 + age * 3);
+      p.s.scale.set(sc, sc, 1);
+      p.s.material.opacity = 0.75 * (1 - age);
+      p.s.position.set(f.x + p.ox + age * 1.5, f.size * 2 + age * 9, f.z);
+    });
+    f.embers.forEach((p) => {
+      const age = (t * p.speed + p.off) % 1;
+      p.s.position.set(f.x + p.ox + p.drift * age, age * 7, f.z + p.oz);
+      p.s.material.opacity = 1 - age;
+    });
+    f.light.intensity = 7 + hash(fi * 7 + f.seed) * 5;
+    f.big.material.opacity = 0.28 + hash(fi * 5 + f.seed) * 0.14;
   }
   function explosion(seed) {
-    const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 0), glow(0xffd070));
-    const shell = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 0), glow(0xe9401a));
-    scene.add(ball); scene.add(shell);
+    const core = halo(0xfff0b0, 1, 1);
+    const fireball = halo(0xff6a20, 1, 0.9);
     const r = rng(seed);
     const debris = [];
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 16; i++) {
       const m = new THREE.Mesh(boxGeo, mat(i % 3 ? 0x2a2a30 : 0x6a4a3a));
       scene.add(m);
-      debris.push({ m, vx: (r() - 0.5) * 9, vy: 4 + r() * 7, vz: (r() - 0.5) * 9, s: 0.15 + r() * 0.3, spin: r() * 9 });
+      debris.push({ m, vx: (r() - 0.5) * 9, vy: 4 + r() * 7, vz: (r() - 0.5) * 9, s: 0.12 + r() * 0.25, spin: r() * 9 });
     }
-    const light = new THREE.PointLight(0xffb060, 0, 50, 1.2);
+    const puffs = [];
+    for (let i = 0; i < 8; i++) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false }));
+      scene.add(s);
+      puffs.push({ s, dx: (r() - 0.5) * 3, dy: r() * 2 });
+    }
+    const light = new THREE.PointLight(0xffb060, 0, 60, 1.1);
     scene.add(light);
-    return { ball, shell, debris, light };
+    return { core, fireball, debris, puffs, light };
   }
   function drawExplosion(e, age, x, y, z) {
-    const on = age >= 0 && age < 1.2;
-    e.ball.visible = e.shell.visible = on && age < 0.5;
-    e.debris.forEach((d) => { d.m.visible = on; });
-    e.light.intensity = on ? Math.max(0, 14 * (1 - age / 0.6)) : 0;
+    const on = age >= 0 && age < 1.6;
+    e.core.visible = e.fireball.visible = on && age < 0.6;
+    e.debris.forEach((d) => { d.m.visible = on && age < 1.2; });
+    e.puffs.forEach((p) => { p.s.visible = on; });
+    e.light.intensity = on ? Math.max(0, 22 * (1 - age / 0.6)) : 0;
     if (!on) return;
-    const k = age / 0.5;
-    e.ball.scale.setScalar(0.8 + k * 3.6);
-    e.shell.scale.setScalar(1.2 + k * 4.6);
-    e.ball.position.set(x, y + k, z);
-    e.shell.position.set(x, y + k * 1.2, z);
+    const k = Math.min(1, age / 0.5);
+    e.core.scale.setScalar(3 + k * 6);
+    e.core.material.opacity = 1 - k;
+    e.fireball.scale.setScalar(5 + k * 10);
+    e.fireball.material.opacity = 0.9 * (1 - k);
+    e.core.position.set(x, y + 1 + k, z);
+    e.fireball.position.set(x, y + 1.5 + k * 1.5, z);
     e.light.position.set(x, y + 1.5, z + 1);
     e.debris.forEach((d) => {
       d.m.scale.setScalar(d.s);
       d.m.position.set(x + d.vx * age, Math.max(0.1, y + d.vy * age - 9.8 * age * age / 2), z + d.vz * age);
       d.m.rotation.set(d.spin * age, d.spin * age * 0.7, 0);
     });
+    e.puffs.forEach((p) => {
+      const sc = 2 + age * 6;
+      p.s.scale.set(sc, sc, 1);
+      p.s.material.opacity = 0.7 * Math.max(0, 1 - age / 1.6);
+      p.s.position.set(x + p.dx * (0.5 + age), y + 1 + p.dy + age * 3, z);
+    });
   }
 
   // --- rua ---------------------------------------------------------------------------------------------------
   const signs = [];
   function street(length) {
-    box(scene, 8, 0.1, length, 0, -0.05, -length / 2 + 20, mat(0x24262e));
+    const wet = new THREE.MeshStandardMaterial({ color: 0x1a1c24, roughness: 0.22, metalness: 0.35 });
+    box(scene, 8, 0.1, length, 0, -0.05, -length / 2 + 20, wet);
     for (const s of [-1, 1]) {
       box(scene, 3.6, 0.3, length, s * 5.8, 0.1, -length / 2 + 20, mat(0x5a5c66));
       box(scene, 0.2, 0.32, length, s * 4.0, 0.12, -length / 2 + 20, mat(0x8a8c96));
@@ -372,6 +464,7 @@ function makeCity3D(canvas, cfg) {
       box(scene, 0.14, 5, 0.14, side * 4.6, 2.5, z, mat(0x2a2c34));
       box(scene, 1.2, 0.12, 0.2, side * 4.1, 5.0, z, mat(0x2a2c34));
       box(scene, 0.5, 0.18, 0.4, side * 3.6, 4.9, z, glow(0xffd890));
+      halo(0xffc070, 2.6, 0.55).position.set(side * 3.6, 4.85, z);
       lamps.push({ x: side * 3.6, z });
     }
     return lamps;
@@ -431,6 +524,24 @@ function makeCity3D(canvas, cfg) {
     actors.hero = person({ shirt: 0x3e3e48, legs: 0x26262e, belt: 0x3a5ad8, skin: 0xe0b090, hair: 0x101014, shoes: 0xe04ac0 });
   }
   actors.drones = (cfg.drones || []).map(() => drone());
+  // Chuva: traços finos que caem em volta da câmera.
+  const RAIN = cfg.rain || 0;
+  const rainGeo = new THREE.BufferGeometry();
+  const rainPos = new Float32Array(RAIN * 6);
+  rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+  const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0x9ab8d8, transparent: true, opacity: 0.35 }));
+  rain.frustumCulled = false;
+  scene.add(rain);
+  const rr = rng(cfg.seed + 99);
+  const drops = Array.from({ length: RAIN }, () => ({ x: (rr() - 0.5) * 22, z: -rr() * 40, y: rr() * 14, v: 16 + rr() * 6 }));
+  function drawRain(t, camPos) {
+    drops.forEach((d, i) => {
+      const y = ((d.y - d.v * t) % 14 + 14) % 14;
+      const x = camPos.x + d.x, z = camPos.z + 4 + d.z;
+      rainPos.set([x, y, z, x + 0.03, y + 0.55, z], i * 6);
+    });
+    rainGeo.attributes.position.needsUpdate = true;
+  }
   actors.booms = (cfg.booms || []).map((b, i) => explosion(cfg.seed + 100 + i));
   const tracerMat = glow(0xff4060);
   actors.tracers = (cfg.tracers || []).map(() => { const m = new THREE.Mesh(boxGeo, tracerMat); scene.add(m); return m; });
@@ -501,6 +612,8 @@ function makeCity3D(canvas, cfg) {
         d.userData.rotors.forEach((ro, j) => { ro.rotation.y = t * 38 * (j % 2 ? 1 : -1); });
       });
     }
+    drawRain(t, camera.position);
+    actors.drones.forEach((d) => { d.userData.eyeHalo.position.copy(d.userData.eye.getWorldPosition(new THREE.Vector3())); });
     signs.forEach((s) => {  // neon falhando: apaga em alguns quadros
       const off = hash(fi * 3 + s.seed) < 0.06;
       s.plane.visible = s.back.visible = !off;
@@ -510,7 +623,7 @@ function makeCity3D(canvas, cfg) {
   return { ready: Promise.resolve(), render };
 }
 
-      const street = makeCity3D(document.getElementById("s4-c"), {"kind": "street", "seed": 41, "length": 150, "speed": 6.2, "camX": 0.9, "camY": 2.1, "lookY": 1.7, "bob": 0.1, "shake": 0.06, "heroX": 0.0, "heroAhead": 3.4, "fov": 62, "sky": 1706502, "fog": 3807754, "fogNear": 12, "fogFar": 80, "skyLight": 10119792, "groundLight": 3809300, "hemi": 1.1, "fires": [{"x": -2.6, "z": -24, "size": 3.4}, {"x": 2.8, "z": -36, "size": 4.2}, {"x": -0.4, "z": -54, "size": 5.2}], "cars": [[-2.6, -24, 5925498, 0.4], [2.8, -36, 8006186, -0.3]], "crowd": 24, "hero": true, "drones": [], "tracers": [], "booms": [{"t": 2.2, "x": 0.6, "ahead": 18, "shake": 0.9}]});
+      const street = makeCity3D(document.getElementById("s4-c"), {"kind": "street", "seed": 41, "rain": 500, "length": 150, "speed": 6.2, "camX": 0.9, "camY": 2.1, "lookY": 1.7, "bob": 0.1, "shake": 0.06, "heroX": 0.0, "heroAhead": 3.4, "fov": 62, "sky": 1706502, "fog": 3807754, "fogNear": 12, "fogFar": 80, "skyLight": 10119792, "groundLight": 3809300, "hemi": 1.1, "fires": [{"x": -2.6, "z": -24, "size": 3.4}, {"x": 2.8, "z": -36, "size": 4.2}, {"x": -0.4, "z": -54, "size": 5.2}], "cars": [[-2.6, -24, 5925498, 0.4], [2.8, -36, 8006186, -0.3]], "crowd": 24, "hero": true, "drones": [], "tracers": [], "booms": [{"t": 2.2, "x": 0.6, "ahead": 18, "shake": 0.9}]});
       window.__hf = window.__hf || {};
       window.__hf.buildReady = window.__hf.buildReady || {};
       window.__hf.buildReady["s4"] = street.ready;

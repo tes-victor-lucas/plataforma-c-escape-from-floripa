@@ -20,17 +20,17 @@
   <div id="root" data-composition-id="s5" data-width="1920" data-height="1080">
       <div id="s5-shake" class="full">
       <div id="s5-bg" class="full" style="transform-origin:58% 52%;"><img class="art" src="assets/art/background-terminal.png" alt=""></div>
-      <div id="s5-g0" class="spr" style="left:700px;top:470px;width:224px;height:224px;z-index:4;transform-origin:50% 100%;"><img id="s5-g0-s" src="assets/sprites/guard.png" alt="" style="width:1792px;height:224px;"></div>
-      <div id="s5-g0x" class="spr" style="left:668.0px;top:476.0px;width:288px;height:288px;z-index:5;transform-origin:50% 100%;"><img id="s5-g0x-s" src="assets/sprites/explosion.png" alt="" style="width:1152px;height:288px;"></div>
-      <div id="s5-g1" class="spr" style="left:1080px;top:450px;width:224px;height:224px;z-index:4;transform-origin:50% 100%;"><img id="s5-g1-s" src="assets/sprites/guard.png" alt="" style="width:1792px;height:224px;"></div>
-      <div id="s5-g1x" class="spr" style="left:1048.0px;top:456.0px;width:288px;height:288px;z-index:5;transform-origin:50% 100%;"><img id="s5-g1x-s" src="assets/sprites/explosion.png" alt="" style="width:1152px;height:288px;"></div>
+      <div id="s5-g0" class="spr" style="left:560px;top:730px;width:224px;height:224px;z-index:4;transform-origin:50% 100%;"><img id="s5-g0-s" src="assets/sprites/guard.png" alt="" style="width:1792px;height:224px;"></div>
+      <div id="s5-g0x" class="spr" style="left:528.0px;top:736.0px;width:288px;height:288px;z-index:5;transform-origin:50% 100%;"><img id="s5-g0x-s" src="assets/sprites/explosion.png" alt="" style="width:1152px;height:288px;"></div>
+      <div id="s5-g1" class="spr" style="left:1110px;top:650px;width:224px;height:224px;z-index:4;transform-origin:50% 100%;"><img id="s5-g1-s" src="assets/sprites/guard.png" alt="" style="width:1792px;height:224px;"></div>
+      <div id="s5-g1x" class="spr" style="left:1078.0px;top:656.0px;width:288px;height:288px;z-index:5;transform-origin:50% 100%;"><img id="s5-g1x-s" src="assets/sprites/explosion.png" alt="" style="width:1152px;height:288px;"></div>
       <div id="s5-gun" class="spr" style="left:1060px;top:678px;width:576px;height:432px;z-index:7;transform-origin:50% 100%;"><img id="s5-gun-s" src="assets/sprites/gun.png" alt="" style="width:576px;height:432px;"></div>
       <div id="s5-muz" class="spr" style="left:1276px;top:624px;width:144px;height:144px;z-index:8;transform-origin:50% 100%;"><img id="s5-muz-s" src="assets/sprites/muzzle.png" alt="" style="width:288px;height:144px;"></div>
-      <div id="s5-tr0" style="position:absolute;left:1348px;top:696px;width:541px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
-      <div id="s5-tr1" style="position:absolute;left:1348px;top:696px;width:541px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
-      <div id="s5-tr2" style="position:absolute;left:1348px;top:696px;width:183px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
-      <div id="s5-tr3" style="position:absolute;left:1348px;top:696px;width:183px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
-      <div id="s5-tr4" style="position:absolute;left:1348px;top:696px;width:183px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
+      <div id="s5-tr0" style="position:absolute;left:1348px;top:696px;width:691px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
+      <div id="s5-tr1" style="position:absolute;left:1348px;top:696px;width:691px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
+      <div id="s5-tr2" style="position:absolute;left:1348px;top:696px;width:141px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
+      <div id="s5-tr3" style="position:absolute;left:1348px;top:696px;width:141px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
+      <div id="s5-tr4" style="position:absolute;left:1348px;top:696px;width:141px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
       </div>
       <div id="s5-hurt" class="full" style="background:#e90931;opacity:0;z-index:15;"></div>
   </div>
@@ -46,7 +46,7 @@
       tl.set("#s5-g0", { opacity: 1 }, 0.750); tl.set("#s5-g0-s", { x: -224 }, 0.750);
       tl.set("#s5-g0", { opacity: 1 }, 1.000); tl.set("#s5-g0-s", { x: -1344 }, 1.000);
       tl.set("#s5-g0", { opacity: 1 }, 1.250); tl.set("#s5-g0-s", { x: -1568 }, 1.250);
-      tl.fromTo("#s5-g0", { scale: 1 }, { scale: 1.5, duration: 1.25, ease: "none" }, 0);
+      tl.fromTo("#s5-g0", { scale: 1 }, { scale: 1.25, duration: 1.25, ease: "none" }, 0);
       tl.set("#s5-g0x-s", { x: 0 }, 0);
       tl.set("#s5-g0x", { opacity: 0 }, 0.000);
       tl.set("#s5-g0x", { opacity: 1 }, 1.250); tl.set("#s5-g0x-s", { x: 0 }, 1.250);
@@ -71,7 +71,7 @@
       tl.set("#s5-g1", { opacity: 1 }, 1.950); tl.set("#s5-g1-s", { x: -224 }, 1.950);
       tl.set("#s5-g1", { opacity: 1 }, 2.150); tl.set("#s5-g1-s", { x: -1344 }, 2.150);
       tl.set("#s5-g1", { opacity: 1 }, 2.400); tl.set("#s5-g1-s", { x: -1568 }, 2.400);
-      tl.fromTo("#s5-g1", { scale: 1 }, { scale: 1.5, duration: 2.4, ease: "none" }, 0);
+      tl.fromTo("#s5-g1", { scale: 1 }, { scale: 1.25, duration: 2.4, ease: "none" }, 0);
       tl.set("#s5-g1x-s", { x: 0 }, 0);
       tl.set("#s5-g1x", { opacity: 0 }, 0.000);
       tl.set("#s5-g1x", { opacity: 1 }, 2.400); tl.set("#s5-g1x-s", { x: 0 }, 2.400);
@@ -98,11 +98,11 @@
       tl.set("#s5-muz", { opacity: 1 }, 2.400); tl.set("#s5-muz-s", { x: 0 }, 2.400);
       tl.set("#s5-muz", { opacity: 1 }, 2.434); tl.set("#s5-muz-s", { x: -144 }, 2.434);
       tl.set("#s5-muz", { opacity: 0 }, 2.470);
-      tl.set("#s5-tr0", { rotation: -171.9, opacity: 1 }, 0.600); tl.set("#s5-tr0", { opacity: 0 }, 0.660);
-      tl.set("#s5-tr1", { rotation: -171.9, opacity: 1 }, 1.000); tl.set("#s5-tr1", { opacity: 0 }, 1.060);
-      tl.set("#s5-tr2", { rotation: -148.4, opacity: 1 }, 1.400); tl.set("#s5-tr2", { opacity: 0 }, 1.460);
-      tl.set("#s5-tr3", { rotation: -148.4, opacity: 1 }, 2.000); tl.set("#s5-tr3", { opacity: 0 }, 2.060);
-      tl.set("#s5-tr4", { rotation: -148.4, opacity: 1 }, 2.400); tl.set("#s5-tr4", { opacity: 0 }, 2.460);
+      tl.set("#s5-tr0", { rotation: 168.0, opacity: 1 }, 0.600); tl.set("#s5-tr0", { opacity: 0 }, 0.660);
+      tl.set("#s5-tr1", { rotation: 168.0, opacity: 1 }, 1.000); tl.set("#s5-tr1", { opacity: 0 }, 1.060);
+      tl.set("#s5-tr2", { rotation: 153.1, opacity: 1 }, 1.400); tl.set("#s5-tr2", { opacity: 0 }, 1.460);
+      tl.set("#s5-tr3", { rotation: 153.1, opacity: 1 }, 2.000); tl.set("#s5-tr3", { opacity: 0 }, 2.060);
+      tl.set("#s5-tr4", { rotation: 153.1, opacity: 1 }, 2.400); tl.set("#s5-tr4", { opacity: 0 }, 2.460);
       tl.set("#s5-shake", { x: 2.9, y: 1.1 }, 0.600);
       tl.set("#s5-shake", { x: -5.2, y: 0.8 }, 0.633);
       tl.set("#s5-shake", { x: -7.5, y: -12.7 }, 0.667);
