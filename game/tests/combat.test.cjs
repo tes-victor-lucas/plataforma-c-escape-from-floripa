@@ -3253,13 +3253,40 @@ test('antes da horda maior as cartas de área vêm garantidas', () => {
     }
 
     const upgrades = new PlayerUpgradeState();
-    for (const id of AREA_UPGRADE_IDS.slice(0, 5)) {
+    for (const id of AREA_UPGRADE_IDS.slice(0, -1)) {
         for (let level = 0; level < 3; level++) upgrades.acquire(getUpgradeCard(id));
     }
     const lastArea = drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, () => 0.4, upgrades.availableCards());
     assert.equal(lastArea.length, 3);
     assert.deepEqual(lastArea.filter((card) => AREA_UPGRADE_IDS.includes(card.id)).map((card) => card.id), ['light-beams'],
         'só a carta de área que sobrou, completada com as comuns');
+});
+
+test('rajada espiral solta um fragmento por vez, girando, e cada um fere uma vez até o alcance', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('spiral-volley'));
+    upgrades.range = 1;
+    // O 1º fragmento sai para a direita (0°) e o 4º para baixo (90°).
+    const { combat, drones, rings } = setup([[160, 100], [100, 170], [400, 100]], [], upgrades);
+    for (const drone of drones) {
+        drone.health = new Health(1000);
+        drone.takeDamage = (amount) => drone.health.takeDamage(amount);
+    }
+    const shard = upgrades.damage * 0.6;
+    combat.update(0);
+    assert.equal(rings.length, 2, 'só o primeiro fragmento saiu (halo e núcleo)');
+    for (let step = 0; step < 30; step++) combat.update(20);
+    assert.equal(drones[0].health.current, 1000 - shard, 'o fragmento da direita passou pelo inimigo uma vez');
+    assert.equal(drones[1].health.current, 1000 - shard, 'o de 90° acertou o de baixo');
+    assert.equal(drones[2].health.current, 1000, 'fora do alcance de 150 px');
+    assert.equal(rings.length, 24, '12 fragmentos, um após o outro');
+});
+
+test('a Sala II dá duas escolhas de carta seguidas entre as hordas', () => {
+    const { getIntermissionCardPicks } = load('../src/game/scenes/World.ts');
+    assert.equal(getIntermissionCardPicks('room2'), 2);
+    assert.equal(getIntermissionCardPicks('room1'), 1);
+    assert.equal(getIntermissionCardPicks('room3'), 1);
 });
 
 test('pulso de choque atinge todos dentro do raio no ritmo da carta', () => {
