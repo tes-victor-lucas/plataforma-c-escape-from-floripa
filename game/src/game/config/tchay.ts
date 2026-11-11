@@ -52,13 +52,16 @@ export const POPULAR_BARS = {
             frame: 0,
             x: 128,
             y: 544,
+            // Brilho neon pulsando atrás da placa do gato (em relação à base do bar).
+            glow: { dx: 13, dy: -37, radius: 22, color: 0x47c1ce },
             queue: { ...TCHAY, counter: { x: 128, y: 558 }, queueLength: 6, direction: 1, exit: { dx: 110, dy: -24 } }
         },
         {
             // Bar do Noel: colunas 39-42; em vez de fila, a roda de pagode da mesa ao lado.
             frame: 1,
             x: 656,
-            y: 544
+            y: 544,
+            glow: { dx: 16, dy: -27, radius: 20, color: 0x47c1ce }
         }
     ]
 } as const;

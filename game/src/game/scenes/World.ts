@@ -352,6 +352,11 @@ export class World extends Scene {
             for (const bar of POPULAR_BARS.bars) {
                 this.add.image(bar.x, bar.y, POPULAR_BARS.texture, bar.frame).setOrigin(0.5, 1).setDepth(getActorDepth(bar.y));
                 this.addStaticBlock(bar.x, bar.y - 8, POPULAR_BARS.frameWidth - 4, 14);
+                // Neon do letreiro pulsando devagar: o toque cyberpunk dos bares de verdade.
+                const glow = this.add.graphics().setDepth(getActorDepth(bar.y) + 0.001).setBlendMode(1);
+                glow.fillStyle(bar.glow.color, 0.12).fillCircle(bar.x + bar.glow.dx, bar.y + bar.glow.dy, bar.glow.radius);
+                glow.fillStyle(bar.glow.color, 0.1).fillCircle(bar.x + bar.glow.dx, bar.y + bar.glow.dy, bar.glow.radius * 0.55);
+                this.tweens.add({ targets: glow, alpha: { from: 1, to: 0.35 }, duration: 1_100, yoyo: true, repeat: -1 });
                 if ('queue' in bar) this.barQueues.push(new TchayQueue(this, bar.queue));
             }
             this.createPagode();

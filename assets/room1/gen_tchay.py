@@ -252,11 +252,60 @@ def noel(cv, ox):
         cv.rect(ox + 36, 38 + k * 3, ox + 42, 39 + k * 3, (236, 232, 222, 255))  # frase pintada
 
 
+NEON_CYAN = (71, 193, 206, 255)
+NEON_PINK = (255, 90, 170, 255)
+WIRE = (20, 22, 28, 255)
+
+
+def cyber_touches(cv, ox, wires, sticker, screen):
+    """Toque cyberpunk leve: fios pendurados, adesivo do olho da Floria e um painel holográfico."""
+    # fios caindo em curva só pela parede livre, sem cruzar as placas
+    wires_y, spans = wires
+    for k, (x0, x1) in enumerate((ox + a, ox + b) for a, b in spans):
+        for x in range(x0, x1):
+            t = (x - x0) / (x1 - x0)
+            cv.put(x, wires_y + k * 2 + int(5 * 4 * t * (1 - t)), WIRE)
+    # adesivo da Floria: olho ciano com a pupila rosa
+    sx, sy = sticker
+    cv.rect(sx, sy, sx + 7, sy + 5, (14, 16, 22, 255))
+    cv.rect(sx + 1, sy + 2, sx + 6, sy + 3, NEON_CYAN)
+    cv.put(sx + 3, sy + 2, NEON_PINK)
+    cv.put(sx + 3, sy + 1, NEON_CYAN)
+    cv.put(sx + 3, sy + 3, NEON_CYAN)
+    # painel holográfico com linhas de cardápio
+    px, py, pw, ph = screen
+    cv.rect(px, py, px + pw, py + ph, (8, 24, 30, 255))
+    cv.rect(px, py, px + pw, py + 1, NEON_CYAN)
+    for k in range(2, ph - 1, 2):
+        cv.rect(px + 1, py + k, px + pw - 1 - (k % 3), py + k + 1, (60, 170, 190, 255))
+
+
+def led_strip(cv, x0, x1, y):
+    for x in range(x0, x1, 2):
+        cv.put(x, y, NEON_PINK if (x // 2) % 2 else NEON_CYAN)
+
+
 def build_popular_bars():
-    """Bares conhecidos do Centro (Gatus Rock Bar e Bar do Noel), 64x48 cada."""
+    """Bares conhecidos do Centro (Gatus Rock Bar e Bar do Noel), 64x48 cada, com toque cyberpunk."""
     cv = Canvas(128, 48)
     gatus(cv, 0)
+    # Gatus: tubo de neon em volta da placa, LED sob o toldo, fios, adesivo e cardápio holográfico
+    for x in range(27, 64):
+        cv.put(x, 2, NEON_CYAN)
+        cv.put(x, 20, NEON_CYAN)
+    for y in range(2, 21):
+        cv.put(27, y, NEON_CYAN)
+    led_strip(cv, 2, 43, 30)
+    cyber_touches(cv, 0, (1, ((2, 26), (8, 25))), sticker=(48, 24), screen=(44, 34, 14, 11))
     noel(cv, 64)
+    # Noel: anel de neon em volta da placa redonda, LED na sacada, fios, adesivo e telinha
+    for y in range(6, 36):
+        for x in range(64 + 30, 128):
+            d = ((x - 64 - 48) / 17) ** 2 + ((y - 21) / 14) ** 2
+            if 0.93 <= d <= 1.05:
+                cv.put(x, y, NEON_CYAN)
+    led_strip(cv, 64, 128, 7)
+    cyber_touches(cv, 64, (9, ((0, 28), (10, 30))), sticker=(64 + 6, 36), screen=(64 + 22, 25, 8, 9))
     return cv.img
 
 
