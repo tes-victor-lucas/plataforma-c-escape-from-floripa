@@ -567,7 +567,7 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
             graphics() {
                 // Registra o que os efeitos em área desenham, sem renderizar nada.
                 const layer = { circles: [], lines: 0 };
-                for (const method of ['setDepth', 'setBlendMode', 'setPosition', 'setScale', 'fillStyle', 'lineStyle', 'fillCircle', 'fillRect', 'destroy']) {
+                for (const method of ['setDepth', 'setBlendMode', 'setPosition', 'setScale', 'setRotation', 'fillStyle', 'lineStyle', 'fillCircle', 'fillRect', 'beginPath', 'moveTo', 'lineTo', 'closePath', 'fillPath', 'destroy']) {
                     layer[method] = function () { return this; };
                 }
                 layer.strokeCircle = function (_x, _y, radius) { this.circles.push(radius); return this; };
@@ -1180,6 +1180,7 @@ test('somente a Sala I oferece outra seleção de upgrade ao ser concluída', ()
     const { shouldOfferRoomCompletionUpgrade } = load('../src/game/scenes/World.ts');
     assert.equal(shouldOfferRoomCompletionUpgrade('room1'), true);
     assert.equal(shouldOfferRoomCompletionUpgrade('room2'), false);
+    assert.equal(shouldOfferRoomCompletionUpgrade('room3'), true, 'depois da horda 2 da Sala III');
     assert.equal(shouldOfferRoomCompletionUpgrade('dungeon'), false);
 });
 
@@ -1212,7 +1213,7 @@ test('recompensa final da Sala I aplica a carta antes de liberar a saída', () =
         selectionOptions = this.options;
     };
     try {
-        world.playRoom1CompletionReward(() => { completions++; });
+        world.playRoomCompletionReward(() => { completions++; });
     } finally {
         UpgradeSelectionView.prototype.play = originalPlay;
     }
@@ -3290,6 +3291,73 @@ test('pulso de choque atravessa obstáculos, como o tronco da figueira', () => {
     ], upgrades);
     combat.update(0);
     assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth - upgrades.damage * 1.25);
+});
+
+test('golpe giratório corta cada inimigo do raio uma vez por volta, a cada 7 s', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('spin-slash'));
+    upgrades.range = 1;
+    // Jogador em (100, 100): um acima (a lâmina começa no alto), um à esquerda, um fora do raio.
+    const { combat, drones, effects } = setup([[100, 0], [0, 100], [400, 100]], [], upgrades);
+    for (const drone of drones) {
+        drone.health = new Health(1000);
+        drone.takeDamage = (amount) => drone.health.takeDamage(amount);
+    }
+    const cut = upgrades.damage * 9;
+    combat.update(0);
+    assert.equal(drones[0].health.current, 1000 - cut, 'a lâmina sai do alto');
+    assert.equal(drones[1].health.current, 1000, 'a esquerda só no fim da volta');
+    combat.update(450);
+    assert.equal(drones[1].health.current, 1000 - cut);
+    assert.equal(drones[0].health.current, 1000 - cut, 'um corte por volta');
+    assert.equal(drones[2].health.current, 1000, 'fora do raio');
+    combat.update(6_000);
+    assert.equal(drones[0].health.current, 1000 - cut, 'espera a recarga');
+    combat.update(1_000);
+    assert.equal(drones[0].health.current, 1000 - cut * 2);
+    assert.ok(effects.length > 0);
+});
+
+test('bombardeio explode sobre os inimigos mais perto, mesmo atrás de obstáculo', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('bombard'));
+    upgrades.range = 1;
+    const { combat, drones } = setup([[100, 40], [180, 100], [300, 100], [100, 500]], [
+        { getLeft: () => 90, getTop: () => 60, width: 20, height: 16 }
+    ], upgrades);
+    for (const drone of drones) {
+        drone.health = new Health(1000);
+        drone.takeDamage = (amount) => drone.health.takeDamage(amount);
+    }
+    combat.update(0);
+    const blast = upgrades.damage * 3;
+    assert.equal(drones[0].health.current, 1000 - blast, 'a bomba cai de cima, sem linha de visão');
+    assert.equal(drones[1].health.current, 1000 - blast);
+    assert.equal(drones[2].health.current, 1000 - blast);
+    assert.equal(drones[3].health.current, 1000, 'longe demais');
+    combat.update(1_599);
+    assert.equal(drones[0].health.current, 1000 - blast, 'espera a recarga');
+});
+
+test('serras orbitais e faíscas dividem o efeito e o mais forte prevalece', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('spark-orbit'));
+    upgrades.acquire(getUpgradeCard('saw-orbit'));
+    assert.equal(upgrades.orbitCount, 5);
+    assert.equal(upgrades.orbitRadius, 72);
+    assert.equal(upgrades.orbitDamageRatio, 2.5);
+    assert.equal(upgrades.orbitHitInterval, 350);
+});
+
+test('cartas do fim da Sala III só aparecem depois da horda 2', () => {
+    const { withoutRoom3Cards, withoutRoom3FinalCards, drawUpgradeCardsFeaturing } = load('../src/game/upgrades/drawUpgradeCards.ts');
+    const { ROOM3_FINAL_UPGRADE_IDS } = load('../src/game/upgrades/catalog.ts');
+    const finals = new Set(ROOM3_FINAL_UPGRADE_IDS);
+    const all = new PlayerUpgradeState().availableCards();
+    assert.ok(!withoutRoom3Cards(all).some((card) => finals.has(card.id)));
+    assert.ok(!withoutRoom3FinalCards(all).some((card) => finals.has(card.id)));
+    const table = drawUpgradeCardsFeaturing(ROOM3_FINAL_UPGRADE_IDS, () => 0, all);
+    assert.deepEqual(new Set(table.map((card) => card.id)), finals);
 });
 
 test('tiro explosivo fere os vizinhos do alvo sem acertar o alvo duas vezes', () => {
