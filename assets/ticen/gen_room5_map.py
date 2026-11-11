@@ -119,8 +119,8 @@ def main():
                 if not empty(sheet, local):
                     put('itens-topo' if dy < top_rows else base, col + dx, row + dy, gid(sheet, local))
 
-    # Ônibus parados nas baias (7x3); o 763.2 via Kobrasol espera na faixa da Plataforma C.
-    for route, col, lane in ((0, 3, 0), (1, 25, 0), (2, 12, 1), (0, 34, 1), (3, 38, 2)):
+    # Ônibus parados nas baias (7x3); o 763.2 via Kobrasol (Estrela) espera na faixa da Plataforma C.
+    for route, col, lane in ((0, 3, 0), (1, 25, 0), (2, 12, 1), (4, 34, 1), (3, 38, 2)):
         place('ticen_onibus', 0, route * 3, 7, 3, col, LANES[lane][0] + 1, 0, base='onibus')
 
     # Pilares da cobertura (1x3) nas plataformas A, B e C, com as placas das linhas penduradas.

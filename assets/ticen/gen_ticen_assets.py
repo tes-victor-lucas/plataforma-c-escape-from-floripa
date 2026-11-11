@@ -60,6 +60,10 @@ LED_BG = (16, 12, 10, 255)
 RED = (200, 40, 46, 255)
 BUS_WHITE = (236, 238, 240, 255)
 BUS_SHADE = (196, 200, 206, 255)
+# Pinturas de verdade: Estrela (São José) em verde-água e Jotur (Palhoça) branca com saia verde.
+TEAL0 = (22, 112, 106, 255)
+TEAL1 = (40, 156, 146, 255)
+JOTUR_GREEN = (18, 120, 62, 255)
 
 
 def text_width(text, scale=1):
@@ -209,30 +213,45 @@ def floor():
 
 # ---------------------------------------------------------------- ônibus (7 x 3 tiles cada)
 
-ROUTES = ['151 CENTRO ADM', '330 LAGOA', '185 UFSC', '763.2 KOBRASOL']
+# (letreiro, empresa); o 763.2 via Kobrasol é o ônibus da fuga.
+ROUTES = [('151 CENTRO ADM', 'floria'), ('330 LAGOA', 'floria'), ('185 UFSC', 'floria'),
+          ('763.2 KOBRASOL', 'estrela'), ('IFSC', 'jotur')]
+BODY = {
+    'floria': lambda oy, y: BUS_SHADE if y > oy + 34 else BUS_WHITE,
+    'estrela': lambda oy, y: TEAL0 if y > oy + 34 else TEAL1,
+    'jotur': lambda oy, y: JOTUR_GREEN if y > oy + 29 else BUS_WHITE,
+}
 
 
-def bus(cv, oy, route, goal=False):
+def bus(cv, oy, route, livery='floria', goal=False):
     w = 112
-    # carroceria branca com cantos arredondados, frente para a direita
+    # carroceria com cantos arredondados, frente para a direita
     body = [(x, y) for y in range(oy + 2, oy + 42) for x in range(1, w - 1)
             if not ((x < 3 or x > w - 4) and (y < oy + 4 or y > oy + 39))]
-    cv.shape(body, lambda x, y: BUS_SHADE if y > oy + 34 else BUS_WHITE)
+    cv.shape(body, lambda x, y: BODY[livery](oy, y))
     cv.shape(box(40, oy, 64, oy + 3), S2)  # ar-condicionado
     # janelas
     cv.shape(box(6, oy + 10, w - 16, oy + 24), lambda x, y: G1 if (x - y) % 18 < 3 else (30, 40, 56, 255))
     for mx in range(6, w - 16, 14):
-        cv.rect(mx, oy + 10, mx + 2, oy + 24, BUS_WHITE)
+        cv.rect(mx, oy + 10, mx + 2, oy + 24, BODY[livery](oy, oy + 10))
     # para-brisa
     cv.shape(box(w - 14, oy + 8, w - 3, oy + 30), lambda x, y: G1 if x - y % 6 > w - 10 else (30, 40, 56, 255))
     # letreiro de LED lateral, perto da porta da frente
     tw = text_width(route)
     cv.shape(box(w - 20 - tw - 6, oy + 3, w - 16, oy + 10), LED_BG)
     draw_text(cv, w - 18 - tw - 4, oy + 4, route, LED)
-    # faixa azul do Sistema Integrado
-    cv.rect(2, oy + 26, w - 2, oy + 31, BLUE1)
-    cv.rect(2, oy + 31, w - 2, oy + 32, BLUE2)
-    draw_text(cv, 8, oy + 27 - 1 + 1, 'FLORIA', W3)
+    if livery == 'floria':
+        # faixa azul do Sistema Integrado
+        cv.rect(2, oy + 26, w - 2, oy + 31, BLUE1)
+        cv.rect(2, oy + 31, w - 2, oy + 32, BLUE2)
+        draw_text(cv, 8, oy + 27 - 1 + 1, 'FLORIA', W3)
+    elif livery == 'estrela':
+        # estrela amarela ao lado do nome, como no logo
+        for dx, dy in ((2, 0), (0, 1), (1, 1), (2, 1), (3, 1), (4, 1), (1, 2), (2, 2), (3, 2), (1, 3), (3, 3)):
+            cv.put(8 + dx, oy + 27 + dy, YELLOW)
+        draw_text(cv, 15, oy + 27, 'ESTRELA', YELLOW)
+    else:
+        draw_text(cv, 8, oy + 25, 'JOTUR', JOTUR_GREEN)
     # portas
     for dx in (w - 30, 46):
         cv.shape(box(dx, oy + 12, dx + 10, oy + 40), (40, 52, 70, 255))
@@ -249,8 +268,8 @@ def bus(cv, oy, route, goal=False):
 
 def buses():
     cv = Canvas(112, 48 * len(ROUTES))
-    for i, route in enumerate(ROUTES):
-        bus(cv, i * 48, route, goal=route.startswith('763.2'))
+    for i, (route, livery) in enumerate(ROUTES):
+        bus(cv, i * 48, route, livery, goal=route.startswith('763.2'))
     return cv.img
 
 
