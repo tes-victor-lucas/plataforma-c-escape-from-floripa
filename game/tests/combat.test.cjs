@@ -1756,7 +1756,7 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
     assert.equal(clears, 1);
 });
 
-test('9090 conclui as salas I e II, só limpa a horda na III e não age nas dungeons', () => {
+test('9090 conclui as salas com combate, inclusive a III, e não age nas dungeons', () => {
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();
     let clears = 0;
@@ -1794,7 +1794,7 @@ test('9090 conclui as salas I e II, só limpa a horda na III e não age nas dung
     for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
     assert.equal(completions, 2);
 
-    // Na room3 o atalho mata a horda, mas não conclui o combate (que daria a vitória).
+    // A room3 deixou de ser a última: concluir abre a saída para a room4, sem vitória.
     const room3Drones = [createDrone(30)];
     world.activeRoomKey = 'room3';
     world.isRoomCombatComplete = false;
@@ -1803,12 +1803,12 @@ test('9090 conclui as salas I e II, só limpa a horda na III e não age nas dung
     for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
     assert.equal(room3Drones[0].health.isAlive, false);
     assert.equal(world.waves, undefined);
-    assert.equal(completions, 2, 'o segredo não deve dar vitória na room3');
+    assert.equal(completions, 3, 'o segredo conclui a room3 e libera a saída');
 
     world.activeRoomKey = 'dungeon';
     world.isRoomCombatComplete = false;
     for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(completions, 2, 'o segredo não deve concluir a dungeon');
+    assert.equal(completions, 3, 'o segredo não deve concluir a dungeon');
 });
 
 test('mundo bloqueia combate e HUD até a revelação; reinício não espera outra transição', () => {
