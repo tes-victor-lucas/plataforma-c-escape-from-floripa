@@ -1135,7 +1135,7 @@ test('segunda onda aguarda o fim da vinheta sem dispará-la mais de uma vez', ()
 
 test('Sala I tem duas ondas e a horda da Sala II cresce depois da carta', () => {
     assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room1], [10, 8]);
-    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room2], [17, 132]);
+    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room2], [17, 137]);
     const [first, second] = COMBAT_CONFIG.hordeByRoom.room2;
     assert.ok(second.maxAlive > first.maxAlive * 2, 'a segunda horda precisa ser bem maior');
     assert.ok(second.interval < first.interval);
@@ -3325,7 +3325,7 @@ test('horda depois da carta tem a quantidade de cada tipo e mistura os tipos ao 
     const kinds = getWaveEnemyKinds('room2', 1, COMBAT_CONFIG.wavesByRoom.room2[1]);
     const counts = {};
     for (const kind of kinds) counts[kind] = (counts[kind] ?? 0) + 1;
-    assert.deepEqual(counts, { gaucho: 46, guard: 22, scooter: 22, drone: 22, bike: 20 });
+    assert.deepEqual(counts, { 'heavy-drone': 5, gaucho: 46, guard: 22, scooter: 22, drone: 22, bike: 20 });
     // Cada lote de 6 já traz pelo menos três tipos diferentes.
     for (let start = 0; start < kinds.length; start += 6) {
         assert.ok(new Set(kinds.slice(start, start + 6)).size >= 3, `lote ${start}`);
@@ -3508,7 +3508,8 @@ test('room3 abre pela rota direta e recebe a saída da room2', () => {
 
 test('room3 abre com a horda final da room2 e termina numa horda maior', () => {
     const [first, second] = COMBAT_CONFIG.wavesByRoom.room3;
-    assert.equal(first, COMBAT_CONFIG.wavesByRoom.room2[1]);
+    // Mesma horda final da room2, com 5 drones fortes a mais.
+    assert.equal(first, COMBAT_CONFIG.wavesByRoom.room2[1] + 5);
     assert.ok(second > first);
     assert.equal(COMBAT_CONFIG.hordeByRoom.room3.length, 2);
 });
@@ -3579,5 +3580,22 @@ test('8080 dá uma carta forte aleatória só na room3', () => {
     }
     for (const key of '8080') world.handleSecretCodeKey({ key, repeat: false });
     assert.equal(hints[1], 'CARTAS FORTES NO MÁXIMO');
+});
+
+test('drone forte aparece a partir da horda 2 da room2 e ganha +5 a cada horda', () => {
+    const heavyIn = (room, wave) => getWaveEnemyKinds(room, wave, COMBAT_CONFIG.wavesByRoom[room][wave])
+        .filter((kind) => kind === 'heavy-drone').length;
+    assert.equal(heavyIn('room1', 1), 0);
+    assert.equal(heavyIn('room2', 0), 0);
+    assert.deepEqual([heavyIn('room2', 1), heavyIn('room3', 0), heavyIn('room3', 1), heavyIn('room4', 0)], [5, 10, 15, 20]);
+});
+
+test('drone forte tem o triplo da vida e atira como o comum', () => {
+    assert.equal(COMBAT_CONFIG.heavyDrone.maxHealth, COMBAT_CONFIG.drone.maxHealth * 3);
+    const { combat, drones, groups } = setup([[150, 100]]);
+    drones[0].kind = 'heavy-drone';
+    combat.enemyCooldowns.set(drones[0], 0);
+    combat.update(0);
+    assert.ok(groups[1].shots.length > 0, 'drone forte também dispara');
 });
 
