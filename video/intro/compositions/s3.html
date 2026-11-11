@@ -1,55 +1,29 @@
 <template>
   <style>
-      #root { position: absolute; inset: 0; overflow: hidden; background: #01141a; font-family: 'PixelGamer', monospace; }
+      #root { position: absolute; inset: 0; overflow: hidden; background: #04050a; font-family: 'PixelGamer', monospace; }
       @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/PixelGamer-Regular.otf'); }
       /* Como no jogo (src/main.ts): na PixelGamer, números e pontuação são desenhos; vêm da Pixeboy. */
       @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/Pixeboy.ttf');
         unicode-range: U+24-26, U+2C, U+2E, U+30-3A; size-adjust: 140%; }
-      .cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-      .cam img { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
-      .line { position: absolute; left: 200px; bottom: 140px; z-index: 5; }
-      .line span.box { display: inline-block; background: rgba(0, 0, 0, 0.88); color: #ffffff; font-size: 56px;
-        padding: 22px 30px 16px; letter-spacing: 2px; white-space: nowrap; }
+      .full { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+      .art { position: absolute; left: -8px; top: 0; width: 1936px; height: 1080px; image-rendering: pixelated; }
+      .spr { position: absolute; overflow: hidden; }
+      .spr img { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
+      .cap { position: absolute; color: #ffffff; letter-spacing: 3px; text-shadow: 5px 5px 0 #000000; z-index: 12;
+        white-space: nowrap; }
       .red { color: #e90931; }
-      .dissolve { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
-      .blk { position: absolute; width: 120px; height: 120px; background: #01141a; opacity: 0; }
-      .cd { position: absolute; left: 200px; top: 120px; z-index: 6; background: rgba(0, 0, 0, 0.88);
-        padding: 20px 30px 12px; color: #ffffff; }
-      .cd small { display: block; font-size: 34px; letter-spacing: 3px; }
-      .cd-digits { position: relative; display: block; font-size: 120px; color: #e90931; line-height: 1; }
+      .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; perspective: 520px;
+        perspective-origin: 50% 12%; overflow: hidden; background: #04050a; }
+      .plane { position: absolute; overflow: hidden; transform-origin: 50% 100%; }
+      .plane img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: pixelated; }
   </style>
   <div id="root" data-composition-id="s3" data-width="1920" data-height="1080">
-      <div id="s3-cam" class="cam" style="width:672px;height:576px;"><img id="s3-img" src="assets/rooms/room3.png" alt=""></div>
-      <div id="s3-l0" class="clip line" data-start="0.4" data-duration="3.2"><span class="box" id="s3-l0-box">QUEM SAI DA ROTA VIRA <span class="red">AMEAÇA</span></span></div>
-      <div id="s3-din" class="dissolve"></div>
-      <div id="s3-dout" class="dissolve"></div>
+      <div id="s3-l0" class="clip cap" data-start="0.15" data-duration="1.65" style="left:0;width:1920px;text-align:center;top:430px;font-size:72px;">QUEM SAI DA ROTA</div>
+      <div id="s3-l1" class="clip cap" data-start="0.85" data-duration="0.95" style="left:0;width:1920px;text-align:center;top:540px;font-size:72px;"><span class="red">VIRA AMEAÇA</span></div>
   </div>
   <script>
       const tl = gsap.timeline({ paused: true });
-      tl.fromTo("#s3-cam", { x: -216.0, y: -936.0, scale: 3.5 }, { x: -216.0, y: -160.0, scale: 3.5, duration: 4, ease: "power2.inOut" }, 0);
-      tl.fromTo("#s3-l0-box", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.27, ease: "steps(6)" }, 0.4);
       
-      
-      // Dissolução em blocos de 120 px, ordem fixa por semente (o filme renderiza igual sempre).
-      function dissolve(tl, id, start, appear, seed) {
-        const box = document.getElementById(id);
-        const blocks = [];
-        for (let i = 0; i < 144; i++) {
-          const b = document.createElement('div');
-          b.className = 'blk';
-          b.style.left = (i % 16) * 120 + 'px';
-          b.style.top = Math.floor(i / 16) * 120 + 'px';
-          box.appendChild(b);
-          blocks.push(b);
-        }
-        let s = seed;
-        const order = blocks.map((b, i) => { s = (s * 1103515245 + 12345) % 2147483648; return [s, b]; })
-          .sort((a, b) => a[0] - b[0]).map(([, b]) => b);
-        order.forEach((b, i) => {
-          tl.set(b, { opacity: appear ? 0 : 1 }, 0);
-          tl.set(b, { opacity: appear ? 1 : 0 }, start + Math.floor(i / 12) * (0.4 / 12));
-        });
-      } dissolve(tl, "s3-din", 0, false, 15838); dissolve(tl, "s3-dout", 3.58, true, 209458);
       window.__timelines["s3"] = tl;
   </script>
 </template>

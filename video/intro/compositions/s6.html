@@ -1,66 +1,241 @@
 <template>
   <style>
-      #root { position: absolute; inset: 0; overflow: hidden; background: #01141a; font-family: 'PixelGamer', monospace; }
+      #root { position: absolute; inset: 0; overflow: hidden; background: #04050a; font-family: 'PixelGamer', monospace; }
       @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/PixelGamer-Regular.otf'); }
       /* Como no jogo (src/main.ts): na PixelGamer, números e pontuação são desenhos; vêm da Pixeboy. */
       @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/Pixeboy.ttf');
         unicode-range: U+24-26, U+2C, U+2E, U+30-3A; size-adjust: 140%; }
-      .cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-      .cam img { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
-      .line { position: absolute; left: 200px; bottom: 140px; z-index: 5; }
-      .line span.box { display: inline-block; background: rgba(0, 0, 0, 0.88); color: #ffffff; font-size: 56px;
-        padding: 22px 30px 16px; letter-spacing: 2px; white-space: nowrap; }
+      .full { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+      .art { position: absolute; left: -8px; top: 0; width: 1936px; height: 1080px; image-rendering: pixelated; }
+      .spr { position: absolute; overflow: hidden; }
+      .spr img { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
+      .cap { position: absolute; color: #ffffff; letter-spacing: 3px; text-shadow: 5px 5px 0 #000000; z-index: 12;
+        white-space: nowrap; }
       .red { color: #e90931; }
-      .dissolve { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
-      .blk { position: absolute; width: 120px; height: 120px; background: #01141a; opacity: 0; }
-      .cd { position: absolute; left: 200px; top: 120px; z-index: 6; background: rgba(0, 0, 0, 0.88);
-        padding: 20px 30px 12px; color: #ffffff; }
-      .cd small { display: block; font-size: 34px; letter-spacing: 3px; }
-      .cd-digits { position: relative; display: block; font-size: 120px; color: #e90931; line-height: 1; }
+      .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; perspective: 520px;
+        perspective-origin: 50% 12%; overflow: hidden; background: #04050a; }
+      .plane { position: absolute; overflow: hidden; transform-origin: 50% 100%; }
+      .plane img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: pixelated; }
   </style>
   <div id="root" data-composition-id="s6" data-width="1920" data-height="1080">
-      <div id="s6-bg" class="cam" style="width:1920px;height:1081px;transform-origin:50% 50%;"><img id="s6-img" src="assets/art/background-bridge.png" alt=""></div>
-      <img id="s6-title" src="assets/art/title.png" alt="Plataforma C: Escape from Floripa"
-        style="position:absolute;left:203.25px;top:400px;width:1513.5px;height:231.0px;image-rendering:pixelated;z-index:4;">
-      <div id="s6-cd" class="cd"><small>PARTIDA EM</small>
-      <span id="s6-cd-24" class="clip cd-digits" data-start="0.0" data-duration="0.5">04:36</span>
-      <span id="s6-cd-25" class="clip cd-digits" data-start="0.5" data-duration="1.0">04:35</span>
-      <span id="s6-cd-26" class="clip cd-digits" data-start="1.5" data-duration="1.0">04:34</span>
-      <span id="s6-cd-27" class="clip cd-digits" data-start="2.5" data-duration="1.0">04:33</span>
-      <span id="s6-cd-28" class="clip cd-digits" data-start="3.5" data-duration="1.0">04:32</span>
-      <span id="s6-cd-29" class="clip cd-digits" data-start="4.5" data-duration="1.0">04:31</span>
+      <div id="s6-shake" class="full">
+      <div id="s6-stage" class="stage"><div id="s6-plane" class="plane" style="left:-720.0px;top:-1640px;width:3360px;height:2880px;"><img id="s6-floor" src="assets/rooms/room3.png" alt=""></div></div>
+      <div id="s6-d0" class="spr" style="left:300px;top:120px;width:128px;height:128px;z-index:5;transform-origin:50% 50%;"><img id="s6-d0-s" src="assets/sprites/drone.png" alt="" style="width:128px;height:128px;"></div>
+      <div id="s6-tr0" style="position:absolute;left:700px;top:480px;width:484px;height:4px;background:#e90931;opacity:0;transform-origin:0 50%;z-index:9;"></div>
+      <div id="s6-d1" class="spr" style="left:1500px;top:120px;width:160px;height:160px;z-index:5;transform-origin:50% 50%;"><img id="s6-d1-s" src="assets/sprites/drone.png" alt="" style="width:160px;height:160px;"></div>
+      <div id="s6-tr1" style="position:absolute;left:1260px;top:480px;width:528px;height:4px;background:#e90931;opacity:0;transform-origin:0 50%;z-index:9;"></div>
+      <div id="s6-d2" class="spr" style="left:900px;top:120px;width:192px;height:192px;z-index:5;transform-origin:50% 50%;"><img id="s6-d2-s" src="assets/sprites/drone.png" alt="" style="width:192px;height:192px;"></div>
+      <div id="s6-tr2" style="position:absolute;left:920px;top:480px;width:420px;height:4px;background:#e90931;opacity:0;transform-origin:0 50%;z-index:9;"></div>
+      <div id="s6-b0" class="spr" style="left:368.0px;top:508.0px;width:384px;height:384px;z-index:4;transform-origin:50% 100%;"><img id="s6-b0-s" src="assets/sprites/explosion.png" alt="" style="width:1536px;height:384px;"></div>
+      <div id="s6-b1" class="spr" style="left:1188.0px;top:488.0px;width:384px;height:384px;z-index:4;transform-origin:50% 100%;"><img id="s6-b1-s" src="assets/sprites/explosion.png" alt="" style="width:1536px;height:384px;"></div>
+      <div id="s6-b2" class="spr" style="left:568.0px;top:428.0px;width:384px;height:384px;z-index:4;transform-origin:50% 100%;"><img id="s6-b2-s" src="assets/sprites/explosion.png" alt="" style="width:1536px;height:384px;"></div>
+      <div id="s6-hero" class="spr" style="left:770px;top:700px;width:380px;height:380px;z-index:6;transform-origin:50% 100%;"><img id="s6-hero-s" src="assets/sprites/player-up.png" alt="" style="width:3420px;height:380px;"></div>
       </div>
-      <div id="s6-l0" class="clip line" data-start="1.6" data-duration="3.9" style="left:auto;right:200px;bottom:170px;">
-        <span class="box" id="s6-l0-box">PEGUE O 763.2 ANTES DA PARTIDA</span></div>
-      <div id="s6-din" class="dissolve"></div>
-      <div id="s6-dout" class="dissolve"></div>
   </div>
   <script>
       const tl = gsap.timeline({ paused: true });
-      tl.fromTo("#s6-bg", { scale: 1 }, { scale: 1.04, duration: 5.5, ease: "none" }, 0);
-      tl.fromTo("#s6-title", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.6, ease: "steps(12)" }, 0.5);
-      tl.fromTo("#s6-l0-box", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.27, ease: "steps(6)" }, 1.6);
-      
-      // Dissolução em blocos de 120 px, ordem fixa por semente (o filme renderiza igual sempre).
-      function dissolve(tl, id, start, appear, seed) {
-        const box = document.getElementById(id);
-        const blocks = [];
-        for (let i = 0; i < 144; i++) {
-          const b = document.createElement('div');
-          b.className = 'blk';
-          b.style.left = (i % 16) * 120 + 'px';
-          b.style.top = Math.floor(i / 16) * 120 + 'px';
-          box.appendChild(b);
-          blocks.push(b);
-        }
-        let s = seed;
-        const order = blocks.map((b, i) => { s = (s * 1103515245 + 12345) % 2147483648; return [s, b]; })
-          .sort((a, b) => a[0] - b[0]).map(([, b]) => b);
-        order.forEach((b, i) => {
-          tl.set(b, { opacity: appear ? 0 : 1 }, 0);
-          tl.set(b, { opacity: appear ? 1 : 0 }, start + Math.floor(i / 12) * (0.4 / 12));
-        });
-      } dissolve(tl, "s6-din", 0, false, 15838);
+      tl.set("#s6-plane", { rotationX: 66 }, 0);
+      tl.fromTo("#s6-floor", { y: 0 }, { y: 1700, duration: 3.5, ease: "none" }, 0);
+      tl.set("#s6-d0-s", { x: 0 }, 0);
+      tl.fromTo("#s6-d0", { x: 0, y: 0, scale: 1 }, { x: 340, y: 260, scale: 2.2, duration: 2.0, ease: "power2.in" }, 0.0);
+      tl.set("#s6-tr0", { rotation: 60.3, opacity: 1 }, 0.700); tl.set("#s6-tr0", { opacity: 0 }, 0.760);
+      tl.set("#s6-d1-s", { x: 0 }, 0);
+      tl.fromTo("#s6-d1", { x: 0, y: 0, scale: 1 }, { x: -300, y: 260, scale: 2.2, duration: 2.0, ease: "power2.in" }, 0.6);
+      tl.set("#s6-tr1", { rotation: 127.3, opacity: 1 }, 1.300); tl.set("#s6-tr1", { opacity: 0 }, 1.360);
+      tl.set("#s6-d2-s", { x: 0 }, 0);
+      tl.fromTo("#s6-d2", { x: 0, y: 0, scale: 1 }, { x: -40, y: 260, scale: 2.2, duration: 2.0, ease: "power2.in" }, 1.4);
+      tl.set("#s6-tr2", { rotation: 87.3, opacity: 1 }, 2.100); tl.set("#s6-tr2", { opacity: 0 }, 2.160);
+      tl.set("#s6-b0-s", { x: 0 }, 0);
+      tl.set("#s6-b0", { opacity: 0 }, 0.000);
+      tl.set("#s6-b0", { opacity: 1 }, 1.000); tl.set("#s6-b0-s", { x: 0 }, 1.000);
+      tl.set("#s6-b0", { opacity: 1 }, 1.080); tl.set("#s6-b0-s", { x: -384 }, 1.080);
+      tl.set("#s6-b0", { opacity: 1 }, 1.160); tl.set("#s6-b0-s", { x: -768 }, 1.160);
+      tl.set("#s6-b0", { opacity: 1 }, 1.260); tl.set("#s6-b0-s", { x: -1152 }, 1.260);
+      tl.set("#s6-b0", { opacity: 0 }, 1.550);
+      tl.set("#s6-b1-s", { x: 0 }, 0);
+      tl.set("#s6-b1", { opacity: 0 }, 0.000);
+      tl.set("#s6-b1", { opacity: 1 }, 1.900); tl.set("#s6-b1-s", { x: 0 }, 1.900);
+      tl.set("#s6-b1", { opacity: 1 }, 1.980); tl.set("#s6-b1-s", { x: -384 }, 1.980);
+      tl.set("#s6-b1", { opacity: 1 }, 2.060); tl.set("#s6-b1-s", { x: -768 }, 2.060);
+      tl.set("#s6-b1", { opacity: 1 }, 2.160); tl.set("#s6-b1-s", { x: -1152 }, 2.160);
+      tl.set("#s6-b1", { opacity: 0 }, 2.450);
+      tl.set("#s6-b2-s", { x: 0 }, 0);
+      tl.set("#s6-b2", { opacity: 0 }, 0.000);
+      tl.set("#s6-b2", { opacity: 1 }, 2.800); tl.set("#s6-b2-s", { x: 0 }, 2.800);
+      tl.set("#s6-b2", { opacity: 1 }, 2.880); tl.set("#s6-b2-s", { x: -384 }, 2.880);
+      tl.set("#s6-b2", { opacity: 1 }, 2.960); tl.set("#s6-b2-s", { x: -768 }, 2.960);
+      tl.set("#s6-b2", { opacity: 1 }, 3.060); tl.set("#s6-b2-s", { x: -1152 }, 3.060);
+      tl.set("#s6-b2", { opacity: 0 }, 3.350);
+      tl.set("#s6-hero-s", { x: 0 }, 0);
+      tl.set("#s6-hero", { opacity: 1 }, 0.000); tl.set("#s6-hero-s", { x: -380 }, 0.000);
+      tl.set("#s6-hero", { opacity: 1 }, 0.067); tl.set("#s6-hero-s", { x: -760 }, 0.067);
+      tl.set("#s6-hero", { opacity: 1 }, 0.133); tl.set("#s6-hero-s", { x: -1140 }, 0.133);
+      tl.set("#s6-hero", { opacity: 1 }, 0.200); tl.set("#s6-hero-s", { x: -1520 }, 0.200);
+      tl.set("#s6-hero", { opacity: 1 }, 0.267); tl.set("#s6-hero-s", { x: -1900 }, 0.267);
+      tl.set("#s6-hero", { opacity: 1 }, 0.333); tl.set("#s6-hero-s", { x: -2280 }, 0.333);
+      tl.set("#s6-hero", { opacity: 1 }, 0.400); tl.set("#s6-hero-s", { x: -2660 }, 0.400);
+      tl.set("#s6-hero", { opacity: 1 }, 0.467); tl.set("#s6-hero-s", { x: -3040 }, 0.467);
+      tl.set("#s6-hero", { opacity: 1 }, 0.533); tl.set("#s6-hero-s", { x: -380 }, 0.533);
+      tl.set("#s6-hero", { opacity: 1 }, 0.600); tl.set("#s6-hero-s", { x: -760 }, 0.600);
+      tl.set("#s6-hero", { opacity: 1 }, 0.667); tl.set("#s6-hero-s", { x: -1140 }, 0.667);
+      tl.set("#s6-hero", { opacity: 1 }, 0.733); tl.set("#s6-hero-s", { x: -1520 }, 0.733);
+      tl.set("#s6-hero", { opacity: 1 }, 0.800); tl.set("#s6-hero-s", { x: -1900 }, 0.800);
+      tl.set("#s6-hero", { opacity: 1 }, 0.867); tl.set("#s6-hero-s", { x: -2280 }, 0.867);
+      tl.set("#s6-hero", { opacity: 1 }, 0.933); tl.set("#s6-hero-s", { x: -2660 }, 0.933);
+      tl.set("#s6-hero", { opacity: 1 }, 1.000); tl.set("#s6-hero-s", { x: -3040 }, 1.000);
+      tl.set("#s6-hero", { opacity: 1 }, 1.067); tl.set("#s6-hero-s", { x: -380 }, 1.067);
+      tl.set("#s6-hero", { opacity: 1 }, 1.133); tl.set("#s6-hero-s", { x: -760 }, 1.133);
+      tl.set("#s6-hero", { opacity: 1 }, 1.200); tl.set("#s6-hero-s", { x: -1140 }, 1.200);
+      tl.set("#s6-hero", { opacity: 1 }, 1.267); tl.set("#s6-hero-s", { x: -1520 }, 1.267);
+      tl.set("#s6-hero", { opacity: 1 }, 1.333); tl.set("#s6-hero-s", { x: -1900 }, 1.333);
+      tl.set("#s6-hero", { opacity: 1 }, 1.400); tl.set("#s6-hero-s", { x: -2280 }, 1.400);
+      tl.set("#s6-hero", { opacity: 1 }, 1.467); tl.set("#s6-hero-s", { x: -2660 }, 1.467);
+      tl.set("#s6-hero", { opacity: 1 }, 1.533); tl.set("#s6-hero-s", { x: -3040 }, 1.533);
+      tl.set("#s6-hero", { opacity: 1 }, 1.600); tl.set("#s6-hero-s", { x: -380 }, 1.600);
+      tl.set("#s6-hero", { opacity: 1 }, 1.667); tl.set("#s6-hero-s", { x: -760 }, 1.667);
+      tl.set("#s6-hero", { opacity: 1 }, 1.733); tl.set("#s6-hero-s", { x: -1140 }, 1.733);
+      tl.set("#s6-hero", { opacity: 1 }, 1.800); tl.set("#s6-hero-s", { x: -1520 }, 1.800);
+      tl.set("#s6-hero", { opacity: 1 }, 1.867); tl.set("#s6-hero-s", { x: -1900 }, 1.867);
+      tl.set("#s6-hero", { opacity: 1 }, 1.933); tl.set("#s6-hero-s", { x: -2280 }, 1.933);
+      tl.set("#s6-hero", { opacity: 1 }, 2.000); tl.set("#s6-hero-s", { x: -2660 }, 2.000);
+      tl.set("#s6-hero", { opacity: 1 }, 2.067); tl.set("#s6-hero-s", { x: -3040 }, 2.067);
+      tl.set("#s6-hero", { opacity: 1 }, 2.133); tl.set("#s6-hero-s", { x: -380 }, 2.133);
+      tl.set("#s6-hero", { opacity: 1 }, 2.200); tl.set("#s6-hero-s", { x: -760 }, 2.200);
+      tl.set("#s6-hero", { opacity: 1 }, 2.267); tl.set("#s6-hero-s", { x: -1140 }, 2.267);
+      tl.set("#s6-hero", { opacity: 1 }, 2.333); tl.set("#s6-hero-s", { x: -1520 }, 2.333);
+      tl.set("#s6-hero", { opacity: 1 }, 2.400); tl.set("#s6-hero-s", { x: -1900 }, 2.400);
+      tl.set("#s6-hero", { opacity: 1 }, 2.467); tl.set("#s6-hero-s", { x: -2280 }, 2.467);
+      tl.set("#s6-hero", { opacity: 1 }, 2.533); tl.set("#s6-hero-s", { x: -2660 }, 2.533);
+      tl.set("#s6-hero", { opacity: 1 }, 2.600); tl.set("#s6-hero-s", { x: -3040 }, 2.600);
+      tl.set("#s6-hero", { opacity: 1 }, 2.667); tl.set("#s6-hero-s", { x: -380 }, 2.667);
+      tl.set("#s6-hero", { opacity: 1 }, 2.733); tl.set("#s6-hero-s", { x: -760 }, 2.733);
+      tl.set("#s6-hero", { opacity: 1 }, 2.800); tl.set("#s6-hero-s", { x: -1140 }, 2.800);
+      tl.set("#s6-hero", { opacity: 1 }, 2.867); tl.set("#s6-hero-s", { x: -1520 }, 2.867);
+      tl.set("#s6-hero", { opacity: 1 }, 2.933); tl.set("#s6-hero-s", { x: -1900 }, 2.933);
+      tl.set("#s6-hero", { opacity: 1 }, 3.000); tl.set("#s6-hero-s", { x: -2280 }, 3.000);
+      tl.set("#s6-hero", { opacity: 1 }, 3.067); tl.set("#s6-hero-s", { x: -2660 }, 3.067);
+      tl.set("#s6-hero", { opacity: 1 }, 3.133); tl.set("#s6-hero-s", { x: -3040 }, 3.133);
+      tl.set("#s6-hero", { opacity: 1 }, 3.200); tl.set("#s6-hero-s", { x: -380 }, 3.200);
+      tl.set("#s6-hero", { opacity: 1 }, 3.267); tl.set("#s6-hero-s", { x: -760 }, 3.267);
+      tl.set("#s6-hero", { opacity: 1 }, 3.333); tl.set("#s6-hero-s", { x: -1140 }, 3.333);
+      tl.set("#s6-hero", { opacity: 1 }, 3.400); tl.set("#s6-hero-s", { x: -1520 }, 3.400);
+      tl.set("#s6-hero", { opacity: 1 }, 3.467); tl.set("#s6-hero-s", { x: -1900 }, 3.467);
+      tl.set("#s6-shake", { x: 3.5, y: -4.8 }, 0.000);
+      tl.set("#s6-shake", { x: 3.8, y: 0.8 }, 0.033);
+      tl.set("#s6-shake", { x: 4.8, y: 4.4 }, 0.067);
+      tl.set("#s6-shake", { x: 0.6, y: 3.6 }, 0.100);
+      tl.set("#s6-shake", { x: 4.9, y: 1.0 }, 0.133);
+      tl.set("#s6-shake", { x: 4.5, y: 5.0 }, 0.167);
+      tl.set("#s6-shake", { x: -2.1, y: -3.8 }, 0.200);
+      tl.set("#s6-shake", { x: 3.8, y: 3.5 }, 0.233);
+      tl.set("#s6-shake", { x: 2.9, y: -2.3 }, 0.267);
+      tl.set("#s6-shake", { x: -4.3, y: 1.2 }, 0.300);
+      tl.set("#s6-shake", { x: 1.6, y: -2.8 }, 0.333);
+      tl.set("#s6-shake", { x: -2.0, y: -3.7 }, 0.367);
+      tl.set("#s6-shake", { x: -2.4, y: -4.0 }, 0.400);
+      tl.set("#s6-shake", { x: -3.8, y: -2.7 }, 0.433);
+      tl.set("#s6-shake", { x: 4.9, y: -1.1 }, 0.467);
+      tl.set("#s6-shake", { x: -2.6, y: -3.3 }, 0.500);
+      tl.set("#s6-shake", { x: -0.7, y: -4.0 }, 0.533);
+      tl.set("#s6-shake", { x: -4.8, y: -0.3 }, 0.567);
+      tl.set("#s6-shake", { x: -1.1, y: 1.6 }, 0.600);
+      tl.set("#s6-shake", { x: -4.6, y: -2.3 }, 0.633);
+      tl.set("#s6-shake", { x: -3.8, y: -2.7 }, 0.667);
+      tl.set("#s6-shake", { x: -2.2, y: -1.0 }, 0.700);
+      tl.set("#s6-shake", { x: -1.2, y: -4.6 }, 0.733);
+      tl.set("#s6-shake", { x: -3.7, y: -0.8 }, 0.767);
+      tl.set("#s6-shake", { x: -4.0, y: 4.2 }, 0.800);
+      tl.set("#s6-shake", { x: -1.1, y: -4.3 }, 0.833);
+      tl.set("#s6-shake", { x: 3.3, y: 3.7 }, 0.867);
+      tl.set("#s6-shake", { x: 0.1, y: -4.3 }, 0.900);
+      tl.set("#s6-shake", { x: 3.1, y: -0.2 }, 0.933);
+      tl.set("#s6-shake", { x: -4.2, y: -1.9 }, 0.967);
+      tl.set("#s6-shake", { x: 1.7, y: 3.7 }, 1.000);
+      tl.set("#s6-shake", { x: 0, y: 0 }, 1.000);
+      tl.set("#s6-shake", { x: -1.4, y: -4.7 }, 1.250);
+      tl.set("#s6-shake", { x: 0.1, y: -1.3 }, 1.283);
+      tl.set("#s6-shake", { x: 0.7, y: 4.3 }, 1.317);
+      tl.set("#s6-shake", { x: -1.6, y: -0.6 }, 1.350);
+      tl.set("#s6-shake", { x: 3.9, y: 2.5 }, 1.383);
+      tl.set("#s6-shake", { x: 4.0, y: -3.9 }, 1.417);
+      tl.set("#s6-shake", { x: -0.1, y: -0.9 }, 1.450);
+      tl.set("#s6-shake", { x: -2.1, y: -4.3 }, 1.483);
+      tl.set("#s6-shake", { x: 4.1, y: -1.5 }, 1.517);
+      tl.set("#s6-shake", { x: -4.3, y: -2.0 }, 1.550);
+      tl.set("#s6-shake", { x: 2.4, y: -3.7 }, 1.583);
+      tl.set("#s6-shake", { x: 2.6, y: 1.5 }, 1.617);
+      tl.set("#s6-shake", { x: -4.2, y: -2.3 }, 1.650);
+      tl.set("#s6-shake", { x: 4.2, y: 4.8 }, 1.683);
+      tl.set("#s6-shake", { x: 4.8, y: -2.4 }, 1.717);
+      tl.set("#s6-shake", { x: 4.9, y: -3.4 }, 1.750);
+      tl.set("#s6-shake", { x: -1.9, y: 2.5 }, 1.783);
+      tl.set("#s6-shake", { x: -3.3, y: 1.6 }, 1.817);
+      tl.set("#s6-shake", { x: -1.1, y: -4.8 }, 1.850);
+      tl.set("#s6-shake", { x: -1.3, y: -0.1 }, 1.883);
+      tl.set("#s6-shake", { x: 0, y: 0 }, 1.900);
+      tl.set("#s6-shake", { x: 1.0, y: -4.0 }, 2.150);
+      tl.set("#s6-shake", { x: 1.7, y: -2.3 }, 2.183);
+      tl.set("#s6-shake", { x: -0.9, y: 4.1 }, 2.217);
+      tl.set("#s6-shake", { x: 2.5, y: -3.0 }, 2.250);
+      tl.set("#s6-shake", { x: -0.1, y: 3.5 }, 2.283);
+      tl.set("#s6-shake", { x: -0.6, y: -1.9 }, 2.317);
+      tl.set("#s6-shake", { x: -2.8, y: -4.1 }, 2.350);
+      tl.set("#s6-shake", { x: 2.3, y: -1.6 }, 2.383);
+      tl.set("#s6-shake", { x: -3.4, y: -1.5 }, 2.417);
+      tl.set("#s6-shake", { x: 3.2, y: -3.9 }, 2.450);
+      tl.set("#s6-shake", { x: -1.4, y: 2.3 }, 2.483);
+      tl.set("#s6-shake", { x: -4.8, y: 0.1 }, 2.517);
+      tl.set("#s6-shake", { x: -4.4, y: -1.2 }, 2.550);
+      tl.set("#s6-shake", { x: 0.1, y: -3.3 }, 2.583);
+      tl.set("#s6-shake", { x: -2.5, y: -3.9 }, 2.617);
+      tl.set("#s6-shake", { x: 2.9, y: -2.3 }, 2.650);
+      tl.set("#s6-shake", { x: 0.7, y: -3.5 }, 2.683);
+      tl.set("#s6-shake", { x: -0.1, y: 4.7 }, 2.717);
+      tl.set("#s6-shake", { x: -0.2, y: -0.4 }, 2.750);
+      tl.set("#s6-shake", { x: 3.0, y: 4.3 }, 2.783);
+      tl.set("#s6-shake", { x: 0, y: 0 }, 2.800);
+      tl.set("#s6-shake", { x: 3.4, y: -3.3 }, 3.050);
+      tl.set("#s6-shake", { x: -0.2, y: 3.3 }, 3.083);
+      tl.set("#s6-shake", { x: 4.0, y: 3.9 }, 3.117);
+      tl.set("#s6-shake", { x: 3.0, y: 1.0 }, 3.150);
+      tl.set("#s6-shake", { x: 2.3, y: 4.6 }, 3.183);
+      tl.set("#s6-shake", { x: 4.8, y: -3.4 }, 3.217);
+      tl.set("#s6-shake", { x: 1.0, y: -0.9 }, 3.250);
+      tl.set("#s6-shake", { x: -3.3, y: 1.2 }, 3.283);
+      tl.set("#s6-shake", { x: -0.9, y: 4.9 }, 3.317);
+      tl.set("#s6-shake", { x: 0.7, y: -2.4 }, 3.350);
+      tl.set("#s6-shake", { x: 4.9, y: 1.8 }, 3.383);
+      tl.set("#s6-shake", { x: 4.4, y: -4.8 }, 3.417);
+      tl.set("#s6-shake", { x: -4.5, y: -0.1 }, 3.450);
+      tl.set("#s6-shake", { x: 2.5, y: -1.4 }, 3.483);
+      tl.set("#s6-shake", { x: 0, y: 0 }, 3.500);
+      tl.set("#s6-shake", { x: 15.2, y: 17.9 }, 1.000);
+      tl.set("#s6-shake", { x: -11.4, y: 5.2 }, 1.033);
+      tl.set("#s6-shake", { x: -8.9, y: 8.6 }, 1.067);
+      tl.set("#s6-shake", { x: -2.3, y: 12.2 }, 1.100);
+      tl.set("#s6-shake", { x: 10.5, y: 12.5 }, 1.133);
+      tl.set("#s6-shake", { x: -14.9, y: 9.8 }, 1.167);
+      tl.set("#s6-shake", { x: 11.0, y: 8.0 }, 1.200);
+      tl.set("#s6-shake", { x: -9.0, y: 0.7 }, 1.233);
+      tl.set("#s6-shake", { x: 0, y: 0 }, 1.250);
+      tl.set("#s6-shake", { x: -3.7, y: -16.8 }, 1.900);
+      tl.set("#s6-shake", { x: -5.8, y: -9.4 }, 1.933);
+      tl.set("#s6-shake", { x: 4.2, y: 0.6 }, 1.967);
+      tl.set("#s6-shake", { x: -4.8, y: 2.3 }, 2.000);
+      tl.set("#s6-shake", { x: 15.0, y: -8.7 }, 2.033);
+      tl.set("#s6-shake", { x: 9.5, y: -14.8 }, 2.067);
+      tl.set("#s6-shake", { x: 17.7, y: 17.9 }, 2.100);
+      tl.set("#s6-shake", { x: -8.5, y: 4.0 }, 2.133);
+      tl.set("#s6-shake", { x: 0, y: 0 }, 2.150);
+      tl.set("#s6-shake", { x: 0.8, y: -2.8 }, 2.800);
+      tl.set("#s6-shake", { x: 12.5, y: -11.2 }, 2.833);
+      tl.set("#s6-shake", { x: 17.3, y: 16.1 }, 2.867);
+      tl.set("#s6-shake", { x: -7.2, y: 15.7 }, 2.900);
+      tl.set("#s6-shake", { x: -16.5, y: 6.1 }, 2.933);
+      tl.set("#s6-shake", { x: 10.5, y: -3.5 }, 2.967);
+      tl.set("#s6-shake", { x: -11.5, y: 4.5 }, 3.000);
+      tl.set("#s6-shake", { x: -8.1, y: 7.3 }, 3.033);
+      tl.set("#s6-shake", { x: 0, y: 0 }, 3.050);
       window.__timelines["s6"] = tl;
   </script>
 </template>

@@ -1,0 +1,39 @@
+<template>
+  <style>
+      #root { position: absolute; inset: 0; overflow: hidden; background: #04050a; font-family: 'PixelGamer', monospace; }
+      @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/PixelGamer-Regular.otf'); }
+      /* Como no jogo (src/main.ts): na PixelGamer, números e pontuação são desenhos; vêm da Pixeboy. */
+      @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/Pixeboy.ttf');
+        unicode-range: U+24-26, U+2C, U+2E, U+30-3A; size-adjust: 140%; }
+      .full { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+      .art { position: absolute; left: -8px; top: 0; width: 1936px; height: 1080px; image-rendering: pixelated; }
+      .spr { position: absolute; overflow: hidden; }
+      .spr img { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
+      .cap { position: absolute; color: #ffffff; letter-spacing: 3px; text-shadow: 5px 5px 0 #000000; z-index: 12;
+        white-space: nowrap; }
+      .red { color: #e90931; }
+      .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; perspective: 520px;
+        perspective-origin: 50% 12%; overflow: hidden; background: #04050a; }
+      .plane { position: absolute; overflow: hidden; transform-origin: 50% 100%; }
+      .plane img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+  </style>
+  <div id="root" data-composition-id="s10" data-width="1920" data-height="1080">
+      <div id="s10-bg" class="full" style="transform-origin:50% 50%;"><img class="art" src="assets/art/background-bridge.png" alt=""></div>
+      <img id="s10-title" src="assets/art/title.png" alt="Plataforma C: Escape from Floripa" style="position:absolute;left:203.25px;top:300px;width:1513.5px;height:231.0px;image-rendering:pixelated;z-index:4;">
+      <div id="s10-l0" class="clip cap" data-start="1.4" data-duration="4.1" style="left:0;width:1920px;text-align:center;top:600px;font-size:52px;">PEGUE O 763.2 ANTES DA PARTIDA</div>
+      <div id="s10-cdl" class="cap" style="left:0;width:1920px;text-align:center;top:90px;font-size:34px;">PARTIDA EM</div>
+      <div id="s10-cd-26" class="clip cap red" data-start="0.000" data-duration="0.200" style="left:0;width:1920px;text-align:center;top:135px;font-size:96px;">04:34</div>
+      <div id="s10-cd-27" class="clip cap red" data-start="0.200" data-duration="1.000" style="left:0;width:1920px;text-align:center;top:135px;font-size:96px;">04:33</div>
+      <div id="s10-cd-28" class="clip cap red" data-start="1.200" data-duration="1.000" style="left:0;width:1920px;text-align:center;top:135px;font-size:96px;">04:32</div>
+      <div id="s10-cd-29" class="clip cap red" data-start="2.200" data-duration="1.000" style="left:0;width:1920px;text-align:center;top:135px;font-size:96px;">04:31</div>
+      <div id="s10-cd-30" class="clip cap red" data-start="3.200" data-duration="1.000" style="left:0;width:1920px;text-align:center;top:135px;font-size:96px;">04:30</div>
+      <div id="s10-cd-31" class="clip cap red" data-start="4.200" data-duration="1.000" style="left:0;width:1920px;text-align:center;top:135px;font-size:96px;">04:29</div>
+      <div id="s10-cd-32" class="clip cap red" data-start="5.200" data-duration="0.300" style="left:0;width:1920px;text-align:center;top:135px;font-size:96px;">04:28</div>
+  </div>
+  <script>
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#s10-bg", { scale: 1.0 }, { scale: 1.04, duration: 5.5, ease: "none" }, 0);
+      tl.fromTo("#s10-title", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.5, ease: "steps(12)" }, 0.3);
+      window.__timelines["s10"] = tl;
+  </script>
+</template>

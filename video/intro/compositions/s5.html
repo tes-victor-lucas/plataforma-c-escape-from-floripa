@@ -1,61 +1,134 @@
 <template>
   <style>
-      #root { position: absolute; inset: 0; overflow: hidden; background: #01141a; font-family: 'PixelGamer', monospace; }
+      #root { position: absolute; inset: 0; overflow: hidden; background: #04050a; font-family: 'PixelGamer', monospace; }
       @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/PixelGamer-Regular.otf'); }
       /* Como no jogo (src/main.ts): na PixelGamer, números e pontuação são desenhos; vêm da Pixeboy. */
       @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/Pixeboy.ttf');
         unicode-range: U+24-26, U+2C, U+2E, U+30-3A; size-adjust: 140%; }
-      .cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-      .cam img { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
-      .line { position: absolute; left: 200px; bottom: 140px; z-index: 5; }
-      .line span.box { display: inline-block; background: rgba(0, 0, 0, 0.88); color: #ffffff; font-size: 56px;
-        padding: 22px 30px 16px; letter-spacing: 2px; white-space: nowrap; }
+      .full { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+      .art { position: absolute; left: -8px; top: 0; width: 1936px; height: 1080px; image-rendering: pixelated; }
+      .spr { position: absolute; overflow: hidden; }
+      .spr img { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
+      .cap { position: absolute; color: #ffffff; letter-spacing: 3px; text-shadow: 5px 5px 0 #000000; z-index: 12;
+        white-space: nowrap; }
       .red { color: #e90931; }
-      .dissolve { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
-      .blk { position: absolute; width: 120px; height: 120px; background: #01141a; opacity: 0; }
-      .cd { position: absolute; left: 200px; top: 120px; z-index: 6; background: rgba(0, 0, 0, 0.88);
-        padding: 20px 30px 12px; color: #ffffff; }
-      .cd small { display: block; font-size: 34px; letter-spacing: 3px; }
-      .cd-digits { position: relative; display: block; font-size: 120px; color: #e90931; line-height: 1; }
+      .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; perspective: 520px;
+        perspective-origin: 50% 12%; overflow: hidden; background: #04050a; }
+      .plane { position: absolute; overflow: hidden; transform-origin: 50% 100%; }
+      .plane img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: pixelated; }
   </style>
   <div id="root" data-composition-id="s5" data-width="1920" data-height="1080">
-      <div id="s5-cam" class="cam" style="width:672px;height:576px;"><img id="s5-img" src="assets/rooms/room1.png" alt=""><div id="s5-player" style="position:absolute;left:322.7px;top:522.7px;width:26.599999999999998px;height:26.599999999999998px;overflow:hidden;"><img id="s5-strip" src="assets/art/player-up-strip.png" alt="" style="position:absolute;left:0;top:0;width:239.39999999999998px;height:26.599999999999998px;image-rendering:pixelated;"></div></div>
-      <div id="s5-l0" class="clip line" data-start="0.5" data-duration="2.1"><span class="box" id="s5-l0-box">VOCÊ SAIU DA ROTA</span></div>
-      <div id="s5-l1" class="clip line" data-start="3.0" data-duration="2.1"><span class="box" id="s5-l1-box"><span class="red">CORRA</span></span></div>
-      <div id="s5-din" class="dissolve"></div>
-      <div id="s5-dout" class="dissolve"></div>
+      <div id="s5-shake" class="full">
+      <div id="s5-bg" class="full" style="transform-origin:58% 52%;"><img class="art" src="assets/art/background-terminal.png" alt=""></div>
+      <div id="s5-g0" class="spr" style="left:700px;top:470px;width:224px;height:224px;z-index:4;transform-origin:50% 100%;"><img id="s5-g0-s" src="assets/sprites/guard.png" alt="" style="width:1792px;height:224px;"></div>
+      <div id="s5-g0x" class="spr" style="left:668.0px;top:476.0px;width:288px;height:288px;z-index:5;transform-origin:50% 100%;"><img id="s5-g0x-s" src="assets/sprites/explosion.png" alt="" style="width:1152px;height:288px;"></div>
+      <div id="s5-g1" class="spr" style="left:1080px;top:450px;width:224px;height:224px;z-index:4;transform-origin:50% 100%;"><img id="s5-g1-s" src="assets/sprites/guard.png" alt="" style="width:1792px;height:224px;"></div>
+      <div id="s5-g1x" class="spr" style="left:1048.0px;top:456.0px;width:288px;height:288px;z-index:5;transform-origin:50% 100%;"><img id="s5-g1x-s" src="assets/sprites/explosion.png" alt="" style="width:1152px;height:288px;"></div>
+      <div id="s5-gun" class="spr" style="left:1060px;top:678px;width:576px;height:432px;z-index:7;transform-origin:50% 100%;"><img id="s5-gun-s" src="assets/sprites/gun.png" alt="" style="width:576px;height:432px;"></div>
+      <div id="s5-muz" class="spr" style="left:1276px;top:624px;width:144px;height:144px;z-index:8;transform-origin:50% 100%;"><img id="s5-muz-s" src="assets/sprites/muzzle.png" alt="" style="width:288px;height:144px;"></div>
+      <div id="s5-tr0" style="position:absolute;left:1348px;top:696px;width:541px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
+      <div id="s5-tr1" style="position:absolute;left:1348px;top:696px;width:541px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
+      <div id="s5-tr2" style="position:absolute;left:1348px;top:696px;width:183px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
+      <div id="s5-tr3" style="position:absolute;left:1348px;top:696px;width:183px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
+      <div id="s5-tr4" style="position:absolute;left:1348px;top:696px;width:183px;height:4px;background:#ffd27a;opacity:0;transform-origin:0 50%;z-index:9;"></div>
+      </div>
+      <div id="s5-hurt" class="full" style="background:#e90931;opacity:0;z-index:15;"></div>
   </div>
   <script>
       const tl = gsap.timeline({ paused: true });
-      tl.fromTo("#s5-cam", { x: -720.0, y: -1800, scale: 5 }, { x: -720.0, y: -1800, scale: 5, duration: 2.8 }, 0);
-      tl.to("#s5-cam", { x: -720.0, y: -1110.0, scale: 5, duration: 2.7, ease: "power1.inOut" }, 2.8);
-      // Corrida: 9 quadros a 15 qps enquanto sobe a calçada.
-      // Até o 9º quadro, nunca além dele: a posição depois do último é vazia.
-      tl.fromTo("#s5-strip", { x: 0 }, { x: -212.79999999999998, duration: 0.6, ease: "steps(8)", repeat: 4 }, 2.8);
-      tl.fromTo("#s5-player", { y: 0 }, { y: -236, duration: 2.7, ease: "none" }, 2.8);
-      tl.fromTo("#s5-l0-box", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.27, ease: "steps(6)" }, 0.5);
-      tl.fromTo("#s5-l1-box", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.27, ease: "steps(6)" }, 3.0);
-      
-      // Dissolução em blocos de 120 px, ordem fixa por semente (o filme renderiza igual sempre).
-      function dissolve(tl, id, start, appear, seed) {
-        const box = document.getElementById(id);
-        const blocks = [];
-        for (let i = 0; i < 144; i++) {
-          const b = document.createElement('div');
-          b.className = 'blk';
-          b.style.left = (i % 16) * 120 + 'px';
-          b.style.top = Math.floor(i / 16) * 120 + 'px';
-          box.appendChild(b);
-          blocks.push(b);
-        }
-        let s = seed;
-        const order = blocks.map((b, i) => { s = (s * 1103515245 + 12345) % 2147483648; return [s, b]; })
-          .sort((a, b) => a[0] - b[0]).map(([, b]) => b);
-        order.forEach((b, i) => {
-          tl.set(b, { opacity: appear ? 0 : 1 }, 0);
-          tl.set(b, { opacity: appear ? 1 : 0 }, start + Math.floor(i / 12) * (0.4 / 12));
-        });
-      } dissolve(tl, "s5-din", 0, false, 15838); dissolve(tl, "s5-dout", 5.08, true, 209458);
+      tl.fromTo("#s5-bg", { scale: 1.05 }, { scale: 1.22, duration: 3.0, ease: "none" }, 0);
+      tl.set("#s5-g0-s", { x: 0 }, 0);
+      tl.set("#s5-g0", { opacity: 1 }, 0.000); tl.set("#s5-g0-s", { x: 0 }, 0.000);
+      tl.set("#s5-g0", { opacity: 1 }, 0.150); tl.set("#s5-g0-s", { x: -224 }, 0.150);
+      tl.set("#s5-g0", { opacity: 1 }, 0.300); tl.set("#s5-g0-s", { x: -448 }, 0.300);
+      tl.set("#s5-g0", { opacity: 1 }, 0.450); tl.set("#s5-g0-s", { x: -672 }, 0.450);
+      tl.set("#s5-g0", { opacity: 1 }, 0.600); tl.set("#s5-g0-s", { x: 0 }, 0.600);
+      tl.set("#s5-g0", { opacity: 1 }, 0.750); tl.set("#s5-g0-s", { x: -224 }, 0.750);
+      tl.set("#s5-g0", { opacity: 1 }, 1.000); tl.set("#s5-g0-s", { x: -1344 }, 1.000);
+      tl.set("#s5-g0", { opacity: 1 }, 1.250); tl.set("#s5-g0-s", { x: -1568 }, 1.250);
+      tl.fromTo("#s5-g0", { scale: 1 }, { scale: 1.5, duration: 1.25, ease: "none" }, 0);
+      tl.set("#s5-g0x-s", { x: 0 }, 0);
+      tl.set("#s5-g0x", { opacity: 0 }, 0.000);
+      tl.set("#s5-g0x", { opacity: 1 }, 1.250); tl.set("#s5-g0x-s", { x: 0 }, 1.250);
+      tl.set("#s5-g0x", { opacity: 1 }, 1.330); tl.set("#s5-g0x-s", { x: -288 }, 1.330);
+      tl.set("#s5-g0x", { opacity: 1 }, 1.410); tl.set("#s5-g0x-s", { x: -576 }, 1.410);
+      tl.set("#s5-g0x", { opacity: 1 }, 1.510); tl.set("#s5-g0x-s", { x: -864 }, 1.510);
+      tl.set("#s5-g0x", { opacity: 0 }, 1.800);
+      tl.set("#s5-g1-s", { x: 0 }, 0);
+      tl.set("#s5-g1", { opacity: 1 }, 0.000); tl.set("#s5-g1-s", { x: 0 }, 0.000);
+      tl.set("#s5-g1", { opacity: 1 }, 0.150); tl.set("#s5-g1-s", { x: -224 }, 0.150);
+      tl.set("#s5-g1", { opacity: 1 }, 0.300); tl.set("#s5-g1-s", { x: -448 }, 0.300);
+      tl.set("#s5-g1", { opacity: 1 }, 0.450); tl.set("#s5-g1-s", { x: -672 }, 0.450);
+      tl.set("#s5-g1", { opacity: 1 }, 0.600); tl.set("#s5-g1-s", { x: 0 }, 0.600);
+      tl.set("#s5-g1", { opacity: 1 }, 0.750); tl.set("#s5-g1-s", { x: -224 }, 0.750);
+      tl.set("#s5-g1", { opacity: 1 }, 0.900); tl.set("#s5-g1-s", { x: -448 }, 0.900);
+      tl.set("#s5-g1", { opacity: 1 }, 1.050); tl.set("#s5-g1-s", { x: -672 }, 1.050);
+      tl.set("#s5-g1", { opacity: 1 }, 1.200); tl.set("#s5-g1-s", { x: 0 }, 1.200);
+      tl.set("#s5-g1", { opacity: 1 }, 1.350); tl.set("#s5-g1-s", { x: -224 }, 1.350);
+      tl.set("#s5-g1", { opacity: 1 }, 1.500); tl.set("#s5-g1-s", { x: -448 }, 1.500);
+      tl.set("#s5-g1", { opacity: 1 }, 1.650); tl.set("#s5-g1-s", { x: -672 }, 1.650);
+      tl.set("#s5-g1", { opacity: 1 }, 1.800); tl.set("#s5-g1-s", { x: 0 }, 1.800);
+      tl.set("#s5-g1", { opacity: 1 }, 1.950); tl.set("#s5-g1-s", { x: -224 }, 1.950);
+      tl.set("#s5-g1", { opacity: 1 }, 2.150); tl.set("#s5-g1-s", { x: -1344 }, 2.150);
+      tl.set("#s5-g1", { opacity: 1 }, 2.400); tl.set("#s5-g1-s", { x: -1568 }, 2.400);
+      tl.fromTo("#s5-g1", { scale: 1 }, { scale: 1.5, duration: 2.4, ease: "none" }, 0);
+      tl.set("#s5-g1x-s", { x: 0 }, 0);
+      tl.set("#s5-g1x", { opacity: 0 }, 0.000);
+      tl.set("#s5-g1x", { opacity: 1 }, 2.400); tl.set("#s5-g1x-s", { x: 0 }, 2.400);
+      tl.set("#s5-g1x", { opacity: 1 }, 2.480); tl.set("#s5-g1x-s", { x: -288 }, 2.480);
+      tl.set("#s5-g1x", { opacity: 1 }, 2.560); tl.set("#s5-g1x-s", { x: -576 }, 2.560);
+      tl.set("#s5-g1x", { opacity: 1 }, 2.660); tl.set("#s5-g1x-s", { x: -864 }, 2.660);
+      tl.set("#s5-g1x", { opacity: 0 }, 2.950);
+      tl.set("#s5-gun-s", { x: 0 }, 0);
+      tl.fromTo("#s5-gun", { y: 0 }, { y: 18, duration: 0.18, ease: "steps(2)", yoyo: true, repeat: 15 }, 0);
+      tl.set("#s5-muz-s", { x: 0 }, 0);
+      tl.set("#s5-muz", { opacity: 0 }, 0.000);
+      tl.set("#s5-muz", { opacity: 1 }, 0.600); tl.set("#s5-muz-s", { x: 0 }, 0.600);
+      tl.set("#s5-muz", { opacity: 1 }, 0.634); tl.set("#s5-muz-s", { x: -144 }, 0.634);
+      tl.set("#s5-muz", { opacity: 0 }, 0.670);
+      tl.set("#s5-muz", { opacity: 1 }, 1.000); tl.set("#s5-muz-s", { x: 0 }, 1.000);
+      tl.set("#s5-muz", { opacity: 1 }, 1.034); tl.set("#s5-muz-s", { x: -144 }, 1.034);
+      tl.set("#s5-muz", { opacity: 0 }, 1.070);
+      tl.set("#s5-muz", { opacity: 1 }, 1.400); tl.set("#s5-muz-s", { x: 0 }, 1.400);
+      tl.set("#s5-muz", { opacity: 1 }, 1.434); tl.set("#s5-muz-s", { x: -144 }, 1.434);
+      tl.set("#s5-muz", { opacity: 0 }, 1.470);
+      tl.set("#s5-muz", { opacity: 1 }, 2.000); tl.set("#s5-muz-s", { x: 0 }, 2.000);
+      tl.set("#s5-muz", { opacity: 1 }, 2.034); tl.set("#s5-muz-s", { x: -144 }, 2.034);
+      tl.set("#s5-muz", { opacity: 0 }, 2.070);
+      tl.set("#s5-muz", { opacity: 1 }, 2.400); tl.set("#s5-muz-s", { x: 0 }, 2.400);
+      tl.set("#s5-muz", { opacity: 1 }, 2.434); tl.set("#s5-muz-s", { x: -144 }, 2.434);
+      tl.set("#s5-muz", { opacity: 0 }, 2.470);
+      tl.set("#s5-tr0", { rotation: -171.9, opacity: 1 }, 0.600); tl.set("#s5-tr0", { opacity: 0 }, 0.660);
+      tl.set("#s5-tr1", { rotation: -171.9, opacity: 1 }, 1.000); tl.set("#s5-tr1", { opacity: 0 }, 1.060);
+      tl.set("#s5-tr2", { rotation: -148.4, opacity: 1 }, 1.400); tl.set("#s5-tr2", { opacity: 0 }, 1.460);
+      tl.set("#s5-tr3", { rotation: -148.4, opacity: 1 }, 2.000); tl.set("#s5-tr3", { opacity: 0 }, 2.060);
+      tl.set("#s5-tr4", { rotation: -148.4, opacity: 1 }, 2.400); tl.set("#s5-tr4", { opacity: 0 }, 2.460);
+      tl.set("#s5-shake", { x: 2.9, y: 1.1 }, 0.600);
+      tl.set("#s5-shake", { x: -5.2, y: 0.8 }, 0.633);
+      tl.set("#s5-shake", { x: -7.5, y: -12.7 }, 0.667);
+      tl.set("#s5-shake", { x: 3.2, y: -13.2 }, 0.700);
+      tl.set("#s5-shake", { x: 0, y: 0 }, 0.720);
+      tl.set("#s5-shake", { x: 8.3, y: 3.1 }, 1.000);
+      tl.set("#s5-shake", { x: 4.9, y: 5.5 }, 1.033);
+      tl.set("#s5-shake", { x: -7.3, y: -5.3 }, 1.067);
+      tl.set("#s5-shake", { x: -9.8, y: -10.8 }, 1.100);
+      tl.set("#s5-shake", { x: 0, y: 0 }, 1.120);
+      tl.set("#s5-shake", { x: 3.8, y: 5.1 }, 1.400);
+      tl.set("#s5-shake", { x: -13.0, y: -8.0 }, 1.433);
+      tl.set("#s5-shake", { x: 11.1, y: -7.8 }, 1.467);
+      tl.set("#s5-shake", { x: -12.9, y: 1.6 }, 1.500);
+      tl.set("#s5-shake", { x: 0, y: 0 }, 1.520);
+      tl.set("#s5-shake", { x: -7.0, y: 3.2 }, 2.000);
+      tl.set("#s5-shake", { x: 12.0, y: -0.9 }, 2.033);
+      tl.set("#s5-shake", { x: 11.5, y: -11.5 }, 2.067);
+      tl.set("#s5-shake", { x: -8.5, y: -3.0 }, 2.100);
+      tl.set("#s5-shake", { x: 0, y: 0 }, 2.120);
+      tl.set("#s5-shake", { x: -1.7, y: 5.2 }, 2.400);
+      tl.set("#s5-shake", { x: -6.0, y: 3.8 }, 2.433);
+      tl.set("#s5-shake", { x: 1.8, y: -13.9 }, 2.467);
+      tl.set("#s5-shake", { x: 6.5, y: 9.3 }, 2.500);
+      tl.set("#s5-shake", { x: 0, y: 0 }, 2.520);
+      tl.set("#s5-hurt", { opacity: 0.42 }, 1.620); tl.set("#s5-hurt", { opacity: 0 }, 1.760);
       window.__timelines["s5"] = tl;
   </script>
 </template>

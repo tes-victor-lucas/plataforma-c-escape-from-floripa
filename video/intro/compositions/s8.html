@@ -1,0 +1,103 @@
+<template>
+  <style>
+      #root { position: absolute; inset: 0; overflow: hidden; background: #04050a; font-family: 'PixelGamer', monospace; }
+      @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/PixelGamer-Regular.otf'); }
+      /* Como no jogo (src/main.ts): na PixelGamer, números e pontuação são desenhos; vêm da Pixeboy. */
+      @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/Pixeboy.ttf');
+        unicode-range: U+24-26, U+2C, U+2E, U+30-3A; size-adjust: 140%; }
+      .full { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+      .art { position: absolute; left: -8px; top: 0; width: 1936px; height: 1080px; image-rendering: pixelated; }
+      .spr { position: absolute; overflow: hidden; }
+      .spr img { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
+      .cap { position: absolute; color: #ffffff; letter-spacing: 3px; text-shadow: 5px 5px 0 #000000; z-index: 12;
+        white-space: nowrap; }
+      .red { color: #e90931; }
+      .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; perspective: 520px;
+        perspective-origin: 50% 12%; overflow: hidden; background: #04050a; }
+      .plane { position: absolute; overflow: hidden; transform-origin: 50% 100%; }
+      .plane img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+  </style>
+  <div id="root" data-composition-id="s8" data-width="1920" data-height="1080">
+      <div id="s8-c0" class="clip full" data-start="0" data-duration="0.42" style="background:#070a12;"></div>
+      <div id="s8-c1" class="clip full" data-start="0.42" data-duration="0.42" style="background:#05070c;"></div>
+      <div id="s8-c2" class="clip full" data-start="0.84" data-duration="0.42" style="background:#2a0610;"></div>
+      <div id="s8-c3" class="clip full" data-start="1.26" data-duration="0.42" style="background:#000000;"></div>
+      <div id="s8-c4" class="clip full" data-start="1.68" data-duration="0.42" style="background:#000000;"></div>
+      <div id="s8-c5" class="clip full" data-start="2.1" data-duration="0.40" style="background:#05070c;"></div>
+      <div id="s8-a" class="clip full" data-start="0" data-duration="0.42">
+      <div id="s8-drone" class="spr" style="left:544px;top:124px;width:832px;height:832px;z-index:3;transform-origin:50% 50%;"><img id="s8-drone-s" src="assets/sprites/drone.png" alt="" style="width:832px;height:832px;"></div>
+      </div><div id="s8-b" class="clip full" data-start="0.42" data-duration="0.42">
+      <div id="s8-side" class="full"><img class="art" src="assets/art/background-terminal.png" alt=""></div>
+      <div id="s8-runner" class="spr" style="left:660px;top:470px;width:608px;height:608px;z-index:4;transform-origin:50% 100%;"><img id="s8-runner-s" src="assets/sprites/player-right.png" alt="" style="width:5472px;height:608px;"></div>
+      </div><div id="s8-c" class="clip full" data-start="0.84" data-duration="0.42">
+      <div id="s8-guard" class="spr" style="left:608px;top:188px;width:704px;height:704px;z-index:3;transform-origin:50% 100%;"><img id="s8-guard-s" src="assets/sprites/guard.png" alt="" style="width:5632px;height:704px;"></div>
+      </div><div id="s8-d" class="clip full" data-start="1.26" data-duration="0.42">
+      <div id="s8-boom" class="spr" style="left:480.0px;top:60.0px;width:960px;height:960px;z-index:3;transform-origin:50% 100%;"><img id="s8-boom-s" src="assets/sprites/explosion.png" alt="" style="width:3840px;height:960px;"></div>
+      </div>
+      <div id="s8-cd-22" class="clip cap red" data-start="1.680" data-duration="0.020" style="left:0;width:1920px;text-align:center;top:380px;font-size:220px;">04:38</div>
+      <div id="s8-cd-23" class="clip cap red" data-start="1.700" data-duration="0.400" style="left:0;width:1920px;text-align:center;top:380px;font-size:220px;">04:37</div>
+      <div id="s8-f" class="clip full" data-start="2.1" data-duration="0.4">
+      <div id="s8-legs" class="spr" style="left:390px;top:380px;width:1140px;height:1140px;z-index:3;transform-origin:50% 100%;"><img id="s8-legs-s" src="assets/sprites/player-up.png" alt="" style="width:10260px;height:1140px;"></div>
+      </div>
+  </div>
+  <script>
+      const tl = gsap.timeline({ paused: true });
+      tl.set("#s8-drone-s", { x: 0 }, 0);
+      tl.fromTo("#s8-side", { x: 0 }, { x: -260, duration: 0.42, ease: "none" }, 0.42);
+      tl.set("#s8-runner-s", { x: 0 }, 0);
+      tl.set("#s8-runner", { opacity: 1 }, 0.420); tl.set("#s8-runner-s", { x: -608 }, 0.420);
+      tl.set("#s8-runner", { opacity: 1 }, 0.476); tl.set("#s8-runner-s", { x: -1216 }, 0.476);
+      tl.set("#s8-runner", { opacity: 1 }, 0.531); tl.set("#s8-runner-s", { x: -1824 }, 0.531);
+      tl.set("#s8-runner", { opacity: 1 }, 0.587); tl.set("#s8-runner-s", { x: -2432 }, 0.587);
+      tl.set("#s8-runner", { opacity: 1 }, 0.642); tl.set("#s8-runner-s", { x: -3040 }, 0.642);
+      tl.set("#s8-runner", { opacity: 1 }, 0.698); tl.set("#s8-runner-s", { x: -3648 }, 0.698);
+      tl.set("#s8-runner", { opacity: 1 }, 0.753); tl.set("#s8-runner-s", { x: -4256 }, 0.753);
+      tl.set("#s8-runner", { opacity: 1 }, 0.809); tl.set("#s8-runner-s", { x: -4864 }, 0.809);
+      tl.set("#s8-guard-s", { x: -3520 }, 0);
+      tl.set("#s8-boom-s", { x: 0 }, 0);
+      tl.set("#s8-boom", { opacity: 0 }, 0.000);
+      tl.set("#s8-boom", { opacity: 1 }, 1.270); tl.set("#s8-boom-s", { x: 0 }, 1.270);
+      tl.set("#s8-boom", { opacity: 1 }, 1.350); tl.set("#s8-boom-s", { x: -960 }, 1.350);
+      tl.set("#s8-boom", { opacity: 1 }, 1.430); tl.set("#s8-boom-s", { x: -1920 }, 1.430);
+      tl.set("#s8-boom", { opacity: 1 }, 1.530); tl.set("#s8-boom-s", { x: -2880 }, 1.530);
+      tl.set("#s8-boom", { opacity: 0 }, 1.820);
+      tl.set("#s8-legs-s", { x: 0 }, 0);
+      tl.set("#s8-legs", { opacity: 1 }, 2.100); tl.set("#s8-legs-s", { x: -1140 }, 2.100);
+      tl.set("#s8-legs", { opacity: 1 }, 2.150); tl.set("#s8-legs-s", { x: -2280 }, 2.150);
+      tl.set("#s8-legs", { opacity: 1 }, 2.200); tl.set("#s8-legs-s", { x: -3420 }, 2.200);
+      tl.set("#s8-legs", { opacity: 1 }, 2.250); tl.set("#s8-legs-s", { x: -4560 }, 2.250);
+      tl.set("#s8-legs", { opacity: 1 }, 2.300); tl.set("#s8-legs-s", { x: -5700 }, 2.300);
+      tl.set("#s8-legs", { opacity: 1 }, 2.350); tl.set("#s8-legs-s", { x: -6840 }, 2.350);
+      tl.set("#s8-legs", { opacity: 1 }, 2.400); tl.set("#s8-legs-s", { x: -7980 }, 2.400);
+      tl.set("#s8-legs", { opacity: 1 }, 2.450); tl.set("#s8-legs-s", { x: -9120 }, 2.450);
+      tl.set("#s8-a", { x: -9.0, y: -4.3 }, 0.000);
+      tl.set("#s8-a", { x: -4.7, y: -13.3 }, 0.033);
+      tl.set("#s8-a", { x: 5.0, y: 5.0 }, 0.067);
+      tl.set("#s8-a", { x: -9.4, y: 8.0 }, 0.100);
+      tl.set("#s8-a", { x: -13.3, y: 1.6 }, 0.133);
+      tl.set("#s8-a", { x: -4.2, y: 1.8 }, 0.167);
+      tl.set("#s8-a", { x: 15.7, y: 4.0 }, 0.200);
+      tl.set("#s8-a", { x: 5.4, y: -6.6 }, 0.233);
+      tl.set("#s8-a", { x: 5.9, y: -6.4 }, 0.267);
+      tl.set("#s8-a", { x: 15.0, y: -5.9 }, 0.300);
+      tl.set("#s8-a", { x: -7.6, y: 4.8 }, 0.333);
+      tl.set("#s8-a", { x: -7.1, y: 9.8 }, 0.367);
+      tl.set("#s8-a", { x: -14.1, y: -12.8 }, 0.400);
+      tl.set("#s8-a", { x: 0, y: 0 }, 0.420);
+      tl.set("#s8-d", { x: -20.9, y: -19.6 }, 1.260);
+      tl.set("#s8-d", { x: -15.2, y: 19.4 }, 1.293);
+      tl.set("#s8-d", { x: 16.7, y: -11.5 }, 1.327);
+      tl.set("#s8-d", { x: 0.8, y: -25.7 }, 1.360);
+      tl.set("#s8-d", { x: 7.4, y: -4.2 }, 1.393);
+      tl.set("#s8-d", { x: 0.6, y: 24.0 }, 1.427);
+      tl.set("#s8-d", { x: -7.4, y: -13.6 }, 1.460);
+      tl.set("#s8-d", { x: 9.2, y: -10.3 }, 1.493);
+      tl.set("#s8-d", { x: 8.6, y: 25.3 }, 1.527);
+      tl.set("#s8-d", { x: 16.8, y: -17.6 }, 1.560);
+      tl.set("#s8-d", { x: -10.3, y: 6.0 }, 1.593);
+      tl.set("#s8-d", { x: 21.2, y: -23.2 }, 1.627);
+      tl.set("#s8-d", { x: -9.3, y: 22.8 }, 1.660);
+      tl.set("#s8-d", { x: 0, y: 0 }, 1.680);
+      window.__timelines["s8"] = tl;
+  </script>
+</template>

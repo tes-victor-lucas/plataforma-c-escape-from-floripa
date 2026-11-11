@@ -1,0 +1,35 @@
+<template>
+  <style>
+      #root { position: absolute; inset: 0; overflow: hidden; background: #04050a; font-family: 'PixelGamer', monospace; }
+      @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/PixelGamer-Regular.otf'); }
+      /* Como no jogo (src/main.ts): na PixelGamer, números e pontuação são desenhos; vêm da Pixeboy. */
+      @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/Pixeboy.ttf');
+        unicode-range: U+24-26, U+2C, U+2E, U+30-3A; size-adjust: 140%; }
+      .full { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+      .art { position: absolute; left: -8px; top: 0; width: 1936px; height: 1080px; image-rendering: pixelated; }
+      .spr { position: absolute; overflow: hidden; }
+      .spr img { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
+      .cap { position: absolute; color: #ffffff; letter-spacing: 3px; text-shadow: 5px 5px 0 #000000; z-index: 12;
+        white-space: nowrap; }
+      .red { color: #e90931; }
+      .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; perspective: 520px;
+        perspective-origin: 50% 12%; overflow: hidden; background: #04050a; }
+      .plane { position: absolute; overflow: hidden; transform-origin: 50% 100%; }
+      .plane img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+  </style>
+  <div id="root" data-composition-id="s7" data-width="1920" data-height="1080">
+      <div id="s7-bg" class="full" style="transform-origin:30% 70%;"><img class="art" src="assets/art/background-bar.png" alt=""></div>
+      <div id="s7-beam" style="position:absolute;left:0;top:-200px;width:520px;height:1400px;z-index:6;background:rgba(150,235,255,0.22);clip-path:polygon(40% 0, 60% 0, 100% 100%, 0 100%);"></div>
+      <div id="s7-hero" class="spr" style="left:140px;top:470px;width:684px;height:684px;z-index:7;transform-origin:50% 100%;"><img id="s7-hero-s" src="assets/sprites/player-back-dark.png" alt="" style="width:684px;height:684px;"></div>
+      <div id="s7-found" class="full" style="background:#e90931;opacity:0;z-index:15;"></div>
+  </div>
+  <script>
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#s7-bg", { scale: 1.0 }, { scale: 1.04, duration: 2.0, ease: "none" }, 0);
+      tl.fromTo("#s7-beam", { x: 1500 }, { x: 40, duration: 1.4, ease: "power1.inOut" }, 0.1);
+      tl.set("#s7-hero-s", { x: 0 }, 0);
+      tl.fromTo("#s7-hero", { scaleY: 1 }, { scaleY: 1.025, duration: 0.5, ease: "sine.inOut", yoyo: true, repeat: 2 }, 0);
+      tl.set("#s7-found", { opacity: 0.5 }, 1.450); tl.set("#s7-found", { opacity: 0 }, 1.950);
+      window.__timelines["s7"] = tl;
+  </script>
+</template>
