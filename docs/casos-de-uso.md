@@ -231,15 +231,18 @@ Este documento descreve os principais casos de uso do MVP de **Plataforma C: Esc
 
 1. O sistema interrompe a partida.
 2. O sistema para o cronômetro da run.
-3. O sistema descarta a build e as melhorias obtidas na run.
-4. O sistema registra a derrota para fins de auditoria.
-5. O sistema exibe a tela de derrota.
-6. O sistema oferece a opção de reiniciar ou retornar ao menu principal.
+3. O sistema descarta o que foi conquistado desde o início da sala atual (vida, build, itens e pontos).
+4. O sistema exibe a tela de derrota.
+5. O sistema oferece a opção de tentar novamente ou retornar ao menu principal.
+
+**Fluxos alternativos:**
+
+- No multiplayer, o sistema descarta a run no placar e retornar ao menu encerra a partida da dupla.
 
 **Pós-condições:**
 
-- A run é encerrada.
-- Nenhuma melhoria daquela run é preservada para uma próxima partida.
+- O checkpoint do início da sala continua salvo: tentar novamente ou CONTINUAR no menu recomeçam dali.
+- A run continua aberta no placar; se não for retomada, expira em 24 h.
 
 ## UC08 — Reiniciar partida
 
@@ -253,14 +256,18 @@ Este documento descreve os principais casos de uso do MVP de **Plataforma C: Esc
 
 **Fluxo principal:**
 
-1. O jogador seleciona a opção de reiniciar.
-2. O sistema descarta os dados temporários da run anterior.
-3. O sistema executa UC02 — Iniciar nova run.
+1. O jogador seleciona a opção de tentar novamente.
+2. O sistema restaura o checkpoint salvo ao entrar na sala atual: vida, build, itens e pontos daquele momento.
+3. O sistema recomeça a sala desde o ponto de entrada.
+
+**Fluxos alternativos:**
+
+- Sem checkpoint salvo, o sistema executa UC02 — Iniciar nova run.
 
 **Pós-condições:**
 
-- Uma nova run é iniciada com atributos iniciais.
-- Melhorias da run anterior não são reutilizadas.
+- A mesma run continua, e o cronômetro segue contando desde o início da partida.
+- Todo início de sala (Salas I a V) é um checkpoint; interiores e dungeons valem como a sala de onde se entrou neles.
 
 ## UC09 — Enfrentar chefe e vencer a partida
 
