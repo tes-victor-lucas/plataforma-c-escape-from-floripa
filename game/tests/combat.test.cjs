@@ -128,8 +128,9 @@ const {
     calculateTimePoints
 } = load('../src/game/scoring/ScoreCalculator.ts');
 const { RunTracker, runTracker } = load('../src/game/scoring/RunTracker.ts');
+const { SCORE_CONFIG } = load('../src/game/config/score.ts');
 
-test('pontuação v2 aplica dungeon, tempo, dano, mortes, multi-kill e vitória', () => {
+test('pontuação v3 aplica dungeon, tempo, dano, mortes, multi-kill e vitória', () => {
     const score = calculateScore({
         won: true,
         dungeonsCompleted: 1,
@@ -145,6 +146,7 @@ test('pontuação v2 aplica dungeon, tempo, dano, mortes, multi-kill e vitória'
         enemyPoints: 300,
         multiKillPoints: 350,
         damagePoints: 2_000,
+        arcadePoints: 0,
         total: 10_530
     });
     assert.equal(calculateTimePoints(900_000), 0);
@@ -3679,4 +3681,38 @@ test('sair do esconderijo dos gaúchos sobe a escada antes de trocar de sala e t
 
     assert.deepEqual(calls, ['clear', 'climb', 'leave'], 'sobe uma vez só e sai depois da subida');
     assert.equal(world.isClimbingLadder, true, 'segue travado até a próxima sala recriar a cena');
+});
+
+test('vencer o fliperama vale 5K pontos na pontuação', () => {
+    const base = { won: true, elapsedTimeMs: 0, enemiesDefeated: 0, hitsTaken: 5, multiKillBonuses: [] };
+    assert.equal(calculateScore({ ...base, arcadeWon: true }).arcadePoints, 5_000);
+    assert.equal(calculateScore({ ...base, arcadeWon: true }).total - calculateScore(base).total, 5_000);
+});
+
+test('relógio para no fliperama, conta o bônus e respeita o teto do servidor', () => {
+    const tracker = new RunTracker();
+    const start = Date.parse('2026-01-01T00:00:00.000Z');
+    tracker.startNew('SINGLE_PLAYER', new Date(start));
+    tracker.pauseClock(start + 10_000);
+    tracker.pauseClock(start + 20_000);
+    assert.equal(tracker.snapshot(start + 70_000).elapsedTimeMs, 10_000, 'parado enquanto joga');
+    tracker.resumeClock(start + 70_000);
+    assert.equal(tracker.snapshot(start + 75_000).elapsedTimeMs, 15_000, 'volta a contar ao sair');
+    assert.equal(tracker.recordArcadeWin(), true);
+    assert.equal(tracker.recordArcadeWin(), false, 'o bônus vale uma vez');
+    assert.equal(tracker.snapshot(start + 75_000).score.arcadePoints, 5_000);
+
+    const checkpoint = tracker.checkpoint();
+    assert.equal(checkpoint.pausedMs, 60_000);
+    assert.equal(checkpoint.arcadeWon, true);
+    const restored = new RunTracker();
+    restored.restore(checkpoint);
+    assert.equal(restored.snapshot(start + 75_000).elapsedTimeMs, 15_000, 'o Continuar guarda a pausa');
+
+    // Uma pausa longa demais desconta só até o teto que o servidor aceita.
+    tracker.pauseClock(start + 75_000);
+    tracker.resumeClock(start + 75_000 + 3_600_000);
+    assert.equal(tracker.checkpoint().pausedMs, SCORE_CONFIG.arcade.maxPausedMs);
+    tracker.abandon();
+    restored.abandon();
 });
