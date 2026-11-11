@@ -188,6 +188,7 @@ export class World extends Scene {
     private isRoomCombatComplete = false;
     private nauseaEndsAt = 0;
     private chimarraoBuffTimer?: Phaser.Time.TimerEvent;
+    private chimarraosCollected = 0;
     private normalCameraZoom: number = WORLD_CONFIG.camera.zoom;
     private activeRoomKey: RoomKey = 'room1';
     private activeSpawn: Readonly<{ x: number; y: number }> = ROOM_DEFINITIONS.room1.spawn;
@@ -260,6 +261,7 @@ export class World extends Scene {
         this.room3CardCode.reset();
         this.nauseaEndsAt = 0;
         this.chimarraoBuffTimer = undefined;
+        this.chimarraosCollected = 0;
         this.multiplayerSyncElapsed = 0;
         this.reviveElapsed = 0;
         this.enemySnapshot = [];
@@ -326,6 +328,7 @@ export class World extends Scene {
         );
         this.gamepad = getGamepadInput(this);
         if (data.playerProgress) {
+            this.chimarraosCollected = data.playerProgress.chimarraos ?? 0;
             restorePlayerProgress(
                 data.playerProgress,
                 this.player.health,
@@ -826,6 +829,7 @@ export class World extends Scene {
         const item = this.physics.add.image(x, y, chimarrao.texture).setDepth(9);
         const pickup = this.physics.add.overlap(this.player.sprite, item, () => {
             this.removeDroppedItem(id);
+            this.chimarraosCollected += 1;
             this.activateChimarraoBuff();
             if (this.isMultiplayerEnabled()) multiplayerClient.sendEvent({ kind: 'item.collected', id });
         });
@@ -1220,7 +1224,7 @@ export class World extends Scene {
         this.player.stopMovement();
         this.combat?.clear();
         this.physics.pause();
-        const playerProgress = capturePlayerProgress(this.player, this.upgrades);
+        const playerProgress = capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected);
         const checkpointRooms: readonly RoomKey[] = ['room2', 'room3', 'room4', 'room5', 'dungeon'];
         if (!this.isMultiplayerEnabled() && checkpointRooms.includes(roomKey)) {
             // Checkpoints oficiais são as fases 2 a 5; a dungeon é uma rota secreta da fase 2.
@@ -1302,7 +1306,7 @@ export class World extends Scene {
         ) return;
         saveCampaignProgress({
             roomKey: this.activeRoomKey,
-            playerProgress: capturePlayerProgress(this.player, this.upgrades),
+            playerProgress: capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected),
             run: runTracker.checkpoint()
         });
     }

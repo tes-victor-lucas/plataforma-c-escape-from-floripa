@@ -9,17 +9,21 @@ export type PlayerProgress = Readonly<{
     maxHealth: number;
     movementSpeedMultiplier: number;
     upgrades: UpgradeProgress;
+    /** Chimarrões pegos na partida; opcional porque checkpoints antigos não têm. */
+    chimarraos?: number;
 }>;
 
 export function capturePlayerProgress(
     player: Pick<Player, 'health' | 'getMovementSpeedMultiplier'>,
-    upgrades: Pick<PlayerUpgradeState, 'exportProgress'>
+    upgrades: Pick<PlayerUpgradeState, 'exportProgress'>,
+    chimarraos = 0
 ): PlayerProgress {
     return {
         currentHealth: player.health.current,
         maxHealth: player.health.max,
         movementSpeedMultiplier: player.getMovementSpeedMultiplier(),
-        upgrades: upgrades.exportProgress()
+        upgrades: upgrades.exportProgress(),
+        chimarraos
     };
 }
 
