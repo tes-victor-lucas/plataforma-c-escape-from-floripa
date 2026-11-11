@@ -1771,7 +1771,7 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
     assert.equal(clears, 1);
 });
 
-test('9090 conclui as salas com combate, inclusive a III, e não age nas dungeons', () => {
+test('9090 conclui as salas com combate, a III e o esconderijo, mas não a dungeon da Sala II', () => {
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();
     let clears = 0;
@@ -1824,6 +1824,13 @@ test('9090 conclui as salas com combate, inclusive a III, e não age nas dungeon
     world.isRoomCombatComplete = false;
     for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
     assert.equal(completions, 3, 'o segredo não deve concluir a dungeon');
+
+    // O esconderijo dos gaúchos aceita o atalho: concluir derruba o chapéu e abre a saída.
+    world.activeRoomKey = 'gaucho-dungeon';
+    world.drones = [createDrone(20)];
+    for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
+    assert.equal(world.drones[0].health.isAlive, false);
+    assert.equal(completions, 4, 'o segredo conclui o esconderijo dos gaúchos');
 });
 
 test('mundo bloqueia combate e HUD até a revelação; reinício não espera outra transição', () => {
