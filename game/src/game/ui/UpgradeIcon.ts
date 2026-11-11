@@ -197,6 +197,15 @@ export function createUpgradeIcon(
                 }
             }
             break;
+        case 'spiral-volley':
+            // Pontos que se afastam do centro girando: a espiral de fragmentos.
+            icon.fillCircle(0, 0, 3);
+            for (let index = 1; index <= 7; index += 1) {
+                const angle = -Math.PI / 2 + index * Math.PI / 3.2;
+                const reach = 6 + index * 3.3;
+                icon.fillCircle(Math.cos(angle) * reach, Math.sin(angle) * reach, 1.5 + index * 0.45);
+            }
+            break;
         case 'bombard':
             // Bombas caindo sobre dois alvos.
             icon.strokeCircle(-12, 14, 9).strokeCircle(14, 10, 9);

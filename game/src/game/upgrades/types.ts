@@ -20,7 +20,8 @@ export type UpgradeId =
     | 'nova-pulse'
     | 'spin-slash'
     | 'saw-orbit'
-    | 'bombard';
+    | 'bombard'
+    | 'spiral-volley';
 
 export type UpgradeKind = 'stat' | 'ability';
 
@@ -126,6 +127,15 @@ export type UpgradeEffect =
         targets: number;
         targetsPerLevel: number;
         radius: number;
+        range: number;
+        interval: number;
+        damageRatio: number;
+    }
+    | {
+        // Fragmentos saem do jogador um após o outro, cada um girado em relação ao anterior: uma espiral.
+        type: 'spiral-volley';
+        shards: number;
+        shardsPerLevel: number;
         range: number;
         interval: number;
         damageRatio: number;
