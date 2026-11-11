@@ -1,11 +1,48 @@
 /*
- * Animação 2D da abertura, desenhada em canvas quadro a quadro na paleta do jogo.
+ * Animação 2D da abertura em pixel art: desenhada em 480x270, reduzida à paleta do jogo (GAME_PALETTE, de
+ * lib/palette.js) com pontilhado ordenado e ampliada 4x sem suavizar, como os assets e a tela de início.
  * Silhuetas articuladas (personagem, multidão, robôs, drones), cenários em camadas e efeitos (fogo, chuva, fumaça).
  * render(t) é função pura de t: o HyperFrames busca quadros fora de ordem.
  */
 function makeAnim2D(canvas, cfg) {
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
+  // Desenho em coordenadas de 1920x1080, num canvas de 480x270: cada pixel do jogo vira 4x4 na tela.
+  const W = 1920, H = 1080, LW = 480, LH = 270, SCALE = LW / W;
+  const low = document.createElement('canvas');
+  low.width = LW; low.height = LH;
+  const ctx = low.getContext('2d');
+  const out = canvas.getContext('2d');
+  out.imageSmoothingEnabled = false;
+  // Pontilhado ordenado (Bayer 4x4) e cor mais próxima da paleta, com cache por cor reduzida.
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v / 16 - 0.5) * 34);
+  const nearestCache = new Map();
+  function nearest(r, g, b) {
+    const key = ((r >> 2) << 12) | ((g >> 2) << 6) | (b >> 2);
+    let c = nearestCache.get(key);
+    if (c === undefined) {
+      let best = 1e9;
+      for (let i = 0; i < GAME_PALETTE.length; i++) {
+        const p = GAME_PALETTE[i];
+        const dr = r - p[0], dg = g - p[1], db = b - p[2];
+        const dist = dr * dr * 0.3 + dg * dg * 0.59 + db * db * 0.11;
+        if (dist < best) { best = dist; c = i; }
+      }
+      nearestCache.set(key, c);
+    }
+    return GAME_PALETTE[c];
+  }
+  function toPalette() {
+    const img = ctx.getImageData(0, 0, LW, LH);
+    const d = img.data;
+    for (let y = 0; y < LH; y++) {
+      for (let x = 0; x < LW; x++) {
+        const i = (y * LW + x) * 4, o = BAYER[(y & 3) * 4 + (x & 3)];
+        const p = nearest(Math.max(0, Math.min(255, d[i] + o)), Math.max(0, Math.min(255, d[i + 1] + o)),
+          Math.max(0, Math.min(255, d[i + 2] + o)));
+        d[i] = p[0]; d[i + 1] = p[1]; d[i + 2] = p[2]; d[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
   const P = {
     navy: '#01141a', deep: '#061a26', blue: '#0b2a3d', steel: '#14303f', red: '#e90931', cyan: '#5ce5f1',
     amber: '#ffb347', fire: '#ff6a1a', yellow: '#ffd27a', ink: '#04060b', teal: '#1f8f86',
@@ -54,7 +91,7 @@ function makeAnim2D(canvas, cfg) {
   function rain(t, count, color, speed = 1900, slant = 0.18, seed = 3) {
     const r = rng(seed);
     ctx.save();
-    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.globalAlpha = 0.55;
     ctx.beginPath();
     for (let i = 0; i < count; i++) {
       const x0 = r() * (W + 400) - 200, y0 = r() * H, len = 22 + r() * 30, v = speed * (0.8 + r() * 0.4);
@@ -415,7 +452,7 @@ function makeAnim2D(canvas, cfg) {
       const rows = 3;
       for (let f = 0; f < rows; f++) {
         const yb = -f * 330, yt = yb - 330, sb = 1 - f * 0.12, st = 1 - (f + 1) * 0.12;
-        ctx.fillStyle = f % 2 ? '#c9c6bc' : '#d8d5cb';
+        ctx.fillStyle = f % 2 ? '#b4bcc8' : '#c6ccd6';
         ctx.beginPath(); ctx.moveTo(-1100 * sb, yb); ctx.lineTo(1100 * sb, yb); ctx.lineTo(1100 * st, yt); ctx.lineTo(-1100 * st, yt); ctx.fill();
         ctx.fillStyle = '#9a978e'; ctx.fillRect(-1150 * st, yt - 6, 2300 * st, 18);
         for (let c = -5; c <= 5; c++) {
@@ -567,8 +604,8 @@ function makeAnim2D(canvas, cfg) {
   function render(t) {
     cfg.time = t;
     ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, W, H);
+    ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+    ctx.fillStyle = '#01141a'; ctx.fillRect(0, 0, W, H);
     // Câmera na mão: tremor contínuo leve, forte nos impactos.
     const fi = Math.floor(t * 30);
     const hit = (cfg.impacts || []).reduce((a, b) => a + (t >= b && t < b + 0.5 ? 1 - (t - b) / 0.5 : 0), 0);
@@ -579,7 +616,9 @@ function makeAnim2D(canvas, cfg) {
     // Vinheta escura nas bordas, como lente de cinema.
     const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95);
     v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.6)');
-    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H); ctx.restore();
+    toPalette();
+    out.drawImage(low, 0, 0, canvas.width, canvas.height);
   }
   return { ready: Promise.resolve(), render };
 }

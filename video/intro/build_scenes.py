@@ -127,7 +127,7 @@ def art_shot(sc, name, src, push_from, push_to, origin):
           f'{{ scale: {push_to}, duration: {sc.duration}, ease: "none" }}, 0);')
 
 
-ANIM_JS = open(os.path.join(HERE, 'lib', 'anim2d.js')).read()
+ANIM_JS = open(os.path.join(HERE, 'lib', 'palette.js')).read() + open(os.path.join(HERE, 'lib', 'anim2d.js')).read()
 
 
 def anim2d(sc, film_start, cfg):
@@ -135,7 +135,7 @@ def anim2d(sc, film_start, cfg):
     import json
     cfg = {'duration': sc.duration, **cfg}
     sc.add(f'<canvas id="{sc.sid}-c" width="1920" height="1080" style="position:absolute;left:0;top:0;width:1920px;'
-           f'height:1080px;z-index:1;"></canvas>')
+           f'height:1080px;z-index:1;image-rendering:pixelated;"></canvas>')
     sc.tl(ANIM_JS)
     sc.tl(f'''const anim = makeAnim2D(document.getElementById("{sc.sid}-c"), {json.dumps(cfg)});
       const draw = (filmTime) => anim.render(Math.min({sc.duration}, Math.max(0, filmTime - {film_start})));
