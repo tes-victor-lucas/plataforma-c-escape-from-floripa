@@ -1794,11 +1794,13 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
     assert.equal(clears, 1);
 });
 
-test('9090 conclui as salas com combate, a III e o esconderijo, mas não a dungeon da Sala II', () => {
+test('9090 elimina só a horda atual: as cartas e a próxima horda seguem; na última, a sala conclui', () => {
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();
     let clears = 0;
     let completions = 0;
+    let intermissions = 0;
+    let resumeIntermission;
     const createDrone = (health) => ({
         health: { current: health, isAlive: true },
         takeDamage(amount) {
@@ -1806,54 +1808,52 @@ test('9090 conclui as salas com combate, a III e o esconderijo, mas não a dunge
             this.health.isAlive = this.health.current > 0;
         }
     });
-    const drones = [createDrone(60), createDrone(40)];
-    world.activeRoomKey = 'room1';
+    world.activeRoomKey = 'room3';
     world.isGameplayReady = true;
-    world.drones = drones;
-    world.waves = {};
+    world.drones = [];
     world.combat = { clear() { clears++; } };
-    world.completeRoomCombat = () => {
-        completions++;
-        world.isRoomCombatComplete = true;
-        world.waves = undefined;
-    };
+    // Duas hordas de 5 que nascem de 2 em 2: a primeira ainda tem gente para nascer quando o atalho entra.
+    const hordes = [{ batchSize: 2, maxAlive: 2, interval: 1_000 }, { batchSize: 2, maxAlive: 2, interval: 1_000 }];
+    world.waves = new DroneWaves(
+        (count) => { for (let index = 0; index < count; index++) world.drones.push(createDrone(30)); return count; },
+        () => { completions++; },
+        (resume) => { intermissions++; resumeIntermission = resume; },
+        [5, 5],
+        hordes
+    );
+    world.completeRoomCombat = () => { completions++; };
+    world.waves.update(world.drones, 16);
+    assert.equal(world.drones.length, 2, 'a horda 1 começou');
 
     for (const key of '909') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(drones.every((drone) => drone.health.isAlive), true);
+    assert.ok(world.drones.every((drone) => drone.health.isAlive));
     world.handleSecretCodeKey({ key: '0', repeat: false });
-
-    assert.equal(drones.every((drone) => !drone.health.isAlive), true);
+    assert.ok(world.drones.every((drone) => !drone.health.isAlive), 'a horda atual morre');
     assert.equal(clears, 1);
-    assert.equal(completions, 1);
-    assert.equal(world.waves, undefined);
+    assert.equal(completions, 0, 'a sala não conclui no meio');
+    world.waves.update(world.drones, 16);
+    assert.equal(world.drones.length, 2, 'quem faltava nascer na horda 1 não nasce');
+    assert.equal(intermissions, 1, 'as cartas abrem antes da horda 2');
 
-    world.activeRoomKey = 'room2';
-    world.isRoomCombatComplete = false;
+    resumeIntermission();
+    assert.equal(world.drones.length, 4, 'a horda 2 começa depois das cartas');
     for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(completions, 2);
+    world.waves.update(world.drones, 16);
+    assert.equal(completions, 1, 'na última horda o atalho leva à conclusão da sala');
 
-    // A room3 deixou de ser a última: concluir abre a saída para a room4, sem vitória.
-    const room3Drones = [createDrone(30)];
-    world.activeRoomKey = 'room3';
-    world.isRoomCombatComplete = false;
-    world.drones = room3Drones;
-    world.waves = {};
-    for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(room3Drones[0].health.isAlive, false);
-    assert.equal(world.waves, undefined);
-    assert.equal(completions, 3, 'o segredo conclui a room3 e libera a saída');
-
-    world.activeRoomKey = 'dungeon';
-    world.isRoomCombatComplete = false;
-    for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(completions, 3, 'o segredo não deve concluir a dungeon');
-
-    // O esconderijo dos gaúchos aceita o atalho: concluir derruba o chapéu e abre a saída.
+    // Sem hordas em andamento, o atalho conclui a sala como antes.
     world.activeRoomKey = 'gaucho-dungeon';
+    world.isRoomCombatComplete = false;
+    world.waves = undefined;
     world.drones = [createDrone(20)];
     for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
     assert.equal(world.drones[0].health.isAlive, false);
-    assert.equal(completions, 4, 'o segredo conclui o esconderijo dos gaúchos');
+    assert.equal(completions, 2, 'o segredo conclui o esconderijo dos gaúchos');
+
+    world.activeRoomKey = 'dungeon';
+    world.drones = [createDrone(20)];
+    for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
+    assert.equal(world.drones[0].health.isAlive, true, 'o segredo não vale na dungeon da Sala II');
 });
 
 test('mundo bloqueia combate e HUD até a revelação; reinício não espera outra transição', () => {
