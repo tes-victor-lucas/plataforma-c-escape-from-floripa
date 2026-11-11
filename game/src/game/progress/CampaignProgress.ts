@@ -1,6 +1,7 @@
 import type { RoomKey } from '../config/rooms';
 import type { PlayerProgress } from './PlayerProgress';
 import { SCORE_VERSION } from '../config/score';
+import { isItemId } from '../config/items';
 import type { RunCheckpoint } from '../scoring/RunTracker';
 
 const STORAGE_KEY = 'escape-from-floripa:campaign-progress:v1';
@@ -28,7 +29,9 @@ function isPlayerProgress(value: unknown): value is PlayerProgress {
     return typeof progress.currentHealth === 'number'
         && typeof progress.maxHealth === 'number'
         && typeof progress.movementSpeedMultiplier === 'number'
-        && Array.isArray(progress.upgrades);
+        && Array.isArray(progress.upgrades)
+        // O localStorage pode ter sido editado: só aceita itens que existem no jogo.
+        && (progress.items === undefined || (Array.isArray(progress.items) && progress.items.every(isItemId)));
 }
 
 function isRunCheckpoint(value: unknown): value is RunCheckpoint {
