@@ -140,3 +140,7 @@ print('ok', sorted(os.listdir(OUT)))
 
 
 
+
+# Gaúcho do jogo correndo para a direita (mesma grade de 38 px do personagem).
+strip([sheet_frame(os.path.join(GAME, 'characters', 'gaucho.png'), COLS, 38, f) for f in range(132, 141)]).save(
+    os.path.join(OUT, 'gaucho-right.png'))
