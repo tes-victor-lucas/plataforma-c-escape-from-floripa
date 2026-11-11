@@ -109,13 +109,14 @@ export function addUpgradePanel(
         return;
     }
 
-    const dividerY = bounds.y + 173;
+    // Medido do fundo: cabe o título e quatro linhas de descrição em qualquer altura de painel.
+    const dividerY = bounds.y + bounds.height - 102;
     const divider = scene.add.graphics();
     divider.fillStyle(CLEAN_MENU_COLORS.frame, 0.45)
         .fillRect(bounds.x + 14, dividerY, bounds.width - 28, 1);
     const tooltipTitle = scene.add.text(
         bounds.x + bounds.width / 2,
-        dividerY + 17,
+        dividerY + 14,
         '',
         {
             fontFamily: 'PixelGamer, monospace',
@@ -127,17 +128,19 @@ export function addUpgradePanel(
     ).setOrigin(0.5, 0).setResolution(2).setVisible(false);
     const tooltipDescription = scene.add.text(
         bounds.x + bounds.width / 2,
-        dividerY + 47,
+        dividerY + 40,
         '',
         {
+            // Monospace porque a PixelGamer não tem %; maior e mais clara para ler sobre o painel escuro.
             fontFamily: 'monospace',
-            fontSize: '9px',
-            color: CLEAN_MENU_COLORS.mutedText,
+            fontSize: '10px',
+            fontStyle: 'bold',
+            color: '#cfeff3',
             align: 'center',
-            lineSpacing: 1,
-            wordWrap: { width: bounds.width - 22, useAdvancedWrap: true }
+            lineSpacing: 2,
+            wordWrap: { width: bounds.width - 18, useAdvancedWrap: true }
         }
-    ).setOrigin(0.5, 0).setResolution(2).setVisible(false);
+    ).setOrigin(0.5, 0).setResolution(4).setVisible(false);
     menu.add([divider, tooltipTitle, tooltipDescription]);
 
     const rowWidth = ICON_COLUMNS * ICON_SIZE + (ICON_COLUMNS - 1) * ICON_GAP;
