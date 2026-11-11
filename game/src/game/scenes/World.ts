@@ -1048,9 +1048,10 @@ export class World extends Scene {
         state.arcadeAttempts += 1;
         const data: ArcadeMinigameData = {
             attemptsLeft: arcadeAttemptsLeft(state),
-            onFinish: (won) => {
+            onFinish: (won, played) => {
                 this.isArcadeOpen = false;
                 this.physics.resume();
+                if (!played) state.arcadeAttempts -= 1;
                 if (!won) return;
                 state.arcadeWon = true;
                 this.player?.health.increaseMax(arcade.rewardHearts * COMBAT_CONFIG.player.healthPerHeart);

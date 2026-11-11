@@ -4,8 +4,8 @@ import { MERCADO_INTERIOR } from '../config/mercado';
 import { bindGamepadActions, getGamepadInput, type GamepadAction } from '../input/GamepadInput';
 import { BlockPuzzle } from '../minigame/BlockPuzzle';
 
-/** `attemptsLeft` conta as tentativas que sobram depois desta. */
-export type ArcadeMinigameData = { attemptsLeft: number; onFinish: (won: boolean) => void };
+/** `attemptsLeft` conta as tentativas que sobram depois desta; `played` é falso quando o jogador sai antes de iniciar. */
+export type ArcadeMinigameData = { attemptsLeft: number; onFinish: (won: boolean, played: boolean) => void };
 
 const FONT = 'PixelGamer, monospace';
 const CELL = 22;
@@ -17,17 +17,29 @@ const RESULT_DURATION = 1_800;
 const HOLD_DELAY = 170;
 const HOLD_REPEAT = 60;
 const HELD_ACTIONS = ['left', 'right', 'down'] as const satisfies readonly GamepadAction[];
+// Controle no padrão Tetris: botão A gira e o direcional para cima solta a peça.
+const CONTROLS = [
+    ['GIRAR', 'W / ↑', 'A'],
+    ['MOVER', 'A D / ← →', '← →'],
+    ['DESCER', 'S / ↓', '↓'],
+    ['SOLTAR', 'ESPAÇO', '↑'],
+    ['SAIR', 'ESC', 'B']
+] as const;
 
 /** Fliperama do Mercado Público: caixotes caindo; cada linha completa vale pontos. */
 export class ArcadeMinigame extends Scene {
     private puzzle!: BlockPuzzle;
     private board!: Phaser.GameObjects.Graphics;
     private scoreText!: Phaser.GameObjects.Text;
-    private onFinish!: (won: boolean) => void;
+    private onFinish!: (won: boolean, played: boolean) => void;
     private attemptsLeft = 0;
     private readonly heldFor = new Map<GamepadAction, number>();
     private elapsed = 0;
     private finished = false;
+    private started = false;
+    private intro?: Phaser.GameObjects.Container;
+    private introButtons: Phaser.GameObjects.Rectangle[] = [];
+    private introChoice = 0;
     private boardX = 0;
     private boardY = 0;
 
@@ -43,6 +55,8 @@ export class ArcadeMinigame extends Scene {
         this.puzzle = new BlockPuzzle(width, height, pointsPerLine);
         this.elapsed = 0;
         this.finished = false;
+        this.started = false;
+        this.introChoice = 0;
         this.boardX = Math.round(GAME_WIDTH / 2 - width * CELL / 2);
         this.boardY = 64;
 
@@ -56,13 +70,6 @@ export class ArcadeMinigame extends Scene {
         this.text(GAME_WIDTH - 160, 80, 'PRÓXIMA', 16, '#5ce5f1');
         this.add.rectangle(GAME_WIDTH - 160, 136, PREVIEW_CELL * 4 + 16, PREVIEW_CELL * 4 + 16, 0x0b0814).setStrokeStyle(2, 0x5ce5f1);
         this.scoreText = this.text(GAME_WIDTH - 160, 216, '', 22, '#ffffff');
-        this.text(
-            GAME_WIDTH - 160,
-            296,
-            '← → MOVER   ↑ GIRAR\n↓ DESCER   ESPAÇO SOLTAR\nESC SAIR\nCONTROLE: DIRECIONAL MOVE E GIRA\nCONFIRMAR SOLTA, VOLTAR SAI',
-            12,
-            '#aaa5b8'
-        );
         this.board = this.add.graphics();
 
         // Botões de toque (e de mouse): o celular não tem teclado.
@@ -83,6 +90,19 @@ export class ArcadeMinigame extends Scene {
         }
 
         this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
+            if (!this.started) {
+                const introActions: Record<string, () => void> = {
+                    ArrowUp: () => this.selectIntro(0),
+                    KeyW: () => this.selectIntro(0),
+                    ArrowDown: () => this.selectIntro(1),
+                    KeyS: () => this.selectIntro(1),
+                    Enter: () => this.chooseIntro(),
+                    Space: () => this.chooseIntro(),
+                    Escape: () => this.leaveIntro()
+                };
+                introActions[event.code]?.();
+                return;
+            }
             const actions: Record<string, () => void> = {
                 ArrowLeft: () => this.act(() => this.puzzle.move(-1)),
                 KeyA: () => this.act(() => this.puzzle.move(-1)),
@@ -100,16 +120,86 @@ export class ArcadeMinigame extends Scene {
         bindGamepadActions(this, {
             left: () => this.act(() => this.puzzle.move(-1)),
             right: () => this.act(() => this.puzzle.move(1)),
-            up: () => this.act(() => this.puzzle.rotate()),
-            down: () => this.act(() => this.puzzle.step()),
-            confirm: () => this.act(() => this.puzzle.drop()),
-            cancel: () => this.finish(false)
+            up: () => this.started ? this.act(() => this.puzzle.drop()) : this.selectIntro(0),
+            down: () => this.started ? this.act(() => this.puzzle.step()) : this.selectIntro(1),
+            confirm: () => this.started ? this.act(() => this.puzzle.rotate()) : this.chooseIntro(),
+            cancel: () => this.started ? this.finish(false) : this.leaveIntro()
         });
         this.draw();
+        this.showIntro();
+    }
+
+    /** Tela de como jogar: controles à esquerda, INICIAR e SAIR à direita. */
+    private showIntro() {
+        // Fundo interativo para os botões do jogo por baixo não receberem o toque.
+        const background = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05040a).setOrigin(0).setInteractive();
+        const panel = this.add.rectangle(270, 270, 460, 330, 0x0b0814).setStrokeStyle(3, 0xf056c5);
+        const objects: Phaser.GameObjects.GameObject[] = [
+            background,
+            panel,
+            this.text(GAME_WIDTH / 2, 50, 'CAIXOTES', 30, '#f056c5'),
+            this.text(270, 132, 'COMO JOGAR', 22, '#5ce5f1'),
+            this.text(330, 172, 'TECLADO', 14, '#aaa5b8'),
+            this.text(450, 172, 'CONTROLE', 14, '#aaa5b8')
+        ];
+        CONTROLS.forEach(([action, keyboard, gamepad], index) => {
+            const y = 208 + index * 36;
+            objects.push(
+                this.text(140, y, action, 18, '#ffd25a'),
+                this.text(330, y, keyboard, 18, '#ffffff'),
+                this.text(450, y, gamepad, 18, '#ffffff')
+            );
+        });
+        const { goalScore, rewardHearts } = MERCADO_INTERIOR.arcade;
+        objects.push(this.text(270, 400, `FAÇA ${goalScore} PONTOS E GANHE ${rewardHearts} CORAÇÕES`, 14, '#6fd36f'));
+
+        this.introButtons = (['INICIAR', 'SAIR'] as const).map((label, index) => {
+            const button = this.add.rectangle(GAME_WIDTH - 180, 230 + index * 80, 220, 56, 0x17151f)
+                .setInteractive({ useHandCursor: true });
+            button.on('pointerover', () => this.selectIntro(index));
+            button.on('pointerdown', () => {
+                this.selectIntro(index);
+                this.chooseIntro();
+            });
+            objects.push(button, this.text(GAME_WIDTH - 180, 230 + index * 80, label, 22, '#ffffff'));
+            return button;
+        });
+        this.intro = this.add.container(0, 0, objects);
+        this.selectIntro(0);
+    }
+
+    private selectIntro(index: number) {
+        if (this.started || this.finished) return;
+        this.introChoice = index;
+        this.introButtons.forEach((button, buttonIndex) => {
+            const selected = buttonIndex === index;
+            button.setFillStyle(selected ? 0x2a1640 : 0x17151f).setStrokeStyle(selected ? 3 : 2, selected ? 0xf056c5 : 0x5ce5f1);
+        });
+    }
+
+    private chooseIntro() {
+        if (this.introChoice === 0) this.startGame();
+        else this.leaveIntro();
+    }
+
+    private startGame() {
+        if (this.started || this.finished) return;
+        this.started = true;
+        this.elapsed = 0;
+        this.intro?.destroy();
+        this.intro = undefined;
+    }
+
+    /** Sair antes de jogar não gasta a tentativa. */
+    private leaveIntro() {
+        if (this.started || this.finished) return;
+        this.finished = true;
+        this.scene.stop();
+        this.onFinish(false, false);
     }
 
     update(_time: number, delta: number) {
-        if (this.finished) return;
+        if (this.finished || !this.started) return;
         this.repeatHeldDirections(delta);
         this.elapsed += delta;
         if (this.elapsed < MERCADO_INTERIOR.arcade.dropInterval) return;
@@ -135,7 +225,7 @@ export class ArcadeMinigame extends Scene {
     }
 
     private act(action: () => unknown) {
-        if (this.finished) return;
+        if (this.finished || !this.started) return;
         action();
         this.draw();
         if (this.puzzle.score >= MERCADO_INTERIOR.arcade.goalScore) this.finish(true);
@@ -153,7 +243,7 @@ export class ArcadeMinigame extends Scene {
         this.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, message, won ? 30 : 20, won ? '#6fd36f' : '#e84a4a');
         this.time.delayedCall(RESULT_DURATION, () => {
             this.scene.stop();
-            this.onFinish(won);
+            this.onFinish(won, true);
         });
     }
 
