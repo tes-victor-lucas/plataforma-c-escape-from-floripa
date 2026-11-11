@@ -3114,7 +3114,7 @@ test('cartas de área crescem de raio por nível e respeitam o máximo', () => {
     const upgrades = new PlayerUpgradeState();
     for (let level = 0; level < 4; level++) upgrades.acquire(getUpgradeCard('shock-pulse'));
     assert.equal(upgrades.pulseRadius, 100 + 25 * 2);
-    assert.equal(upgrades.pulseInterval, 800);
+    assert.equal(upgrades.pulseInterval, 1_100);
     for (let level = 0; level < 3; level++) upgrades.acquire(getUpgradeCard('blast-shot'));
     assert.equal(upgrades.blastRadius, 50 + 15);
     assert.equal(upgrades.blastDamageRatio, 1.5);
@@ -3157,13 +3157,13 @@ test('pulso de choque atinge todos dentro do raio no ritmo da carta', () => {
     upgrades.range = 1;
     const { combat, drones, effects } = setup([[140, 100], [100, 150], [300, 100]], [], upgrades);
     const full = COMBAT_CONFIG.drone.maxHealth;
-    const pulse = upgrades.damage * 1.5;
+    const pulse = upgrades.damage * 1.25;
     combat.update(0);
     assert.equal(drones[0].health.current, full - pulse);
     assert.equal(drones[1].health.current, full - pulse);
     assert.equal(drones[2].health.current, full, 'fora do raio');
     assert.ok(effects.some((layer) => layer.circles.includes(100)), 'a onda mostra o raio real');
-    combat.update(799);
+    combat.update(1_099);
     assert.equal(drones[0].health.current, full - pulse, 'espera o intervalo');
     combat.update(1);
     assert.equal(drones[1].health.current, 0);
@@ -3189,20 +3189,20 @@ test('faíscas orbitais ferem quem encostar, uma vez por intervalo', () => {
     const { combat, drones } = setup([[152, 100], [100, 300]], [], upgrades);
     const full = COMBAT_CONFIG.drone.maxHealth;
     combat.update(0);
-    assert.equal(drones[0].health.current, full - upgrades.damage * 1.5);
+    assert.equal(drones[0].health.current, full - upgrades.damage * 1.25);
     assert.equal(drones[1].health.current, full, 'longe das faíscas');
     combat.update(1);
-    assert.equal(drones[0].health.current, full - upgrades.damage * 1.5, 'não acerta de novo antes do intervalo');
+    assert.equal(drones[0].health.current, full - upgrades.damage * 1.25, 'não acerta de novo antes do intervalo');
 });
 
-test('tempestade elétrica causa 150% do dano por salto', () => {
+test('tempestade elétrica causa 125% do dano por salto', () => {
     const upgrades = new PlayerUpgradeState();
     upgrades.acquire(getUpgradeCard('thunder-storm'));
     upgrades.range = 100;
     const { combat, drones } = setup([[150, 100], [200, 100]], [], upgrades);
     combat.playerCooldown = 99_999;
     combat.update(0);
-    assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth - upgrades.damage * 1.5);
+    assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth - upgrades.damage * 1.25);
 });
 
 test('raio em cadeia salta entre vizinhos sem repetir alvo', () => {
@@ -3217,7 +3217,7 @@ test('raio em cadeia salta entre vizinhos sem repetir alvo', () => {
     combat.update(0);
     const hit = drones.filter((drone) => drone.health.current < full).length;
     assert.equal(hit, 8, 'nível 1 salta por 8 inimigos');
-    assert.equal(drones[0].health.current, full - upgrades.damage, 'cada salto causa 100% do dano');
+    assert.equal(drones[0].health.current, full - upgrades.damage * 0.85, 'cada salto causa 85% do dano');
     assert.equal(effects.length, 1, 'um raio desenhado para a cadeia inteira');
     assert.equal(drones[9].health.current, full);
 });
@@ -3245,9 +3245,9 @@ test('feixes de luz cruzam a tela e ferem quem está na linha', () => {
     // Três camadas (halo, cor e núcleo) por feixe.
     assert.equal(effects.length, 1);
     assert.equal(effects[0].lines, 6 * 3);
-    assert.equal(drones[0].health.isAlive, false, 'na linha de 90°, a 200 px');
+    assert.equal(drones[0].health.current, full - upgrades.damage * 1.7, 'na linha de 90°, a 200 px');
     assert.equal(drones[1].health.current, full, 'entre dois feixes');
-    combat.update(999);
+    combat.update(1_299);
     assert.equal(effects.length, 1, 'espera o intervalo');
     combat.update(1);
     assert.equal(effects.length, 2, 'o leque gira e dispara de novo');
@@ -3538,15 +3538,15 @@ test('carta comum pega depois da forte não enfraquece o efeito', () => {
     const upgrades = new PlayerUpgradeState();
     upgrades.acquire(getUpgradeCard('thunder-storm'));
     upgrades.acquire(getUpgradeCard('chain-lightning'));
-    assert.equal(upgrades.chainInterval, 500);
-    assert.equal(upgrades.chainDamageRatio, 1.5);
+    assert.equal(upgrades.chainInterval, 750);
+    assert.equal(upgrades.chainDamageRatio, 1.25);
     assert.equal(upgrades.chainRange, 130);
     assert.equal(upgrades.chainJumps, 16);
 
     upgrades.acquire(getUpgradeCard('shock-pulse'));
     upgrades.acquire(getUpgradeCard('nova-pulse'));
-    assert.equal(upgrades.pulseInterval, 600);
-    assert.equal(upgrades.pulseDamageRatio, 3);
+    assert.equal(upgrades.pulseInterval, 850);
+    assert.equal(upgrades.pulseDamageRatio, 2.5);
     assert.equal(upgrades.pulseRadius, 150);
 
     upgrades.acquire(getUpgradeCard('heavy-rounds'));
@@ -3577,3 +3577,4 @@ test('8080 dá uma carta forte aleatória só na room3', () => {
     for (const key of '8080') world.handleSecretCodeKey({ key, repeat: false });
     assert.equal(hints[1], 'CARTAS FORTES NO MÁXIMO');
 });
+
