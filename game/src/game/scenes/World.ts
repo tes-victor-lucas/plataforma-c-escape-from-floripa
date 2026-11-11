@@ -62,8 +62,9 @@ import { climbSewerLadder, createSewerLadder } from '../map/SewerLadder';
 import { arcadeAttemptsLeft, canStartArcade } from '../minigame/arcadeAttempts';
 import type { ArcadeMinigameData } from './ArcadeMinigame';
 import type { ConfirmPromptData } from './ConfirmPrompt';
+import type { PauseMenuData } from './PauseMenu';
 import type { WalletMenuData } from './WalletMenu';
-import { TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_SITTERS } from '../config/ticen';
+import { formatBalance, TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_SITTERS, WALLET_UI } from '../config/ticen';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
 import { TchayQueue } from '../entities/TchayQueue';
 import { PAGODE, PAGODE_FRAMES, POPULAR_BARS, TCHAY } from '../config/tchay';
@@ -466,6 +467,7 @@ export class World extends Scene {
         this.normalCameraZoom = this.cameras.main.zoom;
         this.lowHealthFilter = this.cameras.main.filters.internal.addColorMatrix();
         this.input.keyboard?.on('keydown-P', this.openPauseMenu, this);
+        this.input.keyboard?.on('keydown-I', this.openResourcesMenu, this);
         this.input.mouse?.disableContextMenu();
         this.input.on('pointerdown', this.handleSwordPointer, this);
         this.input.keyboard?.on('keydown-G', this.openPiranhasMenu, this);
@@ -1616,13 +1618,18 @@ export class World extends Scene {
         this.droppedItems.clear();
         this.swordHint = undefined;
         this.input.keyboard?.off('keydown-P', this.openPauseMenu, this);
+        this.input.keyboard?.off('keydown-I', this.openResourcesMenu, this);
         this.input.off('pointerdown', this.handleSwordPointer, this);
         this.input.keyboard?.off('keydown-G', this.openPiranhasMenu, this);
         this.input.keyboard?.off('keydown', this.handleSecretCodeKey, this);
         this.events.off(Phaser.Scenes.Events.RESUME, this.resetPauseMenuState, this);
     }
 
-    private openPauseMenu() {
+    private openResourcesMenu() {
+        this.openPauseMenu('resources');
+    }
+
+    private openPauseMenu(view: PauseMenuData['view'] = 'pause') {
         if (
             !this.isGameplayReady || this.isPauseMenuOpen || this.isPiranhasMenuOpen
             || this.isWaveIntermissionOpen || this.isArcadeOpen || this.isGatewayConfirmOpen || this.isWalletOpen
@@ -1630,7 +1637,20 @@ export class World extends Scene {
         ) return;
 
         this.isPauseMenuOpen = true;
-        this.scene.launch('PauseMenu', { upgrades: this.upgrades.exportProgress() });
+        const data: PauseMenuData = {
+            upgrades: this.upgrades.exportProgress(),
+            view,
+            resources: {
+                chimarraos: this.chimarraosCollected,
+                characterId: this.characterId,
+                items: [{
+                    name: 'CARTEIRA',
+                    texture: WALLET_UI.walletTexture,
+                    description: `CARTÃO GRANDE FLORIPA INTEGRADO.\nSALDO: ${formatBalance(runTracker.snapshot().score.total)}`
+                }]
+            }
+        };
+        this.scene.launch('PauseMenu', data);
         this.scene.bringToTop('PauseMenu');
         this.scene.pause('World');
     }
