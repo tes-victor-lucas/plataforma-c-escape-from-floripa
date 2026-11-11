@@ -239,7 +239,7 @@ test('código secreto reconhece 9090 mesmo após teclas anteriores', () => {
 
 test('room2 possui entrada oficial no centro da via vertical', () => {
     assert.deepEqual(ROOM_DEFINITIONS.room2.spawn, { x: 184, y: 536 });
-    assert.equal(ROOM_DEFINITIONS.room2.title, 'Sala II');
+    assert.equal(ROOM_DEFINITIONS.room2.title, 'Sala II: O Antigo Terminal');
 });
 
 test('rota direta preserva parametros e aponta para a room2', () => {
@@ -2157,7 +2157,7 @@ test('abertura da room2 escreve Sala II antes de revelar o mapa', () => {
     view.typeTitle(() => { completed = true; });
     while (timers.length) timers.shift()();
 
-    assert.equal(writtenTitles.at(-1), 'Sala II');
+    assert.equal(writtenTitles.at(-1), 'Sala II: O Antigo Terminal');
     assert.equal(completed, true);
 });
 
@@ -3681,7 +3681,7 @@ test('fora da horda da Sala II os sorteios só trazem as cartas básicas', () =>
 });
 
 test('room3 abre pela rota direta e recebe a saída da room2', () => {
-    assert.equal(ROOM_DEFINITIONS.room3.title, 'Sala III');
+    assert.equal(ROOM_DEFINITIONS.room3.title, 'Sala III: A Praça XV');
     assert.equal(getRequestedRoomKey('?room=3'), 'room3');
     assert.equal(getRoomSearch('room3', '?debug=1'), '?debug=1&room=3');
     assert.deepEqual(getInitialSceneRoute('?room=3'), { key: 'RoomTransition', data: { roomKey: 'room3' } });
