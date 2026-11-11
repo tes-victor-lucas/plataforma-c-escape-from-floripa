@@ -51,7 +51,8 @@ test('estado válido é enviado apenas ao companheiro da sala', () => {
     assert.equal(messagesFor(sent, 'p1', 'player.state').length, 0);
     assert.deepEqual(messagesFor(sent, 'p2', 'player.state')[0].message, {
         type: 'player.state', playerId: 'p1', sequence: 4, x: 100, y: 200, facing: 'left',
-        health: 3, maxHealth: 4, reviveProgress: 0, revivesLeft: 2, character: 'padrao'
+        health: 3, maxHealth: 4, reviveProgress: 0, revivesLeft: 2, character: 'padrao',
+        orbitCount: 0, orbitRadius: 0, companion: false
     });
 });
 
@@ -217,6 +218,29 @@ test('personagem escolhido é repassado e valor desconhecido invalida o estado',
     state('gaucho');
     assert.equal(messagesFor(sent, 'p2', 'player.state')[0].message.character, 'gaucho');
     state('admin');
+    assert.equal(messagesFor(sent, 'p2', 'player.state').length, 1);
+    assert.equal(messagesFor(sent, 'p1', 'error').at(-1).message.code, 'INVALID_PLAYER_STATE');
+});
+
+test('efeitos das cartas e faíscas orbitais chegam ao parceiro', () => {
+    const { broker, sent } = startedRoom();
+    broker.publish('client.message', {
+        clientId: 'p1',
+        message: { type: 'match.event', event: { kind: 'player.effect', effect: 'shockwave', x: 1, y: 2, radius: 150, color: 1 } }
+    });
+    assert.equal(messagesFor(sent, 'p2', 'match.event')[0].message.event.effect, 'shockwave');
+
+    const state = (extra) => broker.publish('client.message', {
+        clientId: 'p1',
+        message: {
+            type: 'player.state', sequence: sent.length + 1, x: 0, y: 0, facing: 'down',
+            health: 4, maxHealth: 4, reviveProgress: 0, revivesLeft: 2, ...extra
+        }
+    });
+    state({ orbitCount: 6, orbitRadius: 52, companion: true });
+    const relayed = messagesFor(sent, 'p2', 'player.state')[0].message;
+    assert.deepEqual([relayed.orbitCount, relayed.orbitRadius, relayed.companion], [6, 52, true]);
+    state({ orbitCount: -1 });
     assert.equal(messagesFor(sent, 'p2', 'player.state').length, 1);
     assert.equal(messagesFor(sent, 'p1', 'error').at(-1).message.code, 'INVALID_PLAYER_STATE');
 });
