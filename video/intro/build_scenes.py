@@ -188,7 +188,7 @@ SCENES = []
 
 # 1. Do telhado: o personagem de costas diante da Ponte Hercílio Luz e do Centro, chuva, um drone passando.
 s = Scene('s1', 4.0)
-anim2d(s, 0.0, {'shot': 'rooftop', 'shake': 2})
+anim2d(s, 0.0, {'shot': 'rooftop', 'shake': 2, 'images': {'player': SPR + 'player-up.png'}})
 s.caption('l0', 0.6, 3.3, 'FLORIANÓPOLIS, 2067')
 s.add('<div id="s1-cdl" class="cap" style="left:0;width:1920px;text-align:center;top:70px;font-size:28px;">PARTIDA EM</div>')
 countdown(s, 0.0, 4.0, 'left:0;width:1920px;text-align:center;top:108px;font-size:72px;')
@@ -208,7 +208,8 @@ SCENES.append((s, 7.0))
 
 # 4. Rua em chamas de lado: a câmera corre com a multidão, carros pegando fogo, explosão.
 s = Scene('s4', 4.0)
-anim2d(s, 8.8, {'shot': 'riot', 'shake': 4, 'impacts': [2.2]})
+anim2d(s, 8.8, {'shot': 'riot', 'shake': 4, 'impacts': [2.2], 'images': {
+    'ticen': ART + 'ticen_fachada.png', 'terminal': ART + 'terminal-antigo-modular-v3-256.png'}})
 SCENES.append((s, 8.8))
 
 # 5. Tiroteio no Terminal Velho: o personagem atira, um robô revida, os dois robôs caem.

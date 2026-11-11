@@ -481,7 +481,8 @@ function makeAnim2D(canvas, cfg) {
       // Telhado em primeiro plano e o personagem de costas olhando a cidade.
       ctx.fillStyle = P.ink; ctx.fillRect(0, H * 0.86, W, H);
       ctx.fillRect(W * 0.08, H * 0.8, 80, 60);
-      backFigure(W * 0.3, H * 0.9, 1.35, t, { rim: 'rgba(233,9,49,0.9)' });
+      glow(W * 0.3, H * 0.62, 260, 'rgba(233,9,49,0.35)');
+      sprite('player', 0, 0, 38, 38, W * 0.3 - 19 * 16, H * 0.9 - 37 * 16, 4);
       rain(t, 260, 'rgba(160,190,220,0.6)');
     },
     facade(t) {
@@ -517,8 +518,14 @@ function makeAnim2D(canvas, cfg) {
       sky('#120406', '#3a1208', H * 0.7);
       glow(W * 0.5, H * 0.5, 900, 'rgba(255,90,30,0.35)');
       skyline(23, H * 0.5, 120, 360, '#1a0a0a', '#ffb347', cam * 0.2);
-      storefronts(cam * 0.6, H * 0.8, 31, true);
+      const fx0 = -((cam * 0.6) % 3072);
+      for (const k of [0, 1]) sprite('ticen', 0, 0, 768, 96, fx0 + k * 3072, H * 0.8 - 96 * 4);
+      ctx.fillStyle = 'rgba(255,90,30,0.22)'; ctx.fillRect(0, H * 0.8 - 96 * 4, W, 96 * 4);   // fogo refletindo na fachada
       ctx.fillStyle = '#120a0a'; ctx.fillRect(0, H * 0.8, W, H);
+      // Peças do Terminal Velho (x, y, w, h no tileset; escala) na calçada, na frente da fachada.
+      [[300, [7, 212, 23, 39], 2], [1300, [165, 160, 88, 74], 1], [2300, [39, 214, 46, 36], 2], [3300, [7, 212, 23, 39], 2]].forEach(([wx, [sx, sy, sw, sh], px]) => {
+        sprite('terminal', sx, sy, sw, sh, wx - cam * 0.9, H * 0.84 - sh * 4 * px, px);
+      });
       ctx.fillStyle = 'rgba(255,120,40,0.18)'; ctx.fillRect(0, H * 0.8, W, 30);  // calçada molhada refletindo o fogo
       const fires = [[500, 0.9], [1500, 1.2], [2600, 1.0], [3500, 1.3]];
       fires.forEach(([fx, sz], i) => {
@@ -574,7 +581,7 @@ function makeAnim2D(canvas, cfg) {
       [[260, 'gatus'], [700, 'piranhas'], [1680, 'gatus'], [2120, 'piranhas'], [3100, 'gatus']].forEach(([wx, kind]) => {
         const x = wx - cam * 0.6;
         if (kind === 'gatus') sprite('bares', 0, 0, 64, 48, x, H * 0.82 - 48 * 4);
-        else sprite('piranhas', 0, 0, 192, 128, x, H * 0.82 - 128 * 4);
+        else sprite('piranhas', 0, 0, 192, 120, x, H * 0.82 - 120 * 4);  // corta as 8 linhas vazias de baixo do PNG
       });
       ctx.fillStyle = '#060a10'; ctx.fillRect(0, H * 0.82, W, H);
       ctx.fillStyle = 'rgba(92,229,241,0.12)'; ctx.fillRect(0, H * 0.82, W, 26);
