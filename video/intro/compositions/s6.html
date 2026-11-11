@@ -18,224 +18,244 @@
       .plane img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: pixelated; }
   </style>
   <div id="root" data-composition-id="s6" data-width="1920" data-height="1080">
-      <div id="s6-shake" class="full">
-      <div id="s6-stage" class="stage"><div id="s6-plane" class="plane" style="left:-720.0px;top:-1640px;width:3360px;height:2880px;"><img id="s6-floor" src="assets/rooms/room3.png" alt=""></div></div>
-      <div id="s6-d0" class="spr" style="left:300px;top:120px;width:128px;height:128px;z-index:5;transform-origin:50% 50%;"><img id="s6-d0-s" src="assets/sprites/drone.png" alt="" style="width:128px;height:128px;"></div>
-      <div id="s6-tr0" style="position:absolute;left:700px;top:480px;width:484px;height:4px;background:#e90931;opacity:0;transform-origin:0 50%;z-index:9;"></div>
-      <div id="s6-d1" class="spr" style="left:1500px;top:120px;width:160px;height:160px;z-index:5;transform-origin:50% 50%;"><img id="s6-d1-s" src="assets/sprites/drone.png" alt="" style="width:160px;height:160px;"></div>
-      <div id="s6-tr1" style="position:absolute;left:1260px;top:480px;width:528px;height:4px;background:#e90931;opacity:0;transform-origin:0 50%;z-index:9;"></div>
-      <div id="s6-d2" class="spr" style="left:900px;top:120px;width:192px;height:192px;z-index:5;transform-origin:50% 50%;"><img id="s6-d2-s" src="assets/sprites/drone.png" alt="" style="width:192px;height:192px;"></div>
-      <div id="s6-tr2" style="position:absolute;left:920px;top:480px;width:420px;height:4px;background:#e90931;opacity:0;transform-origin:0 50%;z-index:9;"></div>
-      <div id="s6-b0" class="spr" style="left:368.0px;top:508.0px;width:384px;height:384px;z-index:4;transform-origin:50% 100%;"><img id="s6-b0-s" src="assets/sprites/explosion.png" alt="" style="width:1536px;height:384px;"></div>
-      <div id="s6-b1" class="spr" style="left:1188.0px;top:488.0px;width:384px;height:384px;z-index:4;transform-origin:50% 100%;"><img id="s6-b1-s" src="assets/sprites/explosion.png" alt="" style="width:1536px;height:384px;"></div>
-      <div id="s6-b2" class="spr" style="left:568.0px;top:428.0px;width:384px;height:384px;z-index:4;transform-origin:50% 100%;"><img id="s6-b2-s" src="assets/sprites/explosion.png" alt="" style="width:1536px;height:384px;"></div>
-      <div id="s6-hero" class="spr" style="left:770px;top:700px;width:380px;height:380px;z-index:6;transform-origin:50% 100%;"><img id="s6-hero-s" src="assets/sprites/player-up.png" alt="" style="width:3420px;height:380px;"></div>
-      </div>
+      <canvas id="s6-c" width="480" height="270" style="position:absolute;left:0;top:0;width:1920px;height:1080px;image-rendering:pixelated;z-index:1;"></canvas>
   </div>
   <script>
       const tl = gsap.timeline({ paused: true });
-      tl.set("#s6-plane", { rotationX: 66 }, 0);
-      tl.fromTo("#s6-floor", { y: 0 }, { y: 1700, duration: 3.5, ease: "none" }, 0);
-      tl.set("#s6-d0-s", { x: 0 }, 0);
-      tl.fromTo("#s6-d0", { x: 0, y: 0, scale: 1 }, { x: 340, y: 260, scale: 2.2, duration: 2.0, ease: "power2.in" }, 0.0);
-      tl.set("#s6-tr0", { rotation: 60.3, opacity: 1 }, 0.700); tl.set("#s6-tr0", { opacity: 0 }, 0.760);
-      tl.set("#s6-d1-s", { x: 0 }, 0);
-      tl.fromTo("#s6-d1", { x: 0, y: 0, scale: 1 }, { x: -300, y: 260, scale: 2.2, duration: 2.0, ease: "power2.in" }, 0.6);
-      tl.set("#s6-tr1", { rotation: 127.3, opacity: 1 }, 1.300); tl.set("#s6-tr1", { opacity: 0 }, 1.360);
-      tl.set("#s6-d2-s", { x: 0 }, 0);
-      tl.fromTo("#s6-d2", { x: 0, y: 0, scale: 1 }, { x: -40, y: 260, scale: 2.2, duration: 2.0, ease: "power2.in" }, 1.4);
-      tl.set("#s6-tr2", { rotation: 87.3, opacity: 1 }, 2.100); tl.set("#s6-tr2", { opacity: 0 }, 2.160);
-      tl.set("#s6-b0-s", { x: 0 }, 0);
-      tl.set("#s6-b0", { opacity: 0 }, 0.000);
-      tl.set("#s6-b0", { opacity: 1 }, 1.000); tl.set("#s6-b0-s", { x: 0 }, 1.000);
-      tl.set("#s6-b0", { opacity: 1 }, 1.080); tl.set("#s6-b0-s", { x: -384 }, 1.080);
-      tl.set("#s6-b0", { opacity: 1 }, 1.160); tl.set("#s6-b0-s", { x: -768 }, 1.160);
-      tl.set("#s6-b0", { opacity: 1 }, 1.260); tl.set("#s6-b0-s", { x: -1152 }, 1.260);
-      tl.set("#s6-b0", { opacity: 0 }, 1.550);
-      tl.set("#s6-b1-s", { x: 0 }, 0);
-      tl.set("#s6-b1", { opacity: 0 }, 0.000);
-      tl.set("#s6-b1", { opacity: 1 }, 1.900); tl.set("#s6-b1-s", { x: 0 }, 1.900);
-      tl.set("#s6-b1", { opacity: 1 }, 1.980); tl.set("#s6-b1-s", { x: -384 }, 1.980);
-      tl.set("#s6-b1", { opacity: 1 }, 2.060); tl.set("#s6-b1-s", { x: -768 }, 2.060);
-      tl.set("#s6-b1", { opacity: 1 }, 2.160); tl.set("#s6-b1-s", { x: -1152 }, 2.160);
-      tl.set("#s6-b1", { opacity: 0 }, 2.450);
-      tl.set("#s6-b2-s", { x: 0 }, 0);
-      tl.set("#s6-b2", { opacity: 0 }, 0.000);
-      tl.set("#s6-b2", { opacity: 1 }, 2.800); tl.set("#s6-b2-s", { x: 0 }, 2.800);
-      tl.set("#s6-b2", { opacity: 1 }, 2.880); tl.set("#s6-b2-s", { x: -384 }, 2.880);
-      tl.set("#s6-b2", { opacity: 1 }, 2.960); tl.set("#s6-b2-s", { x: -768 }, 2.960);
-      tl.set("#s6-b2", { opacity: 1 }, 3.060); tl.set("#s6-b2-s", { x: -1152 }, 3.060);
-      tl.set("#s6-b2", { opacity: 0 }, 3.350);
-      tl.set("#s6-hero-s", { x: 0 }, 0);
-      tl.set("#s6-hero", { opacity: 1 }, 0.000); tl.set("#s6-hero-s", { x: -380 }, 0.000);
-      tl.set("#s6-hero", { opacity: 1 }, 0.067); tl.set("#s6-hero-s", { x: -760 }, 0.067);
-      tl.set("#s6-hero", { opacity: 1 }, 0.133); tl.set("#s6-hero-s", { x: -1140 }, 0.133);
-      tl.set("#s6-hero", { opacity: 1 }, 0.200); tl.set("#s6-hero-s", { x: -1520 }, 0.200);
-      tl.set("#s6-hero", { opacity: 1 }, 0.267); tl.set("#s6-hero-s", { x: -1900 }, 0.267);
-      tl.set("#s6-hero", { opacity: 1 }, 0.333); tl.set("#s6-hero-s", { x: -2280 }, 0.333);
-      tl.set("#s6-hero", { opacity: 1 }, 0.400); tl.set("#s6-hero-s", { x: -2660 }, 0.400);
-      tl.set("#s6-hero", { opacity: 1 }, 0.467); tl.set("#s6-hero-s", { x: -3040 }, 0.467);
-      tl.set("#s6-hero", { opacity: 1 }, 0.533); tl.set("#s6-hero-s", { x: -380 }, 0.533);
-      tl.set("#s6-hero", { opacity: 1 }, 0.600); tl.set("#s6-hero-s", { x: -760 }, 0.600);
-      tl.set("#s6-hero", { opacity: 1 }, 0.667); tl.set("#s6-hero-s", { x: -1140 }, 0.667);
-      tl.set("#s6-hero", { opacity: 1 }, 0.733); tl.set("#s6-hero-s", { x: -1520 }, 0.733);
-      tl.set("#s6-hero", { opacity: 1 }, 0.800); tl.set("#s6-hero-s", { x: -1900 }, 0.800);
-      tl.set("#s6-hero", { opacity: 1 }, 0.867); tl.set("#s6-hero-s", { x: -2280 }, 0.867);
-      tl.set("#s6-hero", { opacity: 1 }, 0.933); tl.set("#s6-hero-s", { x: -2660 }, 0.933);
-      tl.set("#s6-hero", { opacity: 1 }, 1.000); tl.set("#s6-hero-s", { x: -3040 }, 1.000);
-      tl.set("#s6-hero", { opacity: 1 }, 1.067); tl.set("#s6-hero-s", { x: -380 }, 1.067);
-      tl.set("#s6-hero", { opacity: 1 }, 1.133); tl.set("#s6-hero-s", { x: -760 }, 1.133);
-      tl.set("#s6-hero", { opacity: 1 }, 1.200); tl.set("#s6-hero-s", { x: -1140 }, 1.200);
-      tl.set("#s6-hero", { opacity: 1 }, 1.267); tl.set("#s6-hero-s", { x: -1520 }, 1.267);
-      tl.set("#s6-hero", { opacity: 1 }, 1.333); tl.set("#s6-hero-s", { x: -1900 }, 1.333);
-      tl.set("#s6-hero", { opacity: 1 }, 1.400); tl.set("#s6-hero-s", { x: -2280 }, 1.400);
-      tl.set("#s6-hero", { opacity: 1 }, 1.467); tl.set("#s6-hero-s", { x: -2660 }, 1.467);
-      tl.set("#s6-hero", { opacity: 1 }, 1.533); tl.set("#s6-hero-s", { x: -3040 }, 1.533);
-      tl.set("#s6-hero", { opacity: 1 }, 1.600); tl.set("#s6-hero-s", { x: -380 }, 1.600);
-      tl.set("#s6-hero", { opacity: 1 }, 1.667); tl.set("#s6-hero-s", { x: -760 }, 1.667);
-      tl.set("#s6-hero", { opacity: 1 }, 1.733); tl.set("#s6-hero-s", { x: -1140 }, 1.733);
-      tl.set("#s6-hero", { opacity: 1 }, 1.800); tl.set("#s6-hero-s", { x: -1520 }, 1.800);
-      tl.set("#s6-hero", { opacity: 1 }, 1.867); tl.set("#s6-hero-s", { x: -1900 }, 1.867);
-      tl.set("#s6-hero", { opacity: 1 }, 1.933); tl.set("#s6-hero-s", { x: -2280 }, 1.933);
-      tl.set("#s6-hero", { opacity: 1 }, 2.000); tl.set("#s6-hero-s", { x: -2660 }, 2.000);
-      tl.set("#s6-hero", { opacity: 1 }, 2.067); tl.set("#s6-hero-s", { x: -3040 }, 2.067);
-      tl.set("#s6-hero", { opacity: 1 }, 2.133); tl.set("#s6-hero-s", { x: -380 }, 2.133);
-      tl.set("#s6-hero", { opacity: 1 }, 2.200); tl.set("#s6-hero-s", { x: -760 }, 2.200);
-      tl.set("#s6-hero", { opacity: 1 }, 2.267); tl.set("#s6-hero-s", { x: -1140 }, 2.267);
-      tl.set("#s6-hero", { opacity: 1 }, 2.333); tl.set("#s6-hero-s", { x: -1520 }, 2.333);
-      tl.set("#s6-hero", { opacity: 1 }, 2.400); tl.set("#s6-hero-s", { x: -1900 }, 2.400);
-      tl.set("#s6-hero", { opacity: 1 }, 2.467); tl.set("#s6-hero-s", { x: -2280 }, 2.467);
-      tl.set("#s6-hero", { opacity: 1 }, 2.533); tl.set("#s6-hero-s", { x: -2660 }, 2.533);
-      tl.set("#s6-hero", { opacity: 1 }, 2.600); tl.set("#s6-hero-s", { x: -3040 }, 2.600);
-      tl.set("#s6-hero", { opacity: 1 }, 2.667); tl.set("#s6-hero-s", { x: -380 }, 2.667);
-      tl.set("#s6-hero", { opacity: 1 }, 2.733); tl.set("#s6-hero-s", { x: -760 }, 2.733);
-      tl.set("#s6-hero", { opacity: 1 }, 2.800); tl.set("#s6-hero-s", { x: -1140 }, 2.800);
-      tl.set("#s6-hero", { opacity: 1 }, 2.867); tl.set("#s6-hero-s", { x: -1520 }, 2.867);
-      tl.set("#s6-hero", { opacity: 1 }, 2.933); tl.set("#s6-hero-s", { x: -1900 }, 2.933);
-      tl.set("#s6-hero", { opacity: 1 }, 3.000); tl.set("#s6-hero-s", { x: -2280 }, 3.000);
-      tl.set("#s6-hero", { opacity: 1 }, 3.067); tl.set("#s6-hero-s", { x: -2660 }, 3.067);
-      tl.set("#s6-hero", { opacity: 1 }, 3.133); tl.set("#s6-hero-s", { x: -3040 }, 3.133);
-      tl.set("#s6-hero", { opacity: 1 }, 3.200); tl.set("#s6-hero-s", { x: -380 }, 3.200);
-      tl.set("#s6-hero", { opacity: 1 }, 3.267); tl.set("#s6-hero-s", { x: -760 }, 3.267);
-      tl.set("#s6-hero", { opacity: 1 }, 3.333); tl.set("#s6-hero-s", { x: -1140 }, 3.333);
-      tl.set("#s6-hero", { opacity: 1 }, 3.400); tl.set("#s6-hero-s", { x: -1520 }, 3.400);
-      tl.set("#s6-hero", { opacity: 1 }, 3.467); tl.set("#s6-hero-s", { x: -1900 }, 3.467);
-      tl.set("#s6-shake", { x: 3.5, y: -4.8 }, 0.000);
-      tl.set("#s6-shake", { x: 3.8, y: 0.8 }, 0.033);
-      tl.set("#s6-shake", { x: 4.8, y: 4.4 }, 0.067);
-      tl.set("#s6-shake", { x: 0.6, y: 3.6 }, 0.100);
-      tl.set("#s6-shake", { x: 4.9, y: 1.0 }, 0.133);
-      tl.set("#s6-shake", { x: 4.5, y: 5.0 }, 0.167);
-      tl.set("#s6-shake", { x: -2.1, y: -3.8 }, 0.200);
-      tl.set("#s6-shake", { x: 3.8, y: 3.5 }, 0.233);
-      tl.set("#s6-shake", { x: 2.9, y: -2.3 }, 0.267);
-      tl.set("#s6-shake", { x: -4.3, y: 1.2 }, 0.300);
-      tl.set("#s6-shake", { x: 1.6, y: -2.8 }, 0.333);
-      tl.set("#s6-shake", { x: -2.0, y: -3.7 }, 0.367);
-      tl.set("#s6-shake", { x: -2.4, y: -4.0 }, 0.400);
-      tl.set("#s6-shake", { x: -3.8, y: -2.7 }, 0.433);
-      tl.set("#s6-shake", { x: 4.9, y: -1.1 }, 0.467);
-      tl.set("#s6-shake", { x: -2.6, y: -3.3 }, 0.500);
-      tl.set("#s6-shake", { x: -0.7, y: -4.0 }, 0.533);
-      tl.set("#s6-shake", { x: -4.8, y: -0.3 }, 0.567);
-      tl.set("#s6-shake", { x: -1.1, y: 1.6 }, 0.600);
-      tl.set("#s6-shake", { x: -4.6, y: -2.3 }, 0.633);
-      tl.set("#s6-shake", { x: -3.8, y: -2.7 }, 0.667);
-      tl.set("#s6-shake", { x: -2.2, y: -1.0 }, 0.700);
-      tl.set("#s6-shake", { x: -1.2, y: -4.6 }, 0.733);
-      tl.set("#s6-shake", { x: -3.7, y: -0.8 }, 0.767);
-      tl.set("#s6-shake", { x: -4.0, y: 4.2 }, 0.800);
-      tl.set("#s6-shake", { x: -1.1, y: -4.3 }, 0.833);
-      tl.set("#s6-shake", { x: 3.3, y: 3.7 }, 0.867);
-      tl.set("#s6-shake", { x: 0.1, y: -4.3 }, 0.900);
-      tl.set("#s6-shake", { x: 3.1, y: -0.2 }, 0.933);
-      tl.set("#s6-shake", { x: -4.2, y: -1.9 }, 0.967);
-      tl.set("#s6-shake", { x: 1.7, y: 3.7 }, 1.000);
-      tl.set("#s6-shake", { x: 0, y: 0 }, 1.000);
-      tl.set("#s6-shake", { x: -1.4, y: -4.7 }, 1.250);
-      tl.set("#s6-shake", { x: 0.1, y: -1.3 }, 1.283);
-      tl.set("#s6-shake", { x: 0.7, y: 4.3 }, 1.317);
-      tl.set("#s6-shake", { x: -1.6, y: -0.6 }, 1.350);
-      tl.set("#s6-shake", { x: 3.9, y: 2.5 }, 1.383);
-      tl.set("#s6-shake", { x: 4.0, y: -3.9 }, 1.417);
-      tl.set("#s6-shake", { x: -0.1, y: -0.9 }, 1.450);
-      tl.set("#s6-shake", { x: -2.1, y: -4.3 }, 1.483);
-      tl.set("#s6-shake", { x: 4.1, y: -1.5 }, 1.517);
-      tl.set("#s6-shake", { x: -4.3, y: -2.0 }, 1.550);
-      tl.set("#s6-shake", { x: 2.4, y: -3.7 }, 1.583);
-      tl.set("#s6-shake", { x: 2.6, y: 1.5 }, 1.617);
-      tl.set("#s6-shake", { x: -4.2, y: -2.3 }, 1.650);
-      tl.set("#s6-shake", { x: 4.2, y: 4.8 }, 1.683);
-      tl.set("#s6-shake", { x: 4.8, y: -2.4 }, 1.717);
-      tl.set("#s6-shake", { x: 4.9, y: -3.4 }, 1.750);
-      tl.set("#s6-shake", { x: -1.9, y: 2.5 }, 1.783);
-      tl.set("#s6-shake", { x: -3.3, y: 1.6 }, 1.817);
-      tl.set("#s6-shake", { x: -1.1, y: -4.8 }, 1.850);
-      tl.set("#s6-shake", { x: -1.3, y: -0.1 }, 1.883);
-      tl.set("#s6-shake", { x: 0, y: 0 }, 1.900);
-      tl.set("#s6-shake", { x: 1.0, y: -4.0 }, 2.150);
-      tl.set("#s6-shake", { x: 1.7, y: -2.3 }, 2.183);
-      tl.set("#s6-shake", { x: -0.9, y: 4.1 }, 2.217);
-      tl.set("#s6-shake", { x: 2.5, y: -3.0 }, 2.250);
-      tl.set("#s6-shake", { x: -0.1, y: 3.5 }, 2.283);
-      tl.set("#s6-shake", { x: -0.6, y: -1.9 }, 2.317);
-      tl.set("#s6-shake", { x: -2.8, y: -4.1 }, 2.350);
-      tl.set("#s6-shake", { x: 2.3, y: -1.6 }, 2.383);
-      tl.set("#s6-shake", { x: -3.4, y: -1.5 }, 2.417);
-      tl.set("#s6-shake", { x: 3.2, y: -3.9 }, 2.450);
-      tl.set("#s6-shake", { x: -1.4, y: 2.3 }, 2.483);
-      tl.set("#s6-shake", { x: -4.8, y: 0.1 }, 2.517);
-      tl.set("#s6-shake", { x: -4.4, y: -1.2 }, 2.550);
-      tl.set("#s6-shake", { x: 0.1, y: -3.3 }, 2.583);
-      tl.set("#s6-shake", { x: -2.5, y: -3.9 }, 2.617);
-      tl.set("#s6-shake", { x: 2.9, y: -2.3 }, 2.650);
-      tl.set("#s6-shake", { x: 0.7, y: -3.5 }, 2.683);
-      tl.set("#s6-shake", { x: -0.1, y: 4.7 }, 2.717);
-      tl.set("#s6-shake", { x: -0.2, y: -0.4 }, 2.750);
-      tl.set("#s6-shake", { x: 3.0, y: 4.3 }, 2.783);
-      tl.set("#s6-shake", { x: 0, y: 0 }, 2.800);
-      tl.set("#s6-shake", { x: 3.4, y: -3.3 }, 3.050);
-      tl.set("#s6-shake", { x: -0.2, y: 3.3 }, 3.083);
-      tl.set("#s6-shake", { x: 4.0, y: 3.9 }, 3.117);
-      tl.set("#s6-shake", { x: 3.0, y: 1.0 }, 3.150);
-      tl.set("#s6-shake", { x: 2.3, y: 4.6 }, 3.183);
-      tl.set("#s6-shake", { x: 4.8, y: -3.4 }, 3.217);
-      tl.set("#s6-shake", { x: 1.0, y: -0.9 }, 3.250);
-      tl.set("#s6-shake", { x: -3.3, y: 1.2 }, 3.283);
-      tl.set("#s6-shake", { x: -0.9, y: 4.9 }, 3.317);
-      tl.set("#s6-shake", { x: 0.7, y: -2.4 }, 3.350);
-      tl.set("#s6-shake", { x: 4.9, y: 1.8 }, 3.383);
-      tl.set("#s6-shake", { x: 4.4, y: -4.8 }, 3.417);
-      tl.set("#s6-shake", { x: -4.5, y: -0.1 }, 3.450);
-      tl.set("#s6-shake", { x: 2.5, y: -1.4 }, 3.483);
-      tl.set("#s6-shake", { x: 0, y: 0 }, 3.500);
-      tl.set("#s6-shake", { x: 15.2, y: 17.9 }, 1.000);
-      tl.set("#s6-shake", { x: -11.4, y: 5.2 }, 1.033);
-      tl.set("#s6-shake", { x: -8.9, y: 8.6 }, 1.067);
-      tl.set("#s6-shake", { x: -2.3, y: 12.2 }, 1.100);
-      tl.set("#s6-shake", { x: 10.5, y: 12.5 }, 1.133);
-      tl.set("#s6-shake", { x: -14.9, y: 9.8 }, 1.167);
-      tl.set("#s6-shake", { x: 11.0, y: 8.0 }, 1.200);
-      tl.set("#s6-shake", { x: -9.0, y: 0.7 }, 1.233);
-      tl.set("#s6-shake", { x: 0, y: 0 }, 1.250);
-      tl.set("#s6-shake", { x: -3.7, y: -16.8 }, 1.900);
-      tl.set("#s6-shake", { x: -5.8, y: -9.4 }, 1.933);
-      tl.set("#s6-shake", { x: 4.2, y: 0.6 }, 1.967);
-      tl.set("#s6-shake", { x: -4.8, y: 2.3 }, 2.000);
-      tl.set("#s6-shake", { x: 15.0, y: -8.7 }, 2.033);
-      tl.set("#s6-shake", { x: 9.5, y: -14.8 }, 2.067);
-      tl.set("#s6-shake", { x: 17.7, y: 17.9 }, 2.100);
-      tl.set("#s6-shake", { x: -8.5, y: 4.0 }, 2.133);
-      tl.set("#s6-shake", { x: 0, y: 0 }, 2.150);
-      tl.set("#s6-shake", { x: 0.8, y: -2.8 }, 2.800);
-      tl.set("#s6-shake", { x: 12.5, y: -11.2 }, 2.833);
-      tl.set("#s6-shake", { x: 17.3, y: 16.1 }, 2.867);
-      tl.set("#s6-shake", { x: -7.2, y: 15.7 }, 2.900);
-      tl.set("#s6-shake", { x: -16.5, y: 6.1 }, 2.933);
-      tl.set("#s6-shake", { x: 10.5, y: -3.5 }, 2.967);
-      tl.set("#s6-shake", { x: -11.5, y: 4.5 }, 3.000);
-      tl.set("#s6-shake", { x: -8.1, y: 7.3 }, 3.033);
-      tl.set("#s6-shake", { x: 0, y: 0 }, 3.050);
+      /*
+ * Rua 3D em pixel art para a abertura: prédios com as fachadas do jogo, fogo, multidão, drones e explosões.
+ * Renderiza em 480x270 e o canvas é ampliado sem suavizar. Tudo sai do tempo `t` e de uma semente fixa:
+ * o HyperFrames busca quadros fora de ordem, então render(t) não guarda estado entre quadros.
+ */
+function makeStreet3D(canvas, cfg) {
+  const LOW_W = 480, LOW_H = 270;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(1);
+  renderer.setSize(LOW_W, LOW_H, false);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(cfg.sky);
+  scene.fog = new THREE.FogExp2(cfg.fog, cfg.fogDensity);
+  const camera = new THREE.PerspectiveCamera(cfg.fov || 62, LOW_W / LOW_H, 0.1, 300);
+
+  // Semente: mulberry32, para prédios, multidão e tremores sempre iguais.
+  function rng(seed) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
+      let r = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const hash = (n) => rng(n * 9301 + 49297)();
+
+  const loader = new THREE.TextureLoader();
+  const pixel = (tex) => {
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    return tex;
+  };
+  const load = (url) => loader.loadAsync(url).then(pixel);
+  const urls = {
+    road: 'assets/sprites/road.png', walk: 'assets/sprites/sidewalk.png', runner: 'assets/sprites/runner-dark.png',
+    hero: 'assets/sprites/player-up.png', boom: 'assets/sprites/explosion.png', drone: 'assets/sprites/drone.png',
+    fire: 'assets/sprites/fire.png',
+  };
+  cfg.facades.forEach((f, i) => { urls['facade' + i] = f; });
+  cfg.signs.forEach((f, i) => { urls['sign' + i] = f; });
+
+  // Janelas acesas num prédio escuro, desenhadas com semente.
+  function windowsTexture(seed) {
+    const c = document.createElement('canvas');
+    c.width = 32; c.height = 64;
+    const g = c.getContext('2d');
+    const r = rng(seed);
+    g.fillStyle = '#06060a'; g.fillRect(0, 0, 32, 64);
+    for (let y = 4; y < 60; y += 7) for (let x = 3; x < 30; x += 6) {
+      const v = r();
+      g.fillStyle = v < 0.18 ? '#ffcf6a' : v < 0.26 ? '#5ce5f1' : v < 0.3 ? '#e90931' : '#0b0b12';
+      g.fillRect(x, y, 3, 4);
+    }
+    return pixel(new THREE.CanvasTexture(c));
+  }
+
+  const state = { ready: null, render: null };
+  state.ready = Promise.all(Object.entries(urls).map(([k, u]) => load(u).then((t) => [k, t]))).then((pairs) => {
+    const T = Object.fromEntries(pairs);
+    const L = cfg.length;
+
+    // Chão: asfalto no meio, calçadas dos lados.
+    T.road.wrapS = T.road.wrapT = THREE.RepeatWrapping;
+    T.road.repeat.set(2, L / 4);
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(8, L), new THREE.MeshLambertMaterial({ map: T.road }));
+    road.rotation.x = -Math.PI / 2; road.position.set(0, 0, -L / 2 + 10);
+    scene.add(road);
+    T.walk.wrapS = T.walk.wrapT = THREE.RepeatWrapping;
+    T.walk.repeat.set(3, L / 3);
+    for (const side of [-1, 1]) {
+      const walk = new THREE.Mesh(new THREE.PlaneGeometry(4, L), new THREE.MeshLambertMaterial({ map: T.walk }));
+      walk.rotation.x = -Math.PI / 2; walk.position.set(side * 6, 0.02, -L / 2 + 10);
+      scene.add(walk);
+    }
+
+    // Prédios dos dois lados: a face que olha para a rua leva uma fachada do jogo ou janelas acesas.
+    const r = rng(cfg.seed);
+    const dark = new THREE.MeshLambertMaterial({ color: 0x0d0d14 });
+    for (const side of [-1, 1]) {
+      let z = 6;
+      let k = 0;
+      while (z > -L) {
+        const depth = 9 + r() * 7;
+        const height = 7 + r() * 13;
+        const useFacade = r() < cfg.facadeChance;
+        const map = useFacade ? T['facade' + Math.floor(r() * cfg.facades.length)] : windowsTexture(cfg.seed + k * 13 + side);
+        // Janelas e letreiros brilham sozinhos; as fachadas do jogo só um pouco, para não sumirem no escuro.
+        const face = new THREE.MeshLambertMaterial({ map, emissiveMap: map, emissive: 0xffffff,
+          emissiveIntensity: useFacade ? 0.22 : 0.75 });
+        const mats = [dark, dark, dark, dark, dark, dark];
+        mats[side < 0 ? 0 : 1] = face;
+        const b = new THREE.Mesh(new THREE.BoxGeometry(6, height, depth), mats);
+        b.position.set(side * 11, height / 2, z - depth / 2);
+        scene.add(b);
+        // Letreiro neon saindo da parede, de vez em quando.
+        if (cfg.signs.length && r() < 0.35) {
+          const tex = T['sign' + Math.floor(r() * cfg.signs.length)];
+          const w = 3.2, h = w * tex.image.height / tex.image.width;
+          const sign = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
+            new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide, fog: true }));
+          sign.position.set(side * 8.1, 4.5 + r() * 2, z - depth / 2);
+          sign.rotation.y = Math.PI / 2;
+          scene.add(sign);
+        }
+        z -= depth + 0.4;
+        k++;
+      }
+    }
+
+    scene.add(new THREE.AmbientLight(cfg.ambient, cfg.ambientIntensity));
+    const moon = new THREE.DirectionalLight(0x6a86c8, 0.35);
+    moon.position.set(-4, 10, 4);
+    scene.add(moon);
+
+    // Sprites de tiras horizontais: cada um com a própria cópia da textura para escolher o quadro.
+    function stripSprite(tex, frames, scaleX, scaleY, glow) {
+      const t2 = tex.clone();
+      t2.needsUpdate = true;
+      t2.repeat.set(1 / frames, 1);
+      // O que emite luz (fogo, explosão) fica fora da neblina; o resto se perde nela com a distância.
+      const m = new THREE.SpriteMaterial({ map: t2, transparent: true, alphaTest: 0.5, fog: !glow });
+      const s = new THREE.Sprite(m);
+      s.scale.set(scaleX, scaleY, 1);
+      s.center.set(0.5, 0);
+      scene.add(s);
+      return { s, t2, frames };
+    }
+    const setFrame = (sp, f) => { sp.t2.offset.x = f / sp.frames; };
+
+    // Fogo com luz laranja tremendo.
+    const fires = cfg.fires.map((f, i) => {
+      const sp = stripSprite(T.fire, 3, f.size * 0.6, f.size, true);
+      sp.s.position.set(f.x, 0, f.z);
+      const light = new THREE.PointLight(0xff8a30, 0, 34, 1.3);
+      light.position.set(f.x, 2.5, f.z + 1);
+      scene.add(light);
+      return { sp, light, i };
+    });
+
+    // Multidão fugindo na mesma direção da câmera.
+    const crowd = [];
+    const rc = rng(cfg.seed + 7);
+    for (let i = 0; i < cfg.crowd; i++) {
+      const size = 1.7 + rc() * 0.5;
+      const sp = stripSprite(T.runner, 9, size, size);
+      // Uns na frente, uns rente à câmera pelos lados, que a câmera alcança e ultrapassa.
+      const near = i % 4 === 0;
+      crowd.push({ sp, x: near ? (i % 8 === 0 ? -1 : 1) * (2.2 + rc() * 1.4) : -3.6 + rc() * 7.2,
+        z0: near ? 2 - rc() * 6 : -4 - rc() * 34, speed: cfg.speed * (near ? 0.82 + rc() * 0.1 : 0.72 + rc() * 0.4),
+        phase: rc() * 8 });
+    }
+
+    const hero = cfg.hero ? stripSprite(T.hero, 9, 1.75, 1.75) : null;
+    const drones = cfg.drones.map((d) => ({ d, sp: stripSprite(T.drone, 1, 1.8, 1.8) }));
+    const booms = cfg.booms.map((b) => {
+      const sp = stripSprite(T.boom, 4, b.size, b.size, true);
+      const light = new THREE.PointLight(0xffb060, 0, 46, 1.2);
+      scene.add(light);
+      return { b, sp, light };
+    });
+    const tracerMat = new THREE.MeshBasicMaterial({ color: 0xe90931 });
+    const tracers = cfg.tracers.map((tr) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 1), tracerMat);
+      scene.add(m);
+      return { tr, m };
+    });
+
+    state.render = function (t) {
+      const camZ = 4 - cfg.speed * t;
+      const fi = Math.floor(t * 30);
+      const shakeBase = cfg.shake + booms.reduce((a, { b }) => a + (t >= b.t && t < b.t + 0.6 ? b.shake * (1 - (t - b.t) / 0.6) : 0), 0);
+      const sx = (hash(fi) - 0.5) * shakeBase, sy = (hash(fi + 999) - 0.5) * shakeBase;
+      const bob = Math.abs(Math.sin(t * 9.5)) * cfg.bob;
+      camera.position.set(cfg.camX + sx, cfg.camY + bob + sy, camZ);
+      camera.lookAt(cfg.camX * 0.4, cfg.lookY, camZ - 12);
+
+      fires.forEach(({ sp, light, i }) => {
+        setFrame(sp, (Math.floor(t * 12) + i) % 3);
+        light.intensity = 4 + hash(fi * 3 + i) * 2.5;
+      });
+      crowd.forEach((c, i) => {
+        c.sp.s.position.set(c.x + Math.sin(t * 3 + i) * 0.2, 0, c.z0 - c.speed * t);
+        setFrame(c.sp, 1 + (Math.floor(t * 14 + c.phase) % 8));
+      });
+      if (hero) {
+        hero.s.position.set(cfg.camX - 0.9, 0, camZ - 3.6);
+        setFrame(hero, 1 + (Math.floor(t * 15) % 8));
+      }
+      drones.forEach(({ d, sp }) => {
+        const p = Math.min(1, Math.max(0, (t - d.t0) / d.dur));
+        sp.s.visible = t >= d.t0;
+        sp.s.position.set(d.x0 + (d.x1 - d.x0) * p, d.y0 + (d.y1 - d.y0) * p * p, camZ - d.ahead * (1 - p) - 3);
+      });
+      booms.forEach(({ b, sp, light }) => {
+        const age = t - b.t;
+        const on = age >= 0 && age < 0.55;
+        sp.s.visible = on;
+        light.intensity = on ? 12 * (1 - age / 0.55) : 0;
+        if (on) {
+          setFrame(sp, Math.min(3, Math.floor(age / 0.09)));
+          const z = camZ - b.ahead;
+          sp.s.position.set(b.x, -0.3, z);
+          light.position.set(b.x, 2, z + 1);
+        }
+      });
+      tracers.forEach(({ tr, m }) => {
+        const on = t >= tr.t && t < tr.t + 0.08;
+        m.visible = on;
+        if (on) {
+          const a = new THREE.Vector3(tr.x0, tr.y0, camZ - tr.z0);
+          const bpt = new THREE.Vector3(tr.x1, tr.y1, camZ - tr.z1);
+          m.position.copy(a).add(bpt).multiplyScalar(0.5);
+          m.scale.z = a.distanceTo(bpt);
+          m.lookAt(bpt);
+        }
+      });
+      renderer.render(scene, camera);
+    };
+  });
+  return state;
+}
+
+      const street = makeStreet3D(document.getElementById("s6-c"), {"seed": 77, "length": 140, "speed": 8.0, "camX": 0.5, "camY": 1.6, "lookY": 2.8, "bob": 0.14, "shake": 0.06, "sky": 329743, "fog": 660516, "fogDensity": 0.026, "ambient": 5267576, "ambientIntensity": 0.5, "facadeChance": 0.7, "facades": ["assets/art/mural-cruz-e-sousa.png", "assets/art/mural-franklin-cascaes.png", "assets/art/centro-cultural-marinha-facade.png"], "signs": ["assets/art/piranhas-bar-sign.png"], "fires": [{"x": 2.8, "z": -60, "size": 6}], "crowd": 6, "hero": true, "drones": [{"t0": 0.0, "dur": 2.0, "x0": -6, "x1": -1.8, "y0": 9, "y1": 3.4, "ahead": 30}, {"t0": 0.6, "dur": 2.0, "x0": 7, "x1": 2.2, "y0": 10, "y1": 3.8, "ahead": 32}, {"t0": 1.4, "dur": 1.8, "x0": 0, "x1": 0.4, "y0": 11, "y1": 4.2, "ahead": 28}], "tracers": [{"t": 0.7, "x0": -3.5, "y0": 6, "z0": 20, "x1": 0.3, "y1": 0.2, "z1": 6}, {"t": 1.3, "x0": 4.0, "y0": 6.5, "z0": 22, "x1": -0.4, "y1": 0.2, "z1": 7}, {"t": 2.1, "x0": 0.2, "y0": 7, "z0": 16, "x1": 0.9, "y1": 0.2, "z1": 6}], "booms": [{"t": 1.0, "x": -3.2, "ahead": 9, "size": 7, "shake": 0.5}, {"t": 1.9, "x": 3.4, "ahead": 10, "size": 7, "shake": 0.5}, {"t": 2.8, "x": -1.0, "ahead": 13, "size": 9, "shake": 0.6}]});
+      window.__hf = window.__hf || {};
+      window.__hf.buildReady = window.__hf.buildReady || {};
+      window.__hf.buildReady["s6"] = street.ready;
+      const draw = (filmTime) => street.render(Math.min(3.5, Math.max(0, filmTime - 15.8)));
+      window.addEventListener("hf-seek", (e) => {
+        const time = e && e.detail && typeof e.detail.time === "number" ? e.detail.time : 0;
+        if (street.render) draw(time);
+        else if (e && e.detail && e.detail.waitUntil) e.detail.waitUntil(street.ready.then(() => draw(time)));
+      });
+      street.ready.then(() => draw(15.8));
       window.__timelines["s6"] = tl;
   </script>
 </template>

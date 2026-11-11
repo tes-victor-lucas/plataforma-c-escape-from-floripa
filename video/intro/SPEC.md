@@ -1,4 +1,4 @@
-# SPEC: Último ônibus (roteiro C, versão cinematográfica)
+# SPEC: Último ônibus (roteiro C, versão cinematográfica com 3D)
 
 GOAL:    o jogador sente a perseguição antes de jogar: Florianópolis, 2067; a IA Floria controla as rotas; quem sai
          delas vira ameaça; o último 763.2 via Kobrasol é a saída.
@@ -14,13 +14,15 @@ MOTION:  câmera na mão = tremor de semente fixa (5 px contínuo, 14-26 px nos 
 SHOTS:   0-4      por cima do ombro: personagem de costas diante da ponte; FLORIANÓPOLIS, 2067
          4-7      contra-plongée do Centro Cultural à noite, drone com holofote; FLORIA CONTROLA CADA ROTA DO CENTRO
          7-8,8    cartela preta: QUEM SAI DA ROTA / VIRA AMEAÇA (pancada)
-         8,8-12,8 Mode 7 na Sala I: multidão fugindo, fogo, explosão à frente
+         8,8-12,8 rua em chamas em 3D (lib/street3d.js, Three.js a 480x270 ampliado): fachadas do jogo, letreiros,
+                  26 pessoas fugindo em volta da câmera, chamas e explosão à frente
          12,8-15,8 primeira pessoa no Terminal Velho: dois guardas, cinco tiros, um acerto em você, os dois caem
-         15,8-19,3 Mode 7 na Praça XV: três drones mergulham atirando, explosões ao lado
+         15,8-19,3 rua dos murais em 3D: três drones mergulham atirando, explosões ao lado
          19,3-21,3 escondido no bar, o holofote varre e acha (flash vermelho, pancada)
          21,3-23,8 montagem de 0,42 s: drone, corrida de lado, guarda investindo, explosão, 04:37, corrida
          23,8-26,8 dentro do ônibus, devagar: O ÚLTIMO 763.2 VIA KOBRASOL; corte para preto
-         26,8-32,3 título na ponte, PEGUE O 763.2 ANTES DA PARTIDA, contagem 04:34 a 04:28
+         26,8-32,3 título na ponte, CHEGUE AO 763.2 NA PLATAFORMA C; a contagem da partida chega a 00:00 em 31,8 s
+                  e segura meio segundo: é o corte para o jogo (fluxo vídeo -> jogo)
 BANNED:  vazio escuro com coisas pequenas flutuando; glow e partículas decorativas; tudo surgindo com fade; texto que
          se move enquanto é lido; caixas de texto (agora são cartelas e legendas com sombra); logo num canto.
 QA:      1,5 / 5 / 7,9 / 10,5 / 13,8 / 14,5 / 17 / 20 / 20,8 / 21,5 / 23 / 25 / 29 s.

@@ -127,15 +127,26 @@ def art_shot(sc, name, src, push_from, push_to, origin):
           f'{{ scale: {push_to}, duration: {sc.duration}, ease: "none" }}, 0);')
 
 
-def mode7(sc, room, run, scale=5, tilt=66):
-    """O mapa da sala como chão em perspectiva; o chão desliza para a câmera (correndo pelo mapa)."""
-    w, h = 672, 576
-    pw, ph = w * scale, h * scale
-    sc.add(f'<div id="{sc.sid}-stage" class="stage"><div id="{sc.sid}-plane" class="plane" '
-           f'style="left:{(W - pw) / 2}px;top:{H + 160 - ph}px;width:{pw}px;height:{ph}px;">'
-           f'<img id="{sc.sid}-floor" src="assets/rooms/{room}.png" alt=""></div></div>')
-    sc.tl(f'tl.set("#{sc.sid}-plane", {{ rotationX: {tilt} }}, 0);')
-    sc.tl(f'tl.fromTo("#{sc.sid}-floor", {{ y: 0 }}, {{ y: {run}, duration: {sc.duration}, ease: "none" }}, 0);')
+STREET_JS = open(os.path.join(HERE, 'lib', 'street3d.js')).read()
+
+
+def street3d(sc, film_start, cfg):
+    """Canvas 3D da cena: desenha pelo tempo do filme (hf-seek) menos o início da cena."""
+    import json
+    sc.add(f'<canvas id="{sc.sid}-c" width="480" height="270" style="position:absolute;left:0;top:0;width:1920px;'
+           f'height:1080px;image-rendering:pixelated;z-index:1;"></canvas>')
+    sc.tl(STREET_JS)
+    sc.tl(f'''const street = makeStreet3D(document.getElementById("{sc.sid}-c"), {json.dumps(cfg)});
+      window.__hf = window.__hf || {{}};
+      window.__hf.buildReady = window.__hf.buildReady || {{}};
+      window.__hf.buildReady["{sc.sid}"] = street.ready;
+      const draw = (filmTime) => street.render(Math.min({sc.duration}, Math.max(0, filmTime - {film_start})));
+      window.addEventListener("hf-seek", (e) => {{
+        const time = e && e.detail && typeof e.detail.time === "number" ? e.detail.time : 0;
+        if (street.render) draw(time);
+        else if (e && e.detail && e.detail.waitUntil) e.detail.waitUntil(street.ready.then(() => draw(time)));
+      }});
+      street.ready.then(() => draw({film_start}));''')
 
 
 def tracer(sc, name, x0, y0, x1, y1, t, color='#ffd27a'):
@@ -153,14 +164,20 @@ def burst(sc, name, cx, cy, scale, t, z=8):
     sc.frames(name, 32, scale, [(0, None), (t, 0), (t + 0.08, 1), (t + 0.16, 2), (t + 0.26, 3), (t + 0.55, None)])
 
 
+TOTAL = 32.3
+GAME_START = TOTAL - 0.5  # 00:00 fica meio segundo na tela antes do corte para o jogo
+
+
 def countdown(sc, start_film, duration, style, local_start=0.0):
-    """Uma etiqueta por segundo, 300 s menos o tempo do filme; local_start é onde ela começa dentro da cena."""
+    """Segundos que faltam para a partida (o jogo) começar; local_start é onde ela começa dentro da cena."""
     t = 0.0
     while t < duration - 1e-6:
         film = start_film + t
-        left = 300 - int(film)
-        nxt = min(duration, (int(film) + 1) - start_film)
-        sc.add(f'<div id="{sc.sid}-cd-{int(film)}" class="clip cap red" data-start="{local_start + t:.3f}" '
+        left = max(0, math.ceil(GAME_START - film - 1e-9))
+        # Próxima troca: quando o restante cruza o inteiro de baixo (ou o fim da cena).
+        boundary = GAME_START - (left - 1) if left > 0 else start_film + duration
+        nxt = min(duration, boundary - start_film)
+        sc.add(f'<div id="{sc.sid}-cd-{round(film * 100)}" class="clip cap red" data-start="{local_start + t:.3f}" '
                f'data-duration="{nxt - t:.3f}" style="{style}">{left // 60:02d}:{left % 60:02d}</div>')
         t = nxt
 
@@ -174,6 +191,8 @@ s.add('<div id="s1-ledge" class="full" style="top:930px;height:150px;background:
 s.sprite('hero', SPR + 'player-back-dark.png', 38, 15, 170, 470, z=5)
 s.tl('tl.fromTo("#s1-hero", { scaleY: 1 }, { scaleY: 1.015, duration: 1.3, ease: "sine.inOut", yoyo: true, repeat: 2 }, 0);')
 s.caption('l0', 0.6, 3.3, 'FLORIANÓPOLIS, 2067')
+s.add('<div id="s1-cdl" class="cap" style="left:0;width:1920px;text-align:center;top:70px;font-size:28px;">PARTIDA EM</div>')
+countdown(s, 0.0, 4.0, 'left:0;width:1920px;text-align:center;top:108px;font-size:72px;')
 SCENES.append((s, 0.0))
 
 # 2. Contra-plongée: o Centro Cultural visto de baixo, o drone passa com o holofote.
@@ -202,24 +221,15 @@ SCENES.append((s, 7.0))
 
 # 4. Mode 7 na Sala I: correndo no meio da multidão que foge, rua em chamas, explosão à frente.
 s = Scene('s4', 4.0)
-s.add('<div id="s4-shake" class="full">')
-mode7(s, 'room1', 1500)
-s.add('<div id="s4-glow" class="full" style="background:#ff6a1a;opacity:0.10;mix-blend-mode:screen;z-index:2;"></div>')
-for i, (x, y, sc_) in enumerate([(690, 400, 9), (1180, 420, 8), (930, 360, 6)]):
-    s.sprite(f'fire{i}', SPR + 'explosion.png', 32, sc_, x, y, z=3)
-    s.frames(f'fire{i}', 32, sc_, [(round(k * 0.1, 2), 1 + (k + i) % 2) for k in range(40)])
-for i, (x, y, sc_, rise, delay) in enumerate([(430, 640, 8, -330, 0), (1260, 600, 7, -300, 0.2),
-                                                 (1520, 700, 9, -360, 0.1), (640, 520, 5, -220, 0.3)]):
-    s.sprite(f'run{i}', SPR + 'runner-dark.png', 38, sc_, x, y, z=4)
-    s.cycle(f'run{i}', 38, sc_, 0, 4.0, 1, 8, 14 + i)
-    s.tl(f'tl.fromTo("#s4-run{i}", {{ y: 0, scale: 1 }}, {{ y: {rise}, scale: 0.55, duration: {4 - delay}, ease: "power1.in" }}, {delay});')
-s.sprite('hero', SPR + 'player-up.png', 38, 10, 770, 700, z=6)
-s.cycle('hero', 38, 10, 0, 4.0, 1, 8, 15)
-burst(s, 'boom', 960, 430, 16, 2.2, z=5)
-s.add('</div>')
-s.shake('#s4-shake', 0, 2.2, 5, 11)
-s.shake('#s4-shake', 2.2, 2.8, 22, 17)
-s.shake('#s4-shake', 2.8, 4.0, 5, 19)
+street3d(s, 8.8, {
+    'seed': 41, 'length': 140, 'speed': 7.0, 'camX': 0.6, 'camY': 2.0, 'lookY': 1.5, 'bob': 0.12, 'shake': 0.05,
+    'sky': 0x1a0a06, 'fog': 0x3a1a0a, 'fogDensity': 0.024, 'ambient': 0x6a4a50, 'ambientIntensity': 0.5,
+    'facadeChance': 0.55, 'facades': [ART + 'piranhas-bar-facade.png', ART + 'centro-cultural-marinha-facade.png'],
+    'signs': [ART + 'piranhas-bar-sign.png', ART + 'tchay-letreiro.png'],
+    'fires': [{'x': -2.6, 'z': -38, 'size': 5}, {'x': 3.0, 'z': -52, 'size': 7}, {'x': 0.2, 'z': -70, 'size': 9}],
+    'crowd': 26, 'hero': True, 'drones': [], 'tracers': [],
+    'booms': [{'t': 2.2, 'x': -0.6, 'ahead': 20, 'size': 10, 'shake': 0.7}],
+})
 SCENES.append((s, 8.8))
 
 # 5. Primeira pessoa no Terminal Velho: guardas avançam, tiros, um acerto, os dois caem.
@@ -248,21 +258,23 @@ SCENES.append((s, 12.8))
 
 # 6. Mode 7 na Praça XV: drones mergulham atirando, explosões ao lado.
 s = Scene('s6', 3.5)
-s.add('<div id="s6-shake" class="full">')
-mode7(s, 'room3', 1700)
-for i, (x0, x1, t0, scale) in enumerate([(300, 640, 0.0, 4), (1500, 1200, 0.6, 5), (900, 860, 1.4, 6)]):
-    s.sprite(f'd{i}', SPR + 'drone.png', 32, scale, x0, 120, z=5, origin='50% 50%')
-    s.tl(f'tl.fromTo("#s6-d{i}", {{ x: 0, y: 0, scale: 1 }}, {{ x: {x1 - x0}, y: 260, scale: 2.2, duration: 2.0, ease: "power2.in" }}, {t0});')
-    tracer(s, f'tr{i}', x1 + 60, 480, 940, 900, t0 + 0.7, '#e90931')
-for i, (x, y, t) in enumerate([(560, 700, 1.0), (1380, 680, 1.9), (760, 620, 2.8)]):
-    burst(s, f'b{i}', x, y, 12, t, z=4)
-s.sprite('hero', SPR + 'player-up.png', 38, 10, 770, 700, z=6)
-s.cycle('hero', 38, 10, 0, 3.5, 1, 8, 15)
-s.add('</div>')
-for a, b in ((0, 1.0), (1.25, 1.9), (2.15, 2.8), (3.05, 3.5)):
-    s.shake('#s6-shake', a, b, 5, int(a * 100) + 23)
-for t in (1.0, 1.9, 2.8):
-    s.shake('#s6-shake', t, t + 0.25, 18, int(t * 1000))
+street3d(s, 15.8, {
+    'seed': 77, 'length': 140, 'speed': 8.0, 'camX': 0.5, 'camY': 1.6, 'lookY': 2.8, 'bob': 0.14, 'shake': 0.06,
+    'sky': 0x05080f, 'fog': 0x0a1424, 'fogDensity': 0.026, 'ambient': 0x506078, 'ambientIntensity': 0.5,
+    'facadeChance': 0.7, 'facades': [ART + 'mural-cruz-e-sousa.png', ART + 'mural-franklin-cascaes.png',
+                                     ART + 'centro-cultural-marinha-facade.png'],
+    'signs': [ART + 'piranhas-bar-sign.png'],
+    'fires': [{'x': 2.8, 'z': -60, 'size': 6}], 'crowd': 6, 'hero': True,
+    'drones': [{'t0': 0.0, 'dur': 2.0, 'x0': -6, 'x1': -1.8, 'y0': 9, 'y1': 3.4, 'ahead': 30},
+               {'t0': 0.6, 'dur': 2.0, 'x0': 7, 'x1': 2.2, 'y0': 10, 'y1': 3.8, 'ahead': 32},
+               {'t0': 1.4, 'dur': 1.8, 'x0': 0, 'x1': 0.4, 'y0': 11, 'y1': 4.2, 'ahead': 28}],
+    'tracers': [{'t': 0.7, 'x0': -3.5, 'y0': 6, 'z0': 20, 'x1': 0.3, 'y1': 0.2, 'z1': 6},
+                {'t': 1.3, 'x0': 4.0, 'y0': 6.5, 'z0': 22, 'x1': -0.4, 'y1': 0.2, 'z1': 7},
+                {'t': 2.1, 'x0': 0.2, 'y0': 7, 'z0': 16, 'x1': 0.9, 'y1': 0.2, 'z1': 6}],
+    'booms': [{'t': 1.0, 'x': -3.2, 'ahead': 9, 'size': 7, 'shake': 0.5},
+              {'t': 1.9, 'x': 3.4, 'ahead': 10, 'size': 7, 'shake': 0.5},
+              {'t': 2.8, 'x': -1.0, 'ahead': 13, 'size': 9, 'shake': 0.6}],
+})
 SCENES.append((s, 15.8))
 
 # 7. Escondido no bar: o holofote do drone varre a sala e acha o personagem.
@@ -318,12 +330,10 @@ s.add(f'<img id="s10-title" src="{ART}title.png" alt="Plataforma C: Escape from 
       f'style="position:absolute;left:{(W - 1009 * 1.5) / 2}px;top:300px;width:{1009 * 1.5}px;height:{154 * 1.5}px;'
       'image-rendering:pixelated;z-index:4;">')
 s.tl('tl.fromTo("#s10-title", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.5, ease: "steps(12)" }, 0.3);')
-s.caption('l0', 1.4, 4.1, 'PEGUE O 763.2 ANTES DA PARTIDA', style='left:0;width:1920px;text-align:center;top:600px;')
+s.caption('l0', 1.4, 4.1, 'CHEGUE AO 763.2 NA PLATAFORMA C', style='left:0;width:1920px;text-align:center;top:600px;')
 s.add('<div id="s10-cdl" class="cap" style="left:0;width:1920px;text-align:center;top:90px;font-size:34px;">PARTIDA EM</div>')
 countdown(s, 26.8, 5.5, 'left:0;width:1920px;text-align:center;top:135px;font-size:96px;')
 SCENES.append((s, 26.8))
-
-TOTAL = 32.3
 
 os.makedirs(os.path.join(HERE, 'compositions'), exist_ok=True)
 for name in os.listdir(os.path.join(HERE, 'compositions')):
@@ -362,6 +372,7 @@ index = f"""<!doctype html>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=1920, height=1080" />
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
     <style>
       * {{ margin: 0; padding: 0; box-sizing: border-box; }}
       html, body {{ margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #04050a; }}
