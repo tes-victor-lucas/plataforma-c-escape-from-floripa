@@ -76,17 +76,16 @@ export class ArcadeMinigame extends Scene {
         const buttons: [string, number, number, () => void][] = [
             ['<', 110, 380, () => this.act(() => this.puzzle.move(-1))],
             ['>', 210, 380, () => this.act(() => this.puzzle.move(1))],
-            ['GIRAR', 160, 300, () => this.act(() => this.puzzle.rotate())],
+            ['W / ↑ / A', 160, 300, () => this.act(() => this.puzzle.rotate())],
             ['DESCER', GAME_WIDTH - 210, 380, () => this.act(() => this.puzzle.step())],
             ['SOLTAR', GAME_WIDTH - 110, 380, () => this.act(() => this.puzzle.drop())],
             ['SAIR', GAME_WIDTH - 160, 460, () => this.finish(false)]
         ];
         for (const [label, x, y, action] of buttons) {
-            const button = this.add.rectangle(x, y, label.length > 1 ? 88 : 64, 52, 0x17151f)
-                .setStrokeStyle(2, 0x5ce5f1)
-                .setInteractive({ useHandCursor: true });
+            const button = this.add.rectangle(x, y, label.length > 1 ? 88 : 64, 52, 0x17151f).setStrokeStyle(2, 0x5ce5f1);
+            const text = this.text(x, y, label, label.length > 1 ? 16 : 30, '#ffffff');
+            button.setSize(Math.max(button.width, text.width + 24), 52).setInteractive({ useHandCursor: true });
             button.on('pointerdown', action);
-            this.text(x, y, label, label.length > 1 ? 16 : 30, '#ffffff');
         }
 
         this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
