@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #01141a; }
+      #root { position: relative; width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="30" data-width="1920" data-height="1080">
+      <div id="s1" data-composition-id="s1" data-composition-src="compositions/s1.html" data-start="0" data-duration="7.5" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="s2" data-composition-id="s2" data-composition-src="compositions/s2.html" data-start="7.5" data-duration="4" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="s3" data-composition-id="s3" data-composition-src="compositions/s3.html" data-start="11.5" data-duration="4" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="s4" data-composition-id="s4" data-composition-src="compositions/s4.html" data-start="15.5" data-duration="3.5" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="s5" data-composition-id="s5" data-composition-src="compositions/s5.html" data-start="19" data-duration="5.5" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div id="s6" data-composition-id="s6" data-composition-src="compositions/s6.html" data-start="24.5" data-duration="5.5" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <audio id="music" class="clip" src="assets/audio/mainmenu-trecho.mp3" data-start="0" data-duration="30"
+        data-track-index="2" data-volume="0.8" data-fade-in="0.8" data-fade-out="1.5"></audio>
+      <audio id="sting" class="clip" src="assets/audio/horror-tension.wav" data-start="11.85" data-duration="1.6" data-track-index="3" data-volume="1"></audio>
+      <audio id="shot1" class="clip" src="assets/audio/enemy-shot.wav" data-start="15.9" data-duration="1.97" data-track-index="4" data-volume="0.8"></audio>
+      <audio id="shot2" class="clip" src="assets/audio/enemy-shot.wav" data-start="16.8" data-duration="1.97" data-track-index="5" data-volume="0.7"></audio>
+      <audio id="boom" class="clip" src="assets/audio/explosion_small.wav" data-start="17.9" data-duration="0.7" data-track-index="4" data-volume="1"></audio>
+      <audio id="step0" class="clip" src="assets/audio/player-footstep-concrete.wav" data-start="21.8" data-duration="0.29" data-track-index="6" data-volume="0.9"></audio>
+      <audio id="step1" class="clip" src="assets/audio/player-footstep-concrete.wav" data-start="22.1" data-duration="0.29" data-track-index="7" data-volume="0.9"></audio>
+      <audio id="step2" class="clip" src="assets/audio/player-footstep-concrete.wav" data-start="22.4" data-duration="0.29" data-track-index="6" data-volume="0.9"></audio>
+      <audio id="step3" class="clip" src="assets/audio/player-footstep-concrete.wav" data-start="22.7" data-duration="0.29" data-track-index="7" data-volume="0.9"></audio>
+      <audio id="step4" class="clip" src="assets/audio/player-footstep-concrete.wav" data-start="23.0" data-duration="0.29" data-track-index="6" data-volume="0.9"></audio>
+      <audio id="step5" class="clip" src="assets/audio/player-footstep-concrete.wav" data-start="23.3" data-duration="0.29" data-track-index="7" data-volume="0.9"></audio>
+      <audio id="step6" class="clip" src="assets/audio/player-footstep-concrete.wav" data-start="23.6" data-duration="0.29" data-track-index="6" data-volume="0.9"></audio>
+      <audio id="step7" class="clip" src="assets/audio/player-footstep-concrete.wav" data-start="23.9" data-duration="0.29" data-track-index="7" data-volume="0.9"></audio>
+      <audio id="step8" class="clip" src="assets/audio/player-footstep-concrete.wav" data-start="24.2" data-duration="0.29" data-track-index="6" data-volume="0.9"></audio>
+    </div>
+    <script>
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>

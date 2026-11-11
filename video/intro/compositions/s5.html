@@ -1,0 +1,61 @@
+<template>
+  <style>
+      #root { position: absolute; inset: 0; overflow: hidden; background: #01141a; font-family: 'PixelGamer', monospace; }
+      @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/PixelGamer-Regular.otf'); }
+      /* Como no jogo (src/main.ts): na PixelGamer, números e pontuação são desenhos; vêm da Pixeboy. */
+      @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/Pixeboy.ttf');
+        unicode-range: U+24-26, U+2C, U+2E, U+30-3A; size-adjust: 140%; }
+      .cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+      .cam img { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+      .line { position: absolute; left: 200px; bottom: 140px; z-index: 5; }
+      .line span.box { display: inline-block; background: rgba(0, 0, 0, 0.88); color: #ffffff; font-size: 56px;
+        padding: 22px 30px 16px; letter-spacing: 2px; white-space: nowrap; }
+      .red { color: #e90931; }
+      .dissolve { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
+      .blk { position: absolute; width: 120px; height: 120px; background: #01141a; opacity: 0; }
+      .cd { position: absolute; left: 200px; top: 120px; z-index: 6; background: rgba(0, 0, 0, 0.88);
+        padding: 20px 30px 12px; color: #ffffff; }
+      .cd small { display: block; font-size: 34px; letter-spacing: 3px; }
+      .cd-digits { position: relative; display: block; font-size: 120px; color: #e90931; line-height: 1; }
+  </style>
+  <div id="root" data-composition-id="s5" data-width="1920" data-height="1080">
+      <div id="s5-cam" class="cam" style="width:672px;height:576px;"><img id="s5-img" src="assets/rooms/room1.png" alt=""><div id="s5-player" style="position:absolute;left:322.7px;top:522.7px;width:26.599999999999998px;height:26.599999999999998px;overflow:hidden;"><img id="s5-strip" src="assets/art/player-up-strip.png" alt="" style="position:absolute;left:0;top:0;width:239.39999999999998px;height:26.599999999999998px;image-rendering:pixelated;"></div></div>
+      <div id="s5-l0" class="clip line" data-start="0.5" data-duration="2.1"><span class="box" id="s5-l0-box">VOCÊ SAIU DA ROTA</span></div>
+      <div id="s5-l1" class="clip line" data-start="3.0" data-duration="2.1"><span class="box" id="s5-l1-box"><span class="red">CORRA</span></span></div>
+      <div id="s5-din" class="dissolve"></div>
+      <div id="s5-dout" class="dissolve"></div>
+  </div>
+  <script>
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#s5-cam", { x: -720.0, y: -1800, scale: 5 }, { x: -720.0, y: -1800, scale: 5, duration: 2.8 }, 0);
+      tl.to("#s5-cam", { x: -720.0, y: -1110.0, scale: 5, duration: 2.7, ease: "power1.inOut" }, 2.8);
+      // Corrida: 9 quadros a 15 qps enquanto sobe a calçada.
+      // Até o 9º quadro, nunca além dele: a posição depois do último é vazia.
+      tl.fromTo("#s5-strip", { x: 0 }, { x: -212.79999999999998, duration: 0.6, ease: "steps(8)", repeat: 4 }, 2.8);
+      tl.fromTo("#s5-player", { y: 0 }, { y: -236, duration: 2.7, ease: "none" }, 2.8);
+      tl.fromTo("#s5-l0-box", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.27, ease: "steps(6)" }, 0.5);
+      tl.fromTo("#s5-l1-box", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.27, ease: "steps(6)" }, 3.0);
+      
+      // Dissolução em blocos de 120 px, ordem fixa por semente (o filme renderiza igual sempre).
+      function dissolve(tl, id, start, appear, seed) {
+        const box = document.getElementById(id);
+        const blocks = [];
+        for (let i = 0; i < 144; i++) {
+          const b = document.createElement('div');
+          b.className = 'blk';
+          b.style.left = (i % 16) * 120 + 'px';
+          b.style.top = Math.floor(i / 16) * 120 + 'px';
+          box.appendChild(b);
+          blocks.push(b);
+        }
+        let s = seed;
+        const order = blocks.map((b, i) => { s = (s * 1103515245 + 12345) % 2147483648; return [s, b]; })
+          .sort((a, b) => a[0] - b[0]).map(([, b]) => b);
+        order.forEach((b, i) => {
+          tl.set(b, { opacity: appear ? 0 : 1 }, 0);
+          tl.set(b, { opacity: appear ? 1 : 0 }, start + Math.floor(i / 12) * (0.4 / 12));
+        });
+      } dissolve(tl, "s5-din", 0, false, 15838); dissolve(tl, "s5-dout", 5.08, true, 209458);
+      window.__timelines["s5"] = tl;
+  </script>
+</template>
