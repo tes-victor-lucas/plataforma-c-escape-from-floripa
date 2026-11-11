@@ -44,10 +44,11 @@ export class RunResultView {
             ['TEMPO', score.timePoints],
             ['INIMIGOS', score.enemyPoints],
             ['MULTI-KILLS', score.multiKillPoints],
-            ['BONUS DE DANO', score.damagePoints]
+            ['BONUS DE DANO', score.damagePoints],
+            ['FLIPERAMA', score.arcadePoints]
         ];
         parts.forEach(([label, value], index) =>
-            this.addResultRow(menu, VICTORY_PANEL, label, formatPoints(value), 168 + index * 19));
+            this.addResultRow(menu, VICTORY_PANEL, label, formatPoints(value), 168 + index * 16));
 
         menu.addDivider(278, 42);
         this.addResultRow(

@@ -3,7 +3,7 @@
 from dataclasses import asdict, dataclass
 from math import floor
 
-SCORE_VERSION = 2
+SCORE_VERSION = 3
 VICTORY_POINTS = 1_000
 DUNGEON_COMPLETION_POINTS = 1_000
 ENEMY_KILL_POINTS = 100
@@ -12,6 +12,9 @@ POINTS_LOST_PER_SECOND = 10
 DAMAGE_POINTS = (2_000, 1_200, 600)
 MULTI_KILL_TWO = 250
 MULTI_KILL_EXTRA = 100
+ARCADE_WIN_POINTS = 5_000
+# O relógio para no fliperama do Mercado Público: até 2 tentativas de 3 minutos.
+MAX_ARCADE_PAUSE_MS = 360_000
 
 
 @dataclass(frozen=True)
@@ -22,6 +25,7 @@ class ScoreBreakdown:
     enemyPoints: int
     multiKillPoints: int
     damagePoints: int
+    arcadePoints: int
     total: int
 
     def to_dict(self) -> dict[str, int]:
@@ -53,6 +57,7 @@ def calculate_score(
     hits_taken: int,
     dungeons_completed: int,
     multi_kills: list[int],
+    arcade_won: bool = False,
 ) -> ScoreBreakdown:
     victory = VICTORY_POINTS if won else 0
     dungeons = max(0, floor(dungeons_completed)) * DUNGEON_COMPLETION_POINTS
@@ -60,5 +65,6 @@ def calculate_score(
     enemies = max(0, floor(enemies_defeated)) * ENEMY_KILL_POINTS
     multi = sum(multi_kill_bonus(kills) for kills in multi_kills)
     damage = damage_points(hits_taken)
-    total = max(0, victory + dungeons + time + enemies + multi + damage)
-    return ScoreBreakdown(victory, dungeons, time, enemies, multi, damage, total)
+    arcade = ARCADE_WIN_POINTS if arcade_won else 0
+    total = max(0, victory + dungeons + time + enemies + multi + damage + arcade)
+    return ScoreBreakdown(victory, dungeons, time, enemies, multi, damage, arcade, total)
