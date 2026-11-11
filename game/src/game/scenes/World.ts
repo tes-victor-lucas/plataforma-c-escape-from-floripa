@@ -708,9 +708,11 @@ export class World extends Scene {
             const enemy = this.createEnemy(kinds[index], spawn);
             enemy.relentless = isHorde;
             if (this.flowField) enemy.pathfinder = this.followFlowField;
-            if (this.isMultiplayerEnabled()) {
-                const { enemyHealthMultiplier } = COMBAT_CONFIG.multiplayer;
-                const maxHealth = enemy.health.max * enemyHealthMultiplier;
+            // Depois da Sala III os inimigos aguentam mais; na dupla, mais ainda. A vida salva não multiplica de novo.
+            const healthMultiplier = (COMBAT_CONFIG.enemyHealthMultiplierByRoom[this.activeRoomKey] ?? 1)
+                * (this.isMultiplayerEnabled() ? COMBAT_CONFIG.multiplayer.enemyHealthMultiplier : 1);
+            if (healthMultiplier !== 1) {
+                const maxHealth = enemy.health.max * healthMultiplier;
                 enemy.health.restore((spawn as EnemySpawn).health ?? maxHealth, maxHealth);
                 enemy.drawHealthBar();
             }

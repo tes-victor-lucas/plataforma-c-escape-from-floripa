@@ -194,6 +194,8 @@ export const COMBAT_CONFIG = {
     // Quem ficou bem para trás, ou parado preso em algum canto, volta para fora da tela à frente.
     // `nearDistance` passa da distância em que o drone para e atira (64), para ele não contar como preso.
     hordeRecall: { interval: 2_000, distance: 480, stuckDistance: 12, nearDistance: 96 },
+    // A partir da Sala IV o jogador já tem muitas cartas: os inimigos nascem com o dobro de vida.
+    enemyHealthMultiplierByRoom: { room4: 2, room5: 2 } as Partial<Record<RoomKey, number>>,
     multiplayer: {
         // Dois jogadores causam o dobro de dano nos mesmos inimigos; acima de 2 fica mais difícil.
         enemyHealthMultiplier: 2.5,
