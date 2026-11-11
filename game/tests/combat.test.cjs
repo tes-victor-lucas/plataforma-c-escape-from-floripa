@@ -249,6 +249,13 @@ test('rota direta preserva parametros e aponta para a room2', () => {
     assert.equal(getRoomSearch('room1', '?debug=1&room=2'), '?debug=1');
 });
 
+test('no build de produção o ?room= não pula salas', () => {
+    for (const search of ['?room=2', '?room=3', '?room=room3', '?room=dungeon', '?room=gaucho-dungeon']) {
+        assert.equal(getRequestedRoomKey(search, false), 'room1', search);
+    }
+    assert.equal(getRequestedRoomKey('?room=3', true), 'room3', 'em desenvolvimento o atalho continua');
+});
+
 test('recarregar com room2 inicia diretamente a transição da Sala II', () => {
     assert.deepEqual(getInitialSceneRoute('?room=2'), {
         key: 'RoomTransition',
