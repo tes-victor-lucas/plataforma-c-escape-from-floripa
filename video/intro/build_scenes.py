@@ -108,7 +108,7 @@ CSS = """
       .art { position: absolute; left: -8px; top: 0; width: 1936px; height: 1080px; image-rendering: pixelated; }
       .spr { position: absolute; overflow: hidden; }
       .spr img { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
-      .cap { position: absolute; color: #ffffff; letter-spacing: 3px; text-shadow: 5px 5px 0 #000000; z-index: 12;
+      .cap { position: absolute; color: #ffffff; line-height: 1; letter-spacing: 3px; text-shadow: 5px 5px 0 #000000; z-index: 12;
         white-space: nowrap; }
       .red { color: #e90931; }
       .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; perspective: 520px;
@@ -248,7 +248,7 @@ SCENES.append((s, 23.8))
 # 10. Plataforma C: o gaúcho corre até o 763.2 da Estrela, a porta abre; corte para preto.
 s = Scene('s9', 3.0)
 anim2d(s, 30.2, {'shot': 'bus', 'shake': 2, 'images': {'gaucho': SPR + 'gaucho-right.png'}})
-s.caption('l0', 0.5, 2.1, 'O ÚLTIMO 763.2 VIA KOBRASOL', style='left:0;width:1920px;text-align:center;top:120px;')
+s.caption('l0', 0.5, 2.1, 'O ÚLTIMO ÔNIBUS.', style='left:0;width:1920px;text-align:center;top:120px;')
 s.add('<div id="s9-black" class="clip full" data-start="2.6" data-duration="0.4" style="background:#000000;z-index:20;"></div>')
 SCENES.append((s, 30.2))
 
@@ -314,11 +314,8 @@ index = f"""<!doctype html>
       <!-- Trilha: baixa até a corrida; o trecho mais forte entra junto com o Mode 7 da Sala I. -->
       <audio id="musicA" class="clip" src="assets/audio/mainmenu-trecho.mp3" data-start="0" data-duration="8.8"
         data-media-start="0.2" data-track-index="2" data-volume="0.3" data-fade-in="1"></audio>
-      <audio id="musicB" class="clip" src="assets/audio/mainmenu-trecho.mp3" data-start="8.8" data-duration="15.2"
-        data-media-start="9" data-track-index="2" data-volume="0.95" data-fade-out="0.4"></audio>
-      <!-- Preto em silêncio; a música volta forte com a corrida até o ônibus. -->
-      <audio id="musicC" class="clip" src="assets/audio/mainmenu-trecho.mp3" data-start="30.2" data-duration="{TOTAL - 30.2:.1f}"
-        data-media-start="16" data-track-index="2" data-volume="0.95" data-fade-in="0.3" data-fade-out="1.5"></audio>
+      <audio id="musicB" class="clip" src="assets/audio/mainmenu-trecho.mp3" data-start="8.8" data-duration="{TOTAL - 8.8:.1f}"
+        data-media-start="9" data-track-index="2" data-volume="0.95" data-fade-out="1.5"></audio>
 {audio}
     </div>
     <script>
