@@ -196,6 +196,8 @@ export const COMBAT_CONFIG = {
     hordeRecall: { interval: 2_000, distance: 480, stuckDistance: 12, nearDistance: 96 },
     // A partir da Sala IV o jogador já tem muitas cartas: os inimigos nascem com o dobro de vida.
     enemyHealthMultiplierByRoom: { room4: 2, room5: 2 } as Partial<Record<RoomKey, number>>,
+    // O tiro normal do jogador cresce a cada sala depois da Sala I: +10% de dano e +5% de velocidade.
+    playerShotGrowthPerRoom: { damage: 0.1, speed: 0.05 },
     multiplayer: {
         // Dois jogadores causam o dobro de dano nos mesmos inimigos; acima de 2 fica mais difícil.
         enemyHealthMultiplier: 2.5,
@@ -249,4 +251,20 @@ export function getWaveEnemyKinds(
     const roomPatterns = WAVE_PATTERNS[roomKey];
     const pattern = roomPatterns[Math.min(Math.max(0, waveIndex), roomPatterns.length - 1)];
     return Array.from({ length: count }, (_, index) => pattern[(offset + index) % pattern.length]);
+}
+
+/** Salas passadas desde a Sala I; as áreas internas contam como a sala de onde se entra nelas. */
+const ROOM_STAGE: Record<RoomKey, number> = {
+    room1: 0, 'gaucho-dungeon': 0,
+    room2: 1, dungeon: 1,
+    room3: 2,
+    room4: 3, 'mercado-interior': 3,
+    room5: 4, room51: 4
+};
+
+/** Multiplicadores do tiro normal do jogador na sala. */
+export function getPlayerShotMultipliers(roomKey: RoomKey) {
+    const stage = ROOM_STAGE[roomKey];
+    const { damage, speed } = COMBAT_CONFIG.playerShotGrowthPerRoom;
+    return { damage: 1 + damage * stage, speed: 1 + speed * stage };
 }

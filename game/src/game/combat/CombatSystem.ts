@@ -71,6 +71,8 @@ export class CombatSystem {
     private heldSword?: Phaser.GameObjects.Image;
     private isSwingQueued = false;
     private pulseCooldown = 0;
+    /** Crescimento do tiro normal pela sala atual (getPlayerShotMultipliers). */
+    shotMultipliers = { damage: 1, speed: 1 };
     private chainCooldown = 0;
     private beamCooldown = 0;
     private beamAngle = 0;
@@ -627,8 +629,8 @@ export class CombatSystem {
         const angle = Math.atan2(destination.y - origin.y, destination.x - origin.x);
         const weapon: Weapon = {
             range: this.playerStats.range,
-            damage: this.playerStats.damage,
-            projectileSpeed: this.playerStats.projectileSpeed,
+            damage: this.playerStats.damage * this.shotMultipliers.damage,
+            projectileSpeed: this.playerStats.projectileSpeed * this.shotMultipliers.speed,
             fireInterval: this.playerStats.fireInterval,
             color: COMBAT_CONFIG.player.color
         };

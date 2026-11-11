@@ -3,6 +3,7 @@ import { Scene } from 'phaser';
 import { configureWorldCamera } from '../camera/configureWorldCamera';
 import {
     COMBAT_CONFIG,
+    getPlayerShotMultipliers,
     getWaveEnemyKinds,
     ROOM2_STAIR_GUARD_SPAWNS,
     type EnemyKind
@@ -416,6 +417,7 @@ export class World extends Scene {
             () => this.playHitStop(),
             roomKey === 'gaucho-dungeon'
         );
+        this.combat.shotMultipliers = getPlayerShotMultipliers(roomKey);
         this.connectCombatToPartner();
         if (roomKey === 'gaucho-dungeon') {
             // Cada jogador tem a sua espada, então o item só existe para quem ainda não pegou.
