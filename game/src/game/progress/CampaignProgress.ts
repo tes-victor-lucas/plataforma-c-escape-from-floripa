@@ -61,7 +61,7 @@ export function loadCampaignProgress(
         const serialized = storage.getItem(STORAGE_KEY);
         if (!serialized) return undefined;
         const progress = JSON.parse(serialized) as Partial<CampaignProgress>;
-        const resumable = ['room2', 'room3', 'room4', 'room5'];
+        const resumable = ['room1', 'room2', 'room3', 'room4', 'room5'];
         if (!resumable.includes(progress.roomKey ?? '') || !isPlayerProgress(progress.playerProgress)) {
             return undefined;
         }
@@ -76,7 +76,7 @@ export function saveCampaignProgress(
     progress: CampaignProgress,
     storage: ProgressStorage | undefined = getBrowserStorage()
 ) {
-    if (!storage || progress.roomKey === 'room1') return;
+    if (!storage) return;
     storage.setItem(STORAGE_KEY, JSON.stringify(progress));
 }
 

@@ -350,12 +350,14 @@ export class World extends Scene {
         }
         this.applyEquipment();
         this.unsubscribeRunTracker = runTracker.subscribe((snapshot) => {
-            if (snapshot.status !== 'RUNNING') {
-                if (!this.isMultiplayerEnabled()) clearCampaignProgress();
-                return;
-            }
-            this.persistContinuationCheckpoint();
+            // Na derrota solo o checkpoint fica: TENTAR NOVAMENTE e CONTINUAR voltam ao início da sala.
+            if (snapshot.status === 'RUNNING' || snapshot.status === 'LOST') return;
+            if (!this.isMultiplayerEnabled()) clearCampaignProgress();
         });
+        // A Sala I também é checkpoint: a partida nova começa salva no início dela.
+        if (roomKey === 'room1' && !this.isMultiplayerEnabled() && runTracker.snapshot().status === 'RUNNING') {
+            this.saveRoomStartCheckpoint('room1');
+        }
         if (roomKey === 'room2') this.createPiranhasBarPrompt();
         if (roomKey === 'mercado-interior') this.createArcadePrompt();
         if (isTicenRoom(roomKey)) this.createTicenGate(roomKey === 'room5' ? TICEN_GATE.originalTexture : TICEN_GATE.texture);
@@ -541,6 +543,20 @@ export class World extends Scene {
 
     /** Executado exclusivamente pelo botão "Tentar novamente" da tela de derrota. */
     private restartFromDefeatMenu() {
+        // Recomeça no início da sala do último checkpoint, com vida, build e placar daquele momento.
+        const checkpoint = this.isMultiplayerEnabled() ? undefined : loadCampaignProgress();
+        if (checkpoint?.run) {
+            runTracker.restore(checkpoint.run);
+            replaceRequestedRoomKey(checkpoint.roomKey);
+            this.stopGameplayOverlays();
+            this.scene.restart({
+                waitForReveal: false,
+                roomKey: checkpoint.roomKey,
+                spawn: ROOM_DEFINITIONS[checkpoint.roomKey].spawn,
+                playerProgress: checkpoint.playerProgress
+            });
+            return;
+        }
         clearCampaignProgress();
         runTracker.startNew(this.isMultiplayerEnabled() ? 'MULTIPLAYER' : 'SINGLE_PLAYER');
         replaceRequestedRoomKey('room1');
@@ -554,7 +570,8 @@ export class World extends Scene {
 
     /** Encerra completamente a partida derrotada e volta para uma nova campanha. */
     private returnToMainMenuFromDefeat() {
-        clearCampaignProgress();
+        // Solo, o checkpoint da sala continua no CONTINUAR do menu.
+        if (this.isMultiplayerEnabled()) clearCampaignProgress();
         replaceRequestedRoomKey('room1');
         this.stopGameplayOverlays();
         this.scene.launch('ReturnToMenuTransition', { saveContinuation: false });
@@ -580,7 +597,8 @@ export class World extends Scene {
             this.isGameOver = true;
             this.combat?.clear();
             this.physics.pause();
-            runTracker.lose();
+            // Solo a partida continua aberta no servidor para recomeçar do checkpoint.
+            runTracker.lose(undefined, this.isMultiplayerEnabled());
             return;
         }
         if (this.isHitStopActive) return;
@@ -1326,9 +1344,9 @@ export class World extends Scene {
         this.combat?.clear();
         this.physics.pause();
         const playerProgress = capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected, this.ownedItems, this.equippedItems);
-        const checkpointRooms: readonly RoomKey[] = ['room2', 'room3', 'room4', 'room5', 'dungeon'];
+        const checkpointRooms: readonly RoomKey[] = ['room1', 'room2', 'room3', 'room4', 'room5', 'dungeon'];
         if (!this.isMultiplayerEnabled() && checkpointRooms.includes(roomKey)) {
-            // Checkpoints oficiais são as fases 2 a 5; a dungeon é uma rota secreta da fase 2.
+            // Todo início de sala é checkpoint; a dungeon é uma rota secreta da fase 2.
             saveCampaignProgress({
                 roomKey: roomKey === 'dungeon' ? 'room2' : roomKey,
                 playerProgress,
@@ -1391,22 +1409,17 @@ export class World extends Scene {
         });
     }
 
-    /** Atualiza um checkpoint já desbloqueado sem liberar salas por acesso direto. */
+    /** Sair pelo menu mantém o checkpoint do início da sala; o progresso dentro dela não é salvo. */
     saveContinuation() {
         if (this.isMultiplayerEnabled() || !this.player || !loadCampaignProgress()) return false;
         this.combat?.clear();
-        this.persistContinuationCheckpoint();
         return true;
     }
 
-    /** Mantém estatísticas, vida e build alinhadas no mesmo checkpoint local. */
-    private persistContinuationCheckpoint() {
-        if (
-            this.isMultiplayerEnabled() || !this.player
-            || !['room2', 'room3', 'room4', 'room5'].includes(this.activeRoomKey) || !loadCampaignProgress()
-        ) return;
+    private saveRoomStartCheckpoint(roomKey: RoomKey) {
+        if (!this.player) return;
         saveCampaignProgress({
-            roomKey: this.activeRoomKey,
+            roomKey,
             playerProgress: capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected, this.ownedItems, this.equippedItems),
             run: runTracker.checkpoint()
         });

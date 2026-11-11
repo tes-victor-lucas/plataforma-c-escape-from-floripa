@@ -201,13 +201,14 @@ export class RunTracker {
         return this.snapshot();
     }
 
-    lose(now = new Date()) {
+    /** `discard: false` mantém a partida aberta no servidor para recomeçar do checkpoint da sala. */
+    lose(now = new Date(), discard = true) {
         if (this.status !== 'RUNNING') return this.snapshot();
         this.resumeClock(now.getTime());
         this.finalizeOutstandingProjectiles();
         this.endedAt = now.toISOString();
         this.status = 'LOST';
-        if (this.runId) this.discardAfterStart(this.runId, this.startRequest);
+        if (discard && this.runId) this.discardAfterStart(this.runId, this.startRequest);
         this.emit();
         return this.snapshot();
     }
