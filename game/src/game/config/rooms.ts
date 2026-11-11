@@ -184,14 +184,14 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
     room2: {
         mapKey: 'room2',
         mapPath: 'assets/maps/room2.json',
-        title: 'Sala II',
+        title: 'Sala II: O Antigo Terminal',
         spawn: { x: 184, y: 536 },
         tilesets: ROOM2_TILESETS
     },
     room3: {
         mapKey: 'room3',
         mapPath: 'assets/maps/room3.json',
-        title: 'Sala III',
+        title: 'Sala III: A Praça XV',
         // Continua a rua que sai pela direita da Sala II: entra pela borda esquerda.
         spawn: { x: 6 * 16, y: 20 * 16 },
         tilesets: ROOM3_TILESETS
@@ -199,7 +199,7 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
     room4: {
         mapKey: 'room4',
         mapPath: 'assets/maps/room4.json',
-        title: 'Sala IV',
+        title: 'Sala IV: O Mercado Público',
         // Mercado Público: entra pela rua, na borda esquerda.
         spawn: { x: 24, y: 20 * 16 },
         tilesets: ROOM4_TILESETS
@@ -207,7 +207,7 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
     room5: {
         mapKey: 'room5',
         mapPath: 'assets/maps/room5.json',
-        title: 'Sala V',
+        title: 'Sala V: O TICEN',
         // TICEN: chega pela calçada da Av. Paulo Fontes, diante da catraca fechada.
         spawn: { x: 24 * 16, y: 44 * 16 + 8 },
         tilesets: ROOM5_ORIGINAL_TILESETS
