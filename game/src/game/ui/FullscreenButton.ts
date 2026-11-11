@@ -33,6 +33,8 @@ export function setupFullscreenButton(game: Game) {
     game.scale.on(Scale.Events.FULLSCREEN_UNSUPPORTED, disableButton);
 
     updateButton();
+    // Phaser só avisa "sem suporte" na primeira tentativa; o iPhone já sabemos de cara.
+    if (!game.device.fullscreen.available) disableButton();
     setupOrientationFullscreen(game, button);
 }
 
