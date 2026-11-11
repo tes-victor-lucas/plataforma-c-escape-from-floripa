@@ -1860,6 +1860,7 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     launches[0].data.onRestart();
     assert.deepEqual(stoppedScenes, [
         'PauseMenu',
+        'ArcadeMinigame',
         'RoomTransition',
         'ReturnToMenuTransition',
         'CombatHud'
@@ -1888,6 +1889,7 @@ test('voltar ao menu após derrota usa a transição suave de saída', () => {
 
     assert.deepEqual(stopped, [
         'PauseMenu',
+        'ArcadeMinigame',
         'RoomTransition',
         'ReturnToMenuTransition',
         'CombatHud'
@@ -1963,6 +1965,7 @@ test('menu principal remove qualquer cena restante da partida anterior', () => {
         'World',
         'CombatHud',
         'PauseMenu',
+        'ArcadeMinigame',
         'RoomTransition'
     ]);
 });
