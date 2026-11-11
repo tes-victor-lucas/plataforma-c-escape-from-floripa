@@ -979,15 +979,15 @@ test('mundo envia os upgrades atuais ao abrir o menu de pausa', () => {
 
     world.openPauseMenu();
     world.isPauseMenuOpen = false;
-    world.openResourcesMenu();
+    world.openInventory();
 
-    assert.deepEqual(launches.map(({ key, data }) => [key, data.view]), [['PauseMenu', 'pause'], ['PauseMenu', 'resources']]);
+    assert.deepEqual(launches.map(({ key, data }) => [key, data.view]), [['PauseMenu', 'pause'], ['PauseMenu', 'inventory']]);
     const { data } = launches[0];
     assert.deepEqual(data.upgrades, [['projectile-damage', 2]]);
-    assert.equal(data.resources.chimarraos, 4, 'os recursos mostram os chimarrões pegos');
-    assert.equal(data.resources.characterId, 'padrao');
-    assert.deepEqual(data.resources.items.map(({ name }) => name), ['CARTEIRA'], 'a carteira já vem guardada');
-    assert.match(data.resources.items[0].description, /SALDO: R\$ /);
+    assert.equal(data.inventory.chimarraos, 4, 'o inventário mostra os chimarrões pegos');
+    assert.equal(data.inventory.characterId, 'padrao');
+    assert.deepEqual(data.inventory.items.map(({ name }) => name), ['CARTEIRA'], 'a carteira já vem guardada');
+    assert.match(data.inventory.items[0].description, /SALDO: R\$ /);
 });
 
 test('continuar só é liberado por checkpoint conquistado depois da room1', () => {
