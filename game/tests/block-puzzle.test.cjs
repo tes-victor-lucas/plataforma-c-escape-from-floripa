@@ -37,9 +37,9 @@ test('peça para no fundo e nas paredes', () => {
     while (puzzle.move(-1));
     assert.equal(Math.min(...puzzle.falling.map(({ x }) => x)), 0);
     for (let i = 0; i < 20 && puzzle.board[7][0] === 0; i += 1) puzzle.step();
-    // Travou no fundo e outra peça nasceu no topo.
+    // Travou no fundo e outra peça nasceu no topo (a reta fica na segunda linha da caixa dela).
     assert.equal(puzzle.board[7][0], 2);
-    assert.equal(Math.min(...puzzle.falling.map(({ y }) => y)), 0);
+    assert.ok(Math.min(...puzzle.falling.map(({ y }) => y)) <= 1);
 });
 
 test('girar perto da parede empurra a peça para dentro', () => {
@@ -60,8 +60,8 @@ test('pilha no topo encerra o jogo', () => {
 });
 
 test('prévia mostra a peça que entra depois da atual', () => {
-    const sequence = [0, 1, 2, 3].map((shape) => (shape + 0.5) / PUZZLE_SHAPE_COUNT);
-    const puzzle = new BlockPuzzle(10, 12, 50, () => sequence.shift() ?? 0);
+    // Sortear zero tira sempre a primeira peça que sobrou no saco: 0, 1, 2...
+    const puzzle = new BlockPuzzle(10, 12, 50, () => 0);
     // A primeira sorteada já é a atual; a segunda fica na prévia.
     assert.equal(puzzle.falling[0].color, 1);
     assert.equal(puzzle.next.color, 2);
@@ -95,4 +95,18 @@ test('as sete peças têm quatro blocos e giram nas orientações do gênero (I,
     }
     assert.deepEqual(orientations, [2, 1, 4, 2, 2, 4, 4]);
     assert.equal(all.size, 19, 'nenhum formato repetido entre peças diferentes');
+});
+
+test('7-bag: cada grupo de sete peças traz as sete, sem secas', () => {
+    let seed = 7;
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const puzzle = new BlockPuzzle(10, 400, 50, random);
+    const shapes = [];
+    for (let i = 0; i < PUZZLE_SHAPE_COUNT * 5; i += 1) {
+        shapes.push(puzzle.falling[0].color);
+        puzzle.drop();
+    }
+    for (let bag = 0; bag < shapes.length; bag += PUZZLE_SHAPE_COUNT) {
+        assert.equal(new Set(shapes.slice(bag, bag + PUZZLE_SHAPE_COUNT)).size, PUZZLE_SHAPE_COUNT);
+    }
 });
