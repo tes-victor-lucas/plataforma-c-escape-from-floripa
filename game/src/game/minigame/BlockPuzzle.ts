@@ -21,6 +21,7 @@ export class BlockPuzzle {
     isOver = false;
     private piece!: Piece;
     private nextShape: number;
+    private bag: number[] = [];
 
     constructor(
         readonly width: number,
@@ -97,8 +98,10 @@ export class BlockPuzzle {
         this.spawn();
     }
 
+    /** 7-bag do Tetris: as sete peças saem embaralhadas antes de alguma se repetir, sem secas de reta. */
     private drawShape() {
-        return Math.min(SHAPES.length - 1, Math.floor(this.random() * SHAPES.length));
+        if (this.bag.length === 0) this.bag = SHAPES.map((_, shape) => shape);
+        return this.bag.splice(Math.min(this.bag.length - 1, Math.floor(this.random() * this.bag.length)), 1)[0];
     }
 
     private spawn() {
