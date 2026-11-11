@@ -22,6 +22,11 @@ BACK_ROWS, FLOOR_TOP, FLOOR_BOTTOM, FRONT_TOP = 7, 7, 14, 14
 CABINET = (0, 11)      # 2x4
 FLOOR_TILES = (2, 11)  # 2 ladrilhos lado a lado
 DOOR = (4, 11)         # 1x5
+# Sujeira cyberpunk no chão: drone caído (2x1), peças de drone, bicicleta elétrica tombada (2x1) e óleo.
+DRONE_WRECK = (6, 11)
+DRONE_PARTS = (8, 11)
+EBIKE = (9, 11)
+OIL = (11, 11)
 CEILING = (40, 30, 28, 255)
 BEAM = (70, 52, 40, 255)
 IRON = (60, 62, 72, 255)
@@ -30,6 +35,14 @@ TILE_RED = (196, 132, 104, 255)
 TILE_DARK = (124, 106, 100, 255)
 CAB = (42, 22, 62, 255)
 CAB1 = (70, 40, 100, 255)
+METAL0 = (38, 40, 50, 255)
+METAL1 = (70, 74, 88, 255)
+METAL2 = (120, 126, 142, 255)
+LED_RED = (236, 54, 66, 255)
+NEON_CYAN = (92, 229, 241, 255)
+NEON_PINK = (240, 86, 197, 255)
+OIL_DARK = (26, 20, 34, 255)
+SPARK = (255, 224, 120, 255)
 
 
 def back_wall(cv):
@@ -136,6 +149,56 @@ def cabinet(cv, ox, oy):
     cv.rect(ox + 3, oy + 62, ox + 29, oy + 64, OL)
 
 
+def oil(cv, cx, cy, rx, ry):
+    """Poça de óleo com reflexo de neon."""
+    cv.shape(ellipse(cx, cy, rx, ry), OIL_DARK, outline=None)
+    cv.rect(cx - rx // 2, cy - 1, cx, cy, NEON_PINK)
+    cv.rect(cx + 1, cy + 1, cx + rx // 2, cy + 2, NEON_CYAN)
+
+
+def drone_wreck(cv, ox, oy):
+    """Drone abatido: carcaça rachada, um braço torto, hélice solta e faíscas."""
+    oil(cv, ox + 16, oy + 12, 12, 3)
+    cv.shape(box(ox + 9, oy + 4, ox + 21, oy + 11), lambda x, y: METAL1 if y < oy + 7 else METAL0)
+    cv.rect(ox + 14, oy + 6, ox + 16, oy + 7, LED_RED)
+    for i in range(5):  # rachadura
+        cv.put(ox + 17 + i // 2, oy + 5 + i, OL)
+    cv.rect(ox + 3, oy + 5, ox + 9, oy + 6, METAL2)   # braço inteiro
+    cv.rect(ox + 1, oy + 3, ox + 6, oy + 4, METAL0)   # hélice
+    for i in range(6):  # braço torto
+        cv.put(ox + 21 + i, oy + 9 + i // 2, METAL2)
+    cv.rect(ox + 26, oy + 2, ox + 31, oy + 3, METAL0)  # hélice solta
+    for x, y in ((ox + 23, oy + 4), (ox + 25, oy + 6), (ox + 7, oy + 10)):
+        cv.put(x, y, SPARK)
+
+
+def drone_parts(cv, ox, oy):
+    """Peças soltas: hélice partida, parafusos e um LED ainda aceso."""
+    cv.rect(ox + 2, oy + 4, ox + 9, oy + 5, METAL0)
+    cv.rect(ox + 5, oy + 3, ox + 6, oy + 6, METAL2)
+    for x, y in ((ox + 11, oy + 3), (ox + 4, oy + 11), (ox + 13, oy + 9), (ox + 9, oy + 13)):
+        cv.rect(x, y, x + 1, y + 1, METAL2)
+    cv.shape(box(ox + 9, oy + 8, ox + 12, oy + 10), METAL1)
+    cv.put(ox + 10, oy + 9, NEON_CYAN)
+
+
+def ebike(cv, ox, oy):
+    """Bicicleta elétrica tombada no chão, com a bateria vazando luz."""
+    for cx in (ox + 7, ox + 25):
+        cv.shape(ellipse(cx, oy + 9, 5, 5), (24, 24, 28, 255))
+        cv.shape(ellipse(cx, oy + 9, 3, 3), OIL_DARK, outline=None)
+        cv.put(cx, oy + 9, METAL2)
+    for i in range(14):  # quadro
+        cv.put(ox + 9 + i, oy + 6 + i // 5, NEON_PINK)
+        cv.put(ox + 9 + i, oy + 7 + i // 5, (150, 40, 110, 255))
+    cv.shape(box(ox + 13, oy + 8, ox + 19, oy + 11), METAL0)  # bateria
+    cv.rect(ox + 14, oy + 9, ox + 16, oy + 10, (90, 255, 140, 255))
+    cv.rect(ox + 22, oy + 2, ox + 24, oy + 6, METAL1)  # guidão
+    cv.rect(ox + 20, oy + 2, ox + 27, oy + 3, METAL2)
+    cv.rect(ox + 8, oy + 3, ox + 12, oy + 4, OL)  # selim
+    cv.put(ox + 17, oy + 13, SPARK)
+
+
 def build_tileset():
     cv = Canvas(512, 256)
     back_wall(cv)
@@ -144,6 +207,10 @@ def build_tileset():
     floor_tile(cv, FLOOR_TILES[0] * 16, FLOOR_TILES[1] * 16, 0)
     floor_tile(cv, (FLOOR_TILES[0] + 1) * 16, FLOOR_TILES[1] * 16, 1)
     door(cv, DOOR[0] * 16, DOOR[1] * 16)
+    drone_wreck(cv, DRONE_WRECK[0] * 16, DRONE_WRECK[1] * 16)
+    drone_parts(cv, DRONE_PARTS[0] * 16, DRONE_PARTS[1] * 16)
+    ebike(cv, EBIKE[0] * 16, EBIKE[1] * 16)
+    oil(cv, OIL[0] * 16 + 8, OIL[1] * 16 + 9, 6, 3)
     return cv.img
 
 
@@ -167,7 +234,7 @@ def build_map(img):
     def empty(col, row):
         return img.crop((col * 16, row * 16, col * 16 + 16, row * 16 + 16)).getbbox() is None
 
-    layers = {name: [0] * (W * H) for name in ('floor', 'parede', 'frente', 'porta', 'itens-base', 'fliperama')}
+    layers = {name: [0] * (W * H) for name in ('floor', 'sujeira', 'parede', 'frente', 'porta', 'itens-base', 'fliperama')}
 
     def put(layer, col, row, value):
         layers[layer][row * W + col] = value
@@ -193,8 +260,17 @@ def build_map(img):
     ):
         put('itens-base', col, row, gid('mercado_itens', sx, sy))
 
+    # Destroços nas bordas do corredor, sem colisão: não fecham o caminho até o fliperama.
+    for (sx, width), (col, row) in (
+        ((DRONE_WRECK, 2), (3, 13)), ((EBIKE, 2), (10, 7)), ((DRONE_PARTS, 1), (16, 8)), ((OIL, 1), (17, 13)),
+        ((EBIKE, 2), (23, 13)), ((DRONE_WRECK, 2), (29, 8)), ((DRONE_PARTS, 1), (12, 12)), ((OIL, 1), (5, 8)),
+        ((DRONE_PARTS, 1), (24, 7)),
+    ):
+        for dx in range(width):
+            put('sujeira', col + dx, row, gid('mercado_interior', sx[0] + dx, sx[1]))
+
     collider = {'parede', 'frente', 'itens-base', 'fliperama'}
-    order = ['floor', 'porta', 'parede', 'frente', 'itens-base', 'fliperama']
+    order = ['floor', 'sujeira', 'porta', 'parede', 'frente', 'itens-base', 'fliperama']
     return {
         'compressionlevel': -1, 'height': H, 'width': W, 'infinite': False,
         'nextlayerid': len(order) + 1, 'nextobjectid': 1, 'orientation': 'orthogonal',
