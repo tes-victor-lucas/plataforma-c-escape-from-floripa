@@ -3643,3 +3643,21 @@ test('esconderijo dos gaúchos pergunta antes de entrar e só pergunta de novo d
     assert.equal(launches[2].key, 'RoomTransition');
     assert.equal(launches[2].data.roomKey, 'gaucho-dungeon');
 });
+
+test('fliperama espera o iniciar e sair na tela de como jogar devolve a tentativa', () => {
+    const { ArcadeMinigame } = load('../src/game/scenes/ArcadeMinigame.ts');
+    const arcade = new ArcadeMinigame();
+    const finishes = [];
+    let moves = 0;
+    let stopped = 0;
+    arcade.scene = { stop() { stopped += 1; } };
+    arcade.onFinish = (won, played) => finishes.push([won, played]);
+    arcade.puzzle = { move() { moves += 1; } };
+
+    arcade.act(() => arcade.puzzle.move(1));
+    assert.equal(moves, 0, 'a peça não deve se mexer antes de iniciar');
+
+    arcade.leaveIntro();
+    assert.equal(stopped, 1);
+    assert.deepEqual(finishes, [[false, false]]);
+});
