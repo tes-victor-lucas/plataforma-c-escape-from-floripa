@@ -79,6 +79,16 @@ export const ROOM2_TO_DUNGEON_GATEWAY: SecretDungeonGateway = {
     portal: { x: 45 * 16 - 2, y: 28 * 16 }
 };
 
+/**
+ * Setas pintadas nas placas azuis da passarela do Terminal Velho, apontando para a fresta secreta.
+ * Sem brilho: o explorador atento percebe, mas a passagem continua escondida.
+ */
+export const ROOM2_DUNGEON_SIGNS = [
+    { x: 33 * 16, y: 26.5 * 16, text: '>' },
+    { x: 39 * 16, y: 26.5 * 16, text: '>>' },
+    { x: 44 * 16, y: 26.5 * 16, text: '>>>' }
+] as const;
+
 /** Bueiro de 2×2 blocos no chão da Room 1; pisar na tampa (sem o aro) leva ao esconderijo. */
 export const ROOM1_TO_GAUCHO_DUNGEON_GATEWAY: SecretDungeonGateway = {
     from: 'room1',

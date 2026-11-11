@@ -86,6 +86,7 @@ import {
     isTouchingSecretDungeonEntrance,
     ROOM_EXIT_GATEWAYS,
     SECRET_DUNGEON_GATEWAYS,
+    ROOM2_DUNGEON_SIGNS,
     type SecretDungeonGateway
 } from '../config/roomGateway';
 import { RoomExitPortal } from '../map/RoomExitPortal';
@@ -360,6 +361,13 @@ export class World extends Scene {
         if (isTicenRoom(roomKey)) this.createTicenGate(roomKey === 'room5' ? TICEN_GATE.originalTexture : TICEN_GATE.texture);
         const secretGateway = SECRET_DUNGEON_GATEWAYS.find((gateway) => gateway.from === roomKey);
         if (secretGateway) this.createSecretEntranceHint(secretGateway);
+        if (roomKey === 'room2') {
+            // Por cima das placas, que ficam na frente do jogador (20).
+            for (const sign of ROOM2_DUNGEON_SIGNS) {
+                this.add.text(sign.x, sign.y, sign.text, { fontFamily: 'PixelGamer, monospace', fontSize: '9px', color: '#6fd8e0' })
+                    .setOrigin(0.5).setResolution(4).setAlpha(0.8).setDepth(20.5);
+            }
+        }
         // Skatistas, comerciantes e o casal do Mercado Público; a horda espera a travessia.
         this.mercadoNpcs = roomKey === 'room4' ? new MercadoNpcs(this, !savedCombat) : undefined;
         // Sala I: rua dos bares com o TCHAY lotado e o varal de lâmpadas.
