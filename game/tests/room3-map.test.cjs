@@ -143,3 +143,9 @@ test('room3 não tem tiles invisíveis com collider entre a pérgola e os bancos
     assert.equal(at(layer('collider-tronco', 0), 27, 30), 0);
     assert.equal(at(layer('collider-tronco', 0), 27, 31), 0);
 });
+
+test('room3 mantém a camada de flores que o efeito radioativo usa', () => {
+    const flowers = tileLayers(room3.layers).find(({ name }) => name === 'flores');
+    assert.ok(flowers, 'camada flores existe');
+    assert.ok(flowers.data.some((gid) => gid !== 0), 'há flores para contaminar');
+});
