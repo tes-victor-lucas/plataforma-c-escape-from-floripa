@@ -34,6 +34,15 @@ export const ROOM3_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
     bike: 30
 };
 
+/** Horda da Sala IV, depois dos skatistas: a maior do jogo, metade maior que a última da Sala III. */
+export const ROOM4_HORDE: Readonly<Record<EnemyKind, number>> = {
+    gaucho: 104,
+    guard: 50,
+    scooter: 50,
+    drone: 50,
+    bike: 45
+};
+
 /** Espalha os tipos ao longo da onda, para não chegarem todos os drones juntos no fim. */
 export function interleaveEnemyCounts(counts: Readonly<Partial<Record<EnemyKind, number>>>) {
     const entries = Object.entries(counts) as [EnemyKind, number][];
@@ -55,6 +64,7 @@ export function interleaveEnemyCounts(counts: Readonly<Partial<Record<EnemyKind,
 const ROOM2_FIRST_HORDE_KINDS: readonly EnemyKind[] = ['guard', 'guard', ...interleaveEnemyCounts(ROOM2_FIRST_HORDE)];
 const ROOM2_SECOND_HORDE_KINDS = interleaveEnemyCounts(ROOM2_SECOND_HORDE);
 const ROOM3_SECOND_HORDE_KINDS = interleaveEnemyCounts(ROOM3_SECOND_HORDE);
+const ROOM4_HORDE_KINDS = interleaveEnemyCounts(ROOM4_HORDE);
 
 /** Distâncias em pixels do mundo; intervalos e duração em milissegundos. */
 const PLAYER_COMBAT_STATS = {
@@ -139,6 +149,10 @@ export const COMBAT_CONFIG = {
         room2: [ROOM2_FIRST_HORDE_KINDS.length, ROOM2_SECOND_HORDE_KINDS.length],
         // A Sala III já abre com a horda final da Sala II.
         room3: [ROOM2_SECOND_HORDE_KINDS.length, ROOM3_SECOND_HORDE_KINDS.length],
+        // Uma onda só: a horda gigante que entra quando os skatistas somem.
+        room4: [ROOM4_HORDE_KINDS.length],
+        // Sem combate: só o corredor até o fliperama.
+        'mercado-interior': [],
         dungeon: [10],
         'gaucho-dungeon': [10]
     },
@@ -154,7 +168,8 @@ export const COMBAT_CONFIG = {
         room3: [
             { maxAlive: 28, batchSize: 6, interval: 800 },
             { maxAlive: 36, batchSize: 8, interval: 700 }
-        ]
+        ],
+        room4: [{ maxAlive: 44, batchSize: 10, interval: 600 }]
     } as Partial<Record<RoomKey, readonly { maxAlive: number; batchSize: number; interval: number }[]>>,
     // A câmera mostra ~508×286 px do mapa (zoom 1,75): a horda nasce logo depois da borda
     // da tela, e os inimigos dela perseguem de qualquer distância.
@@ -193,6 +208,8 @@ const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
         ROOM2_SECOND_HORDE_KINDS
     ],
     room3: [ROOM2_SECOND_HORDE_KINDS, ROOM3_SECOND_HORDE_KINDS],
+    room4: [ROOM4_HORDE_KINDS],
+    'mercado-interior': [],
     dungeon: [
         ['scooter', 'drone', 'guard', 'drone', 'scooter']
     ],

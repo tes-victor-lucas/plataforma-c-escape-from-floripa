@@ -57,6 +57,10 @@ import {
     type RoomKey
 } from '../config/rooms';
 import { StairClimbEffect } from '../map/StairClimbEffect';
+import { arcadeAttemptsLeft, canStartArcade } from '../minigame/arcadeAttempts';
+import type { ArcadeMinigameData } from './ArcadeMinigame';
+import { MercadoNpcs } from '../entities/MercadoNpcs';
+import { MERCADO_INTERIOR, MERCADO_NPCS } from '../config/mercado';
 import {
     isInsidePiranhasBarArea,
     PIRANHAS_BAR_CONFIG,
@@ -103,6 +107,7 @@ const ROOM2_WALKABLE_LAYERS = [
 ] as const;
 const GAMEPLAY_OVERLAY_SCENES = [
     'PauseMenu',
+    'ArcadeMinigame',
     'RoomTransition',
     'ReturnToMenuTransition',
     'CombatHud'
@@ -135,6 +140,7 @@ export class World extends Scene {
     private playerRangeIndicator?: Phaser.GameObjects.Arc;
     private piranhasBarPrompt?: Phaser.GameObjects.Text;
     private stairClimbEffect?: StairClimbEffect;
+    private mercadoNpcs?: MercadoNpcs;
     private roomExitPortal?: RoomExitPortal;
     private drones: CombatEnemy[] = [];
     private droneBodies?: Phaser.Physics.Arcade.Group;
@@ -145,6 +151,9 @@ export class World extends Scene {
     private isPauseMenuOpen = false;
     private isWaveIntermissionOpen = false;
     private isPiranhasMenuOpen = false;
+    private isArcadeOpen = false;
+    private isArcadeArmed = true;
+    private arcadePrompt?: Phaser.GameObjects.Text;
     private hasSelectedPiranhasItem = false;
     private isGameplayReady = false;
     private isRoomExitOpen = false;
@@ -199,6 +208,9 @@ export class World extends Scene {
         this.isPauseMenuOpen = false;
         this.isWaveIntermissionOpen = false;
         this.isPiranhasMenuOpen = false;
+        this.isArcadeOpen = false;
+        this.isArcadeArmed = true;
+        this.arcadePrompt = undefined;
         this.isGameOver = false;
         this.isGameplayReady = false;
         this.isRoomExitOpen = false;
@@ -244,7 +256,8 @@ export class World extends Scene {
         this.savedEnemies = savedCombat?.enemies;
         const room = createRoom(this, roomKey, this.dungeonState?.seed);
         if (!room) return;
-        this.dungeonReturnArea = room.dungeon?.returnArea;
+        this.dungeonReturnArea = room.dungeon?.returnArea
+            ?? (roomKey === 'mercado-interior' ? MERCADO_INTERIOR.returnArea : undefined);
         const walkableRoom2Layers = room.map.layers.filter((layer) =>
             isRoom2WalkableLayer(layer.name));
 
@@ -254,7 +267,7 @@ export class World extends Scene {
                 (tileX + 0.5) * room.map.tileWidth,
                 (tileY + 0.5) * room.map.tileHeight
             )?.collides ?? false);
-        const isWalkableTile = roomKey === 'room2' || roomKey === 'room3'
+        const isWalkableTile = roomKey === 'room2' || roomKey === 'room3' || roomKey === 'room4'
             ? (tileX: number, tileY: number) => walkableRoom2Layers.some((layer) =>
                 room.map.hasTileAt(tileX, tileY, layer.name))
             : () => true;
@@ -296,8 +309,11 @@ export class World extends Scene {
             this.persistContinuationCheckpoint();
         });
         if (roomKey === 'room2') this.createPiranhasBarPrompt();
+        if (roomKey === 'mercado-interior') this.createArcadePrompt();
         const secretGateway = SECRET_DUNGEON_GATEWAYS.find((gateway) => gateway.from === roomKey);
         if (secretGateway) this.createSecretEntranceHint(secretGateway);
+        // Skatistas, comerciantes e o casal do Mercado Público; a horda espera a travessia.
+        this.mercadoNpcs = roomKey === 'room4' ? new MercadoNpcs(this, !savedCombat) : undefined;
         this.stairClimbEffect = room.stairPassage
             ? new StairClimbEffect(this, this.player.sprite, room.stairPassage)
             : undefined;
@@ -387,7 +403,7 @@ export class World extends Scene {
             : undefined;
         // O primeiro lote já precisa saber de onde existe caminho até o jogador.
         this.flowField?.update(this.player.sprite.body?.center ?? this.player.sprite);
-        if (this.isPartnerRoomReady()) this.waves?.update(this.drones);
+        if (this.isPartnerRoomReady() && !this.mercadoNpcs?.isCrossing) this.waves?.update(this.drones);
         if (savedCombat?.cleared) {
             // Sala vencida numa visita anterior: reabre a saída sem repetir o reparo.
             this.isRoomCombatComplete = true;
@@ -425,6 +441,7 @@ export class World extends Scene {
                 ? this.returnToMainMenuFromDefeat()
                 : this.restartFromDefeatMenu(),
             onQuit: () => this.returnToMainMenuFromDefeat(),
+            getDefeatTitle: () => this.mercadoNpcs?.hasRunOverPlayer ? MERCADO_NPCS.skaters.defeatTitle : undefined,
             getUseAction: () => !this.player?.health.isAlive ? undefined
                 : this.combat?.hasSword() ? 'sword'
                 : this.piranhasBarPrompt?.visible ? 'interact' : undefined,
@@ -497,10 +514,11 @@ export class World extends Scene {
             else this.handleSwordGamepad();
         }
         this.updateNauseaEffect();
-        if (this.isPiranhasMenuOpen || this.isWaveIntermissionOpen) return;
+        if (this.isPiranhasMenuOpen || this.isWaveIntermissionOpen || this.isArcadeOpen) return;
         this.player?.update(delta);
         this.updateRevive(delta);
         this.updateRoomGateway();
+        this.updateArcadeCabinet();
         if (this.isRoomTransitioning) return;
         this.stairClimbEffect?.update();
         if (this.isMultiplayerGuest()) {
@@ -513,7 +531,8 @@ export class World extends Scene {
         this.combat?.update(delta);
         if (this.flowField && this.player) this.flowField.update(this.player.sprite.body?.center ?? this.player.sprite);
         this.recallHordeStragglers(delta);
-        if (this.isPartnerRoomReady()) this.waves?.update(this.drones, delta);
+        this.mercadoNpcs?.update(delta, this.player, this.drones);
+        if (this.isPartnerRoomReady() && !this.mercadoNpcs?.isCrossing) this.waves?.update(this.drones, delta);
     }
 
     /**
@@ -827,6 +846,53 @@ export class World extends Scene {
         return group;
     }
 
+    /** Pergunta escrita no chão, diante do fliperama; pulsa devagar para chamar atenção. */
+    private createArcadePrompt() {
+        const { cabinet } = MERCADO_INTERIOR;
+        this.arcadePrompt = this.add.text(cabinet.x, cabinet.y + 22, 'VAMOS JOGAR?', {
+            fontFamily: 'PixelGamer, monospace',
+            fontSize: '10px',
+            color: '#f056c5',
+            stroke: '#05040a',
+            strokeThickness: 3
+        }).setOrigin(0.5).setResolution(4).setDepth(1).setVisible(false);
+        this.tweens.add({ targets: this.arcadePrompt, alpha: { from: 1, to: 0.45 }, duration: 700, yoyo: true, repeat: -1 });
+    }
+
+    /** Chegar no fliperama abre o minijogo: até duas tentativas, nenhuma depois de vencer; vencer dá corações. */
+    private updateArcadeCabinet() {
+        if (this.activeRoomKey !== 'mercado-interior' || !this.player) return;
+        const center = this.player.sprite.body?.center ?? this.player.sprite;
+        const { cabinet, triggerDistance, arcade } = MERCADO_INTERIOR;
+        const distance = Math.hypot(center.x - cabinet.x, center.y - cabinet.y);
+        const hasAttempts = !this.dungeonState || arcadeAttemptsLeft(this.dungeonState) > 0;
+        this.arcadePrompt?.setVisible(hasAttempts && distance <= MERCADO_INTERIOR.promptDistance);
+        // Para tentar de novo depois de perder, o jogador precisa se afastar e voltar.
+        if (distance > arcade.rearmDistance) this.isArcadeArmed = true;
+        if (distance > triggerDistance) return;
+        // Aberto direto pela URL (?room=mercado) ainda não tem estado da partida.
+        const state = this.dungeonState ??= createDungeonSessionState();
+        if (!canStartArcade(state, this.isArcadeArmed)) return;
+        // Abrir já desarma: para jogar de novo, o jogador se afasta e volta.
+        this.isArcadeArmed = false;
+        this.isArcadeOpen = true;
+        this.player.stopMovement();
+        this.physics.pause();
+        state.arcadeAttempts += 1;
+        const data: ArcadeMinigameData = {
+            attemptsLeft: arcadeAttemptsLeft(state),
+            onFinish: (won) => {
+                this.isArcadeOpen = false;
+                this.physics.resume();
+                if (!won) return;
+                state.arcadeWon = true;
+                this.player?.health.increaseMax(arcade.rewardHearts * COMBAT_CONFIG.player.healthPerHeart);
+            }
+        };
+        this.scene.launch('ArcadeMinigame', data);
+        this.scene.bringToTop('ArcadeMinigame');
+    }
+
     private activateRoomExit() {
         const gateway = ROOM_EXIT_GATEWAYS.find(({ from }) => from === this.activeRoomKey);
         if (this.isRoomExitOpen || !gateway) return;
@@ -929,6 +995,8 @@ export class World extends Scene {
             if (!this.player.health.isAlive) this.revivePlayer();
             this.scene.stop('PauseMenu');
         }
+        // O parceiro pode trocar de sala com o fliperama aberto aqui.
+        if (this.isArcadeOpen) this.scene.stop('ArcadeMinigame');
         this.rememberCombatProgress();
         this.isRoomTransitioning = true;
         this.player.stopMovement();
@@ -978,6 +1046,8 @@ export class World extends Scene {
     /** Uma fissura discreta indica a parede correta sem transformar a entrada em portal visível. */
     private createSecretEntranceHint(gateway: SecretDungeonGateway) {
         const { portal } = gateway;
+        // O portal aceso do mercado já é o convite para entrar.
+        if (gateway.wall === 'up') return;
         if (!gateway.wall) {
             // Acima do chão (0) e abaixo dos jogadores (10).
             this.add.image(portal.x, portal.y, 'manhole').setDepth(1);
@@ -1293,6 +1363,8 @@ export class World extends Scene {
         this.savedEnemies = undefined;
         this.stairClimbEffect?.destroy();
         this.stairClimbEffect = undefined;
+        this.mercadoNpcs?.destroy();
+        this.mercadoNpcs = undefined;
         this.roomExitPortal?.destroy();
         this.roomExitPortal = undefined;
         this.player?.setControlsInverted(false);
@@ -1328,7 +1400,7 @@ export class World extends Scene {
     private openPauseMenu() {
         if (
             !this.isGameplayReady || this.isPauseMenuOpen || this.isPiranhasMenuOpen
-            || this.isWaveIntermissionOpen || !this.player?.health.isAlive
+            || this.isWaveIntermissionOpen || this.isArcadeOpen || !this.player?.health.isAlive
         ) return;
 
         this.isPauseMenuOpen = true;

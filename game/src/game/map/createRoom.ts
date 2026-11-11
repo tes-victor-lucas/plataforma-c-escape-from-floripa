@@ -40,7 +40,9 @@ const ROOM2_FOREGROUND_LAYERS = new Set([
     'pendulo',
     'pendulo-back',
     'detalhe-penduloi',
-    'postes'
+    'postes',
+    // Sala IV: toldos das bancas e guarda-sóis do Largo da Alfândega.
+    'itens-topo'
 ]);
 
 /** Objetos altos que o jogador contorna pelos dois lados: ordenados pela base, como os personagens. */
@@ -70,7 +72,9 @@ export function createRoom(scene: Scene, mapKey: string, dungeonSeed = Date.now(
     if (mapKey === 'dungeon') return createProceduralDungeon(scene, dungeonSeed);
     // A semente é da partida inteira; o esconderijo não pode repetir a planta da dungeon.
     if (mapKey === 'gaucho-dungeon') return createProceduralDungeon(scene, (dungeonSeed ^ 0x9e3779b9) >>> 0);
-    if (mapKey === 'room2' || mapKey === 'room3') return createLayeredRoom(scene, mapKey);
+    if (mapKey === 'room2' || mapKey === 'room3' || mapKey === 'room4' || mapKey === 'mercado-interior') {
+        return createLayeredRoom(scene, mapKey);
+    }
 
     const map = scene.make.tilemap({ key: mapKey });
     const tilesets = ROOM_DEFINITIONS.room1.tilesets.map(({ mapName, textureKey }) =>
@@ -134,8 +138,8 @@ export function createRoom(scene: Scene, mapKey: string, dungeonSeed = Date.now(
     return { map, collisionLayers, openExit: () => openRoomExit(collisionLayers) };
 }
 
-/** Monta todas as camadas das Salas II e III na ordem do Tiled e respeita seus colliders por camada. */
-function createLayeredRoom(scene: Scene, roomKey: 'room2' | 'room3'): Room | null {
+/** Monta todas as camadas das Salas II, III e IV na ordem do Tiled e respeita seus colliders por camada. */
+function createLayeredRoom(scene: Scene, roomKey: 'room2' | 'room3' | 'room4' | 'mercado-interior'): Room | null {
     const roomDefinition = ROOM_DEFINITIONS[roomKey];
     const map = scene.make.tilemap({ key: roomDefinition.mapKey });
     if (map.tilesets.length !== roomDefinition.tilesets.length) {

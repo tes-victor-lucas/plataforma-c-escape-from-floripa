@@ -9,6 +9,8 @@ type RunResultOptions = Readonly<{
     onPrimary: () => void;
     /** No multiplayer uma nova partida começa pelo menu, com o parceiro. */
     retryLabel?: string;
+    /** Substitui o título padrão da derrota (pode ter quebra de linha). */
+    defeatTitle?: string;
     onQuit: () => void;
 }>;
 
@@ -72,7 +74,10 @@ export class RunResultView {
             bounds: DEFEAT_PANEL,
             dimAlpha: 0.72
         });
-        menu.addTitle('VOCE FOI DERROTADO', 156, 'defeat', 'danger');
+        const { defeatTitle } = this.options;
+        const title = menu.addTitle(defeatTitle ?? 'VOCE FOI DERROTADO', 156, 'defeat', 'danger');
+        // Título longo em duas linhas: menor e um pouco abaixo, longe do ícone.
+        if (defeatTitle) title.setFontSize('22px').setY(160);
         const result = this.options.result;
         this.addCenteredInfo(
             menu,

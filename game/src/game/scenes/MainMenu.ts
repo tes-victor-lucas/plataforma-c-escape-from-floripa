@@ -16,6 +16,7 @@ const GAMEPLAY_SCENES = [
     'World',
     'CombatHud',
     'PauseMenu',
+    'ArcadeMinigame',
     'RoomTransition'
 ] as const;
 

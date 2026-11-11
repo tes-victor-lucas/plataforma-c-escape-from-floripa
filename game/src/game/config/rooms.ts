@@ -1,4 +1,4 @@
-export type RoomKey = 'room1' | 'room2' | 'room3' | 'dungeon' | 'gaucho-dungeon';
+export type RoomKey = 'room1' | 'room2' | 'room3' | 'room4' | 'mercado-interior' | 'dungeon' | 'gaucho-dungeon';
 
 export function isDungeonRoom(roomKey: RoomKey) {
     return roomKey === 'dungeon' || roomKey === 'gaucho-dungeon';
@@ -139,6 +139,15 @@ const ROOM3_TILESETS = [
     { mapName: 'outdoor_floria', textureKey: 'outdoor_floria', path: 'assets/tilesets/outdoor_floria.png' }
 ] as const;
 
+// Ordem igual à do room4.json (gerado por assets/mercado-publico/gen_room4_map.py).
+const ROOM4_TILESETS = [
+    { mapName: 'mercado_piso', textureKey: 'mercado_piso', path: 'assets/tilesets/mercado_piso.png' },
+    { mapName: 'curva-faixa-rua-256', textureKey: 'curva-faixa-rua-256', path: 'assets/tilesets/curva-faixa-rua-256.png' },
+    { mapName: 'mercado_fachada', textureKey: 'mercado_fachada', path: 'assets/tilesets/mercado_fachada.png' },
+    { mapName: 'mercado_itens', textureKey: 'mercado_itens', path: 'assets/tilesets/mercado_itens.png' },
+    { mapName: 'poste_3_globos', textureKey: 'poste_3_globos', path: 'assets/tilesets/poste_3_globos.png' }
+] as const;
+
 export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
     room1: {
         mapKey: 'room1',
@@ -161,6 +170,25 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
         // Continua a rua que sai pela direita da Sala II: entra pela borda esquerda.
         spawn: { x: 6 * 16, y: 20 * 16 },
         tilesets: ROOM3_TILESETS
+    },
+    room4: {
+        mapKey: 'room4',
+        mapPath: 'assets/maps/room4.json',
+        title: 'Sala IV',
+        // Mercado Público: entra pela rua, na borda esquerda.
+        spawn: { x: 24, y: 20 * 16 },
+        tilesets: ROOM4_TILESETS
+    },
+    'mercado-interior': {
+        mapKey: 'mercado-interior',
+        mapPath: 'assets/maps/mercado-interior.json',
+        title: 'Mercado Público',
+        // Logo depois da porta, fora da área que devolve ao Largo, na linha do fliperama.
+        spawn: { x: 40, y: 140 },
+        tilesets: [
+            { mapName: 'mercado_interior', textureKey: 'mercado_interior', path: 'assets/tilesets/mercado_interior.png' },
+            { mapName: 'mercado_itens', textureKey: 'mercado_itens', path: 'assets/tilesets/mercado_itens.png' }
+        ]
     },
     dungeon: {
         mapKey: 'dungeon',
@@ -194,13 +222,15 @@ export function getRequestedRoomKey(
     const requestedRoom = new URLSearchParams(search).get('room');
     if (requestedRoom === 'dungeon' || requestedRoom === 'gaucho-dungeon') return requestedRoom;
     if (requestedRoom === '3' || requestedRoom === 'room3') return 'room3';
+    if (requestedRoom === '4' || requestedRoom === 'room4') return 'room4';
+    if (requestedRoom === 'mercado' || requestedRoom === 'mercado-interior') return 'mercado-interior';
     return requestedRoom === '2' || requestedRoom === 'room2' ? 'room2' : 'room1';
 }
 
 export function getRoomSearch(roomKey: RoomKey, search = '') {
     const parameters = new URLSearchParams(search);
     if (roomKey === 'room1') parameters.delete('room');
-    else parameters.set('room', roomKey === 'room2' ? '2' : roomKey === 'room3' ? '3' : roomKey);
+    else parameters.set('room', roomKey === 'room2' ? '2' : roomKey === 'room3' ? '3' : roomKey === 'room4' ? '4' : roomKey);
     const serialized = parameters.toString();
     return serialized ? `?${serialized}` : '';
 }

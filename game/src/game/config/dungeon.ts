@@ -28,6 +28,9 @@ export type DungeonSessionState = {
     rewardClaimed: boolean;
     swordCollected: boolean;
     piranhasItemConsumed: boolean;
+    /** Partidas jogadas no fliperama do Mercado Público e se alguma foi vencida. */
+    arcadeAttempts: number;
+    arcadeWon: boolean;
     savedCombat: Partial<Record<RoomKey, SavedRoomCombat>>;
 };
 
@@ -39,6 +42,8 @@ export function createDungeonSessionState(
         rewardClaimed: false,
         swordCollected: false,
         piranhasItemConsumed: false,
+        arcadeAttempts: 0,
+        arcadeWon: false,
         savedCombat: {}
     };
 }

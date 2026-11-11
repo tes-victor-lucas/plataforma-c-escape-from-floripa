@@ -1,4 +1,5 @@
 import { CHARACTERS } from '../config/characters';
+import { MERCADO_NPCS } from '../config/mercado';
 import { Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
 import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
@@ -80,6 +81,10 @@ export class Preloader extends Scene {
             'assets/enemies/gaucho-escape/gaucho_robotico/walk.png',
             { frameWidth: 32, frameHeight: 40 }
         );
+        const { skaters, merchants, couple } = MERCADO_NPCS;
+        this.load.spritesheet(skaters.texture, skaters.path, { frameWidth: skaters.frameWidth, frameHeight: skaters.frameHeight });
+        this.load.spritesheet(merchants.texture, merchants.path, { frameWidth: merchants.frameWidth, frameHeight: merchants.frameHeight });
+        this.load.spritesheet(couple.texture, couple.path, { frameWidth: couple.frameWidth, frameHeight: couple.frameHeight });
         this.load.image('chimarrao', 'assets/items/chimarrao.png');
         this.load.image('manhole', 'assets/props/manhole.png');
         this.load.image('sword', 'assets/items/sword.png');

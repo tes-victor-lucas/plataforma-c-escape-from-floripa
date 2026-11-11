@@ -35,7 +35,7 @@ export const ROOM_EXIT_GATEWAYS = [ROOM1_TO_ROOM2_GATEWAY, ROOM2_TO_ROOM3_GATEWA
 
 /** Passagem para uma dungeon: sem parede, basta pisar na área (bueiro); com parede, é preciso encostar nela. */
 export type SecretDungeonGateway = RoomGatewayDefinition & {
-    wall?: 'left' | 'right';
+    wall?: 'left' | 'right' | 'up';
     returnSpawn: Readonly<{ x: number; y: number }>;
 };
 
@@ -69,7 +69,18 @@ export const ROOM1_TO_GAUCHO_DUNGEON_GATEWAY: SecretDungeonGateway = {
     portal: { x: 7 * 16, y: 26.5 * 16 }
 };
 
-export const SECRET_DUNGEON_GATEWAYS = [ROOM2_TO_DUNGEON_GATEWAY, ROOM1_TO_GAUCHO_DUNGEON_GATEWAY];
+/** Portal central do Mercado Público na Sala IV: encostar nele vindo da calçada leva para dentro. */
+export const ROOM4_TO_MERCADO_GATEWAY: SecretDungeonGateway = {
+    from: 'room4',
+    to: 'mercado-interior',
+    wall: 'up',
+    returnSpawn: { x: 384, y: 252 },
+    // Vão do portal (x 358-410 no mapa); o corpo do jogador encosta na fachada logo abaixo da linha 14.
+    area: { left: 364, right: 404, top: 220, bottom: 238 },
+    portal: { x: 384, y: 224 }
+};
+
+export const SECRET_DUNGEON_GATEWAYS = [ROOM2_TO_DUNGEON_GATEWAY, ROOM1_TO_GAUCHO_DUNGEON_GATEWAY, ROOM4_TO_MERCADO_GATEWAY];
 
 export function isInsideRoomGateway(
     x: number,

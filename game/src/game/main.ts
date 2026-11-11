@@ -2,6 +2,7 @@ import { Boot } from './scenes/Boot';
 import { AUTO, Game, Scale } from 'phaser';
 import { Preloader } from './scenes/Preloader';
 import { World } from './scenes/World';
+import { ArcadeMinigame } from './scenes/ArcadeMinigame';
 import { MainMenu } from './scenes/MainMenu';
 import { RoomTransition } from './scenes/RoomTransition';
 import { PauseMenu } from './scenes/PauseMenu';
@@ -46,7 +47,8 @@ const config: Phaser.Types.Core.GameConfig = {
         PauseMenu,
         ReturnToMenuTransition,
         World,
-        CombatHud
+        CombatHud,
+        ArcadeMinigame
     ]
 };
 
