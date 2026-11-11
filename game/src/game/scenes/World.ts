@@ -58,6 +58,7 @@ import {
     type RoomKey
 } from '../config/rooms';
 import { StairClimbEffect } from '../map/StairClimbEffect';
+import { climbSewerLadder, createSewerLadder } from '../map/SewerLadder';
 import { arcadeAttemptsLeft, canStartArcade } from '../minigame/arcadeAttempts';
 import type { ArcadeMinigameData } from './ArcadeMinigame';
 import type { ConfirmPromptData } from './ConfirmPrompt';
@@ -170,6 +171,7 @@ export class World extends Scene {
     private ticenGateHint?: Phaser.GameObjects.Text;
     private isArcadeArmed = true;
     private isGatewayConfirmOpen = false;
+    private isClimbingLadder = false;
     private isGatewayConfirmArmed = true;
     private arcadePrompt?: Phaser.GameObjects.Text;
     private hasSelectedPiranhasItem = false;
@@ -235,6 +237,7 @@ export class World extends Scene {
         this.isArcadeArmed = true;
         this.arcadePrompt = undefined;
         this.isGatewayConfirmOpen = false;
+        this.isClimbingLadder = false;
         this.isGatewayConfirmArmed = true;
         this.isGameOver = false;
         this.isGameplayReady = false;
@@ -283,6 +286,8 @@ export class World extends Scene {
         if (!room) return;
         this.dungeonReturnArea = room.dungeon?.returnArea
             ?? (roomKey === 'mercado-interior' ? MERCADO_INTERIOR.returnArea : undefined);
+        // O esconderijo fica embaixo do bueiro da Sala I: volta-se por uma escada até a tampa.
+        if (roomKey === 'gaucho-dungeon' && this.dungeonReturnArea) createSewerLadder(this, this.dungeonReturnArea);
         const walkableRoom2Layers = room.map.layers.filter((layer) =>
             isRoom2WalkableLayer(layer.name));
 
@@ -557,7 +562,7 @@ export class World extends Scene {
         this.updateNauseaEffect();
         if (
             this.isPiranhasMenuOpen || this.isWaveIntermissionOpen || this.isArcadeOpen
-            || this.isGatewayConfirmOpen || this.isWalletOpen
+            || this.isGatewayConfirmOpen || this.isWalletOpen || this.isClimbingLadder
         ) return;
         this.player?.update(delta);
         this.updateRevive(delta);
@@ -1101,10 +1106,14 @@ export class World extends Scene {
             return;
         }
         if (returnGateway && isAtReturn) {
-            this.passSecretGateway(returnGateway.confirm?.exit, () => this.transitionToRoom(returnGateway.from, {
+            const leave = () => this.transitionToRoom(returnGateway.from, {
                 spawn: returnGateway.returnSpawn,
                 dungeonState: this.dungeonState
-            }));
+            });
+            this.passSecretGateway(returnGateway.confirm?.exit, () => {
+                if (this.activeRoomKey === 'gaucho-dungeon') this.climbSewerLadder(leave);
+                else leave();
+            });
             return;
         }
         const exitGateway = ROOM_EXIT_GATEWAYS.find(({ from }) => from === this.activeRoomKey);
@@ -1119,6 +1128,16 @@ export class World extends Scene {
             exitGateway.to,
             this.dungeonState ? { dungeonState: this.dungeonState } : {}
         );
+    }
+
+    /** Sobe a escada do bueiro antes de voltar para a Sala I. */
+    private climbSewerLadder(leave: () => void) {
+        if (!this.player || !this.dungeonReturnArea || this.isClimbingLadder) return;
+        this.isClimbingLadder = true;
+        this.combat?.clear();
+        this.player.climbInPlace();
+        // A trava só sai quando a próxima sala recria a cena: no multiplayer, o convidado espera o anfitrião.
+        climbSewerLadder(this, this.player.sprite, this.dungeonReturnArea, leave);
     }
 
     /** Passa direto, ou pergunta antes quando a passagem tem confirmação. */
@@ -1598,7 +1617,7 @@ export class World extends Scene {
         if (
             !this.isGameplayReady || this.isPauseMenuOpen || this.isPiranhasMenuOpen
             || this.isWaveIntermissionOpen || this.isArcadeOpen || this.isGatewayConfirmOpen || this.isWalletOpen
-            || !this.player?.health.isAlive
+            || this.isClimbingLadder || !this.player?.health.isAlive
         ) return;
 
         this.isPauseMenuOpen = true;
