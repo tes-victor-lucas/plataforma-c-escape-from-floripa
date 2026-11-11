@@ -1,0 +1,222 @@
+/*
+ * Rua 3D em pixel art para a abertura: prédios com as fachadas do jogo, fogo, multidão, drones e explosões.
+ * Renderiza em 480x270 e o canvas é ampliado sem suavizar. Tudo sai do tempo `t` e de uma semente fixa:
+ * o HyperFrames busca quadros fora de ordem, então render(t) não guarda estado entre quadros.
+ */
+function makeStreet3D(canvas, cfg) {
+  const LOW_W = 480, LOW_H = 270;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(1);
+  renderer.setSize(LOW_W, LOW_H, false);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(cfg.sky);
+  scene.fog = new THREE.FogExp2(cfg.fog, cfg.fogDensity);
+  const camera = new THREE.PerspectiveCamera(cfg.fov || 62, LOW_W / LOW_H, 0.1, 300);
+
+  // Semente: mulberry32, para prédios, multidão e tremores sempre iguais.
+  function rng(seed) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
+      let r = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const hash = (n) => rng(n * 9301 + 49297)();
+
+  const loader = new THREE.TextureLoader();
+  const pixel = (tex) => {
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    return tex;
+  };
+  const load = (url) => loader.loadAsync(url).then(pixel);
+  const urls = {
+    road: 'assets/sprites/road.png', walk: 'assets/sprites/sidewalk.png', runner: 'assets/sprites/runner-dark.png',
+    hero: 'assets/sprites/player-up.png', boom: 'assets/sprites/explosion.png', drone: 'assets/sprites/drone.png',
+    fire: 'assets/sprites/fire.png',
+  };
+  cfg.facades.forEach((f, i) => { urls['facade' + i] = f; });
+  cfg.signs.forEach((f, i) => { urls['sign' + i] = f; });
+
+  // Janelas acesas num prédio escuro, desenhadas com semente.
+  function windowsTexture(seed) {
+    const c = document.createElement('canvas');
+    c.width = 32; c.height = 64;
+    const g = c.getContext('2d');
+    const r = rng(seed);
+    g.fillStyle = '#06060a'; g.fillRect(0, 0, 32, 64);
+    for (let y = 4; y < 60; y += 7) for (let x = 3; x < 30; x += 6) {
+      const v = r();
+      g.fillStyle = v < 0.18 ? '#ffcf6a' : v < 0.26 ? '#5ce5f1' : v < 0.3 ? '#e90931' : '#0b0b12';
+      g.fillRect(x, y, 3, 4);
+    }
+    return pixel(new THREE.CanvasTexture(c));
+  }
+
+  const state = { ready: null, render: null };
+  state.ready = Promise.all(Object.entries(urls).map(([k, u]) => load(u).then((t) => [k, t]))).then((pairs) => {
+    const T = Object.fromEntries(pairs);
+    const L = cfg.length;
+
+    // Chão: asfalto no meio, calçadas dos lados.
+    T.road.wrapS = T.road.wrapT = THREE.RepeatWrapping;
+    T.road.repeat.set(2, L / 4);
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(8, L), new THREE.MeshLambertMaterial({ map: T.road }));
+    road.rotation.x = -Math.PI / 2; road.position.set(0, 0, -L / 2 + 10);
+    scene.add(road);
+    T.walk.wrapS = T.walk.wrapT = THREE.RepeatWrapping;
+    T.walk.repeat.set(3, L / 3);
+    for (const side of [-1, 1]) {
+      const walk = new THREE.Mesh(new THREE.PlaneGeometry(4, L), new THREE.MeshLambertMaterial({ map: T.walk }));
+      walk.rotation.x = -Math.PI / 2; walk.position.set(side * 6, 0.02, -L / 2 + 10);
+      scene.add(walk);
+    }
+
+    // Prédios dos dois lados: a face que olha para a rua leva uma fachada do jogo ou janelas acesas.
+    const r = rng(cfg.seed);
+    const dark = new THREE.MeshLambertMaterial({ color: 0x0d0d14 });
+    for (const side of [-1, 1]) {
+      let z = 6;
+      let k = 0;
+      while (z > -L) {
+        const depth = 9 + r() * 7;
+        const height = 7 + r() * 13;
+        const useFacade = r() < cfg.facadeChance;
+        const map = useFacade ? T['facade' + Math.floor(r() * cfg.facades.length)] : windowsTexture(cfg.seed + k * 13 + side);
+        // Janelas e letreiros brilham sozinhos; as fachadas do jogo só um pouco, para não sumirem no escuro.
+        const face = new THREE.MeshLambertMaterial({ map, emissiveMap: map, emissive: 0xffffff,
+          emissiveIntensity: useFacade ? 0.22 : 0.75 });
+        const mats = [dark, dark, dark, dark, dark, dark];
+        mats[side < 0 ? 0 : 1] = face;
+        const b = new THREE.Mesh(new THREE.BoxGeometry(6, height, depth), mats);
+        b.position.set(side * 11, height / 2, z - depth / 2);
+        scene.add(b);
+        // Letreiro neon saindo da parede, de vez em quando.
+        if (cfg.signs.length && r() < 0.35) {
+          const tex = T['sign' + Math.floor(r() * cfg.signs.length)];
+          const w = 3.2, h = w * tex.image.height / tex.image.width;
+          const sign = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
+            new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide, fog: true }));
+          sign.position.set(side * 8.1, 4.5 + r() * 2, z - depth / 2);
+          sign.rotation.y = Math.PI / 2;
+          scene.add(sign);
+        }
+        z -= depth + 0.4;
+        k++;
+      }
+    }
+
+    scene.add(new THREE.AmbientLight(cfg.ambient, cfg.ambientIntensity));
+    const moon = new THREE.DirectionalLight(0x6a86c8, 0.35);
+    moon.position.set(-4, 10, 4);
+    scene.add(moon);
+
+    // Sprites de tiras horizontais: cada um com a própria cópia da textura para escolher o quadro.
+    function stripSprite(tex, frames, scaleX, scaleY, glow) {
+      const t2 = tex.clone();
+      t2.needsUpdate = true;
+      t2.repeat.set(1 / frames, 1);
+      // O que emite luz (fogo, explosão) fica fora da neblina; o resto se perde nela com a distância.
+      const m = new THREE.SpriteMaterial({ map: t2, transparent: true, alphaTest: 0.5, fog: !glow });
+      const s = new THREE.Sprite(m);
+      s.scale.set(scaleX, scaleY, 1);
+      s.center.set(0.5, 0);
+      scene.add(s);
+      return { s, t2, frames };
+    }
+    const setFrame = (sp, f) => { sp.t2.offset.x = f / sp.frames; };
+
+    // Fogo com luz laranja tremendo.
+    const fires = cfg.fires.map((f, i) => {
+      const sp = stripSprite(T.fire, 3, f.size * 0.6, f.size, true);
+      sp.s.position.set(f.x, 0, f.z);
+      const light = new THREE.PointLight(0xff8a30, 0, 34, 1.3);
+      light.position.set(f.x, 2.5, f.z + 1);
+      scene.add(light);
+      return { sp, light, i };
+    });
+
+    // Multidão fugindo na mesma direção da câmera.
+    const crowd = [];
+    const rc = rng(cfg.seed + 7);
+    for (let i = 0; i < cfg.crowd; i++) {
+      const size = 1.7 + rc() * 0.5;
+      const sp = stripSprite(T.runner, 9, size, size);
+      // Uns na frente, uns rente à câmera pelos lados, que a câmera alcança e ultrapassa.
+      const near = i % 4 === 0;
+      crowd.push({ sp, x: near ? (i % 8 === 0 ? -1 : 1) * (2.2 + rc() * 1.4) : -3.6 + rc() * 7.2,
+        z0: near ? 2 - rc() * 6 : -4 - rc() * 34, speed: cfg.speed * (near ? 0.82 + rc() * 0.1 : 0.72 + rc() * 0.4),
+        phase: rc() * 8 });
+    }
+
+    const hero = cfg.hero ? stripSprite(T.hero, 9, 1.75, 1.75) : null;
+    const drones = cfg.drones.map((d) => ({ d, sp: stripSprite(T.drone, 1, 1.8, 1.8) }));
+    const booms = cfg.booms.map((b) => {
+      const sp = stripSprite(T.boom, 4, b.size, b.size, true);
+      const light = new THREE.PointLight(0xffb060, 0, 46, 1.2);
+      scene.add(light);
+      return { b, sp, light };
+    });
+    const tracerMat = new THREE.MeshBasicMaterial({ color: 0xe90931 });
+    const tracers = cfg.tracers.map((tr) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 1), tracerMat);
+      scene.add(m);
+      return { tr, m };
+    });
+
+    state.render = function (t) {
+      const camZ = 4 - cfg.speed * t;
+      const fi = Math.floor(t * 30);
+      const shakeBase = cfg.shake + booms.reduce((a, { b }) => a + (t >= b.t && t < b.t + 0.6 ? b.shake * (1 - (t - b.t) / 0.6) : 0), 0);
+      const sx = (hash(fi) - 0.5) * shakeBase, sy = (hash(fi + 999) - 0.5) * shakeBase;
+      const bob = Math.abs(Math.sin(t * 9.5)) * cfg.bob;
+      camera.position.set(cfg.camX + sx, cfg.camY + bob + sy, camZ);
+      camera.lookAt(cfg.camX * 0.4, cfg.lookY, camZ - 12);
+
+      fires.forEach(({ sp, light, i }) => {
+        setFrame(sp, (Math.floor(t * 12) + i) % 3);
+        light.intensity = 4 + hash(fi * 3 + i) * 2.5;
+      });
+      crowd.forEach((c, i) => {
+        c.sp.s.position.set(c.x + Math.sin(t * 3 + i) * 0.2, 0, c.z0 - c.speed * t);
+        setFrame(c.sp, 1 + (Math.floor(t * 14 + c.phase) % 8));
+      });
+      if (hero) {
+        hero.s.position.set(cfg.camX - 0.9, 0, camZ - 3.6);
+        setFrame(hero, 1 + (Math.floor(t * 15) % 8));
+      }
+      drones.forEach(({ d, sp }) => {
+        const p = Math.min(1, Math.max(0, (t - d.t0) / d.dur));
+        sp.s.visible = t >= d.t0;
+        sp.s.position.set(d.x0 + (d.x1 - d.x0) * p, d.y0 + (d.y1 - d.y0) * p * p, camZ - d.ahead * (1 - p) - 3);
+      });
+      booms.forEach(({ b, sp, light }) => {
+        const age = t - b.t;
+        const on = age >= 0 && age < 0.55;
+        sp.s.visible = on;
+        light.intensity = on ? 12 * (1 - age / 0.55) : 0;
+        if (on) {
+          setFrame(sp, Math.min(3, Math.floor(age / 0.09)));
+          const z = camZ - b.ahead;
+          sp.s.position.set(b.x, -0.3, z);
+          light.position.set(b.x, 2, z + 1);
+        }
+      });
+      tracers.forEach(({ tr, m }) => {
+        const on = t >= tr.t && t < tr.t + 0.08;
+        m.visible = on;
+        if (on) {
+          const a = new THREE.Vector3(tr.x0, tr.y0, camZ - tr.z0);
+          const bpt = new THREE.Vector3(tr.x1, tr.y1, camZ - tr.z1);
+          m.position.copy(a).add(bpt).multiplyScalar(0.5);
+          m.scale.z = a.distanceTo(bpt);
+          m.lookAt(bpt);
+        }
+      });
+      renderer.render(scene, camera);
+    };
+  });
+  return state;
+}
