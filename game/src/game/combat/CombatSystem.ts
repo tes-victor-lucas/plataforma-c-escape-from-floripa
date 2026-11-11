@@ -389,7 +389,8 @@ export class CombatSystem {
         this.pulseCooldown = pulseInterval;
         const origin = this.getCenter(this.player);
         this.shareEffect({ effect: 'shockwave', ...origin, radius: pulseRadius, color: COMBAT_CONFIG.player.color });
-        this.damageArea(origin, pulseRadius, damage * pulseDamageRatio);
+        // A onda sai do jogador e atravessa obstáculos: pega quem está atrás de árvore, banco ou poste.
+        this.damageArea(origin, pulseRadius, damage * pulseDamageRatio, undefined, undefined, true, false);
     }
 
     /** Tiro explosivo: o inimigo atingido já levou o dano cheio, os vizinhos levam uma parte. */
@@ -407,7 +408,8 @@ export class CombatSystem {
         damage: number,
         except?: CombatEnemy,
         attackId?: string,
-        canDetonate = true
+        canDetonate = true,
+        needsLineOfSight = true
     ) {
         const strike = (id: string) => {
             for (const enemy of this.enemies) {
@@ -416,7 +418,7 @@ export class CombatSystem {
                 const dx = target.x - origin.x;
                 const dy = target.y - origin.y;
                 const distance = Math.hypot(dx, dy);
-                if (distance > radius || !hasLineOfSight(this.walls, origin, target)) continue;
+                if (distance > radius || (needsLineOfSight && !hasLineOfSight(this.walls, origin, target))) continue;
                 this.hitEnemy(enemy, damage, distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 1 }, id, canDetonate);
             }
         };
