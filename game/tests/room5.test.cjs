@@ -60,13 +60,15 @@ test('saldo do cartão é a pontuação escrita como dinheiro', () => {
 
 test('room5 tem o 763.2 via Kobrasol parado na faixa da Plataforma C', () => {
     const { firstgid, columns } = map.tilesets.find(({ name }) => name === 'ticen_onibus');
-    // O 763.2 é o quarto ônibus da folha: linhas 9 a 11.
-    const goalTiles = layer('onibus').data.flatMap((gid, index) => {
-        const local = gid - firstgid;
-        return gid && Math.floor(local / columns) >= 9 ? [Math.floor(index / map.width)] : [];
+    // Cada ônibus ocupa 3 linhas da folha: o 763.2 (Estrela) é o quarto e a Jotur da linha IFSC, o quinto.
+    const rowsOf = (bus) => layer('onibus').data.flatMap((gid, index) => {
+        const sheetRow = Math.floor((gid - firstgid) / columns);
+        return gid && Math.floor(sheetRow / 3) === bus ? [Math.floor(index / map.width)] : [];
     });
+    const goalTiles = rowsOf(3);
     assert.ok(goalTiles.length > 0, 'o 763.2 está no mapa');
     assert.ok(goalTiles.every((row) => row >= 28 && row <= 32), 'na faixa entre as plataformas C e D');
+    assert.ok(rowsOf(4).length > 0, 'a Jotur da linha IFSC está no mapa');
 });
 
 test('patinetes e bicicletas estacionados ficam na calçada sem fechar o caminho até a catraca', () => {
