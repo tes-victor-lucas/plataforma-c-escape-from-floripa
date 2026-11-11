@@ -858,8 +858,8 @@ export class World extends Scene {
         for (const enemy of this.drones) {
             if (enemy.health.isAlive) enemy.takeDamage(enemy.health.current);
         }
-        // Na Sala III concluir o combate é a vitória: o atalho só limpa a horda e a partida segue.
-        if (this.activeRoomKey !== 'room3') this.completeRoomCombat?.();
+        // A vitória agora é no 763.2 (Sala V): o atalho conclui qualquer sala com combate.
+        this.completeRoomCombat?.();
     }
 
     /** Atalho de teste da Sala III: aplica na hora uma carta forte que ainda pode subir de nível. */
@@ -996,13 +996,12 @@ export class World extends Scene {
     private openTicenGate() {
         this.isTicenGateOpen = true;
         this.ticenGateHint?.setVisible(false);
-        const { openFrameDuration, blockerLayer, railLayer, row, widenCols } = TICEN_GATE;
+        const { openFrameDuration, railLayer, row, widenCols } = TICEN_GATE;
         [1, 2, 3].forEach((frame, index) => {
             this.time.delayedCall(openFrameDuration * index, () => this.ticenGate?.setFrame(frame));
         });
         this.time.delayedCall(openFrameDuration * 2, () => {
-            const blocker = this.collisionLayers.find((layer) => layer.layer.name === blockerLayer);
-            blocker?.forEachTile((tile) => tile.setCollision(false));
+            // A máquina continua sólida; a passagem abre na grade dos dois lados dela.
             const rails = this.collisionLayers.find((layer) => layer.layer.name === railLayer);
             for (const col of widenCols) rails?.removeTileAt(col, row);
         });
@@ -1061,7 +1060,7 @@ export class World extends Scene {
         if (this.isRoomExitOpen || !gateway) return;
         this.isRoomExitOpen = true;
         const { x, y } = gateway.portal;
-        this.roomExitPortal = new RoomExitPortal(this, x, y, gateway.portalWall);
+        this.roomExitPortal = new RoomExitPortal(this, x, y, gateway.portalWall, gateway.portalScale);
     }
 
     private updateRoomGateway() {
@@ -1269,7 +1268,7 @@ export class World extends Scene {
     private persistContinuationCheckpoint() {
         if (
             this.isMultiplayerEnabled() || !this.player
-            || (this.activeRoomKey !== 'room2' && this.activeRoomKey !== 'room3') || !loadCampaignProgress()
+            || !['room2', 'room3', 'room4', 'room5'].includes(this.activeRoomKey) || !loadCampaignProgress()
         ) return;
         saveCampaignProgress({
             roomKey: this.activeRoomKey,

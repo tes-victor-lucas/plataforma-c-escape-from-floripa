@@ -7,6 +7,8 @@ export type RoomGatewayDefinition = {
     portal: Readonly<{ x: number; y: number }>;
     /** Parede onde o halo da saída se apoia; sem ela o halo é um círculo inteiro. */
     portalWall?: 'right';
+    /** Escala do halo; menor quando a saída é só o fim da rua, sem parede desenhada. */
+    portalScale?: number;
 };
 
 /** Passagem liberada no topo da Room 1 depois da última onda. */
@@ -47,7 +49,9 @@ export const ROOM4_TO_ROOM5_GATEWAY: RoomGatewayDefinition = {
     // Sem parede nessa borda: o limite do mundo (x 768) para o jogador.
     area: { left: 45 * 16, right: 48 * 16, top: 18 * 16, bottom: 23 * 16 },
     portal: { x: 48 * 16 - 2, y: 20.5 * 16 },
-    portalWall: 'right'
+    portalWall: 'right',
+    // Sem parede nessa borda: um halo do tamanho da rua, para não parecer um sol solto.
+    portalScale: 0.55
 };
 
 export const ROOM_EXIT_GATEWAYS = [ROOM1_TO_ROOM2_GATEWAY, ROOM2_TO_ROOM3_GATEWAY, ROOM3_TO_ROOM4_GATEWAY, ROOM4_TO_ROOM5_GATEWAY];
