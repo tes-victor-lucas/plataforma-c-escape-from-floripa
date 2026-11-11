@@ -18,28 +18,24 @@
       .plane img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: pixelated; }
   </style>
   <div id="root" data-composition-id="s4" data-width="1920" data-height="1080">
-      <canvas id="s4-c" width="1280" height="720" style="position:absolute;left:0;top:0;width:1920px;height:1080px;z-index:1;"></canvas>
+      <canvas id="s4-c" width="1920" height="1080" style="position:absolute;left:0;top:0;width:1920px;height:1080px;z-index:1;"></canvas>
   </div>
   <script>
       const tl = gsap.timeline({ paused: true });
       /*
- * Centro de Florianópolis em 3D, modelado peça por peça (nada de foto colada) e animado pelo tempo.
- * Render realista na paleta do jogo: asfalto molhado, chuva, fumaça, brilho nas luzes, pessoas em silhueta.
+ * Animação 2D da abertura, desenhada em canvas quadro a quadro na paleta do jogo.
+ * Silhuetas articuladas (personagem, multidão, robôs, drones), cenários em camadas e efeitos (fogo, chuva, fumaça).
  * render(t) é função pura de t: o HyperFrames busca quadros fora de ordem.
  */
-function makeCity3D(canvas, cfg) {
-  const W = 1280, H = 720;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
-  renderer.setPixelRatio(1);
-  renderer.setSize(W, H, false);
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = cfg.exposure || 1.15;
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(cfg.sky);
-  scene.fog = new THREE.Fog(cfg.fog, cfg.fogNear, cfg.fogFar);
-  const camera = new THREE.PerspectiveCamera(cfg.fov || 60, W / H, 0.1, 400);
+function makeAnim2D(canvas, cfg) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const P = {
+    navy: '#01141a', deep: '#061a26', blue: '#0b2a3d', steel: '#14303f', red: '#e90931', cyan: '#5ce5f1',
+    amber: '#ffb347', fire: '#ff6a1a', yellow: '#ffd27a', ink: '#04060b', teal: '#1f8f86',
+  };
 
-  // --- utilidades -------------------------------------------------------------------------------------------
+  // --- acaso com semente --------------------------------------------------------------------------------------
   function rng(seed) {
     return function () {
       seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
@@ -49,591 +45,575 @@ function makeCity3D(canvas, cfg) {
     };
   }
   const hash = (n) => rng(Math.floor(n) * 9301 + 49297)();
-  const mats = {};
-  const mat = (color, emissive = 0, intensity = 1) => {
-    const key = color + ':' + emissive + ':' + intensity;
-    if (!mats[key]) mats[key] = new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity,
-      roughness: 0.82, metalness: 0.04 });
-    return mats[key];
-  };
-  const glow = (color) => mat(color, color, 1.6);
-  // Brilho difuso: um disco de luz aditivo, para postes, neon, fogo e olhos dos drones.
-  const haloTex = (() => {
-    const c = document.createElement('canvas');
-    c.width = c.height = 64;
-    const g = c.getContext('2d');
-    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    grad.addColorStop(0, 'rgba(255,255,255,1)');
-    grad.addColorStop(0.25, 'rgba(255,255,255,0.45)');
-    grad.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
-    return new THREE.CanvasTexture(c);
-  })();
-  const smokeTex = (() => {
-    const c = document.createElement('canvas');
-    c.width = c.height = 64;
-    const g = c.getContext('2d');
-    const grad = g.createRadialGradient(32, 32, 4, 32, 32, 32);
-    grad.addColorStop(0, 'rgba(40,36,40,0.85)');
-    grad.addColorStop(1, 'rgba(20,18,22,0)');
-    g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
-    return new THREE.CanvasTexture(c);
-  })();
-  function halo(color, size, opacity = 0.8) {
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color, transparent: true, opacity,
-      blending: THREE.AdditiveBlending, depthWrite: false }));
-    s.scale.set(size, size, 1);
-    scene.add(s);
-    return s;
+  const lerp = (a, b, k) => a + (b - a) * k;
+  const clamp01 = (k) => Math.max(0, Math.min(1, k));
+  const smooth = (k) => { k = clamp01(k); return k * k * (3 - 2 * k); };
+
+  // --- luz e atmosfera ----------------------------------------------------------------------------------------
+  function sky(top, bottom, horizon = H) {
+    const g = ctx.createLinearGradient(0, 0, 0, horizon);
+    g.addColorStop(0, top); g.addColorStop(1, bottom);
+    ctx.fillStyle = g; ctx.fillRect(-200, -200, W + 400, H + 400);
   }
-  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-  function box(parent, w, h, d, x, y, z, material) {
-    const m = new THREE.Mesh(boxGeo, material);
-    m.scale.set(w, h, d);
-    m.position.set(x, y, z);
-    parent.add(m);
-    return m;
+  function glow(x, y, r, color, alpha = 1) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = g;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    ctx.restore();
   }
-  function textTexture(text, fg, bg, w = 64, h = 20) {
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    const g = c.getContext('2d');
-    g.fillStyle = bg; g.fillRect(0, 0, w, h);
-    g.fillStyle = fg; g.font = 'bold ' + Math.floor(h * 0.72) + 'px monospace';
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(text, w / 2, h / 2 + 1);
-    const t = new THREE.CanvasTexture(c);
-    t.magFilter = t.minFilter = THREE.NearestFilter;
-    return t;
+  function sun(x, y, r) {
+    glow(x, y, r * 3.2, 'rgba(233,9,49,0.55)');
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = P.red; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    // Faixas do sol do menu do jogo.
+    ctx.fillStyle = 'rgba(1,20,26,0.85)';
+    for (let k = 0; k < 6; k++) ctx.fillRect(x - r, y + r * 0.1 + k * r * 0.16, r * 2, r * 0.03 + k * r * 0.012);
+    ctx.restore();
+  }
+  function rain(t, count, color, speed = 1900, slant = 0.18, seed = 3) {
+    const r = rng(seed);
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    for (let i = 0; i < count; i++) {
+      const x0 = r() * (W + 400) - 200, y0 = r() * H, len = 22 + r() * 30, v = speed * (0.8 + r() * 0.4);
+      const y = ((y0 + v * t) % (H + 80)) - 40;
+      const x = x0 - (y - y0) * slant * 0;
+      ctx.moveTo(x + slant * y * 0.2, y);
+      ctx.lineTo(x + slant * (y + len) * 0.2 + slant * len, y + len);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+  function smoke(x, y, t, seed, size = 1, color = 'rgba(30,26,30,') {
+    const r = rng(seed);
+    for (let i = 0; i < 9; i++) {
+      const off = r(), sp = 0.18 + r() * 0.12;
+      const age = (t * sp + off) % 1;
+      const px = x + (r() - 0.5) * 80 * size + age * 140 * size, py = y - age * 420 * size;
+      const rad = (40 + age * 140) * size;
+      const g = ctx.createRadialGradient(px, py, 0, px, py, rad);
+      g.addColorStop(0, color + (0.55 * (1 - age)) + ')'); g.addColorStop(1, color + '0)');
+      ctx.fillStyle = g; ctx.fillRect(px - rad, py - rad, rad * 2, rad * 2);
+    }
+  }
+  function fire(x, y, size, t, seed) {
+    const r = rng(seed);
+    glow(x, y - 60 * size, 260 * size, 'rgba(255,110,30,0.55)');
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 14; i++) {
+      const off = r(), sp = 1.4 + r() * 1.1, dx = (r() - 0.5) * 90 * size;
+      const age = (t * sp + off) % 1;
+      const h = (90 + r() * 120) * size * (1 - age * 0.3);
+      const w = (26 + r() * 22) * size * (1 - age);
+      const sway = Math.sin(t * 9 + i) * 10 * size;
+      const bx = x + dx * (1 - age * 0.5), by = y - age * 70 * size;
+      const colors = ['rgba(255,240,170,', 'rgba(255,170,60,', 'rgba(255,80,30,'];
+      const c = colors[i % 3];
+      ctx.fillStyle = c + (0.75 * (1 - age)) + ')';
+      ctx.beginPath();
+      ctx.moveTo(bx - w, by);
+      ctx.quadraticCurveTo(bx - w * 0.6 + sway, by - h * 0.55, bx + sway * 1.6, by - h);
+      ctx.quadraticCurveTo(bx + w * 0.6 + sway, by - h * 0.55, bx + w, by);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // Faíscas subindo.
+    ctx.fillStyle = 'rgba(255,200,90,0.9)';
+    for (let i = 0; i < 16; i++) {
+      const off = r(), sp = 0.5 + r() * 0.6, age = (t * sp + off) % 1;
+      ctx.globalAlpha = 1 - age;
+      ctx.fillRect(x + (r() - 0.5) * 120 * size + Math.sin(age * 6 + i) * 20, y - age * 380 * size, 4, 4);
+    }
+    ctx.restore();
+    smoke(x, y - 160 * size, t, seed + 7, size);
+  }
+  function explosion(x, y, age, size, seed) {
+    if (age < 0 || age > 1.3) return;
+    const k = clamp01(age / 0.45);
+    glow(x, y, (180 + 520 * k) * size, `rgba(255,${Math.floor(200 - 120 * k)},80,${0.9 * (1 - k)})`);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const r = rng(seed);
+    for (let i = 0; i < 18; i++) {
+      const a = r() * Math.PI * 2, rad = (40 + r() * 140) * size * (0.3 + k);
+      ctx.fillStyle = `rgba(255,${120 + Math.floor(r() * 120)},40,${0.85 * (1 - k)})`;
+      ctx.beginPath(); ctx.arc(x + Math.cos(a) * rad * 0.6, y + Math.sin(a) * rad * 0.4, rad * 0.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+    // Destroços com gravidade.
+    ctx.fillStyle = P.ink;
+    for (let i = 0; i < 16; i++) {
+      const vx = (r() - 0.5) * 900 * size, vy = -(300 + r() * 700) * size, s = (6 + r() * 14) * size;
+      const px = x + vx * age, py = y + vy * age + 1400 * size * age * age;
+      ctx.save(); ctx.translate(px, py); ctx.rotate(age * 9 * (r() - 0.5)); ctx.fillRect(-s / 2, -s / 2, s, s * 0.6); ctx.restore();
+    }
+    smoke(x, y, age * 2.5, seed + 3, size * 1.4, 'rgba(24,20,26,');
   }
 
-  const PAL = {
-    walls: [0xd8d2c4, 0xb8a58c, 0x8e5a48, 0x6e7280, 0xc9b28a, 0x9a6a58, 0x5a5e6a],
-    frame: 0x6a1420, glass: 0x18233a, lit: 0xffcf6a, cyan: 0x5ce5f1, red: 0xe90931, dark: 0x101016,
-    neon: [['BAR', '#ff3b6b'], ['TCHAY', '#5ce5f1'], ['FLORIA', '#e90931'], ['GATUS', '#ffd27a'], ['CAFE', '#5ce5f1']],
-  };
+  // --- personagens articulados --------------------------------------------------------------------------------
+  // Duas articulações por membro: o ângulo vem do ciclo de corrida, com fases e amplitudes diferentes.
+  function limb(x, y, a1, l1, a2, l2, width) {
+    const kx = x + Math.sin(a1) * l1, ky = y + Math.cos(a1) * l1;
+    const fx = kx + Math.sin(a1 + a2) * l2, fy = ky + Math.cos(a1 + a2) * l2;
+    ctx.lineWidth = width;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
+    return [fx, fy];
+  }
+  function figure(x, y, s, phase, o = {}) {
+    const dir = o.dir || 1, run = o.run ?? 1, fill = o.fill || P.ink;
+    const bob = Math.abs(Math.cos(phase)) * 9 * s * run;
+    const hip = [x, y - 92 * s - bob];
+    const lean = (o.lean ?? 0.28) * run * dir;
+    const shoulder = [hip[0] + Math.sin(lean) * 62 * s, hip[1] - Math.cos(lean) * 62 * s];
+    const sw = Math.sin(phase);
+    ctx.save();
+    ctx.strokeStyle = fill; ctx.fillStyle = fill; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const legs = [[sw, 1], [-sw, -1]];
+    const legAngles = legs.map(([v, k]) => [dir * v * 0.95 * run, dir * (v < 0 ? -1 : -0.25) * Math.abs(v) * 1.3 * run - 0.05]);
+    // Perna de trás, um pouco mais escura.
+    ctx.globalAlpha = 0.85;
+    limb(hip[0], hip[1], legAngles[1][0], 50 * s, legAngles[1][1] * -dir * dir, 50 * s, 15 * s);
+    if (!o.shoot) limb(shoulder[0], shoulder[1] + 4 * s, dir * sw * 0.9 * run, 34 * s, -dir * (0.6 + Math.max(0, sw) * 0.6) * run, 32 * s, 11 * s);
+    ctx.globalAlpha = 1;
+    // Tronco e cabeça (a cabeça atrasa um pouco o passo).
+    ctx.lineWidth = 30 * s;
+    ctx.beginPath(); ctx.moveTo(hip[0], hip[1]); ctx.lineTo(shoulder[0], shoulder[1]); ctx.stroke();
+    const head = [shoulder[0] + dir * 6 * s + Math.sin(phase - 0.6) * 2 * s, shoulder[1] - 22 * s];
+    ctx.beginPath(); ctx.arc(head[0], head[1], 15 * s, 0, Math.PI * 2); ctx.fill();
+    limb(hip[0], hip[1], legAngles[0][0], 50 * s, legAngles[0][1] * -dir * dir, 50 * s, 16 * s);
+    let muzzle = null;
+    if (o.shoot) {
+      // Braços estendidos segurando a arma.
+      ctx.lineWidth = 11 * s;
+      const hand = [shoulder[0] + dir * 64 * s, shoulder[1] + 6 * s + (o.recoil || 0) * -8 * s];
+      ctx.beginPath(); ctx.moveTo(shoulder[0], shoulder[1] + 4 * s); ctx.lineTo(hand[0], hand[1]); ctx.stroke();
+      ctx.fillRect(hand[0] - (dir < 0 ? 26 * s : 0), hand[1] - 6 * s, 26 * s, 9 * s);
+      muzzle = [hand[0] + dir * 28 * s, hand[1] - 2 * s];
+    } else {
+      limb(shoulder[0], shoulder[1] + 4 * s, -dir * sw * 0.8 * run, 34 * s, -dir * (0.5 + Math.max(0, -sw) * 0.7) * run, 32 * s, 11 * s);
+    }
+    // Contorno aceso pela luz de trás (fogo, neon): o que faz a silhueta ler no escuro.
+    if (o.rim) {
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.restore(); ctx.save();
+      ctx.strokeStyle = o.rim; ctx.lineWidth = 3 * s; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(head[0], head[1], 15 * s, -Math.PI / 2 - dir * 1.2, -Math.PI / 2 + dir * 0.4, dir < 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(shoulder[0] - dir * 14 * s, shoulder[1] - 4 * s); ctx.lineTo(hip[0] - dir * 14 * s, hip[1]); ctx.stroke();
+    }
+    if (o.accent) {  // detalhe de cor do personagem do jogo: cinto azul e tênis rosa
+      ctx.fillStyle = '#3a5ad8'; ctx.fillRect(hip[0] - 15 * s, hip[1] - 4 * s, 30 * s, 7 * s);
+    }
+    ctx.restore();
+    return { head, muzzle, hip };
+  }
+  function backFigure(x, y, s, t, o = {}) {
+    // De costas, parado: ombros, casaco balançando no vento, cabeça olhando para cima.
+    ctx.save();
+    ctx.fillStyle = o.fill || P.ink;
+    const breathe = Math.sin(t * 2.3) * 2 * s, wind = Math.sin(t * 3.1) * 6 * s;
+    ctx.beginPath();
+    ctx.moveTo(x - 46 * s, y - 210 * s + breathe);
+    ctx.quadraticCurveTo(x, y - 232 * s + breathe, x + 46 * s, y - 210 * s + breathe);
+    ctx.lineTo(x + 40 * s + wind, y - 90 * s);
+    ctx.lineTo(x + 18 * s, y - 92 * s); ctx.lineTo(x + 20 * s, y); ctx.lineTo(x + 4 * s, y);
+    ctx.lineTo(x, y - 80 * s); ctx.lineTo(x - 4 * s, y); ctx.lineTo(x - 20 * s, y); ctx.lineTo(x - 18 * s, y - 92 * s);
+    ctx.lineTo(x - 40 * s + wind * 0.6, y - 90 * s);
+    ctx.closePath(); ctx.fill();
+    const lookUp = o.lookUp ? -8 * s : 0;
+    ctx.beginPath(); ctx.ellipse(x, y - 250 * s + breathe + lookUp, 24 * s, 27 * s, 0, 0, Math.PI * 2); ctx.fill();
+    if (o.rim) {
+      ctx.strokeStyle = o.rim; ctx.lineWidth = 4 * s;
+      ctx.beginPath(); ctx.moveTo(x + 46 * s, y - 210 * s + breathe); ctx.lineTo(x + 40 * s + wind, y - 90 * s); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y - 250 * s + breathe + lookUp, 24 * s, -0.9, 0.7); ctx.stroke();
+    }
+    ctx.fillStyle = '#3a5ad8'; ctx.fillRect(x - 38 * s, y - 100 * s, 76 * s, 7 * s);
+    ctx.restore();
+  }
+  function robot(x, y, s, phase, o = {}) {
+    const dir = o.dir || -1;
+    ctx.save();
+    ctx.translate(x, y);
+    if (o.down) {  // caído
+      ctx.rotate(dir * 1.35);
+    }
+    const sw = Math.sin(phase) * (o.walk ? 1 : 0);
+    ctx.strokeStyle = '#0a1820'; ctx.fillStyle = '#0d222c'; ctx.lineCap = 'round'; ctx.lineWidth = 18 * s;
+    limb(0, -100 * s, sw * 0.6, 52 * s, -Math.abs(sw) * 0.4, 50 * s, 18 * s);
+    limb(0, -100 * s, -sw * 0.6, 52 * s, -Math.abs(sw) * 0.4, 50 * s, 18 * s);
+    ctx.fillRect(-34 * s, -196 * s, 68 * s, 100 * s);
+    ctx.fillStyle = '#10303a';
+    ctx.fillRect(-28 * s, -238 * s, 56 * s, 40 * s);
+    // Viseira vermelha e faixas ciano: as cores dos guardas do jogo.
+    const eye = o.down ? 0.2 : 1;
+    ctx.fillStyle = `rgba(233,9,49,${eye})`; ctx.fillRect(-20 * s + dir * 6 * s, -224 * s, 40 * s, 8 * s);
+    ctx.fillStyle = P.cyan; ctx.fillRect(-34 * s, -170 * s, 6 * s, 50 * s); ctx.fillRect(28 * s, -170 * s, 6 * s, 50 * s);
+    ctx.restore();
+    if (!o.down) glow(x + dir * 6 * s, y - 220 * s, 60 * s, 'rgba(233,9,49,0.8)');
+    // Braço-arma apontado.
+    if (o.aim && !o.down) {
+      ctx.save(); ctx.strokeStyle = '#0a1820'; ctx.lineWidth = 14 * s; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x, y - 170 * s); ctx.lineTo(x + dir * 70 * s, y - 165 * s); ctx.stroke(); ctx.restore();
+    }
+  }
+  function drone(x, y, s, t, o = {}) {
+    if (o.spot) {  // holofote ciano varrendo
+      const a = o.spot;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createLinearGradient(x, y, x + Math.sin(a) * 900 * s, y + Math.cos(a) * 900 * s);
+      g.addColorStop(0, 'rgba(154,232,255,0.45)'); g.addColorStop(1, 'rgba(154,232,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.moveTo(x - 10 * s, y);
+      ctx.lineTo(x + Math.sin(a - 0.22) * 1000 * s, y + Math.cos(a - 0.22) * 1000 * s);
+      ctx.lineTo(x + Math.sin(a + 0.22) * 1000 * s, y + Math.cos(a + 0.22) * 1000 * s);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.fillStyle = '#c8ccd4';
+    ctx.beginPath(); ctx.ellipse(x, y, 46 * s, 18 * s, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#6a707c';
+    ctx.fillRect(x - 70 * s, y - 6 * s, 140 * s, 6 * s);
+    // Hélices: borrão girando, mais claro numa fase do giro.
+    for (const k of [-1, 1]) {
+      const blur = 0.35 + 0.25 * Math.abs(Math.sin(t * 60 + k));
+      ctx.fillStyle = `rgba(200,210,220,${blur})`;
+      ctx.beginPath(); ctx.ellipse(x + k * 70 * s, y - 10 * s, 34 * s, 5 * s, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+    glow(x, y + 4 * s, 50 * s, 'rgba(60,255,106,0.9)');
+    ctx.fillStyle = '#3cff6a'; ctx.beginPath(); ctx.arc(x, y + 4 * s, 7 * s, 0, Math.PI * 2); ctx.fill();
+  }
+  function tracer(x0, y0, x1, y1, color, alpha = 1) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = color; ctx.globalAlpha = alpha; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.restore();
+  }
+  function flash(x, y, s) {
+    glow(x, y, 120 * s, 'rgba(255,230,140,1)');
+    ctx.save(); ctx.fillStyle = '#fff6d0';
+    ctx.beginPath();
+    for (let k = 0; k < 8; k++) {
+      const a = k * Math.PI / 4, r = (k % 2 ? 14 : 42) * s;
+      ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+    }
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
 
-  // --- prédio modelado -------------------------------------------------------------------------------------
-  // `side` = -1 (esquerda da rua) ou 1; a fachada olha para x = 0.
-  function building(r, side, z, depth, floors, opts = {}) {
-    const g = new THREE.Group();
-    const wallColor = opts.wall || PAL.walls[Math.floor(r() * PAL.walls.length)];
-    const fh = 3.2, height = floors * fh + 1.2, width = 6;
-    const face = side < 0 ? width / 2 : -width / 2;  // x local da fachada
-    const out = side < 0 ? 1 : -1;                    // direção da rua
-    box(g, width, height, depth, 0, height / 2, 0, mat(wallColor));
-    // Faixas entre andares e cornija no topo.
-    for (let f = 1; f <= floors; f++) box(g, 0.3, 0.25, depth + 0.2, face + out * 0.15, f * fh, 0, mat(0xe8e2d4));
-    box(g, 0.6, 0.5, depth + 0.4, face + out * 0.3, height - 0.25, 0, mat(0xe8e2d4));
-    box(g, 0.3, 0.7, depth, face + out * 0.05, height + 0.35, 0, mat(wallColor));
-    // Janelas: moldura, vidro recuado (algumas acesas) e peitoril.
-    const cols = Math.max(2, Math.floor(depth / 2.6));
-    for (let f = 1; f < floors; f++) {
-      for (let c = 0; c < cols; c++) {
-        const wz = -depth / 2 + (c + 0.5) * depth / cols;
-        const wy = f * fh + 1.5;
-        box(g, 0.18, 1.9, 1.25, face + out * 0.05, wy, wz, mat(PAL.frame));
-        const v = r();
-        const glassMat = v < 0.22 ? glow(PAL.lit) : v < 0.28 ? glow(PAL.cyan) : mat(PAL.glass);
-        box(g, 0.1, 1.55, 0.95, face + out * 0.11, wy, wz, glassMat);
-        box(g, 0.35, 0.12, 1.4, face + out * 0.18, wy - 1.0, wz, mat(0xe8e2d4));
-        if (r() < 0.12) {  // sacada com gradil
-          box(g, 1.0, 0.15, 1.6, face + out * 0.55, wy - 1.05, wz, mat(0x9a9a9a));
-          for (let k = -2; k <= 2; k++) box(g, 0.06, 0.8, 0.06, face + out * 1.0, wy - 0.6, wz + k * 0.35, mat(0x222228));
+  // --- cenários -------------------------------------------------------------------------------------------------
+  function skyline(seed, baseY, minH, maxH, color, windows, offset, spacing = 1) {
+    const r = rng(seed);
+    let x = -((offset % 3000) + 3000) % 3000 - 200;
+    const items = [];
+    for (let i = 0; x < W + 400 && i < 400; i++) {
+      const w = (60 + r() * 140) * spacing, h = minH + r() * (maxH - minH);
+      items.push([x, w, h, r()]);
+      x += w + 6;
+    }
+    ctx.fillStyle = color;
+    for (const [bx, w, h] of items) ctx.fillRect(bx, baseY - h, w, h + 400);
+    if (!windows) return;
+    for (const [bx, w, h, v] of items) {
+      const wr = rng(Math.floor(v * 1e6));
+      for (let wy = baseY - h + 14; wy < baseY - 10; wy += 22) for (let wx = bx + 10; wx < bx + w - 12; wx += 18) {
+        const q = wr();
+        if (q < 0.16) { ctx.fillStyle = windows; ctx.fillRect(wx, wy, 8, 11); } else if (q < 0.19) { ctx.fillStyle = P.cyan; ctx.fillRect(wx, wy, 8, 11); }
+      }
+    }
+  }
+  function bridge(cx, deckY, span, color, t) {
+    // Ponte Hercílio Luz: duas torres, cabos em curva e as luzes vermelhas ao longo dos cabos.
+    ctx.save();
+    ctx.strokeStyle = color; ctx.fillStyle = color;
+    const left = cx - span / 2, right = cx + span / 2, top = deckY - span * 0.16;
+    ctx.fillRect(left - 600, deckY - 6, span + 1200, 12);
+    for (const tx of [cx - span * 0.27, cx + span * 0.27]) { ctx.fillRect(tx - 14, top, 28, deckY - top + 30); ctx.fillRect(tx - 34, top + 10, 68, 12); ctx.fillRect(tx - 34, top + 120, 68, 10); }
+    ctx.lineWidth = 7;
+    const curve = (x0, y0, x1, y1, sag) => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo((x0 + x1) / 2, y1 + sag, x1, y1); ctx.stroke(); };
+    curve(cx - span * 0.27, top, cx + span * 0.27, top, span * 0.2);
+    curve(left - 200, deckY, cx - span * 0.27, top, 30);
+    curve(cx + span * 0.27, top, right + 200, deckY, 30);
+    for (let k = 0; k <= 40; k++) {
+      const u = k / 40, x = lerp(cx - span * 0.27, cx + span * 0.27, u);
+      const y = (1 - u) * (1 - u) * top + 2 * (1 - u) * u * (top + span * 0.2) + u * u * top;
+      ctx.fillRect(x - 1, y, 2, deckY - y);
+      const on = hash(k * 13 + Math.floor(t * 2)) > 0.15;
+      if (on && k % 2 === 0) { ctx.fillStyle = P.red; ctx.fillRect(x - 3, y - 3, 6, 6); ctx.fillStyle = color; }
+    }
+    ctx.restore();
+  }
+  function storefronts(offset, baseY, seed, warm) {
+    // Fileira de sobrados do Centro, vista de lado: janelas, toldos, letreiros neon.
+    const r = rng(seed);
+    let x = -((offset % 4000) + 4000) % 4000 - 300;
+    const names = ['TCHAY', 'BAR', 'FLORIA', 'GATUS', 'CAFE', 'MERCADO'];
+    for (let i = 0; x < W + 500 && i < 60; i++) {
+      const w = 260 + r() * 220, h = 380 + r() * 260, wall = ['#3a2a2e', '#2e3440', '#40302a', '#283038'][Math.floor(r() * 4)];
+      ctx.fillStyle = wall; ctx.fillRect(x, baseY - h, w, h);
+      ctx.fillStyle = '#1a1416'; ctx.fillRect(x - 6, baseY - h - 14, w + 12, 18);
+      for (let fy = baseY - h + 40; fy < baseY - 200; fy += 110) for (let fx = x + 26; fx < x + w - 60; fx += 86) {
+        const lit = r();
+        ctx.fillStyle = lit < 0.3 ? (warm ? '#ffcf6a' : '#5ce5f1') : '#0a0e14';
+        ctx.fillRect(fx, fy, 44, 64);
+        ctx.fillStyle = '#5a1420'; ctx.fillRect(fx - 4, fy - 4, 52, 4); ctx.fillRect(fx - 4, fy + 64, 52, 6);
+        if (lit < 0.3) glow(fx + 22, fy + 32, 70, warm ? 'rgba(255,200,100,0.25)' : 'rgba(92,229,241,0.2)');
+      }
+      // Térreo: vitrine acesa ou porta, toldo.
+      ctx.fillStyle = r() < 0.5 ? '#ff9a4a' : '#141a22'; ctx.fillRect(x + 20, baseY - 150, w - 40, 130);
+      ctx.fillStyle = r() < 0.5 ? '#2a6a4a' : '#8a2030';
+      ctx.beginPath(); ctx.moveTo(x + 10, baseY - 170); ctx.lineTo(x + w - 10, baseY - 170); ctx.lineTo(x + w + 10, baseY - 130); ctx.lineTo(x - 10, baseY - 130); ctx.fill();
+      if (r() < 0.6) {
+        const name = names[(i + seed) % names.length], color = [P.cyan, '#ff3b6b', P.red, P.yellow][Math.floor(r() * 4)];
+        const sy = baseY - h + 60 + r() * 80, sx = x + w * 0.2;
+        const flick = hash(Math.floor(cfg.time * 12) + i * 7) < 0.07 ? 0.2 : 1;
+        ctx.fillStyle = '#0a0a10'; ctx.fillRect(sx - 10, sy - 44, name.length * 30 + 20, 56);
+        ctx.font = 'bold 40px monospace'; ctx.fillStyle = color; ctx.globalAlpha = flick;
+        ctx.fillText(name, sx, sy);
+        ctx.globalAlpha = 1;
+        glow(sx + name.length * 15, sy - 14, 160, color === P.cyan ? 'rgba(92,229,241,0.35)' : 'rgba(255,60,100,0.35)', flick);
+      }
+      x += w + 8;
+    }
+  }
+  function car(x, y, s, color) {
+    ctx.save(); ctx.fillStyle = color;
+    ctx.beginPath(); ctx.roundRect(x - 120 * s, y - 70 * s, 240 * s, 50 * s, 10 * s); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(x - 70 * s, y - 112 * s, 130 * s, 48 * s, 14 * s); ctx.fill();
+    ctx.fillStyle = '#0a0a0e';
+    for (const k of [-70, 70]) { ctx.beginPath(); ctx.arc(x + k * s, y - 18 * s, 22 * s, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
+  function bus(x, y, s, doorOpen, t) {
+    // O 763.2 da Estrela: verde-água, letreiro ESTRELA, letreiro de LED verde piscando.
+    ctx.save();
+    ctx.fillStyle = '#28968c'; ctx.beginPath(); ctx.roundRect(x, y - 300 * s, 1100 * s, 260 * s, 26 * s); ctx.fill();
+    ctx.fillStyle = '#16706a'; ctx.fillRect(x, y - 110 * s, 1100 * s, 70 * s);
+    for (let k = 0; k < 7; k++) { ctx.fillStyle = '#0d1a26'; ctx.fillRect(x + 60 * s + k * 140 * s, y - 260 * s, 110 * s, 110 * s); glow(x + 115 * s + k * 140 * s, y - 205 * s, 60 * s, 'rgba(255,207,106,0.2)'); }
+    const door = x + 980 * s;
+    ctx.fillStyle = '#0a1018'; ctx.fillRect(door - 10 * s, y - 260 * s, 90 * s, 220 * s);
+    ctx.fillStyle = '#20302e'; const open = doorOpen * 40 * s;
+    ctx.fillRect(door - 10 * s - open, y - 260 * s, 44 * s, 220 * s); ctx.fillRect(door + 36 * s + open, y - 260 * s, 44 * s, 220 * s);
+    if (doorOpen > 0.3) glow(door + 35 * s, y - 150 * s, 220 * s, 'rgba(255,220,150,0.6)');
+    ctx.fillStyle = '#0a0a0e'; ctx.fillRect(x + 640 * s, y - 296 * s, 300 * s, 34 * s);
+    ctx.font = `bold ${24 * s}px monospace`; ctx.fillStyle = hash(Math.floor(t * 2)) > 0.1 ? '#5cff8a' : '#2a7a4a';
+    ctx.fillText('763.2 KOBRASOL', x + 650 * s, y - 270 * s);
+    ctx.font = `bold ${34 * s}px monospace`; ctx.fillStyle = '#ffd23a'; ctx.fillText('★ ESTRELA', x + 80 * s, y - 120 * s);
+    ctx.fillStyle = '#0a0a0e';
+    for (const k of [200, 860]) { ctx.beginPath(); ctx.arc(x + k * s, y - 40 * s, 52 * s, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
+
+  // --- planos ---------------------------------------------------------------------------------------------------
+  const shots = {
+    rooftop(t) {
+      const push = 1 + smooth(t / cfg.duration) * 0.08;
+      ctx.translate(W / 2, H / 2); ctx.scale(push, push); ctx.translate(-W / 2, -H / 2);
+      sky('#01070c', '#3a0818', H * 0.62);
+      sun(W * 0.58, H * 0.58, 150);
+      skyline(11, H * 0.66, 60, 220, '#06121a', '#ffcf6a', t * 6, 0.8);
+      bridge(W * 0.58, H * 0.66, 1500, '#2c4a5c', t);
+      ctx.fillStyle = '#020a10'; ctx.fillRect(0, H * 0.66, W, H);
+      for (let k = 0; k < 40; k++) glow(hash(k) * W, H * 0.7 + hash(k + 50) * 80, 14, 'rgba(233,9,49,0.6)');
+      drone(lerp(W * 0.1, W * 0.45, t / cfg.duration), H * 0.22, 0.45, t, { spot: 0.15 });
+      // Telhado em primeiro plano e o personagem de costas olhando a cidade.
+      ctx.fillStyle = P.ink; ctx.fillRect(0, H * 0.86, W, H);
+      ctx.fillRect(W * 0.08, H * 0.8, 80, 60);
+      backFigure(W * 0.3, H * 0.9, 1.35, t, { rim: 'rgba(233,9,49,0.9)' });
+      rain(t, 260, 'rgba(160,190,220,0.6)');
+    },
+    facade(t) {
+      const k = smooth(t / cfg.duration);
+      sky('#01060c', '#0a1626', H);
+      // Centro Cultural visto de baixo: as linhas sobem e convergem (contra-plongée desenhada).
+      ctx.save();
+      ctx.translate(W / 2, H * 1.35 + k * 60);
+      const rows = 3;
+      for (let f = 0; f < rows; f++) {
+        const yb = -f * 330, yt = yb - 330, sb = 1 - f * 0.12, st = 1 - (f + 1) * 0.12;
+        ctx.fillStyle = f % 2 ? '#c9c6bc' : '#d8d5cb';
+        ctx.beginPath(); ctx.moveTo(-1100 * sb, yb); ctx.lineTo(1100 * sb, yb); ctx.lineTo(1100 * st, yt); ctx.lineTo(-1100 * st, yt); ctx.fill();
+        ctx.fillStyle = '#9a978e'; ctx.fillRect(-1150 * st, yt - 6, 2300 * st, 18);
+        for (let c = -5; c <= 5; c++) {
+          const cx = c * 190, wb = sb, wt = st;
+          ctx.fillStyle = '#5a1420';
+          ctx.beginPath(); ctx.moveTo(cx * wb - 50 * wb, yb - 60); ctx.lineTo(cx * wb + 50 * wb, yb - 60); ctx.lineTo(cx * wt + 46 * wt, yt + 60); ctx.lineTo(cx * wt - 46 * wt, yt + 60); ctx.fill();
+          ctx.fillStyle = hash(c * 7 + f) < 0.2 ? '#ffcf6a' : '#14223a';
+          ctx.beginPath(); ctx.moveTo(cx * wb - 38 * wb, yb - 70); ctx.lineTo(cx * wb + 38 * wb, yb - 70); ctx.lineTo(cx * wt + 35 * wt, yt + 70); ctx.lineTo(cx * wt - 35 * wt, yt + 70); ctx.fill();
         }
       }
-    }
-    // Térreo: porta, vitrine ou persiana e toldo listrado.
-    for (let c = 0; c < cols; c++) {
-      const wz = -depth / 2 + (c + 0.5) * depth / cols;
-      const kind = r();
-      if (kind < 0.35) {
-        box(g, 0.2, 2.4, 1.3, face + out * 0.06, 1.2, wz, mat(0x7a1626));
-      } else if (kind < 0.7) {
-        box(g, 0.15, 2.0, 2.0, face + out * 0.06, 1.2, wz, glow(r() < 0.5 ? PAL.lit : 0xff9a4a));
-      } else {
-        box(g, 0.15, 2.2, 2.0, face + out * 0.06, 1.15, wz, mat(0x3a3e48));
+      ctx.restore();
+      ctx.fillStyle = 'rgba(2,12,24,0.45)'; ctx.fillRect(0, 0, W, H);   // noite sobre a fachada
+      const dx = lerp(W * 0.95, W * 0.2, k);
+      drone(dx, H * 0.18, 0.9, t, { spot: 0.05 + Math.sin(t * 1.4) * 0.25 });
+      rain(t, 320, 'rgba(160,190,220,0.6)');
+      backFigure(W * 0.16, H * 1.04, 1.9, t, { lookUp: true, rim: 'rgba(92,229,241,0.85)' });
+    },
+    riot(t) {
+      // Rua em chamas de lado: a câmera corre junto com a multidão, o fogo ilumina tudo de laranja.
+      const cam = t * 620;
+      sky('#120406', '#3a1208', H * 0.7);
+      glow(W * 0.5, H * 0.5, 900, 'rgba(255,90,30,0.35)');
+      skyline(23, H * 0.5, 120, 360, '#1a0a0a', '#ffb347', cam * 0.2);
+      storefronts(cam * 0.6, H * 0.8, 31, true);
+      ctx.fillStyle = '#120a0a'; ctx.fillRect(0, H * 0.8, W, H);
+      ctx.fillStyle = 'rgba(255,120,40,0.18)'; ctx.fillRect(0, H * 0.8, W, 30);  // calçada molhada refletindo o fogo
+      const fires = [[500, 0.9], [1500, 1.2], [2600, 1.0], [3500, 1.3]];
+      fires.forEach(([fx, sz], i) => {
+        const sx = fx - cam * 0.9 + 400;
+        if (sx > -400 && sx < W + 400) { car(sx, H * 0.86, 1, '#2a2226'); fire(sx, H * 0.83, sz, t, 50 + i); }
+      });
+      const r = rng(7);
+      for (let i = 0; i < 18; i++) {
+        const lane = r(), s = 0.8 + lane * 0.6, speed = 560 + r() * 140;
+        const x = ((r() * 2600 + (speed - 620) * t * 1.6) % 2600 + 2600) % 2600 - 300;
+        figure(x, H * 0.84 + lane * 120, s, t * (10 + r() * 3) + r() * 6, { dir: 1, rim: 'rgba(255,150,60,0.95)' });
       }
-      if (r() < 0.4) {
-        const aw = box(g, 1.3, 0.12, 2.0, face + out * 0.7, 2.75, wz, mat(r() < 0.5 ? 0x2a6a4a : 0x8a2030));
-        aw.rotation.z = out * -0.35;
+      figure(W * 0.42, H * 0.95, 1.35, t * 11.5, { dir: 1, rim: 'rgba(255,170,80,1)', accent: true });
+      explosion(W * 0.78, H * 0.62, t - 2.2, 1.2, 61);
+      rain(t, 120, 'rgba(255,180,120,0.35)');
+    },
+    terminal(t) {
+      // Tiroteio no Terminal Velho: o personagem atira, os robôs avançam e caem.
+      sky('#0a0608', '#2a0810', H);
+      glow(W * 0.8, H * 0.35, 700, 'rgba(233,9,49,0.35)');
+      ctx.fillStyle = '#100a0e';
+      for (let k = 0; k < 9; k++) { const x = k * 260 - 40; ctx.fillRect(x, H * 0.1, 22, H * 0.75); }       // pilares
+      ctx.fillRect(0, H * 0.06, W, 40);
+      ctx.strokeStyle = '#1a1014'; ctx.lineWidth = 8;
+      for (let k = 0; k < 9; k++) { ctx.beginPath(); ctx.moveTo(k * 260 - 30, H * 0.1); ctx.lineTo(k * 260 + 230, H * 0.06 + 40); ctx.stroke(); }
+      ctx.fillStyle = '#0c0a0e'; ctx.fillRect(0, H * 0.85, W, H);
+      ctx.fillStyle = 'rgba(233,9,49,0.15)'; ctx.fillRect(0, H * 0.85, W, 18);
+      const shots = [0.5, 0.9, 1.3, 1.9, 2.3];
+      const hero = figure(W * 0.2, H * 0.92, 2.3, 0, { dir: 1, run: 0, shoot: true, rim: 'rgba(233,9,49,1)', accent: true,
+        recoil: shots.some((s) => t >= s && t < s + 0.08) ? 1 : 0 });
+      [[W * 0.66, 1.9, 1.6], [W * 0.86, 1.7, 2.4]].forEach(([x, s, dies], i) => {
+        const walkX = x - Math.min(t, dies) * 60;
+        robot(walkX, H * 0.92, s, t * 6, { walk: t < dies, aim: true, down: t >= dies + 0.15 });
+        if (t >= dies - 0.05 && t < dies + 0.12) explosion(walkX, H * 0.92 - 150 * s, (t - dies + 0.05) * 3, 0.8, 80 + i);
+      });
+      shots.forEach((s) => {
+        if (t >= s && t < s + 0.07 && hero.muzzle) {
+          flash(hero.muzzle[0], hero.muzzle[1], 1.2);
+          const target = s < 1.6 ? [W * 0.66 - s * 60, H * 0.92 - 170 * 1.9] : [W * 0.86 - s * 60, H * 0.92 - 170 * 1.7];
+          tracer(hero.muzzle[0], hero.muzzle[1], target[0], target[1], 'rgba(255,220,120,1)');
+          glow(target[0], target[1], 90, 'rgba(255,200,80,0.9)');
+        }
+      });
+      if (t >= 1.15 && t < 1.22) tracer(W * 0.86 - 70 - 1.15 * 60, H * 0.92 - 165 * 1.7, W * 0.22, H * 0.92 - 150 * 2.3, 'rgba(233,9,49,1)');
+    },
+    drones(t) {
+      const cam = t * 700;
+      sky('#01060c', '#0a1a2a', H * 0.7);
+      skyline(41, H * 0.62, 160, 420, '#061420', '#5ce5f1', cam * 0.25);
+      storefronts(cam * 0.6, H * 0.82, 47, false);
+      ctx.fillStyle = '#060a10'; ctx.fillRect(0, H * 0.82, W, H);
+      ctx.fillStyle = 'rgba(92,229,241,0.12)'; ctx.fillRect(0, H * 0.82, W, 26);
+      const ds = [[0.0, W * 1.1, W * 0.55, H * 0.12, H * 0.42], [0.6, W * 1.2, W * 0.7, H * 0.08, H * 0.36], [1.3, W * 0.9, W * 0.35, H * 0.05, H * 0.4]];
+      ds.forEach(([t0, x0, x1, y0, y1], i) => {
+        const k = smooth((t - t0) / 1.6);
+        if (t < t0) return;
+        const x = lerp(x0, x1, k), y = lerp(y0, y1, k);
+        drone(x, y, 1.1, t, { spot: 0.35 + Math.sin(t * 2 + i) * 0.2 });
+        const fireAt = t0 + 0.9;
+        if (t >= fireAt && t < fireAt + 0.08) { tracer(x, y + 10, W * 0.42 + 30, H * 0.92, 'rgba(233,9,49,1)'); }
+      });
+      [[1.0, W * 0.25], [1.9, W * 0.62], [2.8, W * 0.48]].forEach(([tb, xb], i) => explosion(xb, H * 0.86, t - tb, 1.0, 90 + i));
+      const r = rng(9);
+      for (let i = 0; i < 7; i++) figure(((r() * 2400 - t * 90 * (1 + r())) % 2400 + 2400) % 2400 - 200, H * 0.86 + r() * 80, 0.9 + r() * 0.3, t * 10 + i, { dir: 1, rim: 'rgba(92,229,241,0.8)' });
+      figure(W * 0.42, H * 0.97, 1.35, t * 12, { dir: 1, rim: 'rgba(92,229,241,1)', accent: true });
+      rain(t, 380, 'rgba(160,200,230,0.55)');
+    },
+    bar(t) {
+      // Escondido atrás do balcão: o holofote entra pela janela, varre a sala e acha o personagem.
+      sky('#05070c', '#0a0c14', H);
+      ctx.fillStyle = '#0e141c'; ctx.fillRect(W * 0.55, H * 0.12, W * 0.32, H * 0.42);
+      ctx.fillStyle = '#1a0a10'; ctx.fillRect(W * 0.55, H * 0.12, W * 0.32, 14);
+      sun(W * 0.71, H * 0.38, 90);
+      ctx.fillStyle = 'rgba(5,7,12,0.6)'; ctx.fillRect(W * 0.55, H * 0.12, W * 0.32, H * 0.42);
+      glow(W * 0.3, H * 0.2, 300, 'rgba(255,60,100,0.25)');
+      ctx.font = 'bold 70px monospace'; ctx.fillStyle = '#ff3b6b'; ctx.fillText('BAR', W * 0.22, H * 0.22);
+      const k = smooth((t - 0.1) / 1.3);
+      const bx = lerp(W * 0.85, W * 0.2, k);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createLinearGradient(W * 0.7, H * 0.15, bx, H);
+      g.addColorStop(0, 'rgba(154,232,255,0.5)'); g.addColorStop(1, 'rgba(154,232,255,0.08)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(W * 0.68, H * 0.2); ctx.lineTo(W * 0.74, H * 0.2);
+      ctx.lineTo(bx + 220, H); ctx.lineTo(bx - 220, H); ctx.fill(); ctx.restore();
+      ctx.fillStyle = '#120c0c'; ctx.fillRect(0, H * 0.66, W, H);  // balcão
+      ctx.fillStyle = '#2a1414'; ctx.fillRect(0, H * 0.64, W, 26);
+      backFigure(W * 0.22, H * 1.08, 1.7, t * 2.2, { rim: t > 1.4 ? 'rgba(154,232,255,1)' : 'rgba(233,9,49,0.8)' });
+    },
+    bus(t) {
+      // Plataforma C: o personagem corre até o 763.2, a porta abre.
+      sky('#01070c', '#14202e', H * 0.6);
+      skyline(61, H * 0.55, 80, 260, '#06121a', '#ffcf6a', t * 30);
+      ctx.fillStyle = '#1a1e26'; ctx.fillRect(0, H * 0.12, W, 40);   // cobertura do terminal
+      for (let k = 0; k < 8; k++) ctx.fillRect(k * 300 + 40, H * 0.12, 24, H * 0.62);
+      ctx.fillStyle = '#e8e8e8'; ctx.fillRect(W * 0.08, H * 0.3, 90, 120);
+      ctx.font = 'bold 96px monospace'; ctx.fillStyle = '#1a1e26'; ctx.fillText('C', W * 0.08 + 16, H * 0.3 + 96);
+      ctx.fillStyle = '#2a2e38'; ctx.fillRect(0, H * 0.8, W, H);
+      ctx.fillStyle = '#ffd23a'; ctx.fillRect(0, H * 0.8, W, 10);
+      bus(W * 0.38, H * 0.82, 1.0, smooth((t - 0.6) / 0.8), t);
+      const hx = lerp(W * 0.02, W * 0.86, smooth(t / 2.4));
+      figure(hx, H * 0.95, 1.2, t * 12, { dir: 1, rim: 'rgba(92,255,138,0.9)', accent: true, run: t < 2.4 ? 1 : 0.2 });
+      rain(t, 200, 'rgba(160,200,230,0.45)');
+    },
+    montage(t) {
+      const cuts = [[0.42, 'mont-drone'], [0.84, 'mont-run'], [1.26, 'mont-robot'], [1.68, 'boom'], [2.1, 'black'], [9, 'mont-run']];
+      let start = 0;
+      for (const [end, name] of cuts) {
+        if (t < end) {
+          if (name === 'boom') { sky('#000000', '#100404', H); explosion(W / 2, H * 0.55, t - start, 2.2, 7); }
+          else if (name === 'black') sky('#000000', '#000000', H);
+          else shots[name](t - start);
+          return;
+        }
+        start = end;
       }
-    }
-    // Letreiro neon saindo da parede.
-    if (r() < (opts.signChance ?? 0.45)) {
-      const [text, color] = PAL.neon[Math.floor(r() * PAL.neon.length)];
-      const tex = textTexture(text, color, '#0a0a10');
-      const signMat = new THREE.MeshBasicMaterial({ map: tex });
-      const sy = 4.2 + r() * 2.5;
-      const sz = -depth / 2 + 1 + r() * (depth - 2);
-      box(g, 1.6, 0.9, 0.12, face + out * 1.0, sy, sz, mat(0x0a0a10)).rotation.y = 0;
-      const plane = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.75), signMat);
-      plane.position.set(face + out * 1.0, sy, sz + 0.07);
-      g.add(plane);
-      const back = plane.clone();
-      back.position.z = sz - 0.07;
-      back.rotation.y = Math.PI;
-      g.add(back);
-      // Um sinal de neon pisca de vez em quando: guarda para o render.
-      signs.push({ plane, back, seed: Math.floor(r() * 1000) });
-    }
-    g.position.set(side * 11, 0, z);
-    scene.add(g);
-    return g;
-  }
-
-  function palm(x, z, h) {
-    const g = new THREE.Group();
-    for (let i = 0; i < 6; i++) box(g, 0.35, h / 6, 0.35, Math.sin(i * 0.5) * 0.15, (i + 0.5) * h / 6, 0, mat(0x7a5a3a));
-    for (let k = 0; k < 7; k++) {
-      const leaf = box(g, 0.25, 0.12, 2.2, 0, h, 0, mat(k % 2 ? 0x3e8a3a : 0x2e6e2e));
-      leaf.rotation.set(-0.5, (k / 7) * Math.PI * 2, 0);
-      leaf.translateZ(1.0);
-    }
-    g.position.set(x, 0, z);
-    scene.add(g);
-    return g;
-  }
-
-  // --- Centro Cultural da Marinha, modelado ---------------------------------------------------------------
-  function centroCultural(z) {
-    const g = new THREE.Group();
-    const white = mat(0xe6e4dc), shade = mat(0xbdbab0), red = mat(0x7a1626);
-    box(g, 30, 13, 6, 0, 6.5, 0, white);
-    box(g, 31, 0.8, 6.6, 0, 13.2, 0, shade);           // cornija
-    box(g, 10, 2.2, 6.4, 0, 14.6, 0, white);            // ático central
-    box(g, 10.6, 0.5, 6.8, 0, 15.8, 0, shade);
-    for (let f = 0; f < 2; f++) {
-      for (let c = -5; c <= 5; c++) {
-        if (Math.abs(c) <= 1) continue;
-        const x = c * 2.6, y = 3.4 + f * 5.2;
-        box(g, 1.5, 2.8, 0.3, x, y, 3.05, red);
-        box(g, 1.15, 2.4, 0.2, x, y, 3.15, mat(0x1c2a48));
-        box(g, 1.15, 0.12, 0.25, x, y, 3.2, red);
-        box(g, 1.9, 0.25, 0.6, x, y - 1.6, 3.2, shade);
-      }
-    }
-    // Pórtico: colunas, sacada e portas duplas vermelhas.
-    for (const x of [-3.4, -1.8, 1.8, 3.4]) box(g, 0.7, 11, 0.7, x, 5.5, 3.4, white);
-    box(g, 6, 0.4, 1.6, 0, 6.2, 3.8, shade);
-    for (let k = -6; k <= 6; k++) box(g, 0.12, 1.0, 0.12, k * 0.42, 6.9, 4.5, shade);
-    box(g, 2.6, 4.0, 0.3, 0, 2.0, 3.2, red);
-    box(g, 2.6, 3.6, 0.3, 0, 9.0, 3.2, red);
-    for (const x of [-0.6, 0.6]) box(g, 0.08, 0.5, 0.1, x * 0.3, 2.0, 3.4, glow(0xd8b040));
-    // Mureta com a placa e as palmeiras na frente.
-    box(g, 30, 1.6, 0.8, 0, 0.8, 6.6, white);
-    const plaque = new THREE.Mesh(new THREE.PlaneGeometry(7, 1.1),
-      new THREE.MeshLambertMaterial({ map: textTexture('CENTRO CULTURAL', '#2a2a30', '#d8d6ce', 128, 20) }));
-    plaque.position.set(0, 0.9, 7.02);
-    g.add(plaque);
-    g.position.set(0, 0, z);
-    scene.add(g);
-    palm(-9, z + 5.2, 5);
-    palm(9, z + 5.2, 5.5);
-    palm(-14, z + 5.4, 4.5);
-    return g;
-  }
-
-  // --- pessoa articulada, de formas arredondadas -----------------------------------------------------------
-  function person(colors) {
-    const root = new THREE.Group();
-    const body = new THREE.Group();
-    root.add(body);
-    const cap = (r, len, color) => new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 4, 8), mat(color));
-    const limb = (r, len, color) => {
-      const pivot = new THREE.Group();
-      const m = cap(r, len, color);
-      m.position.y = -(len / 2 + r);  // gira pela articulação de cima
-      pivot.add(m);
-      return pivot;
-    };
-    const torso = cap(0.24, 0.42, colors.shirt);
-    torso.scale.set(1.15, 1, 0.75);
-    torso.position.y = 1.2;
-    body.add(torso);
-    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.08, 10), mat(colors.belt || colors.legs));
-    belt.scale.set(1.12, 1, 0.78);
-    belt.position.y = 0.88;
-    body.add(belt);
-    const head = new THREE.Group();
-    head.position.y = 1.62;
-    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), mat(colors.skin));
-    skull.position.y = 0.18;
-    head.add(skull);
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.215, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), mat(colors.hair));
-    hair.position.y = 0.2;
-    head.add(hair);
-    body.add(head);
-    const arms = [-1, 1].map((s) => {
-      const a = limb(0.075, 0.5, colors.shirt);
-      a.position.set(s * 0.33, 1.48, 0);
-      body.add(a);
-      return a;
-    });
-    const legs = [-1, 1].map((s) => {
-      const l = limb(0.1, 0.66, colors.legs);
-      l.position.set(s * 0.13, 0.88, 0);
-      const shoe = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.16, 3, 6), mat(colors.shoes));
-      shoe.rotation.x = Math.PI / 2;
-      shoe.position.set(0, -0.9, -0.05);
-      l.add(shoe);
-      root.add(l);
-      return l;
-    });
-    scene.add(root);
-    // Corrida: pernas e braços em oposição, cabeça atrasada, tronco inclinado, corpo quica no passo.
-    root.userData.pose = (phase, run) => {
-      const s = Math.sin(phase);
-      legs[0].rotation.x = s * 0.95 * run;
-      legs[1].rotation.x = -s * 0.95 * run;
-      arms[0].rotation.x = -s * 0.85 * run;
-      arms[1].rotation.x = s * 0.7 * run;   // amplitudes diferentes: nada em uníssono
-      arms[0].rotation.z = -0.12; arms[1].rotation.z = 0.12;
-      body.rotation.x = -0.22 * run;
-      head.rotation.x = 0.18 * run + Math.sin(phase - 0.6) * 0.06 * run;
-      body.position.y = Math.abs(Math.cos(phase)) * 0.09 * run;
-    };
-    root.userData.idle = (t) => {
-      legs[0].rotation.x = legs[1].rotation.x = 0;
-      arms[0].rotation.x = arms[1].rotation.x = 0;
-      body.rotation.x = 0;
-      body.position.y = Math.sin(t * 2.2) * 0.012;
-      head.rotation.x = -0.35;  // olhando para cima
-    };
-    return root;
-  }
-
-  // --- drone -----------------------------------------------------------------------------------------------
-  function drone() {
-    const g = new THREE.Group();
-    const shell = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 10), new THREE.MeshStandardMaterial({
-      color: 0xc8ccd4, roughness: 0.35, metalness: 0.6 }));
-    shell.scale.set(1, 0.42, 1);
-    g.add(shell);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.05, 6, 20), mat(0x50545e));
-    ring.rotation.x = Math.PI / 2;
-    g.add(ring);
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), glow(0x3cff6a));
-    eye.position.set(0, -0.02, 0.5);
-    g.add(eye);
-    const eyeHalo = halo(0x3cff6a, 1.2, 0.9);
-    const rotors = [];
-    for (const [x, z] of [[-0.75, -0.75], [0.75, -0.75], [-0.75, 0.75], [0.75, 0.75]]) {
-      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.0, 6), mat(0x50545e));
-      arm.rotation.z = Math.PI / 2;
-      arm.rotation.y = Math.atan2(z, x);
-      arm.position.set(x / 2, 0.05, z / 2);
-      g.add(arm);
-      const rotor = new THREE.Group();
-      rotor.position.set(x, 0.14, z);
-      rotor.add(new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.01, 18),
-        new THREE.MeshBasicMaterial({ color: 0x9aa0b0, transparent: true, opacity: 0.22, depthWrite: false })));
-      const blade = new THREE.Mesh(boxGeo, mat(0x2a2c34));
-      blade.scale.set(0.8, 0.02, 0.06);
-      rotor.add(blade);
-      g.add(rotor);
-      rotors.push(rotor);
-    }
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(2.4, 9, 20, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0x9ae8ff, transparent: true, opacity: 0.1, depthWrite: false,
-        blending: THREE.AdditiveBlending }));
-    cone.position.y = -4.6;
-    g.add(cone);
-    const spot = new THREE.PointLight(0x9ae8ff, 2.2, 16, 1.4);
-    spot.position.y = -2;
-    g.add(spot);
-    scene.add(g);
-    g.userData.rotors = rotors;
-    g.userData.cone = cone;
-    g.userData.eyeHalo = eyeHalo;
-    g.userData.eye = eye;
-    return g;
-  }
-
-  // --- fogo e explosões ------------------------------------------------------------------------------------
-  const flameColors = [0xfff0a0, 0xffb040, 0xff5a1a];
-  function fireColumn(x, z, size, seed) {
-    const r = rng(seed);
-    const flames = [], smoke = [], embers = [];
-    for (let i = 0; i < 22; i++) {
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: flameColors[i % 3], transparent: true,
-        blending: THREE.AdditiveBlending, depthWrite: false }));
-      scene.add(s);
-      flames.push({ s, ox: (r() - 0.5) * size, oz: (r() - 0.5) * size * 0.5, off: r(), speed: 1.1 + r() * 0.8 });
-    }
-    for (let i = 0; i < 10; i++) {
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false, opacity: 0.8 }));
-      scene.add(s);
-      smoke.push({ s, ox: (r() - 0.5) * size, off: r(), speed: 0.25 + r() * 0.2 });
-    }
-    for (let i = 0; i < 18; i++) {
-      const s = halo(0xffa040, 0.12, 1);
-      embers.push({ s, ox: (r() - 0.5) * size, oz: (r() - 0.5) * size, off: r(), speed: 0.5 + r() * 0.6, drift: (r() - 0.5) * 2 });
-    }
-    const light = new THREE.PointLight(0xff7a2a, 0, 40, 1.1);
-    light.position.set(x, 2.4, z);
-    scene.add(light);
-    const big = halo(0xff8030, size * 4, 0.35);
-    big.position.set(x, size * 0.9, z);
-    return { x, z, size, flames, smoke, embers, light, seed, big };
-  }
-  function drawFire(f, t, fi) {
-    f.flames.forEach((p, i) => {
-      const age = (t * p.speed + p.off) % 1;
-      const sc = f.size * (1.3 - age) * 0.9;
-      p.s.scale.set(sc, sc * 1.4, 1);
-      p.s.material.opacity = 0.9 * (1 - age);
-      p.s.position.set(f.x + p.ox * (1 - age * 0.6) + Math.sin(age * 8 + i) * 0.12, age * f.size * 2.2 + sc * 0.4, f.z + p.oz);
-    });
-    f.smoke.forEach((p, i) => {
-      const age = (t * p.speed + p.off) % 1;
-      const sc = f.size * (1.2 + age * 3);
-      p.s.scale.set(sc, sc, 1);
-      p.s.material.opacity = 0.75 * (1 - age);
-      p.s.position.set(f.x + p.ox + age * 1.5, f.size * 2 + age * 9, f.z);
-    });
-    f.embers.forEach((p) => {
-      const age = (t * p.speed + p.off) % 1;
-      p.s.position.set(f.x + p.ox + p.drift * age, age * 7, f.z + p.oz);
-      p.s.material.opacity = 1 - age;
-    });
-    f.light.intensity = 7 + hash(fi * 7 + f.seed) * 5;
-    f.big.material.opacity = 0.28 + hash(fi * 5 + f.seed) * 0.14;
-  }
-  function explosion(seed) {
-    const core = halo(0xfff0b0, 1, 1);
-    const fireball = halo(0xff6a20, 1, 0.9);
-    const r = rng(seed);
-    const debris = [];
-    for (let i = 0; i < 16; i++) {
-      const m = new THREE.Mesh(boxGeo, mat(i % 3 ? 0x2a2a30 : 0x6a4a3a));
-      scene.add(m);
-      debris.push({ m, vx: (r() - 0.5) * 9, vy: 4 + r() * 7, vz: (r() - 0.5) * 9, s: 0.12 + r() * 0.25, spin: r() * 9 });
-    }
-    const puffs = [];
-    for (let i = 0; i < 8; i++) {
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false }));
-      scene.add(s);
-      puffs.push({ s, dx: (r() - 0.5) * 3, dy: r() * 2 });
-    }
-    const light = new THREE.PointLight(0xffb060, 0, 60, 1.1);
-    scene.add(light);
-    return { core, fireball, debris, puffs, light };
-  }
-  function drawExplosion(e, age, x, y, z) {
-    const on = age >= 0 && age < 1.6;
-    e.core.visible = e.fireball.visible = on && age < 0.6;
-    e.debris.forEach((d) => { d.m.visible = on && age < 1.2; });
-    e.puffs.forEach((p) => { p.s.visible = on; });
-    e.light.intensity = on ? Math.max(0, 22 * (1 - age / 0.6)) : 0;
-    if (!on) return;
-    const k = Math.min(1, age / 0.5);
-    e.core.scale.setScalar(3 + k * 6);
-    e.core.material.opacity = 1 - k;
-    e.fireball.scale.setScalar(5 + k * 10);
-    e.fireball.material.opacity = 0.9 * (1 - k);
-    e.core.position.set(x, y + 1 + k, z);
-    e.fireball.position.set(x, y + 1.5 + k * 1.5, z);
-    e.light.position.set(x, y + 1.5, z + 1);
-    e.debris.forEach((d) => {
-      d.m.scale.setScalar(d.s);
-      d.m.position.set(x + d.vx * age, Math.max(0.1, y + d.vy * age - 9.8 * age * age / 2), z + d.vz * age);
-      d.m.rotation.set(d.spin * age, d.spin * age * 0.7, 0);
-    });
-    e.puffs.forEach((p) => {
-      const sc = 2 + age * 6;
-      p.s.scale.set(sc, sc, 1);
-      p.s.material.opacity = 0.7 * Math.max(0, 1 - age / 1.6);
-      p.s.position.set(x + p.dx * (0.5 + age), y + 1 + p.dy + age * 3, z);
-    });
-  }
-
-  // --- rua ---------------------------------------------------------------------------------------------------
-  const signs = [];
-  function street(length) {
-    const wet = new THREE.MeshStandardMaterial({ color: 0x1a1c24, roughness: 0.22, metalness: 0.35 });
-    box(scene, 8, 0.1, length, 0, -0.05, -length / 2 + 20, wet);
-    for (const s of [-1, 1]) {
-      box(scene, 3.6, 0.3, length, s * 5.8, 0.1, -length / 2 + 20, mat(0x5a5c66));
-      box(scene, 0.2, 0.32, length, s * 4.0, 0.12, -length / 2 + 20, mat(0x8a8c96));
-    }
-    for (let z = 18; z > -length + 20; z -= 5) box(scene, 0.22, 0.02, 2.2, 0, 0.01, z, mat(0xd6a834));
-    const lamps = [];
-    for (let z = 10, k = 0; z > -length + 20; z -= 14, k++) {
-      const side = k % 2 ? 1 : -1;
-      box(scene, 0.14, 5, 0.14, side * 4.6, 2.5, z, mat(0x2a2c34));
-      box(scene, 1.2, 0.12, 0.2, side * 4.1, 5.0, z, mat(0x2a2c34));
-      box(scene, 0.5, 0.18, 0.4, side * 3.6, 4.9, z, glow(0xffd890));
-      halo(0xffc070, 2.6, 0.55).position.set(side * 3.6, 4.85, z);
-      lamps.push({ x: side * 3.6, z });
-    }
-    return lamps;
-  }
-  function car(x, z, color, rot) {
-    const g = new THREE.Group();
-    box(g, 1.8, 0.7, 3.8, 0, 0.55, 0, mat(color));
-    box(g, 1.6, 0.6, 2.0, 0, 1.15, -0.2, mat(0x1a2030));
-    for (const [wx, wz] of [[-0.9, 1.2], [0.9, 1.2], [-0.9, -1.2], [0.9, -1.2]]) box(g, 0.3, 0.6, 0.6, wx, 0.3, wz, mat(0x111114));
-    g.position.set(x, 0, z);
-    g.rotation.y = rot;
-    scene.add(g);
-  }
-
-  // --- monta a cena pedida -----------------------------------------------------------------------------------
-  scene.add(new THREE.HemisphereLight(cfg.skyLight, cfg.groundLight, cfg.hemi));
-  const r = rng(cfg.seed);
-  const actors = {};
-  if (cfg.kind === 'street') {
-    const lamps = street(cfg.length);
-    lamps.slice(0, 4).forEach((l) => {
-      const pl = new THREE.PointLight(0xffd890, 1.2, 16, 1.6);
-      pl.position.set(l.x, 4.6, l.z);
-      scene.add(pl);
-    });
-    for (const side of [-1, 1]) {
-      let z = 16;
-      while (z > -cfg.length + 20) {
-        const depth = 7 + Math.floor(r() * 6);
-        building(r, side, z - depth / 2, depth, 2 + Math.floor(r() * 4));
-        z -= depth + 0.3;
-      }
-    }
-    (cfg.palms || []).forEach(([x, z, h]) => palm(x, z, h));
-    (cfg.cars || []).forEach(([x, z, c, rot]) => car(x, z, c, rot));
-    actors.fires = (cfg.fires || []).map((f, i) => fireColumn(f.x, f.z, f.size, cfg.seed + i * 31));
-  } else if (cfg.kind === 'facade') {
-    box(scene, 60, 0.1, 40, 0, -0.05, 8, mat(0x4a4c56));
-    centroCultural(-6);
-    for (const side of [-1, 1]) building(r, side, -2, 10, 4, { signChance: 0 }).position.x = side * 22;
-  }
-  const crowdColors = [0x6a3a3a, 0x3a4a6a, 0x5a5a3a, 0x2e2e36, 0x7a5a4a, 0x445a4a, 0x6a6a72];
-  const skins = [0xc68a63, 0x8d5a3c, 0xe0b090, 0x6a4028];
-  actors.crowd = [];
-  const rc = rng(cfg.seed + 5);
-  for (let i = 0; i < (cfg.crowd || 0); i++) {
-    const p = person({ shirt: crowdColors[i % crowdColors.length], legs: 0x22242c, skin: skins[i % skins.length],
-      hair: 0x18120e, shoes: 0x111111 });
-    const near = i % 4 === 0;
-    // Corredor livre no meio: o personagem tem que ser lido no meio do caos.
-    const side = rc() < 0.5 ? -1 : 1;
-    actors.crowd.push({ p, x: near ? (i % 8 ? 1 : -1) * (1.8 + rc() * 1.4) : side * (1.2 + rc() * 2.4),
-      z0: near ? 3 - rc() * 5 : -6 - rc() * 40, speed: cfg.speed * (near ? 0.85 + rc() * 0.08 : 0.7 + rc() * 0.42),
-      phase: rc() * 6.28, cadence: 9 + rc() * 3 });
-  }
-  if (cfg.hero) {
-    actors.hero = person({ shirt: 0x3e3e48, legs: 0x26262e, belt: 0x3a5ad8, skin: 0xe0b090, hair: 0x101014, shoes: 0xe04ac0 });
-  }
-  actors.drones = (cfg.drones || []).map(() => drone());
-  // Chuva: traços finos que caem em volta da câmera.
-  const RAIN = cfg.rain || 0;
-  const rainGeo = new THREE.BufferGeometry();
-  const rainPos = new Float32Array(RAIN * 6);
-  rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
-  const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0x9ab8d8, transparent: true, opacity: 0.35 }));
-  rain.frustumCulled = false;
-  scene.add(rain);
-  const rr = rng(cfg.seed + 99);
-  const drops = Array.from({ length: RAIN }, () => ({ x: (rr() - 0.5) * 22, z: -rr() * 40, y: rr() * 14, v: 16 + rr() * 6 }));
-  function drawRain(t, camPos) {
-    drops.forEach((d, i) => {
-      const y = ((d.y - d.v * t) % 14 + 14) % 14;
-      const x = camPos.x + d.x, z = camPos.z + 4 + d.z;
-      rainPos.set([x, y, z, x + 0.03, y + 0.55, z], i * 6);
-    });
-    rainGeo.attributes.position.needsUpdate = true;
-  }
-  actors.booms = (cfg.booms || []).map((b, i) => explosion(cfg.seed + 100 + i));
-  const tracerMat = glow(0xff4060);
-  actors.tracers = (cfg.tracers || []).map(() => { const m = new THREE.Mesh(boxGeo, tracerMat); scene.add(m); return m; });
+    },
+    'mont-drone'(t) { sky('#01060c', '#061420', H); drone(W / 2, H * 0.45, 4.2, t, {}); rain(t, 200, 'rgba(160,200,230,0.5)'); },
+    'mont-robot'(t) { sky('#2a0610', '#0a0206', H); robot(W / 2, H * 1.25, 3.4, t * 6, { walk: true, aim: false }); },
+    'mont-run'(t) {
+      sky('#120406', '#3a1208', H); storefronts(t * 1800, H * 0.9, 77, true);
+      figure(W * 0.45, H * 1.05, 2.6, t * 14, { dir: 1, rim: 'rgba(255,170,80,1)', accent: true });
+    },
+  };
 
   function render(t) {
+    cfg.time = t;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    // Câmera na mão: tremor contínuo leve, forte nos impactos.
     const fi = Math.floor(t * 30);
-    const shake = (cfg.shake || 0) + (cfg.booms || []).reduce((a, b) => {
-      const age = t - b.t;
-      return a + (age >= 0 && age < 0.7 ? b.shake * (1 - age / 0.7) : 0);
-    }, 0);
-    const sx = (hash(fi) - 0.5) * shake, sy = (hash(fi + 7777) - 0.5) * shake;
-
-    if (cfg.kind === 'street') {
-      const camZ = 6 - cfg.speed * t;
-      const bob = Math.abs(Math.sin(t * 5.2)) * (cfg.bob || 0);
-      camera.position.set(cfg.camX + sx, cfg.camY + bob + sy, camZ);
-      camera.lookAt(cfg.camX * 0.3, cfg.lookY, camZ - 14);
-      if (actors.hero) {
-        actors.hero.position.set(cfg.heroX, 0, camZ - cfg.heroAhead);
-        actors.hero.rotation.y = Math.PI;  // de costas para a câmera
-        actors.hero.userData.pose(t * 11, 1);
-      }
-      actors.crowd.forEach((c, i) => {
-        c.p.position.set(c.x + Math.sin(t * 2 + i) * 0.25, 0, c.z0 - c.speed * t);
-        c.p.rotation.y = Math.PI + Math.sin(t * 1.3 + i) * 0.15;
-        c.p.userData.pose(t * c.cadence + c.phase, 1);
-      });
-      (actors.fires || []).forEach((f) => drawFire(f, t, fi));
-      actors.drones.forEach((d, i) => {
-        const cd = cfg.drones[i];
-        const p = Math.min(1, Math.max(0, (t - cd.t0) / cd.dur));
-        const e = p * p * (3 - 2 * p);  // mergulho suave, sem tranco no começo nem no fim
-        d.visible = t >= cd.t0 - 0.2;
-        d.position.set(cd.x0 + (cd.x1 - cd.x0) * e, cd.y0 + (cd.y1 - cd.y0) * e, camZ - cd.ahead0 + (cd.ahead0 - cd.ahead1) * e);
-        d.rotation.set(0.25 * (1 - e), Math.sin(t * 1.7 + i) * 0.2, (cd.x1 - cd.x0) * -0.03);
-        d.userData.rotors.forEach((ro, k) => { ro.rotation.y = t * 38 * (k % 2 ? 1 : -1); });
-      });
-      actors.booms.forEach((e, i) => {
-        const b = cfg.booms[i];
-        drawExplosion(e, t - b.t, b.x, 0.6, camZ - b.ahead);
-      });
-      actors.tracers.forEach((m, i) => {
-        const tr = cfg.tracers[i];
-        const on = t >= tr.t && t < tr.t + 0.07;
-        m.visible = on;
-        if (!on) return;
-        const a = new THREE.Vector3(tr.x0, tr.y0, camZ - tr.z0), bpt = new THREE.Vector3(tr.x1, tr.y1, camZ - tr.z1);
-        m.position.copy(a).add(bpt).multiplyScalar(0.5);
-        m.scale.set(0.09, 0.09, a.distanceTo(bpt));
-        m.lookAt(bpt);
-      });
-    } else {
-      // Contra-plongée: câmera baixa atrás do personagem, subindo o olhar devagar para o prédio.
-      const k = Math.min(1, t / cfg.duration);
-      const e = k * k * (3 - 2 * k);
-      camera.position.set(-2.4 + sx, 0.9 + sy, 13 - e * 1.2);
-      camera.lookAt(0.5, 5 + e * 4, -6);
-      if (actors.hero) {
-        actors.hero.position.set(-3.6, 0, 9.4);
-        actors.hero.rotation.y = Math.PI + 0.35;
-        actors.hero.userData.idle(t);
-      }
-      actors.drones.forEach((d, i) => {
-        const cd = cfg.drones[i];
-        const p = Math.min(1, t / cfg.duration);
-        d.position.set(cd.x0 + (cd.x1 - cd.x0) * p, cd.y0, cd.z);
-        d.rotation.set(0.15, 0, -0.1);
-        d.userData.rotors.forEach((ro, j) => { ro.rotation.y = t * 38 * (j % 2 ? 1 : -1); });
-      });
-    }
-    drawRain(t, camera.position);
-    actors.drones.forEach((d) => { d.userData.eyeHalo.position.copy(d.userData.eye.getWorldPosition(new THREE.Vector3())); });
-    signs.forEach((s) => {  // neon falhando: apaga em alguns quadros
-      const off = hash(fi * 3 + s.seed) < 0.06;
-      s.plane.visible = s.back.visible = !off;
-    });
-    renderer.render(scene, camera);
+    const hit = (cfg.impacts || []).reduce((a, b) => a + (t >= b && t < b + 0.5 ? 1 - (t - b) / 0.5 : 0), 0);
+    const amp = (cfg.shake || 0) + hit * 26;
+    ctx.translate((hash(fi) - 0.5) * amp, (hash(fi + 999) - 0.5) * amp);
+    shots[cfg.shot](t);
+    ctx.restore();
+    // Vinheta escura nas bordas, como lente de cinema.
+    const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95);
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.6)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
   }
   return { ready: Promise.resolve(), render };
 }
 
-      const street = makeCity3D(document.getElementById("s4-c"), {"kind": "street", "seed": 41, "rain": 500, "length": 150, "speed": 6.2, "camX": 0.9, "camY": 2.1, "lookY": 1.7, "bob": 0.1, "shake": 0.06, "heroX": 0.0, "heroAhead": 3.4, "fov": 62, "sky": 1706502, "fog": 3807754, "fogNear": 12, "fogFar": 80, "skyLight": 10119792, "groundLight": 3809300, "hemi": 1.1, "fires": [{"x": -2.6, "z": -24, "size": 3.4}, {"x": 2.8, "z": -36, "size": 4.2}, {"x": -0.4, "z": -54, "size": 5.2}], "cars": [[-2.6, -24, 5925498, 0.4], [2.8, -36, 8006186, -0.3]], "crowd": 24, "hero": true, "drones": [], "tracers": [], "booms": [{"t": 2.2, "x": 0.6, "ahead": 18, "shake": 0.9}]});
-      window.__hf = window.__hf || {};
-      window.__hf.buildReady = window.__hf.buildReady || {};
-      window.__hf.buildReady["s4"] = street.ready;
-      const draw = (filmTime) => street.render(Math.min(4.0, Math.max(0, filmTime - 8.8)));
+      const anim = makeAnim2D(document.getElementById("s4-c"), {"duration": 4.0, "shot": "riot", "shake": 4, "impacts": [2.2]});
+      const draw = (filmTime) => anim.render(Math.min(4.0, Math.max(0, filmTime - 8.8)));
       window.addEventListener("hf-seek", (e) => {
-        const time = e && e.detail && typeof e.detail.time === "number" ? e.detail.time : 0;
-        if (street.render) draw(time);
-        else if (e && e.detail && e.detail.waitUntil) e.detail.waitUntil(street.ready.then(() => draw(time)));
+        draw(e && e.detail && typeof e.detail.time === "number" ? e.detail.time : 0);
       });
-      street.ready.then(() => draw(8.8));
+      draw(8.8);
       window.__timelines["s4"] = tl;
   </script>
 </template>
