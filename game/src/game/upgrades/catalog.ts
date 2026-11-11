@@ -162,7 +162,7 @@ export const UPGRADE_CARDS = [
         id: 'spin-slash',
         kind: 'ability',
         title: 'Golpe giratório',
-        description: 'A cada 7 s, um corte gira à sua volta e causa 900% em 170 px. +35 px por nível.',
+        description: 'A cada 7 s, um corte sai de você em espiral e causa 900% até 170 px. +35 px por nível.',
         maxLevel: 2,
         effect: { type: 'spin-slash', radius: 170, radiusPerLevel: 35, interval: 7_000, damageRatio: 9 }
     },

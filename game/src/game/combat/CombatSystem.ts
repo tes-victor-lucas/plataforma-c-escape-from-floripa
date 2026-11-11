@@ -13,7 +13,7 @@ import {
     playShockwave,
     playSlash,
     SPIN_SLASH_DURATION,
-    SPIN_SLASH_START
+    spinSlashReach
 } from '../effects/playAreaEffects';
 import { WORLD_CONFIG } from '../config/world';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
@@ -258,7 +258,7 @@ export class CombatSystem {
         this.updateBombard(delta);
     }
 
-    /** Golpe giratório: a lâmina dá uma volta e fere cada inimigo do raio quando passa por ele. */
+    /** Golpe giratório: a lâmina sai do jogador em espiral e fere cada inimigo do raio quando chega nele. */
     private updateSpinSlash(delta: number) {
         const { spinRadius, spinInterval, spinDamageRatio, damage } = this.playerStats;
         if (spinRadius <= 0) return;
@@ -274,16 +274,14 @@ export class CombatSystem {
         }
         const spin = this.spin;
         spin.elapsed = Math.min(SPIN_SLASH_DURATION, spin.elapsed + delta);
-        const swept = spin.elapsed / SPIN_SLASH_DURATION * Math.PI * 2;
+        const reach = spinSlashReach(spinRadius, spin.elapsed / SPIN_SLASH_DURATION);
         for (const enemy of this.enemies) {
             if (!enemy.health.isAlive || spin.hit.has(enemy)) continue;
             const target = this.getCenter(enemy);
             const dx = target.x - center.x;
             const dy = target.y - center.y;
             const distance = Math.hypot(dx, dy);
-            if (distance > spinRadius) continue;
-            const angle = ((Math.atan2(dy, dx) - SPIN_SLASH_START) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
-            if (angle > swept) continue;
+            if (distance > reach) continue;
             spin.hit.add(enemy);
             this.hitEnemy(enemy, damage * spinDamageRatio, distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 1 }, spin.attackId);
         }
