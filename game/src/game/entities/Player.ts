@@ -200,6 +200,13 @@ export class Player {
         this.stopWalkingAnimation();
     }
 
+    /** De costas, andando sem sair do lugar: quem move o sprite é a cena (escada do bueiro). */
+    climbInPlace() {
+        this.stopMovement();
+        this.facing = 'up';
+        this.playWalkAnimation(walkAnimationKey(this.texture, 'up'));
+    }
+
     takeDamage(amount: number) {
         if (!this.health.isAlive) return;
         const now = this.scene.time?.now ?? 0;
