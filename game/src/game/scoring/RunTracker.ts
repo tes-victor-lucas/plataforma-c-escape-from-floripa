@@ -1,4 +1,4 @@
-import { SCORE_VERSION, type GameMode, type RunStatus } from '../config/score';
+import { SCORE_CONFIG, SCORE_VERSION, type GameMode, type RunStatus } from '../config/score';
 import { calculateMultiKillBonus, calculateScore, type ScoreBreakdown } from './ScoreCalculator';
 import { scoreApi } from './ScoreApi';
 
@@ -31,6 +31,8 @@ export type RunCheckpoint = Readonly<{
     multiKills: readonly MultiKill[];
     defeatedEnemyIds: readonly string[];
     completedDungeonIds: readonly string[];
+    pausedMs: number;
+    arcadeWon: boolean;
     scoreVersion: number;
     mode: GameMode;
     status: 'RUNNING';
@@ -60,6 +62,9 @@ export class RunTracker {
     private completedDungeonIds = new Set<string>();
     private projectileKills = new Map<string, Set<string>>();
     private finalizedProjectileIds = new Set<string>();
+    private pausedMs = 0;
+    private pausedSince?: number;
+    private arcadeWon = false;
     private status: RunStatus = 'IDLE';
     private mode: GameMode = 'SINGLE_PLAYER';
     private listeners = new Set<Listener>();
@@ -95,6 +100,8 @@ export class RunTracker {
         this.multiKills = checkpoint.multiKills.map((multiKill) => ({ ...multiKill }));
         this.defeatedEnemyIds = new Set(checkpoint.defeatedEnemyIds);
         this.completedDungeonIds = new Set(checkpoint.completedDungeonIds);
+        this.pausedMs = checkpoint.pausedMs;
+        this.arcadeWon = checkpoint.arcadeWon;
         this.mode = checkpoint.mode;
         this.status = 'RUNNING';
         this.emit();
@@ -140,6 +147,27 @@ export class RunTracker {
         return true;
     }
 
+    /** Para o relógio da partida (fliperama aberto); chamar de novo enquanto pausado não muda nada. */
+    pauseClock(now = Date.now()) {
+        if (this.status !== 'RUNNING' || this.pausedSince !== undefined) return;
+        this.pausedSince = now;
+        this.emit();
+    }
+
+    resumeClock(now = Date.now()) {
+        if (this.pausedSince === undefined) return;
+        this.pausedMs += Math.max(0, now - this.pausedSince);
+        this.pausedSince = undefined;
+        this.emit();
+    }
+
+    recordArcadeWin() {
+        if (this.status !== 'RUNNING' || this.arcadeWon) return false;
+        this.arcadeWon = true;
+        this.emit();
+        return true;
+    }
+
     recordDungeonCompletion(dungeonId: string) {
         if (this.status !== 'RUNNING' || this.completedDungeonIds.has(dungeonId)) return false;
         this.completedDungeonIds.add(dungeonId);
@@ -150,6 +178,7 @@ export class RunTracker {
     /** Na dupla, só o anfitrião envia a vitória: a pontuação é da dupla, e o placar teria duas entradas iguais. */
     async win(now = new Date(), submit = true) {
         if (this.status !== 'RUNNING') return this.snapshot();
+        this.resumeClock(now.getTime());
         this.finalizeOutstandingProjectiles();
         this.endedAt = now.toISOString();
         this.status = 'WON';
@@ -164,7 +193,9 @@ export class RunTracker {
                 enemiesDefeated: this.enemiesDefeated,
                 hitsTaken: this.hitsTaken,
                 dungeonsCompleted: this.completedDungeonIds.size,
-                multiKills: this.multiKills.map(({ enemies }) => enemies)
+                multiKills: this.multiKills.map(({ enemies }) => enemies),
+                arcadeWon: this.arcadeWon,
+                pausedMs: this.cappedPausedMs()
             }).catch(() => undefined);
         }
         return this.snapshot();
@@ -172,6 +203,7 @@ export class RunTracker {
 
     lose(now = new Date()) {
         if (this.status !== 'RUNNING') return this.snapshot();
+        this.resumeClock(now.getTime());
         this.finalizeOutstandingProjectiles();
         this.endedAt = now.toISOString();
         this.status = 'LOST';
@@ -198,6 +230,8 @@ export class RunTracker {
             multiKills: this.multiKills.map((multiKill) => ({ ...multiKill })),
             defeatedEnemyIds: [...this.defeatedEnemyIds],
             completedDungeonIds: [...this.completedDungeonIds],
+            pausedMs: this.cappedPausedMs(),
+            arcadeWon: this.arcadeWon,
             scoreVersion: SCORE_VERSION,
             mode: this.mode,
             status: 'RUNNING'
@@ -207,7 +241,7 @@ export class RunTracker {
     snapshot(now = Date.now()): RunSnapshot {
         const end = this.endedAt ? Date.parse(this.endedAt) : now;
         const start = this.startedAt ? Date.parse(this.startedAt) : end;
-        const elapsedTimeMs = Math.max(0, end - start);
+        const elapsedTimeMs = Math.max(0, end - start - this.cappedPausedMs(end));
         const score = calculateScore({
             won: this.status === 'WON',
             completed: this.status === 'WON' || this.status === 'LOST',
@@ -215,7 +249,8 @@ export class RunTracker {
             enemiesDefeated: this.enemiesDefeated,
             hitsTaken: this.hitsTaken,
             dungeonsCompleted: this.completedDungeonIds.size,
-            multiKillBonuses: this.multiKills.map(({ bonus }) => bonus)
+            multiKillBonuses: this.multiKills.map(({ bonus }) => bonus),
+            arcadeWon: this.arcadeWon
         });
         return {
             runId: this.runId,
@@ -256,6 +291,12 @@ export class RunTracker {
         }
     }
 
+    /** Pausa acumulada, contando a que está em andamento, com o mesmo teto do servidor. */
+    private cappedPausedMs(now = Date.now()) {
+        const running = this.pausedSince === undefined ? 0 : Math.max(0, now - this.pausedSince);
+        return Math.min(SCORE_CONFIG.arcade.maxPausedMs, this.pausedMs + running);
+    }
+
     private resetTransientState() {
         this.runId = undefined;
         this.startedAt = undefined;
@@ -267,6 +308,9 @@ export class RunTracker {
         this.completedDungeonIds.clear();
         this.projectileKills.clear();
         this.finalizedProjectileIds.clear();
+        this.pausedMs = 0;
+        this.pausedSince = undefined;
+        this.arcadeWon = false;
         this.status = 'IDLE';
         this.mode = 'SINGLE_PLAYER';
         this.startRequest = undefined;

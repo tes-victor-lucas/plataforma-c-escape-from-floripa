@@ -229,6 +229,8 @@ export class World extends Scene {
         this.isWaveIntermissionOpen = false;
         this.isPiranhasMenuOpen = false;
         this.isArcadeOpen = false;
+        // O fliperama pode ter sido fechado pela troca de sala, sem passar pelo fim da partida dele.
+        runTracker.resumeClock();
         this.isWalletOpen = false;
         this.isTicenGateArmed = true;
         this.isTicenGateOpen = false;
@@ -1050,15 +1052,18 @@ export class World extends Scene {
         this.isArcadeOpen = true;
         this.player.stopMovement();
         this.physics.pause();
+        runTracker.pauseClock();
         state.arcadeAttempts += 1;
         const data: ArcadeMinigameData = {
             attemptsLeft: arcadeAttemptsLeft(state),
             onFinish: (won, played) => {
                 this.isArcadeOpen = false;
                 this.physics.resume();
+                runTracker.resumeClock();
                 if (!played) state.arcadeAttempts -= 1;
                 if (!won) return;
                 state.arcadeWon = true;
+                runTracker.recordArcadeWin();
                 this.player?.health.increaseMax(arcade.rewardHearts * COMBAT_CONFIG.player.healthPerHeart);
             }
         };
