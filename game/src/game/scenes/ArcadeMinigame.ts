@@ -69,13 +69,6 @@ export class ArcadeMinigame extends Scene {
         this.text(GAME_WIDTH - 160, 80, 'PRÓXIMA', 16, '#5ce5f1');
         this.add.rectangle(GAME_WIDTH - 160, 136, PREVIEW_CELL * 4 + 16, PREVIEW_CELL * 4 + 16, 0x0b0814).setStrokeStyle(2, 0x5ce5f1);
         this.scoreText = this.text(GAME_WIDTH - 160, 216, '', 22, '#ffffff');
-        this.text(
-            GAME_WIDTH - 160,
-            296,
-            '← → MOVER   ↑ GIRAR\n↓ DESCER   ESPAÇO SOLTAR\nESC SAIR\nCONTROLE: DIRECIONAL MOVE E GIRA\nCONFIRMAR SOLTA, VOLTAR SAI',
-            12,
-            '#aaa5b8'
-        );
         this.board = this.add.graphics();
 
         // Botões de toque (e de mouse): o celular não tem teclado.
