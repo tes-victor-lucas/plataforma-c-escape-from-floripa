@@ -9,6 +9,8 @@ export type PauseMenuData = {
     inventory?: InventoryData;
     /** A pausa abre direto no inventário pela tecla I. */
     view?: 'pause' | 'inventory';
+    /** Item selecionado no inventário, mantido ao equipar ou retirar. */
+    selectedItem?: number;
 };
 
 /** Overlay scene that pauses Room 1 without destroying its state. */
@@ -24,10 +26,18 @@ export class PauseMenu extends Scene {
         const upgrades = data.upgrades ?? [];
         const showInventory = data.view === 'inventory' && !!data.inventory;
         if (showInventory && data.inventory) {
+            const inventory = data.inventory;
             new InventoryMenuView(this, {
-                ...data.inventory,
+                ...inventory,
                 upgrades,
-                onBack: () => this.scene.restart({ ...data, view: 'pause' })
+                selectedItem: data.selectedItem,
+                onBack: () => this.scene.restart({ ...data, view: 'pause' }),
+                // O mundo aplica a troca e devolve o inventário atualizado para redesenhar.
+                onToggle: (id, index) => this.scene.restart({
+                    ...data,
+                    inventory: inventory.onToggleItem?.(id) ?? inventory,
+                    selectedItem: index
+                })
             }).create();
         } else {
             new PauseMenuView(this, {

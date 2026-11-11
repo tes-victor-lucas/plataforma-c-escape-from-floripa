@@ -1,6 +1,6 @@
 import type { Scene } from 'phaser';
 import { CHARACTERS, type CharacterId } from '../config/characters';
-import type { EquipmentSlot } from '../config/items';
+import type { EquipmentSlot, ItemId } from '../config/items';
 import { getHatOffsetY } from '../entities/GauchoHat';
 import { GAME_WIDTH } from '../config/display';
 import { WALK_FRAMES } from '../entities/PlayerAnimations';
@@ -9,17 +9,29 @@ import { CLEAN_MENU_COLORS, CleanOverlayMenu, drawCleanMenuBox } from './CleanOv
 import { addUpgradePanel } from './PauseMenuView';
 
 /** Item guardado no inventário; cada item novo (chapéu, bota...) entra nesta lista quando for implementado. */
-export type InventoryItem = Readonly<{ name: string; texture: string; description: string; slot?: EquipmentSlot }>;
+export type InventoryItem = Readonly<{
+    name: string;
+    texture: string;
+    description: string;
+    /** Só itens de equipar têm id, encaixe e estado. */
+    id?: ItemId;
+    slot?: EquipmentSlot;
+    equipped?: boolean;
+}>;
 
 export type InventoryData = Readonly<{
     chimarraos: number;
     characterId: CharacterId;
     items: readonly InventoryItem[];
+    /** Equipa ou retira um item e devolve o inventário como ficou. */
+    onToggleItem?: (id: ItemId) => InventoryData;
 }>;
 
 type InventoryMenuViewOptions = InventoryData & Readonly<{
     upgrades: UpgradeProgress;
+    selectedItem?: number;
     onBack: () => void;
+    onToggle?: (id: ItemId, index: number) => void;
 }>;
 
 const FONT = 'PixelGamer, monospace';
@@ -39,6 +51,8 @@ export class InventoryMenuView {
     private itemSlots: Phaser.GameObjects.Rectangle[] = [];
     private detailTitle?: Phaser.GameObjects.Text;
     private detailText?: Phaser.GameObjects.Text;
+    private toggleButton?: Phaser.GameObjects.Rectangle;
+    private toggleLabel?: Phaser.GameObjects.Text;
 
     constructor(
         private readonly scene: Scene,
@@ -56,7 +70,21 @@ export class InventoryMenuView {
         this.addItemGrid(menu);
         menu.addButton('VOLTAR', 446, this.options.onBack, { width: 220, height: 38, fontSize: '19px' });
         menu.enableKeyboardNavigation({ onCancel: this.options.onBack });
+        // E equipa ou retira o item selecionado, sem precisar do mouse.
+        const keyboard = this.scene.input.keyboard;
+        const toggle = () => this.toggleSelected();
+        keyboard?.on('keydown-E', toggle);
+        this.scene.events.once('shutdown', () => keyboard?.off('keydown-E', toggle));
         menu.fadeIn();
+    }
+
+    private get equippedItems() {
+        return this.options.items.filter(({ equipped }) => equipped);
+    }
+
+    private toggleSelected() {
+        const item = this.options.items[this.selectedItem];
+        if (item?.id) this.options.onToggle?.(item.id, this.selectedItem);
     }
 
     private addChimarraos(menu: CleanOverlayMenu) {
@@ -83,7 +111,7 @@ export class InventoryMenuView {
             .setScale(4.5 * character.scaleMultiplier);
         menu.add([grid, doll, this.text(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height - 16, character.label, 12, CLEAN_MENU_COLORS.frameCss).setOrigin(0.5)]);
         // O que vai na cabeça aparece no boneco, como no personagem pelo mapa.
-        const head = this.options.items.find(({ slot }) => slot === 'CABEÇA');
+        const head = this.equippedItems.find(({ slot }) => slot === 'CABEÇA');
         if (head) {
             menu.add(this.scene.add.image(doll.x, doll.y + getHatOffsetY(doll.displayHeight), head.texture).setScale(doll.scale));
         }
@@ -93,9 +121,14 @@ export class InventoryMenuView {
         EQUIPMENT_SLOTS.forEach((label, index) => {
             const y = DOLL.y + 14 + index * 52;
             const x = DOLL.x + DOLL.width + 26;
-            const equipped = this.options.items.find(({ slot }) => slot === label);
+            const equipped = this.equippedItems.find(({ slot }) => slot === label);
             const slot = this.scene.add.rectangle(x + SLOT / 2, y + SLOT / 2, SLOT, SLOT, CLEAN_MENU_COLORS.button)
                 .setStrokeStyle(equipped ? 2 : 1, CLEAN_MENU_COLORS.frame, equipped ? 1 : 0.6);
+            // Clicar no encaixe seleciona o item para poder retirá-lo.
+            if (equipped) {
+                slot.setInteractive({ useHandCursor: true })
+                    .on('pointerdown', () => this.selectItem(this.options.items.indexOf(equipped)));
+            }
             menu.add([
                 slot,
                 this.text(x + SLOT + 10, y + 12, label, 12, CLEAN_MENU_COLORS.text),
@@ -117,7 +150,13 @@ export class InventoryMenuView {
             lineSpacing: 6,
             wordWrap: { width: DETAILS.width - 32, useAdvancedWrap: true }
         }).setResolution(2);
-        menu.add([this.box(DETAILS), this.detailTitle, this.detailText]);
+        const buttonY = DETAILS.y + DETAILS.height - 30;
+        this.toggleButton = this.scene.add.rectangle(DETAILS.x + DETAILS.width / 2, buttonY, 150, 32, CLEAN_MENU_COLORS.button)
+            .setStrokeStyle(2, CLEAN_MENU_COLORS.frame)
+            .setInteractive({ useHandCursor: true })
+            .on('pointerdown', () => this.toggleSelected());
+        this.toggleLabel = this.text(DETAILS.x + DETAILS.width / 2, buttonY, '', 14, CLEAN_MENU_COLORS.text).setOrigin(0.5);
+        menu.add([this.box(DETAILS), this.detailTitle, this.detailText, this.toggleButton, this.toggleLabel]);
     }
 
     private addItemGrid(menu: CleanOverlayMenu) {
@@ -137,9 +176,10 @@ export class InventoryMenuView {
             icon.setScale((SLOT - 8) / Math.max(icon.width, icon.height));
             slot.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.selectItem(index));
             menu.add(icon);
+            if (item.equipped) menu.add(this.text(x + SLOT / 2 - 9, y - SLOT / 2 + 8, 'E', 9, CLEAN_MENU_COLORS.frameCss).setOrigin(0.5));
             this.itemSlots[index] = slot;
         }
-        this.selectItem(0);
+        this.selectItem(this.options.selectedItem ?? 0);
     }
 
     private selectItem(index: number) {
@@ -151,7 +191,11 @@ export class InventoryMenuView {
         ));
         const selected = this.options.items[this.selectedItem];
         this.detailTitle?.setText(selected?.name ?? 'NENHUM ITEM');
-        this.detailText?.setText(selected?.description ?? 'OS ITENS PEGOS PELO MAPA FICAM GUARDADOS AQUI.');
+        const status = selected?.id ? `\n\n${selected.equipped ? 'EQUIPADO' : 'GUARDADO'}` : '';
+        this.detailText?.setText(`${selected?.description ?? 'OS ITENS PEGOS PELO MAPA FICAM GUARDADOS AQUI.'}${status}`);
+        const canToggle = !!selected?.id && !!this.options.onToggle;
+        this.toggleButton?.setVisible(canToggle);
+        this.toggleLabel?.setVisible(canToggle).setText(selected?.equipped ? 'RETIRAR' : 'EQUIPAR');
     }
 
     private box(bounds: Readonly<{ x: number; y: number; width: number; height: number }>) {
