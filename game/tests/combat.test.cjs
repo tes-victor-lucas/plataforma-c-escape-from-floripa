@@ -1862,6 +1862,7 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
         'PauseMenu',
         'ArcadeMinigame',
         'ConfirmPrompt',
+        'WalletMenu',
         'RoomTransition',
         'ReturnToMenuTransition',
         'CombatHud'
@@ -1892,6 +1893,7 @@ test('voltar ao menu após derrota usa a transição suave de saída', () => {
         'PauseMenu',
         'ArcadeMinigame',
         'ConfirmPrompt',
+        'WalletMenu',
         'RoomTransition',
         'ReturnToMenuTransition',
         'CombatHud'
@@ -1969,6 +1971,7 @@ test('menu principal remove qualquer cena restante da partida anterior', () => {
         'PauseMenu',
         'ArcadeMinigame',
         'ConfirmPrompt',
+        'WalletMenu',
         'RoomTransition'
     ]);
 });
