@@ -8,8 +8,8 @@ import { createUpgradeIcon } from './UpgradeIcon';
 type PauseMenuViewOptions = {
     onContinue: () => void;
     onQuit: () => void;
-    /** Sem ele, a pausa não mostra o botão de recursos. */
-    onResources?: () => void;
+    /** Sem ele, a pausa não mostra o botão de inventário. */
+    onInventory?: () => void;
     upgrades: UpgradeProgress;
 };
 
@@ -37,26 +37,26 @@ export class PauseMenuView {
             dimAlpha: 0.68
         });
         menu.addTitle('JOGO PAUSADO', 166, 'pause');
-        const { onResources } = this.options;
-        const buttonY = onResources ? [222, 270, 318] : [237, 292];
+        const { onInventory } = this.options;
+        const buttonY = onInventory ? [222, 270, 318] : [237, 292];
         menu.addButton('CONTINUAR', buttonY[0], this.options.onContinue, {
             width: 320,
-            height: onResources ? 40 : 42,
+            height: onInventory ? 40 : 42,
             fontSize: '22px'
         });
-        if (onResources) {
-            menu.addButton('RECURSOS', buttonY[1], onResources, { width: 320, height: 40, fontSize: '20px' });
+        if (onInventory) {
+            menu.addButton('INVENTÁRIO', buttonY[1], onInventory, { width: 320, height: 40, fontSize: '20px' });
         }
         menu.addButton('VOLTAR AO MENU', buttonY[buttonY.length - 1], this.options.onQuit, {
             width: 320,
-            height: onResources ? 40 : 42,
+            height: onInventory ? 40 : 42,
             fontSize: '20px'
         });
         menu.addControlHints([
             { key: 'P', label: 'CONTINUAR' },
-            // Com o botão de recursos, a dica do ENTER não cabe na largura do painel.
-            ...(onResources ? [{ key: 'I', label: 'RECURSOS' }] : [{ key: 'ENTER', label: 'SELECIONAR' }])
-        ], onResources ? 364 : 360);
+            // Com o botão de inventário, a dica do ENTER não cabe na largura do painel.
+            ...(onInventory ? [{ key: 'I', label: 'INVENTÁRIO' }] : [{ key: 'ENTER', label: 'SELECIONAR' }])
+        ], onInventory ? 364 : 360);
         this.addUpgradePanel(menu);
         menu.enableKeyboardNavigation({ onCancel: this.options.onContinue });
         menu.fadeIn();
@@ -67,7 +67,7 @@ export class PauseMenuView {
     }
 }
 
-/** Grade das cartas da partida com descrição ao passar o mouse; usada na pausa e nos recursos. */
+/** Grade das cartas da partida com descrição ao passar o mouse; usada na pausa e no inventário. */
 export function addUpgradePanel(
     scene: Scene,
     menu: CleanOverlayMenu,

@@ -1,14 +1,14 @@
 import { Scene } from 'phaser';
 import { PauseMenuView } from '../ui/PauseMenuView';
-import { ResourcesMenuView, type ResourcesData } from '../ui/ResourcesMenuView';
+import { InventoryMenuView, type InventoryData } from '../ui/InventoryMenuView';
 import type { UpgradeProgress } from '../upgrades';
 import { bindGamepadActions } from '../input/GamepadInput';
 
 export type PauseMenuData = {
     upgrades?: UpgradeProgress;
-    resources?: ResourcesData;
-    /** A pausa abre direto nos recursos pela tecla I. */
-    view?: 'pause' | 'resources';
+    inventory?: InventoryData;
+    /** A pausa abre direto no inventário pela tecla I. */
+    view?: 'pause' | 'inventory';
 };
 
 /** Overlay scene that pauses Room 1 without destroying its state. */
@@ -22,10 +22,10 @@ export class PauseMenu extends Scene {
     create(data: PauseMenuData = {}) {
         this.isLeaving = false;
         const upgrades = data.upgrades ?? [];
-        const showResources = data.view === 'resources' && !!data.resources;
-        if (showResources && data.resources) {
-            new ResourcesMenuView(this, {
-                ...data.resources,
+        const showInventory = data.view === 'inventory' && !!data.inventory;
+        if (showInventory && data.inventory) {
+            new InventoryMenuView(this, {
+                ...data.inventory,
                 upgrades,
                 onBack: () => this.scene.restart({ ...data, view: 'pause' })
             }).create();
@@ -33,22 +33,22 @@ export class PauseMenu extends Scene {
             new PauseMenuView(this, {
                 onContinue: () => this.continueGame(),
                 onQuit: () => this.quitToMainMenu(),
-                onResources: data.resources ? () => this.scene.restart({ ...data, view: 'resources' }) : undefined,
+                onInventory: data.inventory ? () => this.scene.restart({ ...data, view: 'inventory' }) : undefined,
                 upgrades
             }).create();
         }
 
-        // I alterna entre o jogo e os recursos; P sempre volta ao jogo.
-        const toggleResources = () => {
-            if (showResources || !data.resources) this.continueGame();
-            else this.scene.restart({ ...data, view: 'resources' });
+        // I alterna entre o jogo e o inventário; P sempre volta ao jogo.
+        const toggleInventory = () => {
+            if (showInventory || !data.inventory) this.continueGame();
+            else this.scene.restart({ ...data, view: 'inventory' });
         };
         const keyboard = this.input.keyboard;
         keyboard?.once('keydown-P', this.continueGame, this);
-        keyboard?.once('keydown-I', toggleResources);
+        keyboard?.once('keydown-I', toggleInventory);
         this.events.once('shutdown', () => {
             keyboard?.off('keydown-P', this.continueGame, this);
-            keyboard?.off('keydown-I', toggleResources);
+            keyboard?.off('keydown-I', toggleInventory);
         });
         bindGamepadActions(this, { pause: () => this.continueGame() });
     }

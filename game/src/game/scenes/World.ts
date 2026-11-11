@@ -467,7 +467,7 @@ export class World extends Scene {
         this.normalCameraZoom = this.cameras.main.zoom;
         this.lowHealthFilter = this.cameras.main.filters.internal.addColorMatrix();
         this.input.keyboard?.on('keydown-P', this.openPauseMenu, this);
-        this.input.keyboard?.on('keydown-I', this.openResourcesMenu, this);
+        this.input.keyboard?.on('keydown-I', this.openInventory, this);
         this.input.mouse?.disableContextMenu();
         this.input.on('pointerdown', this.handleSwordPointer, this);
         this.input.keyboard?.on('keydown-G', this.openPiranhasMenu, this);
@@ -1618,15 +1618,15 @@ export class World extends Scene {
         this.droppedItems.clear();
         this.swordHint = undefined;
         this.input.keyboard?.off('keydown-P', this.openPauseMenu, this);
-        this.input.keyboard?.off('keydown-I', this.openResourcesMenu, this);
+        this.input.keyboard?.off('keydown-I', this.openInventory, this);
         this.input.off('pointerdown', this.handleSwordPointer, this);
         this.input.keyboard?.off('keydown-G', this.openPiranhasMenu, this);
         this.input.keyboard?.off('keydown', this.handleSecretCodeKey, this);
         this.events.off(Phaser.Scenes.Events.RESUME, this.resetPauseMenuState, this);
     }
 
-    private openResourcesMenu() {
-        this.openPauseMenu('resources');
+    private openInventory() {
+        this.openPauseMenu('inventory');
     }
 
     private openPauseMenu(view: PauseMenuData['view'] = 'pause') {
@@ -1640,7 +1640,7 @@ export class World extends Scene {
         const data: PauseMenuData = {
             upgrades: this.upgrades.exportProgress(),
             view,
-            resources: {
+            inventory: {
                 chimarraos: this.chimarraosCollected,
                 characterId: this.characterId,
                 items: [{

@@ -6,16 +6,16 @@ import type { UpgradeProgress } from '../upgrades/types';
 import { CLEAN_MENU_COLORS, CleanOverlayMenu, drawCleanMenuBox } from './CleanOverlayMenu';
 import { addUpgradePanel } from './PauseMenuView';
 
-/** Item guardado nos recursos; cada item novo (chapéu, bota...) entra nesta lista quando for implementado. */
-export type ResourceItem = Readonly<{ name: string; texture: string; description: string }>;
+/** Item guardado no inventário; cada item novo (chapéu, bota...) entra nesta lista quando for implementado. */
+export type InventoryItem = Readonly<{ name: string; texture: string; description: string }>;
 
-export type ResourcesData = Readonly<{
+export type InventoryData = Readonly<{
     chimarraos: number;
     characterId: CharacterId;
-    items: readonly ResourceItem[];
+    items: readonly InventoryItem[];
 }>;
 
-type ResourcesMenuViewOptions = ResourcesData & Readonly<{
+type InventoryMenuViewOptions = InventoryData & Readonly<{
     upgrades: UpgradeProgress;
     onBack: () => void;
 }>;
@@ -31,8 +31,8 @@ const EQUIPMENT_SLOTS = ['CABEÇA', 'CORPO', 'MÃOS', 'PÉS'] as const;
 const SLOT = 44;
 const GRID = { x: 232, y: 308, columns: 12, rows: 2, gap: 6 };
 
-/** Tela de recursos: cartas e chimarrões à esquerda, boneco com equipamentos e os itens guardados. */
-export class ResourcesMenuView {
+/** Tela de inventário: cartas e chimarrões à esquerda, boneco com equipamentos e os itens guardados. */
+export class InventoryMenuView {
     private selectedItem = 0;
     private itemSlots: Phaser.GameObjects.Rectangle[] = [];
     private detailTitle?: Phaser.GameObjects.Text;
@@ -40,12 +40,12 @@ export class ResourcesMenuView {
 
     constructor(
         private readonly scene: Scene,
-        private readonly options: ResourcesMenuViewOptions
+        private readonly options: InventoryMenuViewOptions
     ) {}
 
     create() {
         const menu = new CleanOverlayMenu(this.scene, { bounds: PANEL, dimAlpha: 0.78 });
-        menu.add(this.text(GAME_WIDTH / 2, 40, 'RECURSOS', 26, CLEAN_MENU_COLORS.text).setOrigin(0.5));
+        menu.add(this.text(GAME_WIDTH / 2, 40, 'INVENTÁRIO', 26, CLEAN_MENU_COLORS.text).setOrigin(0.5));
         addUpgradePanel(this.scene, menu, this.options.upgrades, CARDS);
         this.addChimarraos(menu);
         this.addDoll(menu);
