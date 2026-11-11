@@ -9,6 +9,8 @@ import { getGamepadInput } from '../input/GamepadInput';
 import { touchInput } from '../input/TouchInput';
 import { CHARACTERS, type CharacterId } from '../config/characters';
 import { createWalkAnimations, walkAnimationKey, WALK_FRAMES, type Direction } from './PlayerAnimations';
+import { GAUCHO_HAT } from '../config/items';
+import { attachGauchoHat } from './GauchoHat';
 
 export type { Direction } from './PlayerAnimations';
 
@@ -36,6 +38,9 @@ export class Player {
     private aimDirection: { x: number; y: number } = { x: 0, y: 1 };
     private movementSpeedMultiplier = 1;
     private invulnerableUntil = 0;
+    /** Chance de um golpe não tirar vida (chapéu de gaúcho). */
+    private blockChance = 0;
+    private random: () => number = Math.random;
     private temporaryMovementSpeedMultiplier = 1;
     private controlsInverted = false;
     /**
@@ -207,10 +212,26 @@ export class Player {
         this.playWalkAnimation(walkAnimationKey(this.texture, 'up'));
     }
 
+    /** Equipa o chapéu de gaúcho: aparece na cabeça e bloqueia parte dos golpes. */
+    equipGauchoHat() {
+        if (this.blockChance > 0) return;
+        this.blockChance = GAUCHO_HAT.blockChance;
+        attachGauchoHat(this.scene, this.sprite);
+    }
+
     takeDamage(amount: number) {
         if (!this.health.isAlive) return;
         const now = this.scene.time?.now ?? 0;
         if (now < this.invulnerableUntil) return;
+        if (amount > 0 && this.blockChance > 0 && this.random() < this.blockChance) {
+            // Bloqueio também dá o respiro de um golpe: o contato contínuo não sorteia de novo a cada quadro.
+            this.invulnerableUntil = now + WORLD_CONFIG.player.hurtInvulnerability;
+            this.sprite.setTint(0x8fd8ff);
+            this.scene.time.delayedCall(90, () => {
+                if (this.sprite.active) this.sprite.clearTint();
+            });
+            return;
+        }
         const previousHealth = this.health.current;
         this.health.takeDamage(amount);
         const healthLost = previousHealth - this.health.current;
