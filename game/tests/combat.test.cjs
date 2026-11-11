@@ -909,7 +909,7 @@ test('progresso entre salas preserva vida, habilidades e bônus permanentes', ()
     const progress = capturePlayerProgress({
         health: sourceHealth,
         getMovementSpeedMultiplier: () => 1.2
-    }, upgrades);
+    }, upgrades, 3);
 
     const restoredUpgrades = new PlayerUpgradeState();
     const restoredHealth = new Health(4);
@@ -926,7 +926,9 @@ test('progresso entre salas preserva vida, habilidades e bônus permanentes', ()
     assert.equal(restoredSpeed, 1.2);
     assert.equal(restoredUpgrades.projectileCount, 2);
     assert.equal(restoredUpgrades.damage, COMBAT_CONFIG.player.damage + 1);
+    assert.equal(progress.chimarraos, 3, 'chimarrões pegos seguem para a próxima sala');
     assert.deepEqual(Object.keys(progress).sort(), [
+        'chimarraos',
         'currentHealth',
         'maxHealth',
         'movementSpeedMultiplier',
@@ -1749,7 +1751,8 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
                 currentHealth: 4,
                 maxHealth: 4,
                 movementSpeedMultiplier: 1,
-                upgrades: []
+                upgrades: [],
+                chimarraos: 0
             }
         }
     });
