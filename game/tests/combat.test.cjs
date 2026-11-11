@@ -567,7 +567,7 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
             graphics() {
                 // Registra o que os efeitos em área desenham, sem renderizar nada.
                 const layer = { circles: [], lines: 0 };
-                for (const method of ['setDepth', 'setBlendMode', 'setPosition', 'setScale', 'setRotation', 'fillStyle', 'lineStyle', 'fillCircle', 'fillRect', 'beginPath', 'moveTo', 'lineTo', 'closePath', 'fillPath', 'destroy']) {
+                for (const method of ['setDepth', 'setBlendMode', 'setPosition', 'setScale', 'setRotation', 'fillStyle', 'lineStyle', 'fillCircle', 'fillRect', 'beginPath', 'moveTo', 'lineTo', 'closePath', 'fillPath', 'clear', 'lineBetween', 'destroy']) {
                     layer[method] = function () { return this; };
                 }
                 layer.strokeCircle = function (_x, _y, radius) { this.circles.push(radius); return this; };
@@ -3293,27 +3293,30 @@ test('pulso de choque atravessa obstáculos, como o tronco da figueira', () => {
     assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth - upgrades.damage * 1.25);
 });
 
-test('golpe giratório corta cada inimigo do raio uma vez por volta, a cada 7 s', () => {
+test('golpe giratório sai do jogador em espiral e corta cada inimigo do raio uma vez, a cada 7 s', () => {
     const upgrades = new PlayerUpgradeState();
     upgrades.acquire(getUpgradeCard('spin-slash'));
     upgrades.range = 1;
-    // Jogador em (100, 100): um acima (a lâmina começa no alto), um à esquerda, um fora do raio.
-    const { combat, drones, effects } = setup([[100, 0], [0, 100], [400, 100]], [], upgrades);
+    // Jogador em (100, 100): um inimigo perto, um no meio do raio e um fora dele.
+    const { combat, drones, effects } = setup([[100, 60], [0, 100], [400, 100]], [], upgrades);
     for (const drone of drones) {
         drone.health = new Health(1000);
         drone.takeDamage = (amount) => drone.health.takeDamage(amount);
     }
     const cut = upgrades.damage * 9;
     combat.update(0);
-    assert.equal(drones[0].health.current, 1000 - cut, 'a lâmina sai do alto');
-    assert.equal(drones[1].health.current, 1000, 'a esquerda só no fim da volta');
-    combat.update(450);
-    assert.equal(drones[1].health.current, 1000 - cut);
-    assert.equal(drones[0].health.current, 1000 - cut, 'um corte por volta');
+    assert.equal(drones[0].health.current, 1000, 'a espiral nasce no jogador');
+    combat.update(120);
+    assert.equal(drones[0].health.current, 1000 - cut, 'a lâmina já passou dos 40 px');
+    assert.equal(drones[1].health.current, 1000, 'ainda não chegou aos 100 px');
+    combat.update(330);
+    assert.equal(drones[1].health.current, 1000 - cut, 'no fim da espiral todo o raio foi cortado');
+    assert.equal(drones[0].health.current, 1000 - cut, 'um corte por golpe');
     assert.equal(drones[2].health.current, 1000, 'fora do raio');
     combat.update(6_000);
     assert.equal(drones[0].health.current, 1000 - cut, 'espera a recarga');
     combat.update(1_000);
+    combat.update(450);
     assert.equal(drones[0].health.current, 1000 - cut * 2);
     assert.ok(effects.length > 0);
 });
