@@ -993,11 +993,16 @@ export class World extends Scene {
         if (!this.roomClearCode.push(event.key)) return;
 
         this.combat?.clear();
-        this.waves = undefined;
         for (const enemy of this.drones) {
             if (enemy.health.isAlive) enemy.takeDamage(enemy.health.current);
         }
-        // A vitória agora é no 763.2 (Sala V): o atalho conclui qualquer sala com combate.
+        // Elimina só a horda atual: o fluxo normal segue para as cartas e a próxima horda,
+        // e depois da última, para a conclusão da sala.
+        if (this.waves) {
+            this.waves.skipCurrentWave();
+            return;
+        }
+        // Sem hordas em andamento, o atalho conclui a sala como antes.
         this.completeRoomCombat?.();
     }
 

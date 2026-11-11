@@ -81,6 +81,11 @@ export class DroneWaves {
         return this.waveCounts.slice(this.nextWave);
     }
 
+    /** Atalho de teste: quem ainda não nasceu na onda atual não nasce mais. */
+    skipCurrentWave() {
+        this.remaining = 0;
+    }
+
     /** Inimigos da onda atual que ainda não nasceram. */
     currentWaveRemaining() {
         return this.remaining;
