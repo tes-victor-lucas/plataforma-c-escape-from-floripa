@@ -31,9 +31,10 @@ import {
     basicUpgradeCards,
     drawUpgradeCards,
     drawUpgradeCardsFeaturing,
-    withoutRoom3Cards
+    withoutRoom3Cards,
+    withoutRoom3FinalCards
 } from '../upgrades/drawUpgradeCards';
-import { AREA_UPGRADE_IDS, ROOM3_UPGRADE_IDS } from '../upgrades/catalog';
+import { AREA_UPGRADE_IDS, ROOM3_FINAL_UPGRADE_IDS, ROOM3_UPGRADE_IDS } from '../upgrades/catalog';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
 import { drawPlayerBar, RemotePlayer } from '../entities/RemotePlayer';
@@ -143,8 +144,9 @@ export function isRoom2WalkableLayer(layerName: string) {
     return ROOM2_WALKABLE_LAYERS.some((name) => name === localName);
 }
 
+/** A Sala I dá uma carta básica no fim; a Sala III, depois da horda 2, as cartas de área mais fortes. */
 export function shouldOfferRoomCompletionUpgrade(roomKey: RoomKey) {
-    return roomKey === 'room1';
+    return roomKey === 'room1' || roomKey === 'room3';
 }
 
 export function recordRoomCompletionScore(roomKey: RoomKey) {
@@ -445,7 +447,7 @@ export class World extends Scene {
                 });
             }
             if (shouldOfferRoomCompletionUpgrade(roomKey)) {
-                this.playRoom1CompletionReward(finishRoomCombat);
+                this.playRoomCompletionReward(finishRoomCombat);
                 return;
             }
             if (isDungeon) {
@@ -1441,7 +1443,7 @@ export class World extends Scene {
         // Antes das hordas maiores, as cartas fortes de cada sala ficam garantidas na mesa.
         const availableCards = this.upgrades.availableCards();
         const cards = this.activeRoomKey === 'room3'
-            ? drawUpgradeCardsFeaturing(ROOM3_UPGRADE_IDS, undefined, availableCards)
+            ? drawUpgradeCardsFeaturing(ROOM3_UPGRADE_IDS, undefined, withoutRoom3FinalCards(availableCards))
             : this.activeRoomKey === 'room2'
                 ? drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, undefined, withoutRoom3Cards(availableCards))
                 : drawUpgradeCards(undefined, basicUpgradeCards(availableCards));
@@ -1457,8 +1459,8 @@ export class World extends Scene {
         });
     }
 
-    /** Oferece uma segunda escolha depois da onda final e só então libera a Sala II. */
-    private playRoom1CompletionReward(onComplete: () => void) {
+    /** Oferece uma escolha depois da onda final e só então libera a saída da sala. */
+    private playRoomCompletionReward(onComplete: () => void) {
         this.cardBarrier.open();
         this.combat?.clear();
         this.physics.pause();
@@ -1466,11 +1468,15 @@ export class World extends Scene {
         this.piranhasBarPrompt?.setVisible(false);
 
         const overlayScene = this.scene.get('CombatHud') as Scene;
+        const isRoom3 = this.activeRoomKey === 'room3';
+        const availableCards = this.upgrades.availableCards();
         new UpgradeSelectionView(
             overlayScene,
-            drawUpgradeCards(undefined, basicUpgradeCards(this.upgrades.availableCards())),
+            isRoom3
+                ? drawUpgradeCardsFeaturing(ROOM3_FINAL_UPGRADE_IDS, undefined, availableCards)
+                : drawUpgradeCards(undefined, basicUpgradeCards(availableCards)),
             {
-                title: 'SALA I CONCLUÍDA',
+                title: isRoom3 ? 'SALA III CONCLUÍDA' : 'SALA I CONCLUÍDA',
                 hint: 'Escolha uma recompensa'
             }
         ).play((selected) => {
