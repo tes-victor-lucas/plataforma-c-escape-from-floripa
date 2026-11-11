@@ -129,9 +129,6 @@ strip([muzzle(0), muzzle(1)]).save(os.path.join(OUT, 'muzzle.png'))
 strip([explosion(f) for f in range(4)]).save(os.path.join(OUT, 'explosion.png'))
 strip([sheet_frame(CHARACTER, COLS, 38, f) for f in range(132, 141)]).save(os.path.join(OUT, 'player-right.png'))
 silhouette(sheet_frame(CHARACTER, COLS, 38, 96)).save(os.path.join(OUT, 'player-back-dark.png'))
-# Multidão fugindo pela rua em chamas: corredores de costas, escuros, com o contorno aceso pelo fogo.
-strip([silhouette(sheet_frame(CHARACTER, COLS, 38, f), (255, 150, 40, 255)) for f in range(96, 105)]).save(
-    os.path.join(OUT, 'runner-dark.png'))
 strip([sheet_frame(CHARACTER, COLS, 38, f) for f in range(96, 105)]).save(os.path.join(OUT, 'player-up.png'))
 # Guarda cyber de frente (linha de baixo): andando 0-3, aviso 4, investida 5, dano 6, destruído 7.
 guard = os.path.join(GAME, 'enemies', 'guarda-municipal-cyber', 'guarda-municipal-cyber.png')
@@ -141,46 +138,5 @@ sheet_frame(os.path.join(GAME, 'enemies', 'drone-robot_nyknck', 'drone-robot_nyk
 print('ok', sorted(os.listdir(OUT)))
 
 
-def road():
-    """Asfalto 32x32 com a faixa amarela tracejada no meio (repete ao longo da rua)."""
-    im = Image.new('RGBA', (32, 32), (34, 36, 44, 255))
-    d = ImageDraw.Draw(im)
-    for x, y in ((5, 9), (22, 3), (12, 25), (27, 19), (3, 28)):
-        d.point((x, y), fill=(46, 48, 58, 255))
-    d.rectangle((15, 4, 16, 18), fill=(214, 168, 52, 255))
-    return im
 
 
-def sidewalk():
-    """Calçada de pedras portuguesas 16x16."""
-    im = Image.new('RGBA', (16, 16), (92, 94, 104, 255))
-    d = ImageDraw.Draw(im)
-    for y in (0, 8):
-        d.line((0, y, 15, y), fill=(70, 72, 82, 255))
-    for x, y0 in ((0, 0), (8, 0), (4, 8), (12, 8)):
-        d.line((x, y0, x, y0 + 7), fill=(70, 72, 82, 255))
-    return im
-
-
-road().save(os.path.join(OUT, 'road.png'))
-sidewalk().save(os.path.join(OUT, 'sidewalk.png'))
-
-
-def fire(frame):
-    """Chama alta (24x40) em 3 quadros: base vermelha, corpo laranja, miolo amarelo, pontas que mudam."""
-    im = Image.new('RGBA', (24, 40), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    import math
-    for color, width, height, seed in (((200, 30, 20, 255), 11, 38, 3), ((255, 120, 30, 255), 8, 30, 11), ((255, 220, 90, 255), 5, 20, 19)):
-        pts, s = [], seed + frame * 7
-        for k in range(9):
-            s = (s * 1103515245 + 12345) % 2147483648
-            y = 39 - height * k / 8
-            w = width * math.sin(math.pi * (k / 8) * 0.95 + 0.05) * (0.75 + (s % 50) / 100)
-            pts.append((12 + w, y))
-        pts += [(12 - (x - 12), y) for x, y in reversed(pts)]
-        d.polygon(pts, fill=color)
-    return im
-
-
-strip([fire(f) for f in range(3)]).save(os.path.join(OUT, 'fire.png'))
