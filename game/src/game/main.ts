@@ -4,6 +4,7 @@ import { Preloader } from './scenes/Preloader';
 import { World } from './scenes/World';
 import { ArcadeMinigame } from './scenes/ArcadeMinigame';
 import { ConfirmPrompt } from './scenes/ConfirmPrompt';
+import { WalletMenu } from './scenes/WalletMenu';
 import { MainMenu } from './scenes/MainMenu';
 import { RoomTransition } from './scenes/RoomTransition';
 import { PauseMenu } from './scenes/PauseMenu';
@@ -50,7 +51,8 @@ const config: Phaser.Types.Core.GameConfig = {
         World,
         CombatHud,
         ArcadeMinigame,
-        ConfirmPrompt
+        ConfirmPrompt,
+        WalletMenu
     ]
 };
 

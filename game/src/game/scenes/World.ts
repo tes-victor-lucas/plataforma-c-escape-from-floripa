@@ -7,7 +7,7 @@ import {
     ROOM2_STAIR_GUARD_SPAWNS,
     type EnemyKind
 } from '../config/combat';
-import { WORLD_CONFIG } from '../config/world';
+import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import { Drone } from '../entities/Drone';
 import { Patinete } from '../entities/Patinete';
 import { GuardaCyber } from '../entities/GuardaCyber';
@@ -53,6 +53,7 @@ import {
     getRequestedRoomKey,
     replaceRequestedRoomKey,
     isDungeonRoom,
+    isTicenRoom,
     ROOM_DEFINITIONS,
     type RoomKey
 } from '../config/rooms';
@@ -60,7 +61,13 @@ import { StairClimbEffect } from '../map/StairClimbEffect';
 import { arcadeAttemptsLeft, canStartArcade } from '../minigame/arcadeAttempts';
 import type { ArcadeMinigameData } from './ArcadeMinigame';
 import type { ConfirmPromptData } from './ConfirmPrompt';
+import type { WalletMenuData } from './WalletMenu';
+import { TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_SITTERS } from '../config/ticen';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
+import { TchayQueue } from '../entities/TchayQueue';
+import { PAGODE, PAGODE_FRAMES, POPULAR_BARS, TCHAY } from '../config/tchay';
+import { createStringLights } from '../map/createStringLights';
+import { createRadioactiveFlowers } from '../map/createRadioactiveFlowers';
 import { MERCADO_INTERIOR, MERCADO_NPCS } from '../config/mercado';
 import {
     isInsidePiranhasBarArea,
@@ -110,6 +117,7 @@ const GAMEPLAY_OVERLAY_SCENES = [
     'PauseMenu',
     'ArcadeMinigame',
     'ConfirmPrompt',
+    'WalletMenu',
     'RoomTransition',
     'ReturnToMenuTransition',
     'CombatHud'
@@ -143,6 +151,7 @@ export class World extends Scene {
     private piranhasBarPrompt?: Phaser.GameObjects.Text;
     private stairClimbEffect?: StairClimbEffect;
     private mercadoNpcs?: MercadoNpcs;
+    private barQueues: TchayQueue[] = [];
     private roomExitPortal?: RoomExitPortal;
     private drones: CombatEnemy[] = [];
     private droneBodies?: Phaser.Physics.Arcade.Group;
@@ -154,6 +163,11 @@ export class World extends Scene {
     private isWaveIntermissionOpen = false;
     private isPiranhasMenuOpen = false;
     private isArcadeOpen = false;
+    private isWalletOpen = false;
+    private isTicenGateArmed = true;
+    private isTicenGateOpen = false;
+    private ticenGate?: Phaser.GameObjects.Sprite;
+    private ticenGateHint?: Phaser.GameObjects.Text;
     private isArcadeArmed = true;
     private isGatewayConfirmOpen = false;
     private isGatewayConfirmArmed = true;
@@ -213,6 +227,11 @@ export class World extends Scene {
         this.isWaveIntermissionOpen = false;
         this.isPiranhasMenuOpen = false;
         this.isArcadeOpen = false;
+        this.isWalletOpen = false;
+        this.isTicenGateArmed = true;
+        this.isTicenGateOpen = false;
+        this.ticenGate = undefined;
+        this.ticenGateHint = undefined;
         this.isArcadeArmed = true;
         this.arcadePrompt = undefined;
         this.isGatewayConfirmOpen = false;
@@ -273,7 +292,7 @@ export class World extends Scene {
                 (tileX + 0.5) * room.map.tileWidth,
                 (tileY + 0.5) * room.map.tileHeight
             )?.collides ?? false);
-        const isWalkableTile = roomKey === 'room2' || roomKey === 'room3' || roomKey === 'room4'
+        const isWalkableTile = roomKey === 'room2' || roomKey === 'room3' || roomKey === 'room4' || isTicenRoom(roomKey)
             ? (tileX: number, tileY: number) => walkableRoom2Layers.some((layer) =>
                 room.map.hasTileAt(tileX, tileY, layer.name))
             : () => true;
@@ -316,10 +335,27 @@ export class World extends Scene {
         });
         if (roomKey === 'room2') this.createPiranhasBarPrompt();
         if (roomKey === 'mercado-interior') this.createArcadePrompt();
+        if (isTicenRoom(roomKey)) this.createTicenGate(roomKey === 'room5' ? TICEN_GATE.originalTexture : TICEN_GATE.texture);
         const secretGateway = SECRET_DUNGEON_GATEWAYS.find((gateway) => gateway.from === roomKey);
         if (secretGateway) this.createSecretEntranceHint(secretGateway);
         // Skatistas, comerciantes e o casal do Mercado Público; a horda espera a travessia.
         this.mercadoNpcs = roomKey === 'room4' ? new MercadoNpcs(this, !savedCombat) : undefined;
+        // Sala I: rua dos bares com o TCHAY lotado e o varal de lâmpadas.
+        this.barQueues = [];
+        // Sala III: as flores dos canteiros da Praça XV estão contaminadas.
+        if (roomKey === 'room3') createRadioactiveFlowers(this, room.map);
+        if (roomKey === 'room1') {
+            this.add.image(TCHAY.sign.x, TCHAY.sign.y, TCHAY.signTexture).setDepth(3);
+            this.barQueues.push(new TchayQueue(this));
+            createStringLights(this);
+            // Barzinhos de esquina na calçada de baixo, cada um com sua fila.
+            for (const bar of POPULAR_BARS.bars) {
+                this.add.image(bar.x, bar.y, POPULAR_BARS.texture, bar.frame).setOrigin(0.5, 1).setDepth(getActorDepth(bar.y));
+                this.addStaticBlock(bar.x, bar.y - 8, POPULAR_BARS.frameWidth - 4, 14);
+                if ('queue' in bar) this.barQueues.push(new TchayQueue(this, bar.queue));
+            }
+            this.createPagode();
+        }
         this.stairClimbEffect = room.stairPassage
             ? new StairClimbEffect(this, this.player.sprite, room.stairPassage)
             : undefined;
@@ -354,12 +390,6 @@ export class World extends Scene {
             room.openExit();
             this.player?.clearBlockedDirection();
             this.activateRoomExit();
-            if (roomKey === 'room3') {
-                this.isGameOver = true;
-                this.combat?.clear();
-                this.physics.pause();
-                void runTracker.win(undefined, !this.isMultiplayerGuest());
-            }
         };
         this.completeRoomCombat = () => {
             if (this.isRoomCombatComplete) return;
@@ -520,11 +550,16 @@ export class World extends Scene {
             else this.handleSwordGamepad();
         }
         this.updateNauseaEffect();
-        if (this.isPiranhasMenuOpen || this.isWaveIntermissionOpen || this.isArcadeOpen || this.isGatewayConfirmOpen) return;
+        if (
+            this.isPiranhasMenuOpen || this.isWaveIntermissionOpen || this.isArcadeOpen
+            || this.isGatewayConfirmOpen || this.isWalletOpen
+        ) return;
         this.player?.update(delta);
         this.updateRevive(delta);
         this.updateRoomGateway();
         this.updateArcadeCabinet();
+        this.updateTicenGate();
+        this.updateTicenGoal();
         if (this.isRoomTransitioning) return;
         this.stairClimbEffect?.update();
         if (this.isMultiplayerGuest()) {
@@ -538,6 +573,7 @@ export class World extends Scene {
         if (this.flowField && this.player) this.flowField.update(this.player.sprite.body?.center ?? this.player.sprite);
         this.recallHordeStragglers(delta);
         this.mercadoNpcs?.update(delta, this.player, this.drones);
+        for (const queue of this.barQueues) queue.update(delta);
         if (this.isPartnerRoomReady() && !this.mercadoNpcs?.isCrossing) this.waves?.update(this.drones, delta);
     }
 
@@ -853,6 +889,125 @@ export class World extends Scene {
         return group;
     }
 
+    /** Bloqueio invisível para cenário montado por código (bares, mesa do pagode). */
+    private addStaticBlock(x: number, y: number, width: number, height: number) {
+        const block = this.add.zone(x, y, width, height);
+        this.physics.add.existing(block, true);
+        if (this.player) this.physics.add.collider(this.player.sprite, block);
+    }
+
+    /** Roda de pagode na frente do Bar do Noel: cada um no seu ritmo (pandeiro, cavaquinho ou copo). */
+    private createPagode() {
+        const { texture, tableTexture, table, people } = PAGODE;
+        for (const { x, y, person, play } of people) {
+            const key = `pagode-${person}-${play}`;
+            if (!this.anims.exists(key)) {
+                const first = person * 6 + PAGODE_FRAMES[play];
+                this.anims.create({
+                    key,
+                    frames: this.anims.generateFrameNumbers(texture, { start: first, end: first + 1 }),
+                    frameRate: play === 'copo' ? 1.2 : play === 'pandeiro' ? 5 : 4,
+                    repeat: -1
+                });
+            }
+            this.add.sprite(x, y, texture, person * 6).setOrigin(0.5, 1).setDepth(getActorDepth(y))
+                .play({ key, startFrame: person % 2 });
+        }
+        this.add.image(table.x, table.y, tableTexture).setOrigin(0.5, 1).setDepth(getActorDepth(table.y));
+        this.addStaticBlock(table.x, table.y - 6, 64, 10);
+    }
+
+    /** Catraca de entrada do TICEN: fechada até o jogador passar o cartão Grande Floripa. */
+    private createTicenGate(texture: string) {
+        const { x, y, hint, approach } = TICEN_GATE;
+        this.ticenGate = this.add.sprite(x, y, texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(y));
+        this.ticenGateHint = this.add.text(approach.x, approach.y + 14, hint, {
+            fontFamily: 'PixelGamer, monospace',
+            fontSize: '10px',
+            color: '#5ce5f1',
+            stroke: '#05040a',
+            strokeThickness: 3
+        }).setOrigin(0.5).setResolution(4).setDepth(3).setVisible(false);
+        this.tweens.add({ targets: this.ticenGateHint, alpha: { from: 1, to: 0.45 }, duration: 700, yoyo: true, repeat: -1 });
+        // Patinetes e bicicletas de aluguel estacionados em fileira na calçada.
+        for (const row of TICEN_PARKED) {
+            for (let i = 0; i < row.count; i += 1) {
+                this.add.sprite(row.fromX + i * row.spacing, row.y, row.texture, 0)
+                    .setOrigin(0.5, 1)
+                    .setScale(row.scale)
+                    .setDepth(getActorDepth(row.y));
+            }
+            const width = (row.count - 1) * row.spacing + 16;
+            const dock = this.add.zone(row.fromX + width / 2 - 8, row.y - 6, width, 10);
+            this.physics.add.existing(dock, true);
+            if (this.player) this.physics.add.collider(this.player.sprite, dock);
+        }
+        // Gente sentada esperando na pracinha antes das catracas.
+        for (const sitter of TICEN_SITTERS) {
+            this.add.sprite(sitter.x, sitter.y, MERCADO_NPCS.couple.texture, sitter.person * 3)
+                .setOrigin(0.5, 1)
+                .setFlipX(sitter.flipX)
+                .setDepth(getActorDepth(sitter.y));
+        }
+    }
+
+    /** Chegar na catraca abre a carteira; usar o cartão libera a passagem. */
+    private updateTicenGate() {
+        if (!isTicenRoom(this.activeRoomKey) || !this.player || this.isTicenGateOpen) return;
+        const center = this.player.sprite.body?.center ?? this.player.sprite;
+        const { approach, triggerDistance, rearmDistance, hintDistance } = TICEN_GATE;
+        const distance = Math.hypot(center.x - approach.x, center.y - approach.y);
+        this.ticenGateHint?.setVisible(distance <= hintDistance);
+        if (distance > rearmDistance) this.isTicenGateArmed = true;
+        if (distance > triggerDistance || !this.isTicenGateArmed) return;
+        this.isTicenGateArmed = false;
+        this.isWalletOpen = true;
+        this.player.stopMovement();
+        this.physics.pause();
+        const close = () => {
+            this.isWalletOpen = false;
+            this.physics.resume();
+        };
+        const data: WalletMenuData = {
+            balance: runTracker.snapshot().score.total,
+            onUse: () => {
+                close();
+                this.openTicenGate();
+            },
+            onCancel: close
+        };
+        this.scene.launch('WalletMenu', data);
+        this.scene.bringToTop('WalletMenu');
+    }
+
+    /** Embarcar no 763.2 via Kobrasol encerra a partida com vitória. */
+    private updateTicenGoal() {
+        if (!isTicenRoom(this.activeRoomKey) || !this.player || this.isGameOver) return;
+        const { x, y } = this.player.sprite.body?.center ?? this.player.sprite;
+        const { left, right, top, bottom } = TICEN_GOAL;
+        if (x < left || x > right || y < top || y > bottom) return;
+        this.isGameOver = true;
+        this.combat?.clear();
+        this.physics.pause();
+        void runTracker.win(undefined, !this.isMultiplayerGuest());
+    }
+
+    /** Luz verde, braço girando e passagem livre: some o bloqueio invisível da catraca. */
+    private openTicenGate() {
+        this.isTicenGateOpen = true;
+        this.ticenGateHint?.setVisible(false);
+        const { openFrameDuration, blockerLayer, railLayer, row, widenCols } = TICEN_GATE;
+        [1, 2, 3].forEach((frame, index) => {
+            this.time.delayedCall(openFrameDuration * index, () => this.ticenGate?.setFrame(frame));
+        });
+        this.time.delayedCall(openFrameDuration * 2, () => {
+            const blocker = this.collisionLayers.find((layer) => layer.layer.name === blockerLayer);
+            blocker?.forEachTile((tile) => tile.setCollision(false));
+            const rails = this.collisionLayers.find((layer) => layer.layer.name === railLayer);
+            for (const col of widenCols) rails?.removeTileAt(col, row);
+        });
+    }
+
     /** Pergunta escrita no chão, diante do fliperama; pulsa devagar para chamar atenção. */
     private createArcadePrompt() {
         const { cabinet } = MERCADO_INTERIOR;
@@ -1030,16 +1185,18 @@ export class World extends Scene {
         // O parceiro pode trocar de sala com uma pergunta ou o fliperama abertos aqui.
         if (this.isGatewayConfirmOpen) this.scene.stop('ConfirmPrompt');
         if (this.isArcadeOpen) this.scene.stop('ArcadeMinigame');
+        if (this.isWalletOpen) this.scene.stop('WalletMenu');
         this.rememberCombatProgress();
         this.isRoomTransitioning = true;
         this.player.stopMovement();
         this.combat?.clear();
         this.physics.pause();
         const playerProgress = capturePlayerProgress(this.player, this.upgrades);
-        if (!this.isMultiplayerEnabled() && (roomKey === 'room2' || roomKey === 'room3' || roomKey === 'dungeon')) {
-            // Checkpoints oficiais são as fases 2 e 3; a dungeon é uma rota secreta da fase 2.
+        const checkpointRooms: readonly RoomKey[] = ['room2', 'room3', 'room4', 'room5', 'dungeon'];
+        if (!this.isMultiplayerEnabled() && checkpointRooms.includes(roomKey)) {
+            // Checkpoints oficiais são as fases 2 a 5; a dungeon é uma rota secreta da fase 2.
             saveCampaignProgress({
-                roomKey: roomKey === 'room3' ? 'room3' : 'room2',
+                roomKey: roomKey === 'dungeon' ? 'room2' : roomKey,
                 playerProgress,
                 run: runTracker.checkpoint()
             });
@@ -1398,6 +1555,8 @@ export class World extends Scene {
         this.stairClimbEffect = undefined;
         this.mercadoNpcs?.destroy();
         this.mercadoNpcs = undefined;
+        for (const queue of this.barQueues) queue.destroy();
+        this.barQueues = [];
         this.roomExitPortal?.destroy();
         this.roomExitPortal = undefined;
         this.player?.setControlsInverted(false);
@@ -1433,7 +1592,8 @@ export class World extends Scene {
     private openPauseMenu() {
         if (
             !this.isGameplayReady || this.isPauseMenuOpen || this.isPiranhasMenuOpen
-            || this.isWaveIntermissionOpen || this.isArcadeOpen || this.isGatewayConfirmOpen || !this.player?.health.isAlive
+            || this.isWaveIntermissionOpen || this.isArcadeOpen || this.isGatewayConfirmOpen || this.isWalletOpen
+            || !this.player?.health.isAlive
         ) return;
 
         this.isPauseMenuOpen = true;

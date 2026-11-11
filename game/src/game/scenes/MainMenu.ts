@@ -18,6 +18,7 @@ const GAMEPLAY_SCENES = [
     'PauseMenu',
     'ArcadeMinigame',
     'ConfirmPrompt',
+    'WalletMenu',
     'RoomTransition'
 ] as const;
 

@@ -55,7 +55,8 @@ export function loadCampaignProgress(
         const serialized = storage.getItem(STORAGE_KEY);
         if (!serialized) return undefined;
         const progress = JSON.parse(serialized) as Partial<CampaignProgress>;
-        if ((progress.roomKey !== 'room2' && progress.roomKey !== 'room3') || !isPlayerProgress(progress.playerProgress)) {
+        const resumable = ['room2', 'room3', 'room4', 'room5'];
+        if (!resumable.includes(progress.roomKey ?? '') || !isPlayerProgress(progress.playerProgress)) {
             return undefined;
         }
         if (progress.run !== undefined && !isRunCheckpoint(progress.run)) return undefined;

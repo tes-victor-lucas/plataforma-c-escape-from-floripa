@@ -1,5 +1,7 @@
 import { CHARACTERS } from '../config/characters';
 import { MERCADO_NPCS } from '../config/mercado';
+import { PAGODE, POPULAR_BARS, TCHAY } from '../config/tchay';
+import { TICEN_GATE, WALLET_UI } from '../config/ticen';
 import { Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
 import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
@@ -85,6 +87,15 @@ export class Preloader extends Scene {
         this.load.spritesheet(skaters.texture, skaters.path, { frameWidth: skaters.frameWidth, frameHeight: skaters.frameHeight });
         this.load.spritesheet(merchants.texture, merchants.path, { frameWidth: merchants.frameWidth, frameHeight: merchants.frameHeight });
         this.load.spritesheet(couple.texture, couple.path, { frameWidth: couple.frameWidth, frameHeight: couple.frameHeight });
+        this.load.image(WALLET_UI.walletTexture, WALLET_UI.walletPath);
+        this.load.image(WALLET_UI.cardTexture, WALLET_UI.cardPath);
+        this.load.spritesheet(TICEN_GATE.texture, TICEN_GATE.path, { frameWidth: TICEN_GATE.frameSize, frameHeight: TICEN_GATE.frameSize });
+        this.load.spritesheet(TICEN_GATE.originalTexture, TICEN_GATE.originalPath, { frameWidth: TICEN_GATE.frameSize, frameHeight: TICEN_GATE.frameSize });
+        this.load.spritesheet(TCHAY.peopleTexture, TCHAY.peoplePath, { frameWidth: TCHAY.frameWidth, frameHeight: TCHAY.frameHeight });
+        this.load.image(TCHAY.signTexture, TCHAY.signPath);
+        this.load.spritesheet(POPULAR_BARS.texture, POPULAR_BARS.path, { frameWidth: POPULAR_BARS.frameWidth, frameHeight: POPULAR_BARS.frameHeight });
+        this.load.spritesheet(PAGODE.texture, PAGODE.path, { frameWidth: PAGODE.frameSize, frameHeight: PAGODE.frameSize });
+        this.load.image(PAGODE.tableTexture, PAGODE.tablePath);
         this.load.image('chimarrao', 'assets/items/chimarrao.png');
         this.load.image('manhole', 'assets/props/manhole.png');
         this.load.image('sword', 'assets/items/sword.png');

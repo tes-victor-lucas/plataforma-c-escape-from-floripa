@@ -164,6 +164,9 @@ export const COMBAT_CONFIG = {
         room3: [ROOM3_FIRST_HORDE_KINDS.length, ROOM3_SECOND_HORDE_KINDS.length],
         // Uma onda só: a horda gigante que entra quando os skatistas somem.
         room4: [ROOM4_HORDE_KINDS.length],
+        // shortcut: Sala V sem combate na primeira versão do mapa; definir as hordas e o chefe depois.
+        room5: [],
+        room51: [],
         // Sem combate: só o corredor até o fliperama.
         'mercado-interior': [],
         dungeon: [10],
@@ -222,6 +225,8 @@ const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
     ],
     room3: [ROOM3_FIRST_HORDE_KINDS, ROOM3_SECOND_HORDE_KINDS],
     room4: [ROOM4_HORDE_KINDS],
+    room5: [],
+    room51: [],
     'mercado-interior': [],
     dungeon: [
         ['scooter', 'drone', 'guard', 'drone', 'scooter']

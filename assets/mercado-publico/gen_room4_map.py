@@ -21,6 +21,8 @@ TILESETS = [
     'mercado_fachada',
     'mercado_itens',
     'poste_3_globos',
+    # Sujeira cyberpunk compartilhada com o TICEN (assets/ticen/gen_ticen_sujeira.py).
+    'ticen_sujeira',
 ]
 
 FACADE_COL, FACADE_ROWS = 2, 14
@@ -128,7 +130,44 @@ def main():
     for col, row in ((6, 13), (16, 13), (30, 13), (40, 13), (1, 31), (45, 31)):
         place('poste_3_globos', 0, 0, 2, 4, col, row, 3)
 
-    layers = [sky, floor, street, facade, items_base, items_top, posts_base, posts]
+    # ---------------------------------------------------------- sujeira cyberpunk
+    dirt = Layer('sujeira')
+    wall = Layer('fachada-neon')
+    grime = random.Random(2067)
+    decal = lambda local: gid('ticen_sujeira', local)  # noqa: E731
+    for row in range(FACADE_ROWS, H):
+        for col in range(W):
+            index = row * W + col
+            roll = grime.random()
+            if street.data[index]:
+                if roll < 0.04:
+                    dirt.set(col, row, decal(2))
+                elif roll < 0.07:
+                    dirt.set(col, row, decal(grime.choice((3, 4))))
+                elif roll < 0.10:
+                    dirt.set(col, row, decal(grime.choice((0, 1))))
+            elif roll < 0.06:
+                dirt.set(col, row, decal(grime.choice((0, 1, 2, 5, 6, 14))))
+            elif roll < 0.075:
+                dirt.set(col, row, decal(grime.choice((3, 4))))
+    for col, row in ((4, 16), (31, 24), (45, 37), (19, 38)):
+        dirt.set(col, row, decal(7))
+    # paredes do mercado: pichações no térreo, cartazes da Floria e ferrugem escorrendo
+    for col in grime.sample(range(FACADE_COL + 4, FACADE_COL + 40), 10):
+        if facade.data[11 * W + col]:
+            wall.set(col, grime.choice((10, 11, 12)), decal(grime.choice((8, 9, 13))))
+    for col in (9, 15, 32, 38):
+        wall.set(col, 6, decal(grime.choice((10, 11))))
+    for col in (12, 35):
+        wall.set(col, 9, decal(15))
+    # letreiro "FLORIA TE VE" sobre a ala esquerda e o telão vigiando o largo
+    for dx in range(4):
+        wall.set(8 + dx, 5, decal(18 + dx))
+    for dy in range(2):
+        for dx in range(2):
+            wall.set(23 + dx, 31 + dy, decal(16 + dy * 8 + dx))
+
+    layers = [sky, floor, street, dirt, facade, wall, items_base, items_top, posts_base, posts]
     out = {
         'compressionlevel': -1, 'height': H, 'width': W, 'infinite': False,
         'nextlayerid': len(layers) + 1, 'nextobjectid': 1, 'orientation': 'orthogonal',

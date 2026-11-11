@@ -1,4 +1,9 @@
-export type RoomKey = 'room1' | 'room2' | 'room3' | 'room4' | 'mercado-interior' | 'dungeon' | 'gaucho-dungeon';
+export type RoomKey = 'room1' | 'room2' | 'room3' | 'room4' | 'room5' | 'room51' | 'mercado-interior' | 'dungeon' | 'gaucho-dungeon';
+
+/** Sala V (cores originais) e a versão guardada na paleta cyberpunk das Salas I e II (`?room=51`). */
+export function isTicenRoom(roomKey: RoomKey) {
+    return roomKey === 'room5' || roomKey === 'room51';
+}
 
 export function isDungeonRoom(roomKey: RoomKey) {
     return roomKey === 'dungeon' || roomKey === 'gaucho-dungeon';
@@ -145,8 +150,28 @@ const ROOM4_TILESETS = [
     { mapName: 'curva-faixa-rua-256', textureKey: 'curva-faixa-rua-256', path: 'assets/tilesets/curva-faixa-rua-256.png' },
     { mapName: 'mercado_fachada', textureKey: 'mercado_fachada', path: 'assets/tilesets/mercado_fachada.png' },
     { mapName: 'mercado_itens', textureKey: 'mercado_itens', path: 'assets/tilesets/mercado_itens.png' },
-    { mapName: 'poste_3_globos', textureKey: 'poste_3_globos', path: 'assets/tilesets/poste_3_globos.png' }
+    { mapName: 'poste_3_globos', textureKey: 'poste_3_globos', path: 'assets/tilesets/poste_3_globos.png' },
+    { mapName: 'ticen_sujeira', textureKey: 'ticen_sujeira', path: 'assets/tilesets/ticen_sujeira.png' }
 ] as const;
+
+// Ordem igual à do room5.json (gerado por assets/ticen/gen_room5_map.py).
+const ROOM5_TILESETS = [
+    { mapName: 'ticen_piso', textureKey: 'ticen_piso', path: 'assets/tilesets/ticen_piso.png' },
+    { mapName: 'ticen_fachada', textureKey: 'ticen_fachada', path: 'assets/tilesets/ticen_fachada.png' },
+    { mapName: 'ticen_onibus', textureKey: 'ticen_onibus', path: 'assets/tilesets/ticen_onibus.png' },
+    { mapName: 'ticen_itens', textureKey: 'ticen_itens', path: 'assets/tilesets/ticen_itens.png' },
+    { mapName: 'ticen_quiosques', textureKey: 'ticen_quiosques', path: 'assets/tilesets/ticen_quiosques.png' },
+    { mapName: 'ticen_recarga', textureKey: 'ticen_recarga', path: 'assets/tilesets/ticen_recarga.png' },
+    { mapName: 'ticen_sujeira', textureKey: 'ticen_sujeira', path: 'assets/tilesets/ticen_sujeira.png' },
+    // Reaproveitados das salas anteriores (mesmas texturas já carregadas por elas).
+    { mapName: 'objects_and_items-01', textureKey: 'objects', path: 'assets/tilesets/objects_and_items-01.png' }
+] as const;
+
+// Sala V com as cores originais (folhas `*_original.png`, geradas com --original). A versão na paleta
+// cyberpunk das Salas I e II fica guardada em ?room=51, com o mesmo mapa.
+const ROOM5_ORIGINAL_TILESETS = ROOM5_TILESETS.map((tileset) => tileset.mapName.startsWith('ticen_')
+    ? { ...tileset, textureKey: `${tileset.textureKey}_original`, path: tileset.path.replace('.png', '_original.png') }
+    : tileset);
 
 export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
     room1: {
@@ -178,6 +203,22 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
         // Mercado Público: entra pela rua, na borda esquerda.
         spawn: { x: 24, y: 20 * 16 },
         tilesets: ROOM4_TILESETS
+    },
+    room5: {
+        mapKey: 'room5',
+        mapPath: 'assets/maps/room5.json',
+        title: 'Sala V',
+        // TICEN: chega pela calçada da Av. Paulo Fontes, diante da catraca fechada.
+        spawn: { x: 24 * 16, y: 44 * 16 + 8 },
+        tilesets: ROOM5_ORIGINAL_TILESETS
+    },
+    room51: {
+        mapKey: 'room51',
+        mapPath: 'assets/maps/room5.json',
+        title: 'Sala V (cyberpunk)',
+        // Fora do fluxo do jogo: só abre pela URL em desenvolvimento, como alternativa guardada.
+        spawn: { x: 24 * 16, y: 44 * 16 + 8 },
+        tilesets: ROOM5_TILESETS
     },
     'mercado-interior': {
         mapKey: 'mercado-interior',
@@ -223,6 +264,8 @@ export function getRequestedRoomKey(
     if (requestedRoom === 'dungeon' || requestedRoom === 'gaucho-dungeon') return requestedRoom;
     if (requestedRoom === '3' || requestedRoom === 'room3') return 'room3';
     if (requestedRoom === '4' || requestedRoom === 'room4') return 'room4';
+    if (requestedRoom === '5' || requestedRoom === 'room5') return 'room5';
+    if (requestedRoom === '51' || requestedRoom === 'room51') return 'room51';
     if (requestedRoom === 'mercado' || requestedRoom === 'mercado-interior') return 'mercado-interior';
     return requestedRoom === '2' || requestedRoom === 'room2' ? 'room2' : 'room1';
 }
@@ -230,7 +273,7 @@ export function getRequestedRoomKey(
 export function getRoomSearch(roomKey: RoomKey, search = '') {
     const parameters = new URLSearchParams(search);
     if (roomKey === 'room1') parameters.delete('room');
-    else parameters.set('room', roomKey === 'room2' ? '2' : roomKey === 'room3' ? '3' : roomKey === 'room4' ? '4' : roomKey);
+    else parameters.set('room', roomKey === 'room2' ? '2' : roomKey === 'room3' ? '3' : roomKey === 'room4' ? '4' : roomKey === 'room5' ? '5' : roomKey === 'room51' ? '51' : roomKey);
     const serialized = parameters.toString();
     return serialized ? `?${serialized}` : '';
 }

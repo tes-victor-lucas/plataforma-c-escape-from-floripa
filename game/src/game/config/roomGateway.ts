@@ -31,7 +31,26 @@ export const ROOM2_TO_ROOM3_GATEWAY: RoomGatewayDefinition = {
 };
 
 /** Saídas que abrem ao vencer a sala; no máximo uma por sala. */
-export const ROOM_EXIT_GATEWAYS = [ROOM1_TO_ROOM2_GATEWAY, ROOM2_TO_ROOM3_GATEWAY];
+/** Fim da rua na borda direita da Sala III: segue para o Mercado Público. Mesma parede da Sala II. */
+export const ROOM3_TO_ROOM4_GATEWAY: RoomGatewayDefinition = {
+    from: 'room3',
+    to: 'room4',
+    area: { left: 43 * 16, right: 46 * 16, top: 18 * 16, bottom: 22 * 16 },
+    portal: { x: 46 * 16 - 2, y: 20 * 16 },
+    portalWall: 'right'
+};
+
+/** Fim da rua na borda direita da Sala IV: segue pela Paulo Fontes até o TICEN. */
+export const ROOM4_TO_ROOM5_GATEWAY: RoomGatewayDefinition = {
+    from: 'room4',
+    to: 'room5',
+    // Sem parede nessa borda: o limite do mundo (x 768) para o jogador.
+    area: { left: 45 * 16, right: 48 * 16, top: 18 * 16, bottom: 23 * 16 },
+    portal: { x: 48 * 16 - 2, y: 20.5 * 16 },
+    portalWall: 'right'
+};
+
+export const ROOM_EXIT_GATEWAYS = [ROOM1_TO_ROOM2_GATEWAY, ROOM2_TO_ROOM3_GATEWAY, ROOM3_TO_ROOM4_GATEWAY, ROOM4_TO_ROOM5_GATEWAY];
 
 /** Passagem para uma dungeon: sem parede, basta pisar na área (bueiro); com parede, é preciso encostar nela. */
 export type SecretDungeonGateway = RoomGatewayDefinition & {
