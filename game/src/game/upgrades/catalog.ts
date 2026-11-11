@@ -82,9 +82,9 @@ export const UPGRADE_CARDS = [
         id: 'shock-pulse',
         kind: 'ability',
         title: 'Pulso de choque',
-        description: 'A cada 0,8 s, uma onda atinge todos à sua volta. +25 px de raio por nível.',
+        description: 'A cada 1,1 s, uma onda atinge todos à sua volta. +25 px de raio por nível.',
         maxLevel: 3,
-        effect: { type: 'shock-pulse', radius: 100, radiusPerLevel: 25, interval: 800, damageRatio: 1.5 }
+        effect: { type: 'shock-pulse', radius: 100, radiusPerLevel: 25, interval: 1_100, damageRatio: 1.25 }
     },
     {
         id: 'blast-shot',
@@ -100,15 +100,15 @@ export const UPGRADE_CARDS = [
         title: 'Faíscas orbitais',
         description: '4 faíscas giram em volta de você e ferem quem encostar. +2 por nível.',
         maxLevel: 3,
-        effect: { type: 'spark-orbit', count: 4, countPerLevel: 2, radius: 52, damageRatio: 1.5, hitInterval: 300 }
+        effect: { type: 'spark-orbit', count: 4, countPerLevel: 2, radius: 52, damageRatio: 1.25, hitInterval: 420 }
     },
     {
         id: 'chain-lightning',
         kind: 'ability',
         title: 'Raio em cadeia',
-        description: 'A cada 0,8 s, um raio salta entre até 8 inimigos. +4 saltos por nível.',
+        description: 'A cada 1,1 s, um raio salta entre até 8 inimigos. +4 saltos por nível.',
         maxLevel: 3,
-        effect: { type: 'chain-lightning', interval: 800, jumps: 8, jumpsPerLevel: 4, jumpRange: 90, damageRatio: 1 }
+        effect: { type: 'chain-lightning', interval: 1_100, jumps: 8, jumpsPerLevel: 4, jumpRange: 90, damageRatio: 0.85 }
     },
     {
         id: 'death-blast',
@@ -122,9 +122,9 @@ export const UPGRADE_CARDS = [
         id: 'light-beams',
         kind: 'ability',
         title: 'Feixes de luz',
-        description: 'A cada 1 s, 6 feixes cruzam a tela e ferem tudo na linha. +2 por nível.',
+        description: 'A cada 1,3 s, 6 feixes cruzam a tela e ferem tudo na linha. +2 por nível.',
         maxLevel: 3,
-        effect: { type: 'light-beams', beams: 6, beamsPerLevel: 2, length: 300, interval: 1_000, damageRatio: 2 }
+        effect: { type: 'light-beams', beams: 6, beamsPerLevel: 2, length: 300, interval: 1_300, damageRatio: 1.7 }
     },
     {
         id: 'heavy-rounds',
@@ -146,17 +146,17 @@ export const UPGRADE_CARDS = [
         id: 'thunder-storm',
         kind: 'ability',
         title: 'Tempestade elétrica',
-        description: 'A cada 0,5 s, um raio de 150% salta entre 12 inimigos. +6 por nível.',
+        description: 'A cada 0,75 s, um raio de 125% salta entre 12 inimigos. +6 por nível.',
         maxLevel: 2,
-        effect: { type: 'chain-lightning', interval: 500, jumps: 12, jumpsPerLevel: 6, jumpRange: 130, damageRatio: 1.5 }
+        effect: { type: 'chain-lightning', interval: 750, jumps: 12, jumpsPerLevel: 6, jumpRange: 130, damageRatio: 1.25 }
     },
     {
         id: 'nova-pulse',
         kind: 'ability',
         title: 'Nova de choque',
-        description: 'A cada 0,6 s, uma onda de 300% atinge 150 px em volta. +40 px por nível.',
+        description: 'A cada 0,85 s, uma onda de 250% atinge 150 px em volta. +40 px por nível.',
         maxLevel: 2,
-        effect: { type: 'shock-pulse', radius: 150, radiusPerLevel: 40, interval: 600, damageRatio: 3 }
+        effect: { type: 'shock-pulse', radius: 150, radiusPerLevel: 40, interval: 850, damageRatio: 2.5 }
     }
 ] as const satisfies readonly UpgradeCardDefinition[];
 
