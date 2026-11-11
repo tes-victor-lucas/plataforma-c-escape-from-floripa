@@ -139,10 +139,16 @@ def anim2d(sc, film_start, cfg):
     sc.tl(ANIM_JS)
     sc.tl(f'''const anim = makeAnim2D(document.getElementById("{sc.sid}-c"), {json.dumps(cfg)});
       const draw = (filmTime) => anim.render(Math.min({sc.duration}, Math.max(0, filmTime - {film_start})));
+      let loaded = false;
+      anim.ready.then(() => {{ loaded = true; draw({film_start}); }});
+      window.__hf = window.__hf || {{}};
+      window.__hf.buildReady = window.__hf.buildReady || {{}};
+      window.__hf.buildReady["{sc.sid}"] = anim.ready;
       window.addEventListener("hf-seek", (e) => {{
-        draw(e && e.detail && typeof e.detail.time === "number" ? e.detail.time : 0);
-      }});
-      draw({film_start});''')
+        const time = e && e.detail && typeof e.detail.time === "number" ? e.detail.time : 0;
+        if (loaded) draw(time);
+        else if (e && e.detail && e.detail.waitUntil) e.detail.waitUntil(anim.ready.then(() => draw(time)));
+      }});''')
 
 
 def tracer(sc, name, x0, y0, x1, y1, t, color='#ffd27a'):
@@ -160,7 +166,7 @@ def burst(sc, name, cx, cy, scale, t, z=8):
     sc.frames(name, 32, scale, [(0, None), (t, 0), (t + 0.08, 1), (t + 0.16, 2), (t + 0.26, 3), (t + 0.55, None)])
 
 
-TOTAL = 32.3
+TOTAL = 38.7
 GAME_START = TOTAL - 0.5  # 00:00 fica meio segundo na tela antes do corte para o jogo
 
 
@@ -213,7 +219,8 @@ SCENES.append((s, 12.8))
 
 # 6. Drones mergulham atirando na rua, explosões em volta.
 s = Scene('s6', 3.5)
-anim2d(s, 15.8, {'shot': 'drones', 'shake': 4, 'impacts': [1.0, 1.9, 2.8]})
+anim2d(s, 15.8, {'shot': 'drones', 'shake': 4, 'impacts': [1.0, 1.9, 2.8], 'images': {
+    'mercado': ART + 'mercado_fachada.png', 'bares': ART + 'bares-populares.png', 'piranhas': ART + 'piranhas-bar-facade-12x8.png'}})
 SCENES.append((s, 15.8))
 
 # 7. Escondido no bar: o holofote varre a sala e acha o personagem.
@@ -228,14 +235,23 @@ anim2d(s, 21.3, {'shot': 'montage', 'shake': 10, 'impacts': [1.26]})
 countdown(s, 21.3 + 1.68, 0.42, 'left:0;width:1920px;text-align:center;top:380px;font-size:220px;', local_start=1.68)
 SCENES.append((s, 21.3))
 
-# 9. Plataforma C: o personagem corre até o 763.2 da Estrela, a porta abre; corte para preto.
-s = Scene('s9', 3.0)
-anim2d(s, 23.8, {'shot': 'bus', 'shake': 2})
-s.caption('l0', 0.5, 2.1, 'O ÚLTIMO 763.2 VIA KOBRASOL', style='left:0;width:1920px;text-align:center;top:120px;')
-s.add('<div id="s9-black" class="clip full" data-start="2.6" data-duration="0.4" style="background:#000000;z-index:20;"></div>')
+# 9. Cartelas: FLORIANÓPOLIS, 2 s de preto absoluto, ESTÁ SENDO ATACADA..., E SÓ TEM UMA SAÍDA.
+s = Scene('s9a', 6.4)
+s.add('<div id="s9a-black" class="full" style="background:#000000;"></div>')
+CENTER = 'left:0;width:1920px;text-align:center;top:500px;'
+s.caption('l0', 0.0, 1.2, 'FLORIANÓPOLIS', style=CENTER, size=80)
+s.caption('l1', 3.2, 1.6, 'ESTÁ SENDO ATACADA...', style=CENTER, size=72)
+s.caption('l2', 4.8, 1.6, 'E SÓ TEM UMA SAÍDA', style=CENTER, size=72)
 SCENES.append((s, 23.8))
 
-# 10. Título: a ponte, o logo e a contagem seguindo.
+# 10. Plataforma C: o gaúcho corre até o 763.2 da Estrela, a porta abre; corte para preto.
+s = Scene('s9', 3.0)
+anim2d(s, 30.2, {'shot': 'bus', 'shake': 2, 'images': {'gaucho': SPR + 'gaucho-right.png'}})
+s.caption('l0', 0.5, 2.1, 'O ÚLTIMO 763.2 VIA KOBRASOL', style='left:0;width:1920px;text-align:center;top:120px;')
+s.add('<div id="s9-black" class="clip full" data-start="2.6" data-duration="0.4" style="background:#000000;z-index:20;"></div>')
+SCENES.append((s, 30.2))
+
+# 11. Título: a ponte, o logo e a contagem seguindo.
 s = Scene('s10', 5.5)
 art_shot(s, 'bg', ART + 'background-bridge.png', 1.0, 1.04, '50% 50%')
 s.add(f'<img id="s10-title" src="{ART}title.png" alt="Plataforma C: Escape from Floripa" '
@@ -244,8 +260,8 @@ s.add(f'<img id="s10-title" src="{ART}title.png" alt="Plataforma C: Escape from 
 s.tl('tl.fromTo("#s10-title", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.5, ease: "steps(12)" }, 0.3);')
 s.caption('l0', 1.4, 4.1, 'CHEGUE AO 763.2 NA PLATAFORMA C', style='left:0;width:1920px;text-align:center;top:600px;')
 s.add('<div id="s10-cdl" class="cap" style="left:0;width:1920px;text-align:center;top:90px;font-size:34px;">PARTIDA EM</div>')
-countdown(s, 26.8, 5.5, 'left:0;width:1920px;text-align:center;top:135px;font-size:96px;')
-SCENES.append((s, 26.8))
+countdown(s, 33.2, 5.5, 'left:0;width:1920px;text-align:center;top:135px;font-size:96px;')
+SCENES.append((s, 33.2))
 
 os.makedirs(os.path.join(HERE, 'compositions'), exist_ok=True)
 for name in os.listdir(os.path.join(HERE, 'compositions')):
@@ -265,7 +281,8 @@ SFX = [  # (id, arquivo, início no filme, duração, volume)
     ('boom1', 'explosion_small.wav', 11.0, 0.7, 1.0),
     ('sting2', 'horror-tension.wav', 20.75, 1.6, 1.0),
     ('boom5', 'explosion_small.wav', 22.56, 0.7, 1.0),
-    ('sting3', 'horror-tension.wav', 26.8, 1.6, 0.9),
+    ('sting3', 'horror-tension.wav', 33.2, 1.6, 0.9),
+    ('sting4', 'horror-tension.wav', 27.0, 1.6, 1.0),
     ('ehit', 'hurt.wav', 13.97, 0.21, 1.0),
     ('eshot0', 'enemy-shot.wav', 13.95, 1.97, 0.7),
     ('kill0', 'explosion_small.wav', 14.4, 0.7, 0.9),
@@ -296,8 +313,11 @@ index = f"""<!doctype html>
       <!-- Trilha: baixa até a corrida; o trecho mais forte entra junto com o Mode 7 da Sala I. -->
       <audio id="musicA" class="clip" src="assets/audio/mainmenu-trecho.mp3" data-start="0" data-duration="8.8"
         data-media-start="0.2" data-track-index="2" data-volume="0.3" data-fade-in="1"></audio>
-      <audio id="musicB" class="clip" src="assets/audio/mainmenu-trecho.mp3" data-start="8.8" data-duration="{TOTAL - 8.8:.1f}"
-        data-media-start="9" data-track-index="2" data-volume="0.95" data-fade-out="1.5"></audio>
+      <audio id="musicB" class="clip" src="assets/audio/mainmenu-trecho.mp3" data-start="8.8" data-duration="15.2"
+        data-media-start="9" data-track-index="2" data-volume="0.95" data-fade-out="0.4"></audio>
+      <!-- Preto em silêncio; a música volta forte com a corrida até o ônibus. -->
+      <audio id="musicC" class="clip" src="assets/audio/mainmenu-trecho.mp3" data-start="30.2" data-duration="{TOTAL - 30.2:.1f}"
+        data-media-start="16" data-track-index="2" data-volume="0.95" data-fade-in="0.3" data-fade-out="1.5"></audio>
 {audio}
     </div>
     <script>

@@ -1,0 +1,31 @@
+<template>
+  <style>
+      #root { position: absolute; inset: 0; overflow: hidden; background: #04050a; font-family: 'PixelGamer', monospace; }
+      @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/PixelGamer-Regular.otf'); }
+      /* Como no jogo (src/main.ts): na PixelGamer, números e pontuação são desenhos; vêm da Pixeboy. */
+      @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/Pixeboy.ttf');
+        unicode-range: U+24-26, U+2C, U+2E, U+30-3A; size-adjust: 140%; }
+      .full { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+      .art { position: absolute; left: -8px; top: 0; width: 1936px; height: 1080px; image-rendering: pixelated; }
+      .spr { position: absolute; overflow: hidden; }
+      .spr img { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
+      .cap { position: absolute; color: #ffffff; letter-spacing: 3px; text-shadow: 5px 5px 0 #000000; z-index: 12;
+        white-space: nowrap; }
+      .red { color: #e90931; }
+      .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; perspective: 520px;
+        perspective-origin: 50% 12%; overflow: hidden; background: #04050a; }
+      .plane { position: absolute; overflow: hidden; transform-origin: 50% 100%; }
+      .plane img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+  </style>
+  <div id="root" data-composition-id="s9a" data-width="1920" data-height="1080">
+      <div id="s9a-black" class="full" style="background:#000000;"></div>
+      <div id="s9a-l0" class="clip cap" data-start="0.0" data-duration="1.2" style="left:0;width:1920px;text-align:center;top:500px;font-size:80px;">FLORIANÓPOLIS</div>
+      <div id="s9a-l1" class="clip cap" data-start="3.2" data-duration="1.6" style="left:0;width:1920px;text-align:center;top:500px;font-size:72px;">ESTÁ SENDO ATACADA...</div>
+      <div id="s9a-l2" class="clip cap" data-start="4.8" data-duration="1.6" style="left:0;width:1920px;text-align:center;top:500px;font-size:72px;">E SÓ TEM UMA SAÍDA</div>
+  </div>
+  <script>
+      const tl = gsap.timeline({ paused: true });
+      
+      window.__timelines["s9a"] = tl;
+  </script>
+</template>
