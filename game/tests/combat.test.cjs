@@ -40,6 +40,7 @@ const { Health } = load('../src/game/combat/Health.ts');
 const { CombatSystem, createProjectileId } = load('../src/game/combat/CombatSystem.ts');
 const {
     COMBAT_CONFIG,
+    getPlayerShotMultipliers,
     getWaveEnemyKinds,
     ROOM2_STAIR_GUARD_SPAWNS
 } = load('../src/game/config/combat.ts');
@@ -794,6 +795,25 @@ test('parede entre os personagens impede disparos dos dois lados', () => {
     combat.update(COMBAT_CONFIG.drone.fireInterval);
     assert.equal(groups[0].shots.length, 0);
     assert.equal(groups[1].shots.length, 0);
+});
+
+test('tiro normal ganha 10% de dano e 5% de velocidade a cada sala', () => {
+    const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
+    near(getPlayerShotMultipliers('room1').damage, 1);
+    near(getPlayerShotMultipliers('room2').damage, 1.1);
+    near(getPlayerShotMultipliers('room5').damage, 1.4);
+    near(getPlayerShotMultipliers('room5').speed, 1.2);
+    near(getPlayerShotMultipliers('mercado-interior').damage, getPlayerShotMultipliers('room4').damage);
+
+    const base = setup();
+    base.combat.update(COMBAT_CONFIG.player.fireInterval);
+    const baseSpeed = base.groups[0].shots[0].velocity.x;
+    const { combat, groups, overlaps, drones } = setup();
+    combat.shotMultipliers = getPlayerShotMultipliers('room3');
+    combat.update(COMBAT_CONFIG.player.fireInterval);
+    near(groups[0].shots[0].velocity.x, baseSpeed * 1.1);
+    overlaps[0].hit(groups[0].shots[0]);
+    near(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth - COMBAT_CONFIG.player.damage * 1.2);
 });
 
 test('cada projétil causa dano uma vez e dois acertos derrotam o drone', () => {
