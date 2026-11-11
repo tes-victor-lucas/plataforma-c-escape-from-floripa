@@ -1,5 +1,7 @@
 import type { Scene } from 'phaser';
 import { CHARACTERS, type CharacterId } from '../config/characters';
+import type { EquipmentSlot } from '../config/items';
+import { getHatOffsetY } from '../entities/GauchoHat';
 import { GAME_WIDTH } from '../config/display';
 import { WALK_FRAMES } from '../entities/PlayerAnimations';
 import type { UpgradeProgress } from '../upgrades/types';
@@ -7,7 +9,7 @@ import { CLEAN_MENU_COLORS, CleanOverlayMenu, drawCleanMenuBox } from './CleanOv
 import { addUpgradePanel } from './PauseMenuView';
 
 /** Item guardado no inventário; cada item novo (chapéu, bota...) entra nesta lista quando for implementado. */
-export type InventoryItem = Readonly<{ name: string; texture: string; description: string }>;
+export type InventoryItem = Readonly<{ name: string; texture: string; description: string; slot?: EquipmentSlot }>;
 
 export type InventoryData = Readonly<{
     chimarraos: number;
@@ -26,8 +28,8 @@ const CARDS = { x: 36, y: 66, width: 174, height: 300 };
 const CHIMARRAO = { x: 36, y: 378, width: 174, height: 50 };
 const DOLL = { x: 232, y: 66, width: 200, height: 220 };
 const DETAILS = { x: 610, y: 66, width: 243, height: 220 };
-// Encaixes do boneco: vazios até os itens de equipar chegarem.
-const EQUIPMENT_SLOTS = ['CABEÇA', 'CORPO', 'MÃOS', 'PÉS'] as const;
+// Encaixes do boneco; cada item de equipar ocupa o seu.
+const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ['CABEÇA', 'CORPO', 'MÃOS', 'PÉS'];
 const SLOT = 44;
 const GRID = { x: 232, y: 308, columns: 12, rows: 2, gap: 6 };
 
@@ -80,19 +82,29 @@ export class InventoryMenuView {
         const doll = this.scene.add.image(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height / 2 + 6, character.texture, WALK_FRAMES.down[0])
             .setScale(4.5 * character.scaleMultiplier);
         menu.add([grid, doll, this.text(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height - 16, character.label, 12, CLEAN_MENU_COLORS.frameCss).setOrigin(0.5)]);
+        // O que vai na cabeça aparece no boneco, como no personagem pelo mapa.
+        const head = this.options.items.find(({ slot }) => slot === 'CABEÇA');
+        if (head) {
+            menu.add(this.scene.add.image(doll.x, doll.y + getHatOffsetY(doll.displayHeight), head.texture).setScale(doll.scale));
+        }
     }
 
     private addEquipmentSlots(menu: CleanOverlayMenu) {
         EQUIPMENT_SLOTS.forEach((label, index) => {
             const y = DOLL.y + 14 + index * 52;
             const x = DOLL.x + DOLL.width + 26;
+            const equipped = this.options.items.find(({ slot }) => slot === label);
             const slot = this.scene.add.rectangle(x + SLOT / 2, y + SLOT / 2, SLOT, SLOT, CLEAN_MENU_COLORS.button)
-                .setStrokeStyle(1, CLEAN_MENU_COLORS.frame, 0.6);
+                .setStrokeStyle(equipped ? 2 : 1, CLEAN_MENU_COLORS.frame, equipped ? 1 : 0.6);
             menu.add([
                 slot,
                 this.text(x + SLOT + 10, y + 12, label, 12, CLEAN_MENU_COLORS.text),
-                this.text(x + SLOT + 10, y + 28, 'VAZIO', 10, CLEAN_MENU_COLORS.mutedText)
+                this.text(x + SLOT + 10, y + 28, equipped?.name ?? 'VAZIO', 10, CLEAN_MENU_COLORS.mutedText)
             ]);
+            if (equipped) {
+                const icon = this.scene.add.image(x + SLOT / 2, y + SLOT / 2, equipped.texture);
+                menu.add(icon.setScale((SLOT - 10) / Math.max(icon.width, icon.height)));
+            }
         });
     }
 
