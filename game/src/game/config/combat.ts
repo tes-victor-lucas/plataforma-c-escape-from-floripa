@@ -5,7 +5,7 @@ export const ROOM2_STAIR_GUARD_SPAWNS = [
     { x: 240, y: 352, patrolLeft: 232, patrolRight: 248 }
 ] as const;
 
-export type EnemyKind = 'drone' | 'scooter' | 'bike' | 'guard' | 'gaucho';
+export type EnemyKind = 'drone' | 'heavy-drone' | 'scooter' | 'bike' | 'guard' | 'gaucho';
 
 /** Primeira horda da Sala II: quantos de cada tipo, além dos dois guardas da escada. */
 export const ROOM2_FIRST_HORDE: Readonly<Partial<Record<EnemyKind, number>>> = {
@@ -18,6 +18,8 @@ export const ROOM2_FIRST_HORDE: Readonly<Partial<Record<EnemyKind, number>>> = {
 
 /** Horda da Sala II depois da carta: quantos de cada tipo. */
 export const ROOM2_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
+    // Drone forte: estreia aqui com 5 e ganha +5 a cada horda seguinte.
+    'heavy-drone': 5,
     gaucho: 46,
     guard: 22,
     scooter: 22,
@@ -25,8 +27,15 @@ export const ROOM2_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
     bike: 20
 };
 
+/** Primeira horda da Sala III: a última da Sala II com mais drones fortes. */
+export const ROOM3_FIRST_HORDE: Readonly<Record<EnemyKind, number>> = {
+    ...ROOM2_SECOND_HORDE,
+    'heavy-drone': 10
+};
+
 /** Horda da Sala III depois da carta: metade maior que a última da Sala II. */
 export const ROOM3_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
+    'heavy-drone': 15,
     gaucho: 69,
     guard: 33,
     scooter: 33,
@@ -36,6 +45,7 @@ export const ROOM3_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
 
 /** Horda da Sala IV, depois dos skatistas: a maior do jogo, metade maior que a última da Sala III. */
 export const ROOM4_HORDE: Readonly<Record<EnemyKind, number>> = {
+    'heavy-drone': 20,
     gaucho: 104,
     guard: 50,
     scooter: 50,
@@ -63,6 +73,7 @@ export function interleaveEnemyCounts(counts: Readonly<Partial<Record<EnemyKind,
 // Os dois primeiros nascem nos pontos fixos da escada e precisam ser guardas.
 const ROOM2_FIRST_HORDE_KINDS: readonly EnemyKind[] = ['guard', 'guard', ...interleaveEnemyCounts(ROOM2_FIRST_HORDE)];
 const ROOM2_SECOND_HORDE_KINDS = interleaveEnemyCounts(ROOM2_SECOND_HORDE);
+const ROOM3_FIRST_HORDE_KINDS = interleaveEnemyCounts(ROOM3_FIRST_HORDE);
 const ROOM3_SECOND_HORDE_KINDS = interleaveEnemyCounts(ROOM3_SECOND_HORDE);
 const ROOM4_HORDE_KINDS = interleaveEnemyCounts(ROOM4_HORDE);
 
@@ -83,6 +94,8 @@ export const COMBAT_CONFIG = {
         color: 0xff3030,
         deathShake: { duration: 100, intensity: 0.003 }
     },
+    // Drone forte: atira igual ao comum, mas aguenta três vezes mais.
+    heavyDrone: { maxHealth: PLAYER_COMBAT_STATS.maxHealth * 3 },
     scooter: {
         maxHealth: 3,
         contactDamage: 1,
@@ -147,8 +160,8 @@ export const COMBAT_CONFIG = {
         room1: [10, 8],
         // A segunda onda vem depois da carta e é bem maior: a horda cresce.
         room2: [ROOM2_FIRST_HORDE_KINDS.length, ROOM2_SECOND_HORDE_KINDS.length],
-        // A Sala III já abre com a horda final da Sala II.
-        room3: [ROOM2_SECOND_HORDE_KINDS.length, ROOM3_SECOND_HORDE_KINDS.length],
+        // A Sala III já abre com a horda final da Sala II, com mais drones fortes.
+        room3: [ROOM3_FIRST_HORDE_KINDS.length, ROOM3_SECOND_HORDE_KINDS.length],
         // Uma onda só: a horda gigante que entra quando os skatistas somem.
         room4: [ROOM4_HORDE_KINDS.length],
         // Sem combate: só o corredor até o fliperama.
@@ -207,7 +220,7 @@ const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
         // Horda: a composição exata vem de ROOM2_SECOND_HORDE.
         ROOM2_SECOND_HORDE_KINDS
     ],
-    room3: [ROOM2_SECOND_HORDE_KINDS, ROOM3_SECOND_HORDE_KINDS],
+    room3: [ROOM3_FIRST_HORDE_KINDS, ROOM3_SECOND_HORDE_KINDS],
     room4: [ROOM4_HORDE_KINDS],
     'mercado-interior': [],
     dungeon: [

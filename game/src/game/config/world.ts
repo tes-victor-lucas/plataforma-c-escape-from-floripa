@@ -37,6 +37,8 @@ export const WORLD_CONFIG = {
         stopDistance: 64,
         hitbox: { width: 18, height: 21, offsetX: 6, offsetY: 8 }
     },
+    // Mesma folha do drone, maior e âmbar para ser reconhecido no meio da horda.
+    heavyDrone: { scale: 0.9, tint: 0xffb040 },
     scooter: {
         texture: 'scooter-drive',
         scale: 0.9,

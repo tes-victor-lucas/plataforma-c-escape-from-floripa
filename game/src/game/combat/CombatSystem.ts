@@ -1,6 +1,6 @@
 import { Math as PhaserMath, type Physics, type Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
-import { COMBAT_CONFIG } from '../config/combat';
+import { COMBAT_CONFIG, type EnemyKind } from '../config/combat';
 import type { CombatEnemy } from '../entities/CombatEnemy';
 import type { Player } from '../entities/Player';
 import { hasLineOfSight } from '../map/hasLineOfSight';
@@ -54,6 +54,11 @@ export function createProjectileId(runId = 'untracked') {
 }
 
 /** Disparos automáticos, colisões e duração dos projéteis da sala. */
+/** Quem atira: drones comuns e fortes. Inimigos sem `kind` são dublês de testes antigos e contam como drone. */
+function isRangedEnemy(kind: EnemyKind | undefined) {
+    return kind === undefined || kind === 'drone' || kind === 'heavy-drone';
+}
+
 export class CombatSystem {
     private readonly playerShots: Physics.Arcade.Group;
     private readonly enemyShots: Physics.Arcade.Group;
@@ -114,8 +119,7 @@ export class CombatSystem {
 
     registerEnemy(enemy: CombatEnemy) {
         if (this.enemyCooldowns.has(enemy)) return;
-        // Inimigos sem `kind` são dublês de testes antigos e continuam como drones.
-        const isRanged = enemy.kind === 'drone' || enemy.kind === undefined;
+        const isRanged = isRangedEnemy(enemy.kind);
         this.enemyCooldowns.set(enemy, isRanged ? COMBAT_CONFIG.drone.fireInterval : 0);
         if (this.partnerShots) {
             this.scene.physics.add.overlap(enemy.sprite, this.partnerShots, (_target, shot) => {
@@ -211,7 +215,7 @@ export class CombatSystem {
                 nearest = enemy;
                 nearestDistance = distance;
             }
-            const isRanged = enemy.kind === 'drone' || enemy.kind === undefined;
+            const isRanged = isRangedEnemy(enemy.kind);
             if (!this.network && isRanged && distance <= COMBAT_CONFIG.drone.range ** 2 && cooldown === 0) {
                 this.fire(enemy, this.player, this.enemyShots, COMBAT_CONFIG.drone);
                 this.enemyCooldowns.set(enemy, COMBAT_CONFIG.drone.fireInterval);
@@ -577,7 +581,7 @@ export class CombatSystem {
     }
 
     private fireAtNearestPlayer(enemy: CombatEnemy, origin: { x: number; y: number }, cooldown: number) {
-        const isRanged = enemy.kind === 'drone' || enemy.kind === undefined;
+        const isRanged = isRangedEnemy(enemy.kind);
         if (!isRanged || cooldown > 0) return;
         const target = this.network?.getEnemyTarget(origin);
         const center = target?.sprite.body?.center;

@@ -17,10 +17,9 @@ function createDroneId() {
 
 /** Exibe e movimenta o drone inimigo na sala. */
 export class Drone implements CombatEnemy {
-    readonly kind = 'drone' as const;
     readonly id = createDroneId();
     readonly sprite: Phaser.Physics.Arcade.Sprite;
-    readonly health = new Health(COMBAT_CONFIG.drone.maxHealth);
+    readonly health: Health;
 
     private direction = 1;
     private isChasing = false;
@@ -33,11 +32,15 @@ export class Drone implements CombatEnemy {
     constructor(
         private readonly scene: Scene,
         private readonly spawn: EnemySpawn,
-        private readonly walls: Phaser.Tilemaps.TilemapLayer[]
+        private readonly walls: Phaser.Tilemaps.TilemapLayer[],
+        readonly kind: 'drone' | 'heavy-drone' = 'drone'
     ) {
-        const { drone } = WORLD_CONFIG;
+        const { drone, heavyDrone } = WORLD_CONFIG;
+        const isHeavy = kind === 'heavy-drone';
+        this.health = new Health(isHeavy ? COMBAT_CONFIG.heavyDrone.maxHealth : COMBAT_CONFIG.drone.maxHealth);
         this.sprite = scene.physics.add.sprite(spawn.x, spawn.y, drone.texture, 0);
-        this.sprite.setScale(drone.scale);
+        this.sprite.setScale(isHeavy ? heavyDrone.scale : drone.scale);
+        this.restoreTint();
         this.sprite.setDepth(10);
         this.sprite.setCollideWorldBounds(true);
         this.configureBody();
@@ -155,6 +158,7 @@ export class Drone implements CombatEnemy {
         this.scene.time.delayedCall(feedback.enemyHitFlashDuration, () => {
             if (this.sprite.active && flashSequence === this.hitFlashSequence) {
                 this.sprite.clearTint();
+                this.restoreTint();
             }
         });
 
@@ -168,6 +172,10 @@ export class Drone implements CombatEnemy {
             impactDirection.x / length * feedback.enemyKnockbackSpeed,
             impactDirection.y / length * feedback.enemyKnockbackSpeed
         );
+    }
+
+    private restoreTint() {
+        if (this.kind === 'heavy-drone') this.sprite.setTint(WORLD_CONFIG.heavyDrone.tint);
     }
 
     drawHealthBar() {

@@ -668,7 +668,8 @@ export class World extends Scene {
             case 'guard':
                 return new GuardaCyber(this, spawn, this.collisionLayers);
             case 'drone':
-                return new Drone(this, spawn, this.collisionLayers);
+            case 'heavy-drone':
+                return new Drone(this, spawn, this.collisionLayers, kind);
             case 'gaucho':
                 return new Gaucho(this, spawn, this.collisionLayers, {
                     onDefeated: (x, y) => this.dropChimarrao(x, y),
