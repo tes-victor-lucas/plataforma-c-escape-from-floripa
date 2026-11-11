@@ -6,7 +6,15 @@ import type { Player } from '../entities/Player';
 import { hasLineOfSight } from '../map/hasLineOfSight';
 import { playDamageNumber } from '../effects/playDamageNumber';
 import { playSwordHit } from '../effects/playSwordHit';
-import { playBeams, playExplosion, playLightning, playShockwave } from '../effects/playAreaEffects';
+import {
+    playBeams,
+    playExplosion,
+    playLightning,
+    playShockwave,
+    playSlash,
+    SPIN_SLASH_DURATION,
+    SPIN_SLASH_START
+} from '../effects/playAreaEffects';
 import { WORLD_CONFIG } from '../config/world';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import { runTracker, type RunTracker } from '../scoring/RunTracker';
@@ -75,6 +83,10 @@ export class CombatSystem {
     shotMultipliers = { damage: 1, speed: 1 };
     private chainCooldown = 0;
     private beamCooldown = 0;
+    private spinCooldown = 0;
+    private bombardCooldown = 0;
+    /** Volta do Golpe giratório em andamento: quem já levou o corte nesta volta não leva de novo. */
+    private spin?: { elapsed: number; hit: Set<CombatEnemy>; attackId: string };
     private beamAngle = 0;
     private orbitAngle = 0;
     private readonly orbitSparks: { core: Phaser.GameObjects.Arc; glow: Phaser.GameObjects.Arc }[] = [];
@@ -242,6 +254,65 @@ export class CombatSystem {
         this.updateOrbit(delta);
         this.updateChainLightning(delta);
         this.updateBeams(delta);
+        this.updateSpinSlash(delta);
+        this.updateBombard(delta);
+    }
+
+    /** Golpe giratório: a lâmina dá uma volta e fere cada inimigo do raio quando passa por ele. */
+    private updateSpinSlash(delta: number) {
+        const { spinRadius, spinInterval, spinDamageRatio, damage } = this.playerStats;
+        if (spinRadius <= 0) return;
+        const center = this.getCenter(this.player);
+        if (!this.spin) {
+            this.spinCooldown -= delta;
+            if (this.spinCooldown > 0) return;
+            this.spinCooldown = spinInterval;
+            const attackId = createProjectileId(this.tracker.snapshot().runId);
+            this.tracker.registerProjectile(attackId);
+            this.spin = { elapsed: 0, hit: new Set(), attackId };
+            this.shareEffect({ effect: 'slash', ...center, radius: spinRadius, color: 0xdff6ff });
+        }
+        const spin = this.spin;
+        spin.elapsed = Math.min(SPIN_SLASH_DURATION, spin.elapsed + delta);
+        const swept = spin.elapsed / SPIN_SLASH_DURATION * Math.PI * 2;
+        for (const enemy of this.enemies) {
+            if (!enemy.health.isAlive || spin.hit.has(enemy)) continue;
+            const target = this.getCenter(enemy);
+            const dx = target.x - center.x;
+            const dy = target.y - center.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance > spinRadius) continue;
+            const angle = ((Math.atan2(dy, dx) - SPIN_SLASH_START) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+            if (angle > swept) continue;
+            spin.hit.add(enemy);
+            this.hitEnemy(enemy, damage * spinDamageRatio, distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 1 }, spin.attackId);
+        }
+        if (spin.elapsed < SPIN_SLASH_DURATION) return;
+        this.tracker.finalizeProjectile(spin.attackId);
+        this.spin = undefined;
+    }
+
+    /** Bombardeio: explosões caem do alto sobre os inimigos mais perto, mesmo atrás de paredes. */
+    private updateBombard(delta: number) {
+        const { bombardTargets, bombardRadius, bombardRange, bombardInterval, bombardDamageRatio, damage } = this.playerStats;
+        if (bombardTargets <= 0) return;
+        this.bombardCooldown -= delta;
+        if (this.bombardCooldown > 0) return;
+        const origin = this.getCenter(this.player);
+        const targets = this.enemies
+            .filter((enemy) => enemy.health.isAlive)
+            .map((enemy) => ({ center: this.getCenter(enemy), enemy }))
+            .map((entry) => ({ ...entry, distance: Math.hypot(entry.center.x - origin.x, entry.center.y - origin.y) }))
+            .filter(({ distance }) => distance <= bombardRange)
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, bombardTargets);
+        // Sem alvo, tenta de novo no próximo quadro em vez de gastar a recarga.
+        if (targets.length === 0) return;
+        this.bombardCooldown = bombardInterval;
+        for (const { center } of targets) {
+            this.shareEffect({ effect: 'explosion', ...center, radius: bombardRadius, color: 0xffb347 });
+            this.damageArea(center, bombardRadius, damage * bombardDamageRatio, undefined, undefined, true, false);
+        }
     }
 
     /** Faíscas orbitais: cada inimigo leva no máximo um toque por intervalo. */
@@ -262,16 +333,18 @@ export class CombatSystem {
             else this.orbitHits.set(enemy, cooldown - delta);
         }
         const center = this.getCenter(this.player);
+        // Com as Serras orbitais, cada faísca vira uma serra maior.
+        const size = orbitDamageRatio >= 2 ? 1.6 : 1;
         this.orbitSparks.forEach((spark, index) => {
             const angle = this.orbitAngle + index * Math.PI * 2 / orbitCount;
             const x = center.x + Math.cos(angle) * orbitRadius;
             const y = center.y + Math.sin(angle) * orbitRadius;
-            spark.glow.setPosition(x, y);
-            spark.core.setPosition(x, y);
+            spark.glow.setPosition(x, y).setScale(size);
+            spark.core.setPosition(x, y).setScale(size);
             for (const enemy of this.enemies) {
                 if (!enemy.health.isAlive || this.orbitHits.has(enemy)) continue;
                 const target = this.getCenter(enemy);
-                if (Math.hypot(target.x - x, target.y - y) > 12) continue;
+                if (Math.hypot(target.x - x, target.y - y) > 12 * size) continue;
                 this.orbitHits.set(enemy, orbitHitInterval);
                 this.withAttack((id) => this.hitEnemy(enemy, damage * orbitDamageRatio, {
                     x: Math.cos(angle + Math.PI / 2),
@@ -371,6 +444,7 @@ export class CombatSystem {
             case 'explosion': return playExplosion(this.scene, effect.x, effect.y, effect.radius, effect.color);
             case 'lightning': return playLightning(this.scene, effect.points, effect.color);
             case 'beams': return playBeams(this.scene, effect.origin, effect.angles, effect.length, effect.color);
+            case 'slash': return playSlash(this.scene, effect.x, effect.y, effect.radius, effect.color);
         }
     }
 

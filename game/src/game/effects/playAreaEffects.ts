@@ -93,3 +93,42 @@ export function playLightning(scene: Scene, points: readonly Point[], color: num
     }
     fadeOut(scene, bolt, 240);
 }
+
+/** Quanto o Golpe giratório leva para dar a volta inteira; o dano acompanha a lâmina. */
+export const SPIN_SLASH_DURATION = 450;
+/** A lâmina começa no alto e gira no sentido horário. */
+export const SPIN_SLASH_START = -Math.PI / 2;
+
+/** Golpe giratório: uma meia-lua branca que dá a volta no jogador e se dissolve. */
+export function playSlash(scene: Scene, x: number, y: number, radius: number, color: number) {
+    const slash = createLayer(scene, 14).setPosition(x, y).setRotation(SPIN_SLASH_START);
+    // Meia-lua de 110°: a cauda é fina e a ponta (ângulo 0) é grossa.
+    const steps = 14;
+    const span = Math.PI * 0.6;
+    const outer: Point[] = [];
+    const inner: Point[] = [];
+    for (let index = 0; index <= steps; index += 1) {
+        const t = index / steps;
+        const angle = -span + t * span;
+        const thickness = 2 + t * radius * 0.16;
+        outer.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+        inner.push({ x: Math.cos(angle) * (radius - thickness), y: Math.sin(angle) * (radius - thickness) });
+    }
+    const fillShape = (points: readonly Point[]) => {
+        slash.beginPath().moveTo(points[0].x, points[0].y);
+        for (const point of points.slice(1)) slash.lineTo(point.x, point.y);
+        slash.closePath().fillPath();
+    };
+    slash.fillStyle(color, 0.35);
+    fillShape([...outer, ...[...inner].reverse()]);
+    // Núcleo branco só na metade da ponta, a parte mais grossa da lâmina.
+    slash.fillStyle(0xffffff, 0.95);
+    fillShape([...outer.slice(steps / 2), ...inner.slice(steps / 2).reverse()]);
+    scene.tweens?.add({
+        targets: slash,
+        rotation: SPIN_SLASH_START + Math.PI * 2,
+        duration: SPIN_SLASH_DURATION,
+        ease: 'Linear',
+        onComplete: () => fadeOut(scene, slash, 180)
+    });
+}

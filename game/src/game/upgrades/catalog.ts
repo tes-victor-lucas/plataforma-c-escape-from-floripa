@@ -157,6 +157,30 @@ export const UPGRADE_CARDS = [
         description: 'A cada 0,85 s, uma onda de 250% atinge 150 px em volta. +40 px por nível.',
         maxLevel: 2,
         effect: { type: 'shock-pulse', radius: 150, radiusPerLevel: 40, interval: 850, damageRatio: 2.5 }
+    },
+    {
+        id: 'spin-slash',
+        kind: 'ability',
+        title: 'Golpe giratório',
+        description: 'A cada 7 s, um corte gira à sua volta e causa 900% em 170 px. +35 px por nível.',
+        maxLevel: 2,
+        effect: { type: 'spin-slash', radius: 170, radiusPerLevel: 35, interval: 7_000, damageRatio: 9 }
+    },
+    {
+        id: 'saw-orbit',
+        kind: 'ability',
+        title: 'Serras orbitais',
+        description: '3 serras de 250% giram mais longe à sua volta. +1 serra por nível.',
+        maxLevel: 3,
+        effect: { type: 'spark-orbit', count: 3, countPerLevel: 1, radius: 72, damageRatio: 2.5, hitInterval: 350 }
+    },
+    {
+        id: 'bombard',
+        kind: 'ability',
+        title: 'Bombardeio',
+        description: 'A cada 1,6 s, bombas de 300% caem em 4 inimigos. +2 alvos por nível.',
+        maxLevel: 2,
+        effect: { type: 'bombard', targets: 4, targetsPerLevel: 2, radius: 55, range: 220, interval: 1_600, damageRatio: 3 }
     }
 ] as const satisfies readonly UpgradeCardDefinition[];
 
@@ -176,6 +200,13 @@ export const ROOM3_EXCLUSIVE_UPGRADE_IDS: readonly UpgradeId[] = [
     'overclock',
     'thunder-storm',
     'nova-pulse'
+];
+
+/** Cartas de área ainda mais fortes, oferecidas só ao vencer a horda 2 da Sala III. */
+export const ROOM3_FINAL_UPGRADE_IDS: readonly UpgradeId[] = [
+    'spin-slash',
+    'saw-orbit',
+    'bombard'
 ];
 
 /** Mesa da Sala III: as exclusivas embaralhadas com as cartas de área mais fortes da Sala II. */

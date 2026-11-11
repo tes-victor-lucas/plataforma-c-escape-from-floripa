@@ -17,7 +17,10 @@ export type UpgradeId =
     | 'heavy-rounds'
     | 'overclock'
     | 'thunder-storm'
-    | 'nova-pulse';
+    | 'nova-pulse'
+    | 'spin-slash'
+    | 'saw-orbit'
+    | 'bombard';
 
 export type UpgradeKind = 'stat' | 'ability';
 
@@ -106,6 +109,24 @@ export type UpgradeEffect =
         beams: number;
         beamsPerLevel: number;
         length: number;
+        interval: number;
+        damageRatio: number;
+    }
+    | {
+        // Um corte dá uma volta inteira em torno do jogador e fere uma vez quem estiver no raio.
+        type: 'spin-slash';
+        radius: number;
+        radiusPerLevel: number;
+        interval: number;
+        damageRatio: number;
+    }
+    | {
+        // Explosões caem do alto sobre os inimigos mais perto, sem depender do tiro.
+        type: 'bombard';
+        targets: number;
+        targetsPerLevel: number;
+        radius: number;
+        range: number;
         interval: number;
         damageRatio: number;
     };

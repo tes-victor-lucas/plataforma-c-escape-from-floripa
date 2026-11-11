@@ -36,6 +36,14 @@ export class PlayerUpgradeState {
     beamLength = 0;
     beamInterval = 0;
     beamDamageRatio = 0;
+    spinRadius = 0;
+    spinInterval = 0;
+    spinDamageRatio = 0;
+    bombardTargets = 0;
+    bombardRadius = 0;
+    bombardRange = 0;
+    bombardInterval = 0;
+    bombardDamageRatio = 0;
 
     reset() {
         this.levels.clear();
@@ -69,6 +77,14 @@ export class PlayerUpgradeState {
         this.beamLength = 0;
         this.beamInterval = 0;
         this.beamDamageRatio = 0;
+        this.spinRadius = 0;
+        this.spinInterval = 0;
+        this.spinDamageRatio = 0;
+        this.bombardTargets = 0;
+        this.bombardRadius = 0;
+        this.bombardRange = 0;
+        this.bombardInterval = 0;
+        this.bombardDamageRatio = 0;
     }
 
     exportProgress(): UpgradeProgress {
@@ -144,10 +160,15 @@ export class PlayerUpgradeState {
                 this.blastDamageRatio = effect.damageRatio;
                 break;
             case 'spark-orbit':
-                this.orbitCount = this.orbitCount === 0 ? effect.count : this.orbitCount + effect.countPerLevel;
-                this.orbitRadius = effect.radius;
-                this.orbitDamageRatio = effect.damageRatio;
-                this.orbitHitInterval = effect.hitInterval;
+                this.orbitCount = this.orbitCount === 0
+                    ? effect.count
+                    : Math.max(this.orbitCount + effect.countPerLevel, effect.count);
+                // As Serras e as Faíscas dividem o efeito: o mais forte de cada valor prevalece.
+                this.orbitRadius = Math.max(this.orbitRadius, effect.radius);
+                this.orbitDamageRatio = Math.max(this.orbitDamageRatio, effect.damageRatio);
+                this.orbitHitInterval = this.orbitHitInterval
+                    ? Math.min(this.orbitHitInterval, effect.hitInterval)
+                    : effect.hitInterval;
                 break;
             case 'chain-lightning':
                 this.chainJumps = this.chainJumps === 0
@@ -169,6 +190,20 @@ export class PlayerUpgradeState {
                 this.beamLength = effect.length;
                 this.beamInterval = effect.interval;
                 this.beamDamageRatio = effect.damageRatio;
+                break;
+            case 'spin-slash':
+                this.spinRadius = this.spinRadius === 0 ? effect.radius : this.spinRadius + effect.radiusPerLevel;
+                this.spinInterval = effect.interval;
+                this.spinDamageRatio = effect.damageRatio;
+                break;
+            case 'bombard':
+                this.bombardTargets = this.bombardTargets === 0
+                    ? effect.targets
+                    : this.bombardTargets + effect.targetsPerLevel;
+                this.bombardRadius = effect.radius;
+                this.bombardRange = effect.range;
+                this.bombardInterval = effect.interval;
+                this.bombardDamageRatio = effect.damageRatio;
                 break;
         }
         return true;

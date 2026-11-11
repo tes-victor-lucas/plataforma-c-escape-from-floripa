@@ -32,7 +32,7 @@ type Point = Readonly<{ x: number; y: number }>;
 
 /** Efeito visual de carta, repetido na tela do parceiro. */
 export type PlayerEffect =
-    | { effect: 'shockwave' | 'explosion'; x: number; y: number; radius: number; color: number }
+    | { effect: 'shockwave' | 'explosion' | 'slash'; x: number; y: number; radius: number; color: number }
     | { effect: 'lightning'; points: readonly Point[]; color: number }
     | { effect: 'beams'; origin: Point; angles: readonly number[]; length: number; color: number };
 
