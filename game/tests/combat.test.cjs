@@ -1861,6 +1861,7 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     assert.deepEqual(stoppedScenes, [
         'PauseMenu',
         'ArcadeMinigame',
+        'ConfirmPrompt',
         'RoomTransition',
         'ReturnToMenuTransition',
         'CombatHud'
@@ -1890,6 +1891,7 @@ test('voltar ao menu após derrota usa a transição suave de saída', () => {
     assert.deepEqual(stopped, [
         'PauseMenu',
         'ArcadeMinigame',
+        'ConfirmPrompt',
         'RoomTransition',
         'ReturnToMenuTransition',
         'CombatHud'
@@ -1966,6 +1968,7 @@ test('menu principal remove qualquer cena restante da partida anterior', () => {
         'CombatHud',
         'PauseMenu',
         'ArcadeMinigame',
+        'ConfirmPrompt',
         'RoomTransition'
     ]);
 });
@@ -3599,3 +3602,41 @@ test('drone forte tem o triplo da vida e atira como o comum', () => {
     assert.ok(groups[1].shots.length > 0, 'drone forte também dispara');
 });
 
+test('esconderijo dos gaúchos pergunta antes de entrar e só pergunta de novo depois de sair do bueiro', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const launches = [];
+    const center = { ...ROOM1_TO_GAUCHO_DUNGEON_GATEWAY.portal };
+    world.activeRoomKey = 'room1';
+    world.player = {
+        health: new Health(4),
+        sprite: { body: { center } },
+        getMovementSpeedMultiplier() { return 1; },
+        stopMovement() {}
+    };
+    world.combat = { clear() {} };
+    world.physics = { pause() {}, resume() {} };
+    world.scene = {
+        launch(key, data) { launches.push({ key, data }); },
+        bringToTop() {}
+    };
+    const keys = () => launches.map(({ key }) => key);
+
+    world.updateRoomGateway();
+    assert.deepEqual(keys(), ['ConfirmPrompt']);
+    assert.equal(launches[0].data.title, ROOM1_TO_GAUCHO_DUNGEON_GATEWAY.confirm.enter);
+
+    launches[0].data.onChoice(false);
+    world.updateRoomGateway();
+    assert.deepEqual(keys(), ['ConfirmPrompt'], 'parado no bueiro depois do NÃO não pergunta de novo');
+
+    center.x += 100;
+    world.updateRoomGateway();
+    center.x -= 100;
+    world.updateRoomGateway();
+    assert.deepEqual(keys(), ['ConfirmPrompt', 'ConfirmPrompt'], 'saiu e voltou: pergunta de novo');
+
+    launches[1].data.onChoice(true);
+    assert.equal(launches[2].key, 'RoomTransition');
+    assert.equal(launches[2].data.roomKey, 'gaucho-dungeon');
+});
