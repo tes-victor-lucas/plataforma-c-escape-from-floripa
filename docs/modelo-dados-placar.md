@@ -13,3 +13,8 @@ A atualização do melhor resultado é condicional: aceita pontuação maior ou,
 A fórmula de pontuação v2 armazena `dungeonsCompleted` na run vencedora e
 `dungeonPoints` no detalhamento calculado pela Lambda. Cada conclusão vale 1.000
 pontos, limitada às duas dungeons disponíveis na campanha.
+
+A fórmula v3 soma `arcadePoints`: 5.000 pontos quando `arcadeWon` é verdadeiro (vitória no
+fliperama CAIXOTES do Mercado Público). O cliente também envia `pausedMs`, o tempo passado no
+fliperama, e a Lambda desconta esse valor do tempo da run, com teto de 360.000 ms (duas tentativas
+de três minutos). Os dois campos são declarados pelo cliente, como as mortes e as dungeons.
