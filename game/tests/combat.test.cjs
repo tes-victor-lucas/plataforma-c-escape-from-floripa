@@ -931,6 +931,7 @@ test('progresso entre salas preserva vida, habilidades e bônus permanentes', ()
     assert.deepEqual(Object.keys(progress).sort(), [
         'chimarraos',
         'currentHealth',
+        'equipped',
         'items',
         'maxHealth',
         'movementSpeedMultiplier',
@@ -1762,7 +1763,8 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
                 movementSpeedMultiplier: 1,
                 upgrades: [],
                 chimarraos: 0,
-                items: []
+                items: [],
+                equipped: []
             }
         }
     });
@@ -3797,4 +3799,43 @@ test('chapéu cai uma vez só no esconderijo e equipa quem pega', () => {
     overlap = undefined;
     world.createGauchoHatPickup();
     assert.equal(overlap, undefined, 'quem já tem o chapéu não vê outro no chão');
+});
+
+test('inventário retira e reequipa o chapéu, e a escolha segue entre as salas', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const calls = [];
+    world.player = { equipGauchoHat() { calls.push('equip'); }, unequipGauchoHat() { calls.push('unequip'); } };
+    world.ownedItems = ['gaucho-hat'];
+    world.equippedItems = ['gaucho-hat'];
+
+    const hat = () => world.buildInventory().items.find(({ id }) => id === 'gaucho-hat');
+    assert.equal(hat().equipped, true);
+    const afterRemoving = world.buildInventory().onToggleItem('gaucho-hat');
+    assert.equal(afterRemoving.items.find(({ id }) => id === 'gaucho-hat').equipped, false, 'o inventário redesenha com o chapéu guardado');
+    assert.deepEqual(calls, ['unequip']);
+    assert.deepEqual(world.equippedItems, []);
+    assert.deepEqual(world.ownedItems, ['gaucho-hat'], 'retirar não joga o item fora');
+    world.toggleItem('gaucho-hat');
+    assert.deepEqual(calls, ['unequip', 'equip']);
+    assert.equal(hat().equipped, true);
+
+    const progress = capturePlayerProgress(
+        { health: new Health(4), getMovementSpeedMultiplier: () => 1 }, new PlayerUpgradeState(), 0, ['gaucho-hat'], []
+    );
+    assert.deepEqual(progress.equipped, [], 'guardado continua guardado na próxima sala');
+});
+
+test('chapéu cai em chão livre, longe de parede e do vazio fora da sala', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    // Chão só na faixa y entre 96 e 160; parede na linha logo acima do jogador.
+    const floor = { getTileAtWorldXY: (x, y) => (y >= 96 && y < 160 ? { collides: false } : null) };
+    const walls = { getTileAtWorldXY: (x, y) => (y >= 80 && y < 96 ? { collides: true } : null) };
+    world.collisionLayers = [walls];
+    world.roomMap = { layers: [{ tilemapLayer: floor }, { tilemapLayer: walls }] };
+
+    const spot = world.findOpenSpotNear(100, 104);
+    assert.ok(spot.y >= 96 && spot.y < 160, 'no chão, não na parede de cima');
+    assert.notDeepEqual(spot, { x: 100, y: 104 + 32 }, 'não em cima da espada, logo abaixo do jogador');
 });
