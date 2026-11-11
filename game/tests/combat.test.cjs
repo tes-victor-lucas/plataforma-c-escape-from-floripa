@@ -2651,7 +2651,7 @@ test('multiplayer: detonação do convidado sai quando o anfitrião confirma o a
     combat.detonateConfirmedKill(drones[0], 'abate');
 
     assert.deepEqual(record.hits.map((hit) => hit.enemy), [drones[1]], 'só o vizinho no raio, sem o abatido');
-    assert.equal(record.hits[0].damage, upgrades.damage * 1.5);
+    assert.equal(record.hits[0].damage, upgrades.damage * getUpgradeCard('death-blast').effect.damageRatio);
     assert.equal(drones[1].health.current, COMBAT_CONFIG.drone.maxHealth, 'quem aplica o dano é o anfitrião');
     assert.deepEqual(sent.map((e) => e.effect), ['explosion']);
     assert.equal(effects.length, 1, 'a explosão aparece também para o convidado');
@@ -3255,16 +3255,18 @@ test('raio em cadeia salta entre vizinhos sem repetir alvo', () => {
     assert.equal(drones[9].health.current, full);
 });
 
-test('detonação faz o abatido explodir e pode seguir em cadeia', () => {
+test('detonação faz o abatido explodir, mas quem morre na explosão não explode de novo', () => {
     const upgrades = new PlayerUpgradeState();
     upgrades.acquire(getUpgradeCard('death-blast'));
     upgrades.acquire(getUpgradeCard('shock-pulse'));
-    upgrades.damage = COMBAT_CONFIG.drone.maxHealth;
+    upgrades.damage = COMBAT_CONFIG.drone.maxHealth * 2;
     upgrades.range = 1;
-    // O pulso derruba o primeiro; a explosão dele derruba o segundo, que derruba o terceiro.
+    // O pulso derruba o primeiro; a explosão dele (75% de dano dobrado) derruba o segundo, que não detona.
     const { combat, drones } = setup([[150, 100], [205, 100], [258, 100], [400, 100]], [], upgrades);
     combat.update(0);
-    assert.deepEqual(drones.map((drone) => drone.health.isAlive), [false, false, false, true]);
+    assert.deepEqual(drones.map((drone) => drone.health.isAlive), [false, false, true, true]);
+    assert.equal(drones[2].health.current, COMBAT_CONFIG.drone.maxHealth, 'sem cadeia, o terceiro nem é atingido');
+    assert.equal(getUpgradeCard('death-blast').effect.damageRatio, 0.75);
 });
 
 test('feixes de luz cruzam a tela e ferem quem está na linha', () => {
@@ -3838,4 +3840,38 @@ test('chapéu cai em chão livre, longe de parede e do vazio fora da sala', () =
     const spot = world.findOpenSpotNear(100, 104);
     assert.ok(spot.y >= 96 && spot.y < 160, 'no chão, não na parede de cima');
     assert.notDeepEqual(spot, { x: 100, y: 104 + 32 }, 'não em cima da espada, logo abaixo do jogador');
+});
+
+test('depois da Sala III os inimigos nascem com o dobro de vida, sem dobrar a vida salva', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const made = [];
+    world.player = { sprite: { x: 0, y: 0 } };
+    world.combat = { clear() {} };
+    world.droneSpawnPoints = [{ x: 2000, y: 2000, patrolLeft: 1990, patrolRight: 2010 }];
+    world.collisionLayers = [];
+    world.isHordeSpawnPoint = () => true;
+    world.physics = { add: { collider() {} } };
+    world.addEnemyToCombat = () => {};
+    world.createEnemy = (kind, spawn) => {
+        const health = new Health(10);
+        if (spawn.health !== undefined) health.takeDamage(health.max - spawn.health);
+        const enemy = { health, sprite: {}, drawHealthBar() {} };
+        made.push(enemy);
+        return enemy;
+    };
+    const spawnIn = (room) => {
+        world.activeRoomKey = room;
+        world.isRoomCombatComplete = false;
+        world.spawnDrones(1);
+        return made[made.length - 1].health;
+    };
+
+    const room3 = spawnIn('room3');
+    assert.deepEqual([room3.current, room3.max], [10, 10], 'até a Sala III, vida normal');
+    const room4 = spawnIn('room4');
+    assert.deepEqual([room4.current, room4.max], [20, 20], 'na Sala IV, o dobro');
+    world.savedEnemies = [{ x: 2000, y: 2000, health: 15, kind: 'drone' }];
+    const saved = spawnIn('room4');
+    assert.deepEqual([saved.current, saved.max], [15, 20], 'quem volta ferido não ganha vida extra');
 });
