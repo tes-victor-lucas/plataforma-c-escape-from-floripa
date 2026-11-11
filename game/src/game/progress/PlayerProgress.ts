@@ -14,13 +14,16 @@ export type PlayerProgress = Readonly<{
     chimarraos?: number;
     /** Itens de equipar já pegos (chapéu de gaúcho...); opcional pelo mesmo motivo. */
     items?: readonly ItemId[];
+    /** Quais desses itens estão no corpo; sem o campo (saves antigos), todos estão. */
+    equipped?: readonly ItemId[];
 }>;
 
 export function capturePlayerProgress(
     player: Pick<Player, 'health' | 'getMovementSpeedMultiplier'>,
     upgrades: Pick<PlayerUpgradeState, 'exportProgress'>,
     chimarraos = 0,
-    items: readonly ItemId[] = []
+    items: readonly ItemId[] = [],
+    equipped: readonly ItemId[] = items
 ): PlayerProgress {
     return {
         currentHealth: player.health.current,
@@ -28,7 +31,8 @@ export function capturePlayerProgress(
         movementSpeedMultiplier: player.getMovementSpeedMultiplier(),
         upgrades: upgrades.exportProgress(),
         chimarraos,
-        items: [...items]
+        items: [...items],
+        equipped: [...equipped]
     };
 }
 

@@ -31,7 +31,8 @@ function isPlayerProgress(value: unknown): value is PlayerProgress {
         && typeof progress.movementSpeedMultiplier === 'number'
         && Array.isArray(progress.upgrades)
         // O localStorage pode ter sido editado: só aceita itens que existem no jogo.
-        && (progress.items === undefined || (Array.isArray(progress.items) && progress.items.every(isItemId)));
+        && (progress.items === undefined || (Array.isArray(progress.items) && progress.items.every(isItemId)))
+        && (progress.equipped === undefined || (Array.isArray(progress.equipped) && progress.equipped.every(isItemId)));
 }
 
 function isRunCheckpoint(value: unknown): value is RunCheckpoint {
