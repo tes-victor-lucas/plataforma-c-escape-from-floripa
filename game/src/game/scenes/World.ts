@@ -59,6 +59,7 @@ import {
 import { StairClimbEffect } from '../map/StairClimbEffect';
 import { arcadeAttemptsLeft, canStartArcade } from '../minigame/arcadeAttempts';
 import type { ArcadeMinigameData } from './ArcadeMinigame';
+import type { ConfirmPromptData } from './ConfirmPrompt';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
 import { MERCADO_INTERIOR, MERCADO_NPCS } from '../config/mercado';
 import {
@@ -108,6 +109,7 @@ const ROOM2_WALKABLE_LAYERS = [
 const GAMEPLAY_OVERLAY_SCENES = [
     'PauseMenu',
     'ArcadeMinigame',
+    'ConfirmPrompt',
     'RoomTransition',
     'ReturnToMenuTransition',
     'CombatHud'
@@ -153,6 +155,8 @@ export class World extends Scene {
     private isPiranhasMenuOpen = false;
     private isArcadeOpen = false;
     private isArcadeArmed = true;
+    private isGatewayConfirmOpen = false;
+    private isGatewayConfirmArmed = true;
     private arcadePrompt?: Phaser.GameObjects.Text;
     private hasSelectedPiranhasItem = false;
     private isGameplayReady = false;
@@ -211,6 +215,8 @@ export class World extends Scene {
         this.isArcadeOpen = false;
         this.isArcadeArmed = true;
         this.arcadePrompt = undefined;
+        this.isGatewayConfirmOpen = false;
+        this.isGatewayConfirmArmed = true;
         this.isGameOver = false;
         this.isGameplayReady = false;
         this.isRoomExitOpen = false;
@@ -514,7 +520,7 @@ export class World extends Scene {
             else this.handleSwordGamepad();
         }
         this.updateNauseaEffect();
-        if (this.isPiranhasMenuOpen || this.isWaveIntermissionOpen || this.isArcadeOpen) return;
+        if (this.isPiranhasMenuOpen || this.isWaveIntermissionOpen || this.isArcadeOpen || this.isGatewayConfirmOpen) return;
         this.player?.update(delta);
         this.updateRevive(delta);
         this.updateRoomGateway();
@@ -911,32 +917,33 @@ export class World extends Scene {
 
         const secretGateway = SECRET_DUNGEON_GATEWAYS.find((gateway) =>
             gateway.from === this.activeRoomKey);
-        if (
+        const isAtEntrance = !!secretGateway && isTouchingSecretDungeonEntrance(
+            center.x,
+            center.y,
+            !secretGateway.wall
+                || (body instanceof Phaser.Physics.Arcade.Body && body.blocked[secretGateway.wall]),
             secretGateway
-            && isTouchingSecretDungeonEntrance(
-                center.x,
-                center.y,
-                !secretGateway.wall
-                    || (body instanceof Phaser.Physics.Arcade.Body && body.blocked[secretGateway.wall]),
-                secretGateway
-            )
-        ) {
-            this.dungeonState ??= createDungeonSessionState();
-            this.transitionToRoom(secretGateway.to, {
-                dungeonState: this.dungeonState
+        );
+        const returnGateway = SECRET_DUNGEON_GATEWAYS.find((gateway) =>
+            gateway.to === this.activeRoomKey);
+        const isAtReturn = !!returnGateway && !!this.dungeonReturnArea
+            && isTouchingDungeonReturn(center.x, center.y, this.dungeonReturnArea);
+        // Quem respondeu NÃO só é perguntado de novo depois de sair da passagem.
+        if (!isAtEntrance && !isAtReturn) this.isGatewayConfirmArmed = true;
+        if (secretGateway && isAtEntrance) {
+            this.passSecretGateway(secretGateway.confirm?.enter, () => {
+                this.dungeonState ??= createDungeonSessionState();
+                this.transitionToRoom(secretGateway.to, {
+                    dungeonState: this.dungeonState
+                });
             });
             return;
         }
-        const returnGateway = SECRET_DUNGEON_GATEWAYS.find((gateway) =>
-            gateway.to === this.activeRoomKey);
-        if (
-            returnGateway && this.dungeonReturnArea
-            && isTouchingDungeonReturn(center.x, center.y, this.dungeonReturnArea)
-        ) {
-            this.transitionToRoom(returnGateway.from, {
+        if (returnGateway && isAtReturn) {
+            this.passSecretGateway(returnGateway.confirm?.exit, () => this.transitionToRoom(returnGateway.from, {
                 spawn: returnGateway.returnSpawn,
                 dungeonState: this.dungeonState
-            });
+            }));
             return;
         }
         const exitGateway = ROOM_EXIT_GATEWAYS.find(({ from }) => from === this.activeRoomKey);
@@ -951,6 +958,29 @@ export class World extends Scene {
             exitGateway.to,
             this.dungeonState ? { dungeonState: this.dungeonState } : {}
         );
+    }
+
+    /** Passa direto, ou pergunta antes quando a passagem tem confirmação. */
+    private passSecretGateway(question: string | undefined, pass: () => void) {
+        if (!question) {
+            pass();
+            return;
+        }
+        if (!this.isGatewayConfirmArmed || !this.player) return;
+        this.isGatewayConfirmArmed = false;
+        this.isGatewayConfirmOpen = true;
+        this.player.stopMovement();
+        this.physics.pause();
+        const data: ConfirmPromptData = {
+            title: question,
+            onChoice: (confirmed) => {
+                this.isGatewayConfirmOpen = false;
+                this.physics.resume();
+                if (confirmed) pass();
+            }
+        };
+        this.scene.launch('ConfirmPrompt', data);
+        this.scene.bringToTop('ConfirmPrompt');
     }
 
     private transitionToRoom(
@@ -996,7 +1026,8 @@ export class World extends Scene {
             if (!this.player.health.isAlive) this.revivePlayer();
             this.scene.stop('PauseMenu');
         }
-        // O parceiro pode trocar de sala com o fliperama aberto aqui.
+        // O parceiro pode trocar de sala com uma pergunta ou o fliperama abertos aqui.
+        if (this.isGatewayConfirmOpen) this.scene.stop('ConfirmPrompt');
         if (this.isArcadeOpen) this.scene.stop('ArcadeMinigame');
         this.rememberCombatProgress();
         this.isRoomTransitioning = true;
@@ -1401,7 +1432,7 @@ export class World extends Scene {
     private openPauseMenu() {
         if (
             !this.isGameplayReady || this.isPauseMenuOpen || this.isPiranhasMenuOpen
-            || this.isWaveIntermissionOpen || this.isArcadeOpen || !this.player?.health.isAlive
+            || this.isWaveIntermissionOpen || this.isArcadeOpen || this.isGatewayConfirmOpen || !this.player?.health.isAlive
         ) return;
 
         this.isPauseMenuOpen = true;

@@ -37,6 +37,8 @@ export const ROOM_EXIT_GATEWAYS = [ROOM1_TO_ROOM2_GATEWAY, ROOM2_TO_ROOM3_GATEWA
 export type SecretDungeonGateway = RoomGatewayDefinition & {
     wall?: 'left' | 'right' | 'up';
     returnSpawn: Readonly<{ x: number; y: number }>;
+    /** Perguntas antes de entrar e de sair; sem elas, a passagem é imediata. */
+    confirm?: Readonly<{ enter: string; exit: string }>;
 };
 
 /** Fresta escondida na última parede, e não em toda a lateral do Terminal Velho. */
@@ -59,6 +61,8 @@ export const ROOM1_TO_GAUCHO_DUNGEON_GATEWAY: SecretDungeonGateway = {
     from: 'room1',
     to: 'gaucho-dungeon',
     returnSpawn: { x: 9 * 16, y: 26.5 * 16 },
+    // Na briga é fácil pisar no bueiro ou na saída sem querer.
+    confirm: { enter: 'ENTRAR NO ESCONDERIJO?', exit: 'SAIR DO ESCONDERIJO?' },
     // A área é testada contra os pés do jogador, que ficam numa hitbox de poucos pixels.
     area: {
         left: 7 * 16 - 12,
