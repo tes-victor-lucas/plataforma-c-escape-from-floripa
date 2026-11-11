@@ -3260,6 +3260,18 @@ test('pulso de choque atinge todos dentro do raio no ritmo da carta', () => {
     assert.equal(drones[1].health.current, 0);
 });
 
+test('pulso de choque atravessa obstáculos, como o tronco da figueira', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('shock-pulse'));
+    upgrades.range = 1;
+    // Um obstáculo entre o jogador (100, 100) e o inimigo logo acima.
+    const { combat, drones } = setup([[100, 40]], [
+        { getLeft: () => 90, getTop: () => 60, width: 20, height: 16 }
+    ], upgrades);
+    combat.update(0);
+    assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth - upgrades.damage * 1.25);
+});
+
 test('tiro explosivo fere os vizinhos do alvo sem acertar o alvo duas vezes', () => {
     const upgrades = new PlayerUpgradeState();
     upgrades.acquire(getUpgradeCard('blast-shot'));
