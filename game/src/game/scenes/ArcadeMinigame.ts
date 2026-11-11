@@ -4,8 +4,8 @@ import { MERCADO_INTERIOR } from '../config/mercado';
 import { bindGamepadActions, getGamepadInput, type GamepadAction } from '../input/GamepadInput';
 import { BlockPuzzle } from '../minigame/BlockPuzzle';
 
-/** `attemptsLeft` conta as tentativas que sobram depois desta. */
-export type ArcadeMinigameData = { attemptsLeft: number; onFinish: (won: boolean) => void };
+/** `attemptsLeft` conta as tentativas que sobram depois desta; `played` é falso quando o jogador sai antes de iniciar. */
+export type ArcadeMinigameData = { attemptsLeft: number; onFinish: (won: boolean, played: boolean) => void };
 
 const FONT = 'PixelGamer, monospace';
 const CELL = 22;
@@ -23,7 +23,7 @@ export class ArcadeMinigame extends Scene {
     private puzzle!: BlockPuzzle;
     private board!: Phaser.GameObjects.Graphics;
     private scoreText!: Phaser.GameObjects.Text;
-    private onFinish!: (won: boolean) => void;
+    private onFinish!: (won: boolean, played: boolean) => void;
     private attemptsLeft = 0;
     private readonly heldFor = new Map<GamepadAction, number>();
     private elapsed = 0;
@@ -153,7 +153,7 @@ export class ArcadeMinigame extends Scene {
         this.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, message, won ? 30 : 20, won ? '#6fd36f' : '#e84a4a');
         this.time.delayedCall(RESULT_DURATION, () => {
             this.scene.stop();
-            this.onFinish(won);
+            this.onFinish(won, true);
         });
     }
 
