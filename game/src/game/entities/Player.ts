@@ -40,6 +40,7 @@ export class Player {
     private invulnerableUntil = 0;
     /** Chance de um golpe não tirar vida (chapéu de gaúcho). */
     private blockChance = 0;
+    private detachHat?: () => void;
     private random: () => number = Math.random;
     private temporaryMovementSpeedMultiplier = 1;
     private controlsInverted = false;
@@ -214,9 +215,15 @@ export class Player {
 
     /** Equipa o chapéu de gaúcho: aparece na cabeça e bloqueia parte dos golpes. */
     equipGauchoHat() {
-        if (this.blockChance > 0) return;
+        if (this.detachHat) return;
         this.blockChance = GAUCHO_HAT.blockChance;
-        attachGauchoHat(this.scene, this.sprite);
+        this.detachHat = attachGauchoHat(this.scene, this.sprite);
+    }
+
+    unequipGauchoHat() {
+        this.detachHat?.();
+        this.detachHat = undefined;
+        this.blockChance = 0;
     }
 
     takeDamage(amount: number) {

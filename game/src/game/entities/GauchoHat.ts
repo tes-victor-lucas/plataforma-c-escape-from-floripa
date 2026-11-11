@@ -26,14 +26,17 @@ export function getHatOffsetY(displayHeight: number) {
     return -displayHeight * 0.31;
 }
 
-/** Chapéu que acompanha o personagem pelo mapa, inclusive subindo a escada e sumindo junto. */
+/** Chapéu que acompanha o personagem pelo mapa, inclusive subindo a escada; devolve como tirá-lo. */
 export function attachGauchoHat(scene: Scene, sprite: Phaser.GameObjects.Sprite) {
     createGauchoHatTexture(scene);
     const hat = scene.add.image(sprite.x, sprite.y, GAUCHO_HAT.texture);
+    const detach = () => {
+        scene.events.off('postupdate', follow);
+        hat.destroy();
+    };
     const follow = () => {
         if (!sprite.active) {
-            hat.destroy();
-            scene.events.off('postupdate', follow);
+            detach();
             return;
         }
         hat.setPosition(sprite.x, sprite.y + getHatOffsetY(sprite.displayHeight))
@@ -45,5 +48,5 @@ export function attachGauchoHat(scene: Scene, sprite: Phaser.GameObjects.Sprite)
     follow();
     scene.events.on('postupdate', follow);
     scene.events.once('shutdown', () => scene.events.off('postupdate', follow));
-    return hat;
+    return detach;
 }
