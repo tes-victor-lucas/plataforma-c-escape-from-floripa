@@ -114,9 +114,9 @@ export const UPGRADE_CARDS = [
         id: 'death-blast',
         kind: 'ability',
         title: 'Detonação',
-        description: 'Inimigos abatidos explodem com 150% do dano em volta. +15 px por nível.',
+        description: 'Inimigos abatidos explodem com 75% do dano em volta, sem reação em cadeia. +15 px por nível.',
         maxLevel: 2,
-        effect: { type: 'death-blast', radius: 55, radiusPerLevel: 15, damageRatio: 1.5 }
+        effect: { type: 'death-blast', radius: 55, radiusPerLevel: 15, damageRatio: 0.75 }
     },
     {
         id: 'light-beams',

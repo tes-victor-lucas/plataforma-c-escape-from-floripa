@@ -344,7 +344,6 @@ export class CombatSystem {
         this.scene.sound.play(sound.key, { volume: sound.volume });
     }
 
-    /** Detonação: o abatido explode; outra morte na explosão continua a cadeia. */
     /** No convidado, o abate chega confirmado pelo anfitrião; a detonação sai das cartas de quem matou. */
     detonateConfirmedKill(enemy: CombatEnemy, attackId: string) {
         this.detonate(enemy, attackId);
@@ -355,7 +354,8 @@ export class CombatSystem {
         if (deathBlastRadius <= 0) return;
         const center = this.getCenter(enemy);
         this.shareEffect({ effect: 'explosion', ...center, radius: deathBlastRadius, color: 0xff4f6d });
-        this.damageArea(center, deathBlastRadius, damage * deathBlastDamageRatio, enemy, attackId);
+        // Quem morre na explosão não explode de novo: sem cadeia, a carta não limpa a horda inteira.
+        this.damageArea(center, deathBlastRadius, damage * deathBlastDamageRatio, enemy, attackId, false);
     }
 
     private shareEffect(effect: PlayerEffect) {
@@ -406,7 +406,8 @@ export class CombatSystem {
         radius: number,
         damage: number,
         except?: CombatEnemy,
-        attackId?: string
+        attackId?: string,
+        canDetonate = true
     ) {
         const strike = (id: string) => {
             for (const enemy of this.enemies) {
@@ -416,7 +417,7 @@ export class CombatSystem {
                 const dy = target.y - origin.y;
                 const distance = Math.hypot(dx, dy);
                 if (distance > radius || !hasLineOfSight(this.walls, origin, target)) continue;
-                this.hitEnemy(enemy, damage, distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 1 }, id);
+                this.hitEnemy(enemy, damage, distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 1 }, id, canDetonate);
             }
         };
         if (attackId) strike(attackId);
@@ -424,7 +425,13 @@ export class CombatSystem {
     }
 
     /** Dano fora do projétil (espada e área); no convidado, quem decide é o anfitrião. */
-    private hitEnemy(enemy: CombatEnemy, damage: number, direction: { x: number; y: number }, attackId: string) {
+    private hitEnemy(
+        enemy: CombatEnemy,
+        damage: number,
+        direction: { x: number; y: number },
+        attackId: string,
+        canDetonate = true
+    ) {
         if (this.network && !this.network.isHost) {
             this.network.onEnemyHit(enemy, damage, direction);
             return;
@@ -439,7 +446,7 @@ export class CombatSystem {
         if (!enemy.health.isAlive) {
             this.tracker.recordEnemyDeath(enemy.id, attackId);
             this.onEnemyKilled();
-            this.detonate(enemy, attackId);
+            if (canDetonate) this.detonate(enemy, attackId);
         }
     }
 
