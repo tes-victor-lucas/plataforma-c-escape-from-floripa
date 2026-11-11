@@ -909,7 +909,7 @@ test('progresso entre salas preserva vida, habilidades e bônus permanentes', ()
     const progress = capturePlayerProgress({
         health: sourceHealth,
         getMovementSpeedMultiplier: () => 1.2
-    }, upgrades, 3);
+    }, upgrades, 3, ['gaucho-hat']);
 
     const restoredUpgrades = new PlayerUpgradeState();
     const restoredHealth = new Health(4);
@@ -927,9 +927,11 @@ test('progresso entre salas preserva vida, habilidades e bônus permanentes', ()
     assert.equal(restoredUpgrades.projectileCount, 2);
     assert.equal(restoredUpgrades.damage, COMBAT_CONFIG.player.damage + 1);
     assert.equal(progress.chimarraos, 3, 'chimarrões pegos seguem para a próxima sala');
+    assert.deepEqual(progress.items, ['gaucho-hat'], 'o chapéu segue para a próxima sala');
     assert.deepEqual(Object.keys(progress).sort(), [
         'chimarraos',
         'currentHealth',
+        'items',
         'maxHealth',
         'movementSpeedMultiplier',
         'upgrades'
@@ -1759,7 +1761,8 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
                 maxHealth: 4,
                 movementSpeedMultiplier: 1,
                 upgrades: [],
-                chimarraos: 0
+                chimarraos: 0,
+                items: []
             }
         }
     });
@@ -3725,4 +3728,66 @@ test('relógio para no fliperama, conta o bônus e respeita o teto do servidor',
     assert.equal(tracker.checkpoint().pausedMs, SCORE_CONFIG.arcade.maxPausedMs);
     tracker.abandon();
     restored.abandon();
+});
+
+test('chapéu de gaúcho bloqueia parte dos golpes e dá o respiro de um acerto', () => {
+    const { Player } = load('../src/game/entities/Player.ts');
+    const { GAUCHO_HAT } = load('../src/game/config/items.ts');
+    const player = Object.create(Player.prototype);
+    const time = { now: 1_000, delayedCall() {} };
+    const tints = [];
+    player.scene = { time, sound: { play() {} } };
+    player.health = new Health(4);
+    player.sprite = { active: true, setTint(color) { tints.push(color); }, clearTint() {} };
+    player.invulnerableUntil = 0;
+    player.blockChance = GAUCHO_HAT.blockChance;
+    const rolls = [GAUCHO_HAT.blockChance - 0.01, GAUCHO_HAT.blockChance + 0.01];
+    player.random = () => rolls.shift();
+
+    player.takeDamage(1);
+    assert.equal(player.health.current, 4, 'golpe bloqueado não tira vida');
+    assert.equal(tints[0], 0x8fd8ff, 'pisca a cor de escudo');
+    player.takeDamage(1);
+    assert.equal(player.health.current, 4, 'o contato logo depois cai no respiro, sem sortear de novo');
+    time.now += WORLD_CONFIG.player.hurtInvulnerability;
+    player.takeDamage(1);
+    assert.equal(player.health.current, 3, 'sem sorte no sorteio, o golpe passa');
+});
+
+test('checkpoint recusa itens que não existem no jogo', () => {
+    const values = new Map();
+    const storage = {
+        getItem(key) { return values.get(key) ?? null; },
+        setItem(key, value) { values.set(key, value); },
+        removeItem(key) { values.delete(key); }
+    };
+    const playerProgress = { currentHealth: 3, maxHealth: 4, movementSpeedMultiplier: 1, upgrades: [], items: ['gaucho-hat'] };
+    saveCampaignProgress({ roomKey: 'room2', playerProgress }, storage);
+    assert.deepEqual(loadCampaignProgress(storage).playerProgress.items, ['gaucho-hat']);
+    saveCampaignProgress({ roomKey: 'room2', playerProgress: { ...playerProgress, items: ['coroa-de-ouro'] } }, storage);
+    assert.equal(loadCampaignProgress(storage), undefined);
+});
+
+test('chapéu cai uma vez só no esconderijo e equipa quem pega', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    let equipped = 0;
+    let overlap;
+    world.player = { sprite: { x: 100, y: 200 }, equipGauchoHat() { equipped += 1; } };
+    world.textures = { exists: () => true };
+    const fakeImage = () => {
+        const image = { destroy() {} };
+        for (const method of ['setScale', 'setDepth', 'setOrigin', 'setPosition']) image[method] = () => image;
+        return image;
+    };
+    world.physics = { add: { image: fakeImage, overlap(_a, _b, callback) { overlap = callback; return { destroy() {} }; } } };
+    world.createWorldHint = fakeImage;
+
+    world.createGauchoHatPickup();
+    overlap();
+    assert.equal(equipped, 1);
+    assert.deepEqual(world.ownedItems, ['gaucho-hat']);
+    overlap = undefined;
+    world.createGauchoHatPickup();
+    assert.equal(overlap, undefined, 'quem já tem o chapéu não vê outro no chão');
 });
