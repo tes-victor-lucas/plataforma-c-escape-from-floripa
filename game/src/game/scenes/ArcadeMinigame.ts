@@ -17,11 +17,12 @@ const RESULT_DURATION = 1_800;
 const HOLD_DELAY = 170;
 const HOLD_REPEAT = 60;
 const HELD_ACTIONS = ['left', 'right', 'down'] as const satisfies readonly GamepadAction[];
+// Controle no padrão Tetris: botão A gira e o direcional para cima solta a peça.
 const CONTROLS = [
-    ['GIRAR', 'W / ↑', '↑'],
+    ['GIRAR', 'W / ↑', 'A'],
     ['MOVER', 'A D / ← →', '← →'],
     ['DESCER', 'S / ↓', '↓'],
-    ['SOLTAR', 'ESPAÇO', 'A'],
+    ['SOLTAR', 'ESPAÇO', '↑'],
     ['SAIR', 'ESC', 'B']
 ] as const;
 
@@ -119,9 +120,9 @@ export class ArcadeMinigame extends Scene {
         bindGamepadActions(this, {
             left: () => this.act(() => this.puzzle.move(-1)),
             right: () => this.act(() => this.puzzle.move(1)),
-            up: () => this.started ? this.act(() => this.puzzle.rotate()) : this.selectIntro(0),
+            up: () => this.started ? this.act(() => this.puzzle.drop()) : this.selectIntro(0),
             down: () => this.started ? this.act(() => this.puzzle.step()) : this.selectIntro(1),
-            confirm: () => this.started ? this.act(() => this.puzzle.drop()) : this.chooseIntro(),
+            confirm: () => this.started ? this.act(() => this.puzzle.rotate()) : this.chooseIntro(),
             cancel: () => this.started ? this.finish(false) : this.leaveIntro()
         });
         this.draw();
