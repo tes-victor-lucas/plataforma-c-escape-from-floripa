@@ -78,7 +78,7 @@ export const MERCADO_INTERIOR = {
     cabinet: { x: 432, y: 132 },
     triggerDistance: 36,
     // A pergunta "VAMOS JOGAR?" aparece no chão a partir desta distância.
-    promptDistance: 110,
+    promptDistance: 200,
     arcade: {
         width: 10,
         height: 16,

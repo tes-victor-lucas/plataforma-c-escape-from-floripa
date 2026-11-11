@@ -856,13 +856,14 @@ export class World extends Scene {
     /** Pergunta escrita no chão, diante do fliperama; pulsa devagar para chamar atenção. */
     private createArcadePrompt() {
         const { cabinet } = MERCADO_INTERIOR;
+        // Profundidade 3: acima do piso (2) e abaixo dos personagens (10).
         this.arcadePrompt = this.add.text(cabinet.x, cabinet.y + 22, 'VAMOS JOGAR?', {
             fontFamily: 'PixelGamer, monospace',
             fontSize: '10px',
             color: '#f056c5',
             stroke: '#05040a',
             strokeThickness: 3
-        }).setOrigin(0.5).setResolution(4).setDepth(1).setVisible(false);
+        }).setOrigin(0.5).setResolution(4).setDepth(3).setVisible(false);
         this.tweens.add({ targets: this.arcadePrompt, alpha: { from: 1, to: 0.45 }, duration: 700, yoyo: true, repeat: -1 });
     }
 
