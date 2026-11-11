@@ -993,7 +993,7 @@ test('mundo envia os upgrades atuais ao abrir o menu de pausa', () => {
     assert.match(data.inventory.items[0].description, /SALDO: R\$ /);
 });
 
-test('continuar só é liberado por checkpoint conquistado depois da room1', () => {
+test('todo início de sala é checkpoint, inclusive a room1', () => {
     const values = new Map();
     const storage = {
         getItem(key) { return values.get(key) ?? null; },
@@ -1009,7 +1009,7 @@ test('continuar só é liberado por checkpoint conquistado depois da room1', () 
 
     assert.equal(loadCampaignProgress(storage), undefined);
     saveCampaignProgress({ roomKey: 'room1', playerProgress }, storage);
-    assert.equal(loadCampaignProgress(storage), undefined, 'entrar na room1 não desbloqueia continuar');
+    assert.deepEqual(loadCampaignProgress(storage), { roomKey: 'room1', playerProgress }, 'a room1 já é checkpoint');
 
     saveCampaignProgress({ roomKey: 'room2', playerProgress }, storage);
     assert.deepEqual(loadCampaignProgress(storage), { roomKey: 'room2', playerProgress });
@@ -3026,6 +3026,64 @@ test('na dupla só o anfitrião envia a vitória ao placar', async () => {
         assert.deepEqual(calls.map(([kind]) => kind), ['vitoria', 'descarte']);
     } finally {
         Object.assign(scoreApi, original);
+    }
+});
+
+test('derrota solo mantém a partida aberta para recomeçar do checkpoint da sala', async () => {
+    const { scoreApi } = load('../src/game/scoring/ScoreApi.ts');
+    const original = { ...scoreApi };
+    const calls = [];
+    scoreApi.startRun = async () => ({});
+    scoreApi.discardRun = async (runId) => { calls.push(runId); };
+    try {
+        const solo = new RunTracker();
+        solo.startNew('SINGLE_PLAYER');
+        const checkpoint = solo.checkpoint();
+        assert.equal(solo.lose(undefined, false).status, 'LOST');
+        solo.restore(checkpoint);
+        assert.equal(solo.snapshot().status, 'RUNNING', 'tentar de novo segue a mesma partida');
+        const duo = new RunTracker();
+        duo.startNew('MULTIPLAYER');
+        duo.lose();
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(calls.length, 1, 'só a derrota da dupla descarta a partida no placar');
+    } finally {
+        Object.assign(scoreApi, original);
+    }
+});
+
+test('tentar novamente recomeça no início da sala do checkpoint, com o progresso daquele momento', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const values = new Map();
+    const playerProgress = { currentHealth: 4, maxHealth: 4, movementSpeedMultiplier: 1, upgrades: [] };
+    runTracker.startNew('SINGLE_PLAYER');
+    const run = runTracker.checkpoint();
+    const urls = [];
+    globalThis.window = {
+        localStorage: {
+            getItem(key) { return values.get(key) ?? null; },
+            setItem(key, value) { values.set(key, value); },
+            removeItem(key) { values.delete(key); }
+        },
+        location: { search: '', pathname: '/', hash: '' },
+        history: { replaceState(_state, _title, url) { urls.push(url); } }
+    };
+    try {
+        saveCampaignProgress({ roomKey: 'room3', playerProgress, run });
+        runTracker.lose(undefined, false);
+        const world = new World();
+        let restartData;
+        world.scene = { stop() {}, restart(data) { restartData = data; } };
+        world.restartFromDefeatMenu();
+        assert.equal(restartData.roomKey, 'room3');
+        assert.deepEqual(restartData.spawn, ROOM_DEFINITIONS.room3.spawn);
+        assert.deepEqual(restartData.playerProgress, playerProgress);
+        assert.equal(runTracker.snapshot().status, 'RUNNING');
+        assert.equal(runTracker.checkpoint().runId, run.runId, 'segue a mesma partida do placar');
+        assert.equal(loadCampaignProgress()?.roomKey, 'room3', 'o checkpoint continua salvo');
+    } finally {
+        delete globalThis.window;
+        runTracker.abandon();
     }
 });
 
