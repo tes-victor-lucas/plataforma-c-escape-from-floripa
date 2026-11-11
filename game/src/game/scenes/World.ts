@@ -887,8 +887,9 @@ export class World extends Scene {
 
     private handleSecretCodeKey(event: KeyboardEvent) {
         if (
-            // Atalho de teste das salas da campanha; as dungeons ficam de fora.
-            event.repeat || isDungeonRoom(this.activeRoomKey) || this.isMultiplayerGuest()
+            // Atalho de teste das salas da campanha e do esconderijo dos gaúchos; a dungeon da Sala II fica de fora.
+            event.repeat || (isDungeonRoom(this.activeRoomKey) && this.activeRoomKey !== 'gaucho-dungeon')
+            || this.isMultiplayerGuest()
             || !this.isGameplayReady || this.isGameOver || this.isRoomCombatComplete
         ) return;
         if (this.activeRoomKey === 'room3' && this.room3CardCode.push(event.key)) {
