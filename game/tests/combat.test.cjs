@@ -3661,3 +3661,22 @@ test('fliperama espera o iniciar e sair na tela de como jogar devolve a tentativ
     assert.equal(stopped, 1);
     assert.deepEqual(finishes, [[false, false]]);
 });
+
+test('sair do esconderijo dos gaúchos sobe a escada antes de trocar de sala e trava o jogador', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const calls = [];
+    world.player = {
+        sprite: { setDepth() { return this; }, setPosition() { return this; }, body: { enable: true }, displayHeight: 24, scaleX: 1, scaleY: 1 },
+        climbInPlace() { calls.push('climb'); }
+    };
+    world.dungeonReturnArea = { left: 16, right: 32, top: 100, bottom: 180 };
+    world.combat = { clear() { calls.push('clear'); } };
+    world.tweens = { add(config) { config.onComplete(); } };
+
+    world.climbSewerLadder(() => calls.push('leave'));
+    world.climbSewerLadder(() => calls.push('leave'));
+
+    assert.deepEqual(calls, ['clear', 'climb', 'leave'], 'sobe uma vez só e sai depois da subida');
+    assert.equal(world.isClimbingLadder, true, 'segue travado até a próxima sala recriar a cena');
+});
