@@ -63,6 +63,7 @@ import { arcadeAttemptsLeft, canStartArcade } from '../minigame/arcadeAttempts';
 import type { ArcadeMinigameData } from './ArcadeMinigame';
 import type { ConfirmPromptData } from './ConfirmPrompt';
 import type { PauseMenuData } from './PauseMenu';
+import type { InventoryData } from '../ui/InventoryMenuView';
 import type { WalletMenuData } from './WalletMenu';
 import { formatBalance, TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_SITTERS, WALLET_UI } from '../config/ticen';
 import { GAUCHO_HAT, ITEMS, type ItemId } from '../config/items';
@@ -193,6 +194,8 @@ export class World extends Scene {
     private chimarraoBuffTimer?: Phaser.Time.TimerEvent;
     private chimarraosCollected = 0;
     private ownedItems: ItemId[] = [];
+    private equippedItems: ItemId[] = [];
+    private roomMap?: Phaser.Tilemaps.Tilemap;
     private normalCameraZoom: number = WORLD_CONFIG.camera.zoom;
     private activeRoomKey: RoomKey = 'room1';
     private activeSpawn: Readonly<{ x: number; y: number }> = ROOM_DEFINITIONS.room1.spawn;
@@ -267,6 +270,7 @@ export class World extends Scene {
         this.chimarraoBuffTimer = undefined;
         this.chimarraosCollected = 0;
         this.ownedItems = [];
+        this.equippedItems = [];
         this.multiplayerSyncElapsed = 0;
         this.reviveElapsed = 0;
         this.enemySnapshot = [];
@@ -335,6 +339,7 @@ export class World extends Scene {
         if (data.playerProgress) {
             this.chimarraosCollected = data.playerProgress.chimarraos ?? 0;
             this.ownedItems = [...(data.playerProgress.items ?? [])];
+            this.equippedItems = [...(data.playerProgress.equipped ?? this.ownedItems)];
             restorePlayerProgress(
                 data.playerProgress,
                 this.player.health,
@@ -342,7 +347,7 @@ export class World extends Scene {
                 this.upgrades
             );
         }
-        if (this.ownedItems.includes('gaucho-hat')) this.player.equipGauchoHat();
+        this.applyEquipment();
         this.unsubscribeRunTracker = runTracker.subscribe((snapshot) => {
             if (snapshot.status !== 'RUNNING') {
                 if (!this.isMultiplayerEnabled()) clearCampaignProgress();
@@ -386,6 +391,7 @@ export class World extends Scene {
         this.drones = [];
         this.droneBodies = this.createDroneBodies();
         this.collisionLayers = room.collisionLayers;
+        this.roomMap = room.map;
 
         for (const layer of room.collisionLayers) {
             this.physics.add.collider(this.player.sprite, layer);
@@ -827,17 +833,73 @@ export class World extends Scene {
     private createGauchoHatPickup() {
         if (!this.player || this.ownedItems.includes('gaucho-hat')) return;
         createGauchoHatTexture(this);
-        // Acima do jogador: a espada do esconderijo fica embaixo.
-        const { x, y } = this.player.sprite;
-        const item = this.physics.add.image(x, y - 30, GAUCHO_HAT.texture).setScale(1.5).setDepth(9);
-        const label = this.createWorldHint('PEGUE O CHAPÉU').setOrigin(0, 0.5).setPosition(x + 16, y - 30).setDepth(9);
+        const feet = this.player.sprite.body?.center ?? this.player.sprite;
+        const { x, y } = this.findOpenSpotNear(feet.x, feet.y);
+        const item = this.physics.add.image(x, y, GAUCHO_HAT.texture).setScale(1.5).setDepth(9);
+        const label = this.createWorldHint('PEGUE O CHAPÉU').setOrigin(0, 0.5).setPosition(x + 16, y).setDepth(9);
         const pickup = this.physics.add.overlap(this.player.sprite, item, () => {
             pickup.destroy();
             item.destroy();
             label.destroy();
             this.ownedItems.push('gaucho-hat');
-            this.player?.equipGauchoHat();
+            this.toggleItem('gaucho-hat');
         });
+    }
+
+    /** Chão livre perto dos pés do jogador para largar um item: nada de parede, obstáculo ou vazio. */
+    private findOpenSpotNear(x: number, y: number) {
+        const tile = 16;
+        // Em volta, a dois blocos; logo abaixo fica a espada do esconderijo.
+        const offsets = [[0, -2], [2, 0], [-2, 0], [2, -2], [-2, -2], [2, 2], [-2, 2], [0, -1], [1, 0], [-1, 0], [0, -3], [3, 0], [-3, 0]];
+        const isOpen = (px: number, py: number) => {
+            const layers = this.roomMap?.layers ?? [];
+            const blocked = this.collisionLayers.some((layer) => layer.getTileAtWorldXY(px, py)?.collides ?? false);
+            const hasFloor = layers.some(({ tilemapLayer }) =>
+                !!tilemapLayer && !this.collisionLayers.includes(tilemapLayer) && !!tilemapLayer.getTileAtWorldXY(px, py));
+            return !blocked && (layers.length === 0 || hasFloor);
+        };
+        for (const [dx, dy] of offsets) {
+            const px = x + dx * tile;
+            const py = y + dy * tile;
+            // O chapéu no chão ocupa um bloco e meio de largura.
+            if ([-8, 0, 8].every((ox) => isOpen(px + ox, py))) return { x: px, y: py };
+        }
+        return { x, y };
+    }
+
+    /** Equipa ou retira um item; equipar tira o que estava no mesmo encaixe. */
+    private toggleItem(id: ItemId) {
+        if (!this.ownedItems.includes(id)) return;
+        if (this.equippedItems.includes(id)) {
+            this.equippedItems = this.equippedItems.filter((item) => item !== id);
+        } else {
+            this.equippedItems = [...this.equippedItems.filter((item) => ITEMS[item].slot !== ITEMS[id].slot), id];
+        }
+        this.applyEquipment();
+    }
+
+    private applyEquipment() {
+        if (this.equippedItems.includes('gaucho-hat')) this.player?.equipGauchoHat();
+        else this.player?.unequipGauchoHat();
+    }
+
+    private buildInventory(): InventoryData {
+        return {
+            chimarraos: this.chimarraosCollected,
+            characterId: this.characterId,
+            items: [{
+                name: 'CARTEIRA',
+                texture: WALLET_UI.walletTexture,
+                description: `CARTÃO GRANDE FLORIPA INTEGRADO.\nSALDO: ${formatBalance(runTracker.snapshot().score.total)}`
+            }, ...this.ownedItems.map((id) => {
+                const { name, texture, description, slot } = ITEMS[id];
+                return { id, name, texture, description, slot, equipped: this.equippedItems.includes(id) };
+            })],
+            onToggleItem: (id) => {
+                this.toggleItem(id);
+                return this.buildInventory();
+            }
+        };
     }
 
     /** O anfitrião sorteia o chimarrão, e o item aparece para os dois jogadores. */
@@ -1253,7 +1315,7 @@ export class World extends Scene {
         this.player.stopMovement();
         this.combat?.clear();
         this.physics.pause();
-        const playerProgress = capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected, this.ownedItems);
+        const playerProgress = capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected, this.ownedItems, this.equippedItems);
         const checkpointRooms: readonly RoomKey[] = ['room2', 'room3', 'room4', 'room5', 'dungeon'];
         if (!this.isMultiplayerEnabled() && checkpointRooms.includes(roomKey)) {
             // Checkpoints oficiais são as fases 2 a 5; a dungeon é uma rota secreta da fase 2.
@@ -1335,7 +1397,7 @@ export class World extends Scene {
         ) return;
         saveCampaignProgress({
             roomKey: this.activeRoomKey,
-            playerProgress: capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected, this.ownedItems),
+            playerProgress: capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected, this.ownedItems, this.equippedItems),
             run: runTracker.checkpoint()
         });
     }
@@ -1667,18 +1729,7 @@ export class World extends Scene {
         const data: PauseMenuData = {
             upgrades: this.upgrades.exportProgress(),
             view,
-            inventory: {
-                chimarraos: this.chimarraosCollected,
-                characterId: this.characterId,
-                items: [{
-                    name: 'CARTEIRA',
-                    texture: WALLET_UI.walletTexture,
-                    description: `CARTÃO GRANDE FLORIPA INTEGRADO.\nSALDO: ${formatBalance(runTracker.snapshot().score.total)}`
-                }, ...this.ownedItems.map((id) => {
-                    const { name, texture, description, slot } = ITEMS[id];
-                    return { name, texture, description, slot };
-                })]
-            }
+            inventory: this.buildInventory()
         };
         this.scene.launch('PauseMenu', data);
         this.scene.bringToTop('PauseMenu');
