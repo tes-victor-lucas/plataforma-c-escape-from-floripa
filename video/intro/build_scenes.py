@@ -127,16 +127,16 @@ def art_shot(sc, name, src, push_from, push_to, origin):
           f'{{ scale: {push_to}, duration: {sc.duration}, ease: "none" }}, 0);')
 
 
-STREET_JS = open(os.path.join(HERE, 'lib', 'street3d.js')).read()
+CITY_JS = open(os.path.join(HERE, 'lib', 'city3d.js')).read()
 
 
-def street3d(sc, film_start, cfg):
+def city3d(sc, film_start, cfg):
     """Canvas 3D da cena: desenha pelo tempo do filme (hf-seek) menos o início da cena."""
     import json
     sc.add(f'<canvas id="{sc.sid}-c" width="480" height="270" style="position:absolute;left:0;top:0;width:1920px;'
            f'height:1080px;image-rendering:pixelated;z-index:1;"></canvas>')
-    sc.tl(STREET_JS)
-    sc.tl(f'''const street = makeStreet3D(document.getElementById("{sc.sid}-c"), {json.dumps(cfg)});
+    sc.tl(CITY_JS)
+    sc.tl(f'''const street = makeCity3D(document.getElementById("{sc.sid}-c"), {json.dumps(cfg)});
       window.__hf = window.__hf || {{}};
       window.__hf.buildReady = window.__hf.buildReady || {{}};
       window.__hf.buildReady["{sc.sid}"] = street.ready;
@@ -195,21 +195,14 @@ s.add('<div id="s1-cdl" class="cap" style="left:0;width:1920px;text-align:center
 countdown(s, 0.0, 4.0, 'left:0;width:1920px;text-align:center;top:108px;font-size:72px;')
 SCENES.append((s, 0.0))
 
-# 2. Contra-plongée: o Centro Cultural visto de baixo, o drone passa com o holofote.
+# 2. Contra-plongée: o Centro Cultural modelado em 3D visto de baixo; o drone passa com o holofote.
 s = Scene('s2', 3.0)
-s.add('<div id="s2-tilt" class="full" style="perspective:900px;perspective-origin:50% 100%;">'
-      '<div id="s2-facade" class="full" style="transform-origin:50% 100%;">'
-      f'<img class="art" src="{ART}centro-cultural-marinha-facade.png" alt="" '
-      'style="left:-40px;top:-140px;width:2000px;height:1333px;"></div></div>')
-# Noite sobre a fachada diurna: o drone caça no escuro.
-s.add('<div id="s2-night" class="full" style="background:#061230;opacity:0.62;mix-blend-mode:multiply;z-index:5;"></div>')
-s.tl('tl.fromTo("#s2-facade", { rotationX: -16, scale: 1.05 }, { rotationX: -24, scale: 1.12, duration: 3, ease: "power1.inOut" }, 0);')
-s.add('<div id="s2-beam" style="position:absolute;left:0;top:0;width:420px;height:900px;z-index:6;'
-      'background:rgba(150,235,255,0.20);clip-path:polygon(45% 0, 55% 0, 100% 100%, 0 100%);"></div>')
-s.sprite('drone', SPR + 'drone.png', 32, 7, 0, 60, z=7, origin='50% 50%')
-s.tl('tl.fromTo("#s2-drone", { x: 1700 }, { x: 260, duration: 3, ease: "none" }, 0);')
-s.tl('tl.fromTo("#s2-beam", { x: 1610 }, { x: 170, duration: 3, ease: "none" }, 0);')
-s.sprite('hero', SPR + 'player-back-dark.png', 38, 17, 60, 430, z=8)
+city3d(s, 4.0, {
+    'kind': 'facade', 'seed': 12, 'duration': 3.0, 'fov': 64, 'shake': 0.02,
+    'sky': 0x070b18, 'fog': 0x0a1020, 'fogNear': 30, 'fogFar': 90,
+    'skyLight': 0x6a7ab0, 'groundLight': 0x1a1418, 'hemi': 1.05, 'hero': True,
+    'drones': [{'x0': 9, 'x1': -6, 'y0': 9.5, 'z': 5.5}],
+})
 s.caption('l0', 0.4, 2.6, 'FLORIA CONTROLA CADA ROTA DO CENTRO', style='right:200px;top:120px;')
 SCENES.append((s, 4.0))
 
@@ -219,16 +212,17 @@ s.caption('l0', 0.15, 1.65, 'QUEM SAI DA ROTA', style='left:0;width:1920px;text-
 s.caption('l1', 0.85, 0.95, '<span class="red">VIRA AMEAÇA</span>', style='left:0;width:1920px;text-align:center;top:540px;', size=72)
 SCENES.append((s, 7.0))
 
-# 4. Mode 7 na Sala I: correndo no meio da multidão que foge, rua em chamas, explosão à frente.
+# 4. Rua em chamas em 3D: prédios modelados, carros pegando fogo, multidão fugindo em volta da câmera.
 s = Scene('s4', 4.0)
-street3d(s, 8.8, {
-    'seed': 41, 'length': 140, 'speed': 7.0, 'camX': 0.6, 'camY': 2.0, 'lookY': 1.5, 'bob': 0.12, 'shake': 0.05,
-    'sky': 0x1a0a06, 'fog': 0x3a1a0a, 'fogDensity': 0.024, 'ambient': 0x6a4a50, 'ambientIntensity': 0.5,
-    'facadeChance': 0.55, 'facades': [ART + 'piranhas-bar-facade.png', ART + 'centro-cultural-marinha-facade.png'],
-    'signs': [ART + 'piranhas-bar-sign.png', ART + 'tchay-letreiro.png'],
-    'fires': [{'x': -2.6, 'z': -38, 'size': 5}, {'x': 3.0, 'z': -52, 'size': 7}, {'x': 0.2, 'z': -70, 'size': 9}],
-    'crowd': 26, 'hero': True, 'drones': [], 'tracers': [],
-    'booms': [{'t': 2.2, 'x': -0.6, 'ahead': 20, 'size': 10, 'shake': 0.7}],
+city3d(s, 8.8, {
+    'kind': 'street', 'seed': 41, 'length': 150, 'speed': 6.2, 'camX': 0.9, 'camY': 2.1, 'lookY': 1.7,
+    'bob': 0.1, 'shake': 0.06, 'heroX': 0.0, 'heroAhead': 3.4, 'fov': 62,
+    'sky': 0x1a0a06, 'fog': 0x3a1a0a, 'fogNear': 12, 'fogFar': 80,
+    'skyLight': 0x9a6a70, 'groundLight': 0x3a2014, 'hemi': 1.1,
+    'fires': [{'x': -2.6, 'z': -24, 'size': 3.4}, {'x': 2.8, 'z': -36, 'size': 4.2}, {'x': -0.4, 'z': -54, 'size': 5.2}],
+    'cars': [[-2.6, -24, 0x5a6a7a, 0.4], [2.8, -36, 0x7a2a2a, -0.3]],
+    'crowd': 24, 'hero': True, 'drones': [], 'tracers': [],
+    'booms': [{'t': 2.2, 'x': 0.6, 'ahead': 18, 'shake': 0.9}],
 })
 SCENES.append((s, 8.8))
 
@@ -256,24 +250,24 @@ for t in shots:
 s.flash('hurt', '#e90931', [1.62], 0.14, 0.42)
 SCENES.append((s, 12.8))
 
-# 6. Mode 7 na Praça XV: drones mergulham atirando, explosões ao lado.
+# 6. Rua em 3D à noite: drones modelados mergulham atirando, explosões ao lado.
 s = Scene('s6', 3.5)
-street3d(s, 15.8, {
-    'seed': 77, 'length': 140, 'speed': 8.0, 'camX': 0.5, 'camY': 1.6, 'lookY': 2.8, 'bob': 0.14, 'shake': 0.06,
-    'sky': 0x05080f, 'fog': 0x0a1424, 'fogDensity': 0.026, 'ambient': 0x506078, 'ambientIntensity': 0.5,
-    'facadeChance': 0.7, 'facades': [ART + 'mural-cruz-e-sousa.png', ART + 'mural-franklin-cascaes.png',
-                                     ART + 'centro-cultural-marinha-facade.png'],
-    'signs': [ART + 'piranhas-bar-sign.png'],
-    'fires': [{'x': 2.8, 'z': -60, 'size': 6}], 'crowd': 6, 'hero': True,
-    'drones': [{'t0': 0.0, 'dur': 2.0, 'x0': -6, 'x1': -1.8, 'y0': 9, 'y1': 3.4, 'ahead': 30},
-               {'t0': 0.6, 'dur': 2.0, 'x0': 7, 'x1': 2.2, 'y0': 10, 'y1': 3.8, 'ahead': 32},
-               {'t0': 1.4, 'dur': 1.8, 'x0': 0, 'x1': 0.4, 'y0': 11, 'y1': 4.2, 'ahead': 28}],
-    'tracers': [{'t': 0.7, 'x0': -3.5, 'y0': 6, 'z0': 20, 'x1': 0.3, 'y1': 0.2, 'z1': 6},
-                {'t': 1.3, 'x0': 4.0, 'y0': 6.5, 'z0': 22, 'x1': -0.4, 'y1': 0.2, 'z1': 7},
-                {'t': 2.1, 'x0': 0.2, 'y0': 7, 'z0': 16, 'x1': 0.9, 'y1': 0.2, 'z1': 6}],
-    'booms': [{'t': 1.0, 'x': -3.2, 'ahead': 9, 'size': 7, 'shake': 0.5},
-              {'t': 1.9, 'x': 3.4, 'ahead': 10, 'size': 7, 'shake': 0.5},
-              {'t': 2.8, 'x': -1.0, 'ahead': 13, 'size': 9, 'shake': 0.6}],
+city3d(s, 15.8, {
+    'kind': 'street', 'seed': 77, 'length': 150, 'speed': 7.2, 'camX': 0.6, 'camY': 1.5, 'lookY': 3.2,
+    'bob': 0.12, 'shake': 0.07, 'heroX': 0.0, 'heroAhead': 3.4, 'fov': 64,
+    'sky': 0x05080f, 'fog': 0x0a1424, 'fogNear': 14, 'fogFar': 85,
+    'skyLight': 0x7a8aba, 'groundLight': 0x1a1a24, 'hemi': 1.0,
+    'fires': [{'x': 2.6, 'z': -46, 'size': 3.6}], 'cars': [[2.6, -46, 0x3a4a5a, 0.2]],
+    'crowd': 8, 'hero': True,
+    'drones': [{'t0': 0.0, 'dur': 2.0, 'x0': -6, 'x1': -1.6, 'y0': 11, 'y1': 4.2, 'ahead0': 34, 'ahead1': 14},
+               {'t0': 0.6, 'dur': 2.0, 'x0': 7, 'x1': 2.0, 'y0': 12, 'y1': 4.6, 'ahead0': 36, 'ahead1': 15},
+               {'t0': 1.4, 'dur': 1.8, 'x0': 0, 'x1': 0.4, 'y0': 13, 'y1': 5.0, 'ahead0': 32, 'ahead1': 12}],
+    'tracers': [{'t': 0.9, 'x0': -2.6, 'y0': 6.5, 'z0': 22, 'x1': 0.0, 'y1': 0.3, 'z1': 5},
+                {'t': 1.5, 'x0': 3.2, 'y0': 7.0, 'z0': 24, 'x1': -0.6, 'y1': 0.3, 'z1': 6},
+                {'t': 2.3, 'x0': 0.3, 'y0': 7.0, 'z0': 18, 'x1': 0.8, 'y1': 0.3, 'z1': 5}],
+    'booms': [{'t': 1.0, 'x': -3.0, 'ahead': 9, 'shake': 0.6},
+              {'t': 1.9, 'x': 3.2, 'ahead': 10, 'shake': 0.6},
+              {'t': 2.8, 'x': -0.8, 'ahead': 13, 'shake': 0.7}],
 })
 SCENES.append((s, 15.8))
 
