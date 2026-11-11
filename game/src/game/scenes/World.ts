@@ -65,6 +65,8 @@ import type { ConfirmPromptData } from './ConfirmPrompt';
 import type { PauseMenuData } from './PauseMenu';
 import type { WalletMenuData } from './WalletMenu';
 import { formatBalance, TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_SITTERS, WALLET_UI } from '../config/ticen';
+import { GAUCHO_HAT, ITEMS, type ItemId } from '../config/items';
+import { createGauchoHatTexture } from '../entities/GauchoHat';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
 import { TchayQueue } from '../entities/TchayQueue';
 import { PAGODE, PAGODE_FRAMES, POPULAR_BARS, TCHAY } from '../config/tchay';
@@ -190,6 +192,7 @@ export class World extends Scene {
     private nauseaEndsAt = 0;
     private chimarraoBuffTimer?: Phaser.Time.TimerEvent;
     private chimarraosCollected = 0;
+    private ownedItems: ItemId[] = [];
     private normalCameraZoom: number = WORLD_CONFIG.camera.zoom;
     private activeRoomKey: RoomKey = 'room1';
     private activeSpawn: Readonly<{ x: number; y: number }> = ROOM_DEFINITIONS.room1.spawn;
@@ -263,6 +266,7 @@ export class World extends Scene {
         this.nauseaEndsAt = 0;
         this.chimarraoBuffTimer = undefined;
         this.chimarraosCollected = 0;
+        this.ownedItems = [];
         this.multiplayerSyncElapsed = 0;
         this.reviveElapsed = 0;
         this.enemySnapshot = [];
@@ -330,6 +334,7 @@ export class World extends Scene {
         this.gamepad = getGamepadInput(this);
         if (data.playerProgress) {
             this.chimarraosCollected = data.playerProgress.chimarraos ?? 0;
+            this.ownedItems = [...(data.playerProgress.items ?? [])];
             restorePlayerProgress(
                 data.playerProgress,
                 this.player.health,
@@ -337,6 +342,7 @@ export class World extends Scene {
                 this.upgrades
             );
         }
+        if (this.ownedItems.includes('gaucho-hat')) this.player.equipGauchoHat();
         this.unsubscribeRunTracker = runTracker.subscribe((snapshot) => {
             if (snapshot.status !== 'RUNNING') {
                 if (!this.isMultiplayerEnabled()) clearCampaignProgress();
@@ -412,6 +418,7 @@ export class World extends Scene {
             this.isRoomCombatComplete = true;
             this.waves = undefined;
             recordRoomCompletionScore(roomKey);
+            if (roomKey === 'gaucho-dungeon') this.createGauchoHatPickup();
             if (this.isMultiplayerHost()) {
                 this.sendEnemySnapshot();
                 multiplayerClient.sendEvent({
@@ -459,6 +466,8 @@ export class World extends Scene {
         if (savedCombat?.cleared) {
             // Sala vencida numa visita anterior: reabre a saída sem repetir o reparo.
             this.isRoomCombatComplete = true;
+            // Quem saiu sem pegar o chapéu o encontra de novo no chão.
+            if (roomKey === 'gaucho-dungeon') this.createGauchoHatPickup();
             room.openExit();
             this.activateRoomExit();
         }
@@ -811,6 +820,23 @@ export class World extends Scene {
             label.destroy();
             if (this.dungeonState) this.dungeonState.swordCollected = true;
             this.equipSword();
+        });
+    }
+
+    /** Todos os gaúchos do esconderijo caíram: o chapéu fica no chão, uma vez por partida. */
+    private createGauchoHatPickup() {
+        if (!this.player || this.ownedItems.includes('gaucho-hat')) return;
+        createGauchoHatTexture(this);
+        // Acima do jogador: a espada do esconderijo fica embaixo.
+        const { x, y } = this.player.sprite;
+        const item = this.physics.add.image(x, y - 30, GAUCHO_HAT.texture).setScale(1.5).setDepth(9);
+        const label = this.createWorldHint('PEGUE O CHAPÉU').setOrigin(0, 0.5).setPosition(x + 16, y - 30).setDepth(9);
+        const pickup = this.physics.add.overlap(this.player.sprite, item, () => {
+            pickup.destroy();
+            item.destroy();
+            label.destroy();
+            this.ownedItems.push('gaucho-hat');
+            this.player?.equipGauchoHat();
         });
     }
 
@@ -1226,7 +1252,7 @@ export class World extends Scene {
         this.player.stopMovement();
         this.combat?.clear();
         this.physics.pause();
-        const playerProgress = capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected);
+        const playerProgress = capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected, this.ownedItems);
         const checkpointRooms: readonly RoomKey[] = ['room2', 'room3', 'room4', 'room5', 'dungeon'];
         if (!this.isMultiplayerEnabled() && checkpointRooms.includes(roomKey)) {
             // Checkpoints oficiais são as fases 2 a 5; a dungeon é uma rota secreta da fase 2.
@@ -1308,7 +1334,7 @@ export class World extends Scene {
         ) return;
         saveCampaignProgress({
             roomKey: this.activeRoomKey,
-            playerProgress: capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected),
+            playerProgress: capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected, this.ownedItems),
             run: runTracker.checkpoint()
         });
     }
@@ -1647,7 +1673,10 @@ export class World extends Scene {
                     name: 'CARTEIRA',
                     texture: WALLET_UI.walletTexture,
                     description: `CARTÃO GRANDE FLORIPA INTEGRADO.\nSALDO: ${formatBalance(runTracker.snapshot().score.total)}`
-                }]
+                }, ...this.ownedItems.map((id) => {
+                    const { name, texture, description, slot } = ITEMS[id];
+                    return { name, texture, description, slot };
+                })]
             }
         };
         this.scene.launch('PauseMenu', data);
