@@ -4730,6 +4730,7 @@ test('golem desaba atordoado em 60%, abre a rodada e levanta depois de 4 s sem m
     Object.assign(golem, {
         health: { current: TOPAZIO_BOSS.maxHealth * TOPAZIO_BOSS.stun.at, max: TOPAZIO_BOSS.maxHealth, isAlive: true },
         hasStunned: false,
+        stunHalo: [],
         roarsDone: 2,
         buses: [],
         busesThrown: 4,
@@ -4737,11 +4738,28 @@ test('golem desaba atordoado em 60%, abre a rodada e levanta depois de 4 s sem m
         isDeathDeferred: false,
         stage: 2,
         options: { onStun: () => { stuns += 1; }, onAction: (action) => emitted.push(action.type) },
-        sprite: { setTint() { return this; }, clearTint() { return this; } },
-        scene: { tweens: { add() {} }, cameras: { main: { shake() {} } } }
+        sprite: {
+            x: 100, y: 100, height: 160, displayHeight: 160, depth: 10, angle: 0,
+            setTint() { return this; }, clearTint() { return this; }, setScale() { return this; }, setY() { return this; }
+        },
+        scene: {
+            tweens: { add() {} },
+            cameras: { main: { shake() {} } },
+            textures: { exists: () => true },
+            add: {
+                image() {
+                    const star = { destroyed: false };
+                    for (const method of ['setScale', 'setAlpha', 'setPosition', 'setDepth']) star[method] = () => star;
+                    star.destroy = () => { star.destroyed = true; };
+                    return star;
+                }
+            }
+        }
     });
     golem.updateWalk({ setVelocity() {} }, undefined, 16);
     assert.equal(golem.action, 'stun');
+    assert.equal(golem.stunHalo.length, 5, 'cinco estrelas girando sobre a cabeça');
+    assert.equal(golem.sprite.angle, 0, 'fica de joelhos, sem tombar de lado');
     assert.equal(stuns, 1, 'a rodada de cartas abre');
     assert.deepEqual(emitted, ['stun'], 'o convidado recebe o atordoamento');
     golem.startStun();
@@ -4749,6 +4767,7 @@ test('golem desaba atordoado em 60%, abre a rodada e levanta depois de 4 s sem m
     golem.actionTime = TOPAZIO_BOSS.stun.duration;
     golem.endStun();
     assert.equal(golem.action, 'walk', 'levanta e volta a andar');
+    assert.equal(golem.stunHalo.length, 0, 'a auréola some ao levantar');
 });
 
 test('fim da Sala IV oferece as duas cartas mais fortes ainda disponíveis e uma aleatória', () => {
