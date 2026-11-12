@@ -443,7 +443,7 @@ export class World extends Scene {
                 room.collisionLayers.find((layer) => layer.layer.name === TOPAZIO_BOSS.busLayer),
                 busTexture,
                 () => this.cameras.main.flash(500, 110, 226, 255),
-                () => this.playGolemCutscene()
+                (caption) => this.playGolemCutscene(caption)
             );
         }
         this.connectCombatToPartner();
@@ -1014,7 +1014,7 @@ export class World extends Scene {
             // Atalho de teste das salas da campanha e do esconderijo dos gaúchos; a dungeon da Sala II fica de fora.
             event.repeat || (isDungeonRoom(this.activeRoomKey) && this.activeRoomKey !== 'gaucho-dungeon')
             || this.isMultiplayerGuest()
-            || !this.isGameplayReady || this.isGameOver || this.isRoomCombatComplete
+            || !this.isGameplayReady || this.isGameOver || this.isRoomCombatComplete || this.isGolemCutscene
         ) return;
         if (this.room3CardCode.push(event.key)) {
             if (this.activeRoomKey === 'room3') {
@@ -1172,14 +1172,14 @@ export class World extends Scene {
         this.cameras.main.shake(400, 0.008);
     }
 
-    /** Cutscene dos 70%: congela a luta, a câmera vai até o golem, ele ruge e a câmera volta ao jogador. */
-    private playGolemCutscene() {
+    /** Cutscenes dos 70% e dos 40%: congela a luta, a câmera vai até o golem, ele ruge e a câmera volta ao jogador. */
+    private playGolemCutscene(caption: string) {
         const golem = this.golem;
         const player = this.player;
         if (!golem || !player) return;
         const { panTime, duration, zoom } = TOPAZIO_BOSS.roar;
         const camera = this.cameras.main;
-        const bars = new CinematicBarsView(this.scene.get('CombatHud') as Scene, 'O TOPAZIO DESPERTA');
+        const bars = new CinematicBarsView(this.scene.get('CombatHud') as Scene, caption);
         this.isGolemCutscene = true;
         player.stopMovement();
         this.physics.pause();

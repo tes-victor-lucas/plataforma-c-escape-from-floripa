@@ -1,6 +1,6 @@
 import { Physics, type Scene } from 'phaser';
 import { Health } from '../combat/Health';
-import { getBusThrowsDue, getGolemStage, TOPAZIO_BOSS } from '../config/ticen';
+import { countThresholdsCrossed, getGolemStage, TOPAZIO_BOSS } from '../config/ticen';
 import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import { playExplosion, playShockwave } from '../effects/playAreaEffects';
 import type { CombatEnemy } from './CombatEnemy';
@@ -18,6 +18,7 @@ const ROW_DEATH = 13;
 // Giro: uma coluna por estágio de rachadura.
 const ROW_SPIN_FRONT = 14;
 const ROW_SPIN_BACK = 15;
+const ROAR_THRESHOLDS = TOPAZIO_BOSS.roar.cutscenes.map(({ at }) => at);
 
 /** Chefe final do TICEN: cadeia de topázios, giro com estilhaços e ônibus arremessados. */
 export class TopazioGolem implements CombatEnemy {
@@ -36,7 +37,7 @@ export class TopazioGolem implements CombatEnemy {
     private hasSlammed = false;
     private spinBursts = 0;
     private busesThrown = 0;
-    private hasRoared = false;
+    private roarsDone = 0;
     private readonly buses: TicenBus[] = [...TOPAZIO_BOSS.buses];
     private fetching?: TicenBus;
     private heldBus?: Phaser.GameObjects.Image;
@@ -51,10 +52,10 @@ export class TopazioGolem implements CombatEnemy {
         private readonly busLayer: Phaser.Tilemaps.TilemapLayer | undefined,
         private readonly busTexture: string,
         private readonly onDefeated: () => void,
-        private readonly onRoar: () => void
+        private readonly onRoar: (caption: string) => void
     ) {
         const { spawn, texture, hitbox } = TOPAZIO_BOSS;
-        this.sprite = scene.physics.add.sprite(spawn.x, spawn.y, texture, 0);
+        this.sprite = scene.physics.add.sprite(spawn.x, spawn.y, texture, 0).setDepth(TOPAZIO_BOSS.depth);
         const body = this.sprite.body;
         if (body instanceof Physics.Arcade.Body) {
             body.setSize(hitbox.width, hitbox.height).setOffset(hitbox.offsetX, hitbox.offsetY);
@@ -98,7 +99,6 @@ export class TopazioGolem implements CombatEnemy {
             Math.min(right, Math.max(left, this.sprite.x)),
             Math.min(bottom, Math.max(top, this.sprite.y))
         );
-        this.sprite.setDepth(getActorDepth(this.sprite.y + TOPAZIO_BOSS.feetOffset));
         // Enquanto sobe da baia, o ônibus segue o tween; depois acompanha o golem.
         if (this.action === 'hold' && this.actionTime >= TOPAZIO_BOSS.bus.liftTime) this.heldBus?.setPosition(this.sprite.x, this.sprite.y - 64);
         this.updateFrame();
@@ -108,8 +108,10 @@ export class TopazioGolem implements CombatEnemy {
         if (!this.health.isAlive) return 0;
         const previous = this.health.current;
         this.health.takeDamage(amount);
-        // Os ônibus que faltam saem antes do fim: só o 763.2 pode sobrar no TICEN.
-        if (!this.health.isAlive && (this.buses.length > 0 || this.isThrowingBus)) this.health.current = 1;
+        // Os ônibus e as cutscenes que faltam acontecem antes do fim: só o 763.2 pode sobrar no TICEN.
+        if (!this.health.isAlive && (this.buses.length > 0 || this.isThrowingBus || this.roarsDone < ROAR_THRESHOLDS.length)) {
+            this.health.current = 1;
+        }
         this.flashHit();
         const stage = getGolemStage(this.health.current, this.health.max);
         if (stage > this.stage) {
@@ -125,7 +127,7 @@ export class TopazioGolem implements CombatEnemy {
     drawHealthBar() {}
 
     /**
-     * Rugido da cutscene dos 70%: ergue os braços, carrega o núcleo e bate no chão com uma onda dupla.
+     * Rugido das cutscenes (70% e 40%): ergue os braços, carrega o núcleo e bate no chão com uma onda dupla.
      * Roda por tempo, porque o mundo fica parado enquanto a câmera mostra o golem.
      */
     playRoar(duration: number) {
@@ -153,16 +155,21 @@ export class TopazioGolem implements CombatEnemy {
         this.animTime = 0;
     }
 
+    private get isRoarPending() {
+        return this.roarsDone < countThresholdsCrossed(this.health.current, this.health.max, ROAR_THRESHOLDS);
+    }
+
     private updateWalk(body: Physics.Arcade.Body, target: Point | undefined, delta: number) {
-        // Espera o último ônibus ou a última cadeia terminar: a cutscene congela o jogador.
-        if (!this.hasRoared && this.health.current <= this.health.max * TOPAZIO_BOSS.roar.threshold
-            && this.actionTime >= TOPAZIO_BOSS.roar.calmBefore) {
-            this.hasRoared = true;
+        // A cutscene vem antes de tudo, mas espera o último ônibus ou a última cadeia terminar: ela congela o jogador.
+        if (this.isRoarPending) {
+            if (this.actionTime < TOPAZIO_BOSS.roar.calmBefore) return;
+            const { caption } = TOPAZIO_BOSS.roar.cutscenes[this.roarsDone];
+            this.roarsDone += 1;
             this.startAction('roar');
-            this.onRoar();
+            this.onRoar(caption);
             return;
         }
-        if (this.busesThrown + (this.fetching ? 1 : 0) < getBusThrowsDue(this.health.current, this.health.max, TOPAZIO_BOSS.busThresholds)
+        if (this.busesThrown + (this.fetching ? 1 : 0) < countThresholdsCrossed(this.health.current, this.health.max, TOPAZIO_BOSS.busThresholds)
             && this.buses.length > 0) {
             this.startFetch();
             return;
@@ -204,8 +211,7 @@ export class TopazioGolem implements CombatEnemy {
     private eruptChains(origin: Point, target: Point) {
         const { spikeCount, spikeInterval, spikeSpacing, spread } = TOPAZIO_BOSS.slam;
         const aim = Math.atan2(target.y - origin.y, target.x - origin.x);
-        const angles = this.stage >= 2 ? [aim - spread, aim, aim + spread] : [aim];
-        for (const angle of angles) {
+        for (const angle of [aim - spread, aim, aim + spread]) {
             for (let step = 1; step <= spikeCount; step += 1) {
                 this.scene.time.delayedCall(step * spikeInterval, () => this.eruptSpike(
                     origin.x + Math.cos(angle) * step * spikeSpacing,
@@ -253,7 +259,7 @@ export class TopazioGolem implements CombatEnemy {
             // Cada rajada gira um pouco: o jogador precisa achar a brecha que muda.
             const angle = index / shardsPerBurst * Math.PI * 2 + burst * 0.28;
             const shard = this.shards.create(this.sprite.x, this.sprite.y, TOPAZIO_BOSS.shardTexture, 0) as Physics.Arcade.Image;
-            shard.setRotation(angle).setScale(1.3).setDepth(14);
+            shard.setRotation(angle).setScale(1.3).setDepth(TOPAZIO_BOSS.depth + 0.1);
             shard.setVelocity(Math.cos(angle) * shardSpeed, Math.sin(angle) * shardSpeed);
             this.scene.time.delayedCall(shardLifetime, () => shard.destroy());
         }
