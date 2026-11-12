@@ -5,7 +5,7 @@ import { ITEMS } from '../config/items';
 import { getItemOffsetY } from '../entities/WornItem';
 import { WALK_FRAMES } from '../entities/PlayerAnimations';
 import type { UpgradeProgress } from '../upgrades/types';
-import { CLEAN_MENU_COLORS, CleanOverlayMenu, drawCleanMenuBox, type CleanMenuBounds } from './CleanOverlayMenu';
+import { CleanOverlayMenu, drawCleanMenuBox, type CleanMenuBounds } from './CleanOverlayMenu';
 import { addUpgradePanel } from './PauseMenuView';
 
 /** Item guardado no inventário; cada item novo (chapéu, bota...) entra nesta lista quando for implementado. */
@@ -35,8 +35,19 @@ type InventoryMenuViewOptions = InventoryData & Readonly<{
 }>;
 
 const FONT = 'PixelGamer, monospace';
-// Moldura dupla do inventário: contorno escuro, faixa ciano com brilho e miolo um tom acima do painel.
-const FRAME = { outline: 0x000a0c, band: 0x0aa5b3, shine: 0x5ce5f1, fill: 0x0a2228 };
+// Paleta própria do inventário, sem o ciano neon dos outros menus: carvão, moldura âmbar e o vermelho do jogo.
+const INV = {
+    panel: 0x25272c,
+    raised: 0x30333a,
+    well: 0x1a1b1f,
+    outline: 0x0c0c0f,
+    band: 0xd68a2c,
+    shine: 0xf6c56c,
+    bandCss: '#f2bb62',
+    accent: 0xe90931,
+    text: '#f4efe6',
+    muted: '#a8a296'
+} as const;
 const PANEL = { x: 16, y: 34, width: 857, height: 452 };
 // Aba do título, presa por cima do painel como a orelha de uma pasta.
 const TITLE_TAB = { x: 36, y: 8, width: 190, height: 36 };
@@ -60,11 +71,11 @@ const STORAGE_ZONE = {
 };
 
 /** Caixa de moldura dupla: contorno, faixa colorida e outro contorno por dentro, com os cantos cortados. */
-function drawFramedBox(graphics: Phaser.GameObjects.Graphics, bounds: CleanMenuBounds, fill: number = FRAME.fill) {
+function drawFramedBox(graphics: Phaser.GameObjects.Graphics, bounds: CleanMenuBounds, fill: number = INV.raised) {
     const { x, y, width, height } = bounds;
-    drawCleanMenuBox(graphics, bounds, FRAME.band, FRAME.outline, 4, 2);
-    drawCleanMenuBox(graphics, { x: x + 5, y: y + 5, width: width - 10, height: height - 10 }, fill, FRAME.outline, 2, 2);
-    graphics.fillStyle(FRAME.shine, 1).fillRect(x + 4, y + 2, width - 8, 1);
+    drawCleanMenuBox(graphics, bounds, INV.band, INV.outline, 4, 2);
+    drawCleanMenuBox(graphics, { x: x + 5, y: y + 5, width: width - 10, height: height - 10 }, fill, INV.outline, 2, 2);
+    graphics.fillStyle(INV.shine, 1).fillRect(x + 4, y + 2, width - 8, 1);
 }
 
 /** Item guardado solto no boneco ou nos encaixes equipa; item equipado solto na grade volta a ser guardado. */
@@ -92,11 +103,11 @@ export class InventoryMenuView {
         // A moldura dupla cobre o painel padrão dos menus: o inventário tem cara própria.
         const panel = this.scene.add.graphics();
         // A aba vem antes: o painel passa por cima da base dela e os dois viram uma peça só.
-        drawFramedBox(panel, TITLE_TAB, CLEAN_MENU_COLORS.panel);
-        drawFramedBox(panel, PANEL, CLEAN_MENU_COLORS.panel);
-        panel.fillStyle(CLEAN_MENU_COLORS.panel, 1).fillRect(TITLE_TAB.x + 7, PANEL.y, TITLE_TAB.width - 14, 7);
+        drawFramedBox(panel, TITLE_TAB, INV.panel);
+        drawFramedBox(panel, PANEL, INV.panel);
+        panel.fillStyle(INV.panel, 1).fillRect(TITLE_TAB.x + 7, PANEL.y, TITLE_TAB.width - 14, 7);
         menu.add(panel);
-        menu.add(this.text(TITLE_TAB.x + TITLE_TAB.width / 2, TITLE_TAB.y + 17, 'INVENTÁRIO', 18, CLEAN_MENU_COLORS.text).setOrigin(0.5));
+        menu.add(this.text(TITLE_TAB.x + TITLE_TAB.width / 2, TITLE_TAB.y + 17, 'INVENTÁRIO', 18, INV.text).setOrigin(0.5));
         this.addCloseTab(menu);
         addUpgradePanel(this.scene, menu, this.options.upgrades, CARDS);
         this.addChimarraos(menu);
@@ -119,11 +130,11 @@ export class InventoryMenuView {
     private addCloseTab(menu: CleanOverlayMenu) {
         const { x, y, width, height } = CLOSE_TAB;
         const tab = this.scene.add.graphics();
-        drawFramedBox(tab, { x, y, width, height: height - 6 }, CLEAN_MENU_COLORS.danger);
+        drawFramedBox(tab, { x, y, width, height: height - 6 }, INV.accent);
         const hitArea = this.scene.add.rectangle(x + width / 2, y + 15, width, height - 6, 0x000000, 0)
             .setInteractive({ useHandCursor: true })
             .on('pointerdown', this.options.onBack);
-        menu.add([tab, this.text(x + width / 2, y + 15, 'X', 16, CLEAN_MENU_COLORS.text).setOrigin(0.5), hitArea]);
+        menu.add([tab, this.text(x + width / 2, y + 15, 'X', 16, INV.text).setOrigin(0.5), hitArea]);
     }
 
     private get equippedItems() {
@@ -159,21 +170,21 @@ export class InventoryMenuView {
         menu.add([
             box,
             icon,
-            this.text(CHIMARRAO.x + 48, centerY - 9, 'CHIMARRÕES', 11, CLEAN_MENU_COLORS.mutedText),
-            this.text(CHIMARRAO.x + 48, centerY + 7, `${this.options.chimarraos}`, 18, CLEAN_MENU_COLORS.text)
+            this.text(CHIMARRAO.x + 48, centerY - 9, 'CHIMARRÕES', 11, INV.muted),
+            this.text(CHIMARRAO.x + 48, centerY + 7, `${this.options.chimarraos}`, 18, INV.text)
         ]);
     }
 
     private addDoll(menu: CleanOverlayMenu) {
         const grid = this.box(DOLL);
-        grid.lineStyle(1, CLEAN_MENU_COLORS.frame, 0.12);
+        grid.lineStyle(1, INV.band, 0.12);
         for (let x = DOLL.x + 12; x < DOLL.x + DOLL.width; x += 12) grid.lineBetween(x, DOLL.y + 4, x, DOLL.y + DOLL.height - 4);
         for (let y = DOLL.y + 12; y < DOLL.y + DOLL.height; y += 12) grid.lineBetween(DOLL.x + 4, y, DOLL.x + DOLL.width - 4, y);
         const character = CHARACTERS[this.options.characterId];
         // De frente e parado, ampliado: os itens equipados vão aparecer por cima dele.
         const doll = this.scene.add.image(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height / 2 + 6, character.texture, WALK_FRAMES.down[0])
             .setScale(4.5 * character.scaleMultiplier);
-        menu.add([grid, doll, this.text(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height - 16, character.label, 12, CLEAN_MENU_COLORS.frameCss).setOrigin(0.5)]);
+        menu.add([grid, doll, this.text(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height - 16, character.label, 12, INV.bandCss).setOrigin(0.5)]);
         // O que vai na cabeça e nos pés aparece no boneco, como no personagem pelo mapa.
         for (const equipped of this.equippedItems) {
             const item = equipped.id ? ITEMS[equipped.id] : undefined;
@@ -187,8 +198,8 @@ export class InventoryMenuView {
             const y = DOLL.y + 14 + index * 52;
             const x = DOLL.x + DOLL.width + 26;
             const equipped = this.equippedItems.find(({ slot }) => slot === label);
-            const slot = this.scene.add.rectangle(x + SLOT / 2, y + SLOT / 2, SLOT, SLOT, CLEAN_MENU_COLORS.button)
-                .setStrokeStyle(equipped ? 2 : 1, CLEAN_MENU_COLORS.frame, equipped ? 1 : 0.6);
+            const slot = this.scene.add.rectangle(x + SLOT / 2, y + SLOT / 2, SLOT, SLOT, INV.well)
+                .setStrokeStyle(equipped ? 2 : 1, INV.band, equipped ? 1 : 0.6);
             // Clicar no encaixe seleciona o item para poder retirá-lo.
             if (equipped) {
                 slot.setInteractive({ useHandCursor: true })
@@ -196,8 +207,8 @@ export class InventoryMenuView {
             }
             menu.add([
                 slot,
-                this.text(x + SLOT + 10, y + 12, label, 12, CLEAN_MENU_COLORS.text),
-                this.text(x + SLOT + 10, y + 28, equipped?.name ?? 'VAZIO', 10, CLEAN_MENU_COLORS.mutedText)
+                this.text(x + SLOT + 10, y + 12, label, 12, INV.text),
+                this.text(x + SLOT + 10, y + 28, equipped?.name ?? 'VAZIO', 10, INV.muted)
             ]);
             if (equipped) {
                 const icon = this.scene.add.image(x + SLOT / 2, y + SLOT / 2, equipped.texture);
@@ -208,20 +219,20 @@ export class InventoryMenuView {
     }
 
     private addDetails(menu: CleanOverlayMenu) {
-        this.detailTitle = this.text(DETAILS.x + 16, DETAILS.y + 18, '', 15, CLEAN_MENU_COLORS.text);
+        this.detailTitle = this.text(DETAILS.x + 16, DETAILS.y + 18, '', 15, INV.text);
         this.detailText = this.scene.add.text(DETAILS.x + 16, DETAILS.y + 48, '', {
             fontFamily: FONT,
             fontSize: '11px',
-            color: CLEAN_MENU_COLORS.mutedText,
+            color: INV.muted,
             lineSpacing: 6,
             wordWrap: { width: DETAILS.width - 32, useAdvancedWrap: true }
         }).setResolution(2);
         const buttonY = DETAILS.y + DETAILS.height - 30;
-        this.toggleButton = this.scene.add.rectangle(DETAILS.x + DETAILS.width / 2, buttonY, 150, 32, CLEAN_MENU_COLORS.button)
-            .setStrokeStyle(2, CLEAN_MENU_COLORS.frame)
+        this.toggleButton = this.scene.add.rectangle(DETAILS.x + DETAILS.width / 2, buttonY, 150, 32, INV.well)
+            .setStrokeStyle(2, INV.band)
             .setInteractive({ useHandCursor: true })
             .on('pointerdown', () => this.toggleSelected());
-        this.toggleLabel = this.text(DETAILS.x + DETAILS.width / 2, buttonY, '', 14, CLEAN_MENU_COLORS.text).setOrigin(0.5);
+        this.toggleLabel = this.text(DETAILS.x + DETAILS.width / 2, buttonY, '', 14, INV.text).setOrigin(0.5);
         menu.add([this.box(DETAILS), this.detailTitle, this.detailText, this.toggleButton, this.toggleLabel]);
     }
 
@@ -231,11 +242,11 @@ export class InventoryMenuView {
         for (let index = 0; index < GRID.columns * GRID.rows; index += 1) {
             const x = GRID.x + (index % GRID.columns) * (SLOT + GRID.gap) + SLOT / 2;
             const y = GRID.y + Math.floor(index / GRID.columns) * (SLOT + GRID.gap) + SLOT / 2;
-            const slot = this.scene.add.rectangle(x, y, SLOT, SLOT, CLEAN_MENU_COLORS.button);
+            const slot = this.scene.add.rectangle(x, y, SLOT, SLOT, INV.well);
             menu.add(slot);
             const item = items[index];
             if (!item) {
-                slot.setStrokeStyle(1, CLEAN_MENU_COLORS.frame, 0.35);
+                slot.setStrokeStyle(1, INV.band, 0.35);
                 continue;
             }
             const icon = this.scene.add.image(x, y, item.texture);
@@ -244,7 +255,7 @@ export class InventoryMenuView {
             menu.add(icon);
             // O equipado sai pelo encaixe do boneco; na grade só o guardado é arrastável.
             if (!item.equipped) this.makeDraggable(menu, icon, index);
-            if (item.equipped) menu.add(this.text(x + SLOT / 2 - 9, y - SLOT / 2 + 8, 'E', 9, CLEAN_MENU_COLORS.frameCss).setOrigin(0.5));
+            if (item.equipped) menu.add(this.text(x + SLOT / 2 - 9, y - SLOT / 2 + 8, 'E', 9, INV.bandCss).setOrigin(0.5));
             this.itemSlots[index] = slot;
         }
         this.selectItem(this.options.selectedItem ?? 0);
@@ -255,7 +266,7 @@ export class InventoryMenuView {
         this.selectedItem = item ? index : this.selectedItem;
         this.itemSlots.forEach((slot, slotIndex) => slot?.setStrokeStyle(
             slotIndex === this.selectedItem ? 3 : 1,
-            slotIndex === this.selectedItem ? CLEAN_MENU_COLORS.danger : CLEAN_MENU_COLORS.frame
+            slotIndex === this.selectedItem ? INV.accent : INV.band
         ));
         const selected = this.options.items[this.selectedItem];
         this.detailTitle?.setText(selected?.name ?? 'NENHUM ITEM');
