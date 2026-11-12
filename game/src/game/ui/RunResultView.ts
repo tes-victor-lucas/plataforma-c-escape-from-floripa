@@ -11,6 +11,8 @@ type RunResultOptions = Readonly<{
     retryLabel?: string;
     /** Substitui o título padrão da derrota (pode ter quebra de linha). */
     defeatTitle?: string;
+    /** Linha em vermelho abaixo do título da vitória: quem perdeu a disputa pela vaga no TICEN. */
+    victorySubtitle?: string;
     onQuit: () => void;
 }>;
 
@@ -36,6 +38,16 @@ export class RunResultView {
             dimAlpha: 0.72
         });
         menu.addTitle('ESCAPE CONCLUIDO', 140, 'victory', 'success');
+        const subtitle = this.options.victorySubtitle;
+        if (subtitle) {
+            this.scene.add.text(GAME_WIDTH / 2, 160, subtitle, {
+                fontFamily: 'PixelGamer, monospace',
+                fontSize: '14px',
+                color: '#ff5a6a',
+                stroke: '#05040a',
+                strokeThickness: 3
+            }).setOrigin(0.5).setDepth(205).setResolution(2);
+        }
 
         const { score } = this.options.result;
         const parts: readonly [string, number][] = [
@@ -49,7 +61,7 @@ export class RunResultView {
             ['TOPAZIOS', score.topazPoints]
         ];
         parts.forEach(([label, value], index) =>
-            this.addResultRow(menu, VICTORY_PANEL, label, formatPoints(value), 168 + index * 14));
+            this.addResultRow(menu, VICTORY_PANEL, label, formatPoints(value), (subtitle ? 175 : 168) + index * (subtitle ? 13 : 14)));
 
         menu.addDivider(278, 42);
         this.addResultRow(

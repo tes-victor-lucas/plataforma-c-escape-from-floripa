@@ -181,6 +181,11 @@ export class Player {
         return this.movementSpeedMultiplier;
     }
 
+    /** Escudo do baú da disputa: nenhum golpe pega até o tempo acabar. */
+    grantInvulnerability(duration: number) {
+        this.invulnerableUntil = Math.max(this.invulnerableUntil, (this.scene.time?.now ?? 0) + duration);
+    }
+
     setTemporaryMovementSpeedMultiplier(multiplier: number) {
         this.temporaryMovementSpeedMultiplier = Math.max(0, multiplier);
     }

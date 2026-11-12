@@ -67,7 +67,11 @@ import type { ConfirmPromptData } from './ConfirmPrompt';
 import type { PauseMenuData } from './PauseMenu';
 import type { InventoryData } from '../ui/InventoryMenuView';
 import type { WalletMenuData } from './WalletMenu';
-import { formatBalance, TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_ESCAPE, TICEN_SITTERS, TOPAZIO_BOSS, WALLET_UI } from '../config/ticen';
+import {
+    formatBalance, TICEN_DUEL, TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_ESCAPE, TICEN_SITTERS, TOPAZIO_BOSS, WALLET_UI,
+    type DuelSpecialId
+} from '../config/ticen';
+import { playExplosion } from '../effects/playAreaEffects';
 import { getBusFrame, TopazioGolem } from '../entities/TopazioGolem';
 import { BusEndingView } from '../ui/BusEndingView';
 import { CinematicBarsView } from '../ui/CinematicBarsView';
@@ -189,6 +193,17 @@ export class World extends Scene {
     private isGolemAwake = false;
     private isCutsceneActive = false;
     private isBusDoorOpen = false;
+    /** Fuga em dupla: voto para embarcar, disputa pela vaga e quem foi deixado para trás. */
+    private isEscapeVoteArmed = true;
+    private hasVotedEscape = false;
+    private hasPartnerVotedEscape = false;
+    private isDuelActive = false;
+    private isDuelOver = false;
+    private duelTimers: Phaser.Time.TimerEvent[] = [];
+    private readonly duelChests = new Map<number, { image: Phaser.GameObjects.Sprite; special: DuelSpecialId; opened: boolean; claimed: boolean }>();
+    private duelChestSequence = 0;
+    private lifestealUntil = 0;
+    private victorySubtitle?: string;
     private busDoorObjects: Phaser.GameObjects.GameObject[] = [];
     private isArcadeArmed = true;
     private isGatewayConfirmOpen = false;
@@ -268,6 +283,16 @@ export class World extends Scene {
         this.isGolemAwake = false;
         this.isCutsceneActive = false;
         this.isBusDoorOpen = false;
+        this.isEscapeVoteArmed = true;
+        this.hasVotedEscape = false;
+        this.hasPartnerVotedEscape = false;
+        this.isDuelActive = false;
+        this.isDuelOver = false;
+        this.duelTimers = [];
+        this.duelChests.clear();
+        this.duelChestSequence = 0;
+        this.lifestealUntil = 0;
+        this.victorySubtitle = undefined;
         this.busDoorObjects = [];
         this.isArcadeArmed = true;
         this.arcadePrompt = undefined;
@@ -575,6 +600,7 @@ export class World extends Scene {
                 : this.combat?.hasSword() ? 'sword'
                 : this.piranhasBarPrompt?.visible ? 'interact' : undefined,
             ...(this.isMultiplayerEnabled() ? { getCoopStatus: () => this.getCoopStatus() } : {}),
+            getVictorySubtitle: () => this.victorySubtitle,
             getBossHealth: () => this.isGolemAwake && this.golem?.health.isAlive
                 ? { title: TOPAZIO_BOSS.title, current: this.golem.health.current, max: this.golem.health.max }
                 : undefined
@@ -647,6 +673,10 @@ export class World extends Scene {
         // Continua mesmo no fim: o parceiro precisa saber que este jogador caiu.
         this.updateMultiplayer(delta);
         if (this.isGameOver) return;
+        if (this.isDuelActive && !this.isDuelOver && this.player && !this.player.health.isAlive) {
+            this.loseDuel();
+            return;
+        }
         if (this.player && !this.player.health.isAlive && !this.canPartnerRevive()) {
             this.isGameOver = true;
             this.combat?.clear();
@@ -673,6 +703,7 @@ export class World extends Scene {
         this.updateTicenGate();
         this.wakeGolem();
         this.updateTicenGoal();
+        this.updateDuelChests();
         if (this.isRoomTransitioning) return;
         this.stairClimbEffect?.update();
         if (this.isMultiplayerGuest()) {
@@ -1249,7 +1280,14 @@ export class World extends Scene {
     }
 
     /** Congela a luta, leva a câmera até `focus` com faixas de cinema, roda `onFocus` e volta ao jogador. */
-    private playCutscene(focus: Readonly<{ x: number; y: number }>, caption: string, duration: number, zoom: number, onFocus: () => void) {
+    private playCutscene(
+        focus: Readonly<{ x: number; y: number }>,
+        caption: string,
+        duration: number,
+        zoom: number,
+        onFocus: () => void,
+        onDone: () => void = () => undefined
+    ) {
         const player = this.player;
         if (!player) return;
         const { panTime } = TOPAZIO_BOSS.roar;
@@ -1272,6 +1310,7 @@ export class World extends Scene {
             camera.startFollow(player.sprite, true, WORLD_CONFIG.camera.lerpX, WORLD_CONFIG.camera.lerpY);
             this.isCutsceneActive = false;
             if (!this.isPauseMenuOpen && !this.isGameOver) this.physics.resume();
+            onDone();
         });
     }
 
@@ -1282,7 +1321,13 @@ export class World extends Scene {
         if (this.golem && (this.golem.health.isAlive || !this.isBusDoorOpen)) return;
         const { x, y } = this.player.sprite.body?.center ?? this.player.sprite;
         const { left, right, top, bottom } = TICEN_GOAL;
-        if (x < left || x > right || y < top || y > bottom) return;
+        const isAtDoor = x >= left && x <= right && y >= top && y <= bottom;
+        // Em dupla, a porta pergunta se cada um quer fugir; só depois dos dois SIM vem a reviravolta.
+        if (this.golem && this.isMultiplayerEnabled()) {
+            this.updateEscapeVote(isAtDoor);
+            return;
+        }
+        if (!isAtDoor) return;
         this.isGameOver = true;
         this.combat?.clear();
         this.physics.pause();
@@ -1299,7 +1344,14 @@ export class World extends Scene {
         if (!player) return;
         player.stopMovement();
         const ending = new BusEndingView(this.scene.get('CombatHud') as Scene, player.sprite.texture.key);
-        ending.play(() => {
+        ending.play(() => this.playBusDeparture(ending, () => void runTracker.win(undefined, !this.isMultiplayerGuest())));
+    }
+
+    /** O 763.2 sai do TICEN soltando fumaça, com a tela clareando depois do interior. */
+    private playBusDeparture(ending: BusEndingView, onDone: () => void) {
+        const player = this.player;
+        if (!player) return;
+        {
             const { bus, departure } = TICEN_ESCAPE;
             const { frameWidth, frameHeight, tilesWide, tilesHigh } = TOPAZIO_BOSS.bus;
             const layer = this.collisionLayers.find((candidate) => candidate.layer.name === TOPAZIO_BOSS.busLayer);
@@ -1325,9 +1377,312 @@ export class World extends Scene {
                 x: image.x + departure.distance,
                 duration: departure.duration,
                 ease: 'Quad.easeIn',
-                onComplete: () => void runTracker.win(undefined, !this.isMultiplayerGuest())
+                onComplete: onDone
             });
+        }
+    }
+
+    /** Na porta do 763.2 cada um decide se quer fugir; o SIM fica de pé até o parceiro decidir também. */
+    private updateEscapeVote(isAtDoor: boolean) {
+        if (!this.player || this.isDuelActive || this.isDuelOver || this.hasVotedEscape) return;
+        if (!isAtDoor) {
+            this.isEscapeVoteArmed = true;
+            return;
+        }
+        if (!this.isEscapeVoteArmed) return;
+        this.isEscapeVoteArmed = false;
+        this.isGatewayConfirmOpen = true;
+        this.player.stopMovement();
+        this.physics.pause();
+        const data: ConfirmPromptData = {
+            title: TICEN_DUEL.question,
+            onChoice: (confirmed) => {
+                this.isGatewayConfirmOpen = false;
+                if (!this.isCutsceneActive) this.physics.resume();
+                if (!confirmed) return;
+                this.hasVotedEscape = true;
+                if (this.isMultiplayerHost()) this.checkEscapeVotes();
+                else multiplayerClient.sendEvent({ kind: 'escape.vote' });
+            }
+        };
+        this.scene.launch('ConfirmPrompt', data);
+        this.scene.bringToTop('ConfirmPrompt');
+    }
+
+    /** O anfitrião começa a reviravolta quando os dois disseram SIM. */
+    private checkEscapeVotes() {
+        if (!this.hasVotedEscape || !this.hasPartnerVotedEscape || this.isDuelActive) return;
+        multiplayerClient.sendEvent({ kind: 'escape.duel' });
+        this.playDriverCutscene();
+    }
+
+    /** O motorista desce, avisa que só cabe um, volta e fecha a porta; depois começa a disputa. */
+    private playDriverCutscene() {
+        if (this.isDuelActive) return;
+        this.isDuelActive = true;
+        const { door, doorCutscene } = TICEN_ESCAPE;
+        const focus = { x: door.x + door.width / 2, y: door.y + door.height };
+        this.playCutscene(focus, TICEN_DUEL.caption, TICEN_DUEL.driver.cutscene, doorCutscene.zoom,
+            () => this.playDriver(focus), () => this.startDuel());
+    }
+
+    private playDriver(door: Readonly<{ x: number; y: number }>) {
+        const { texture, speech, cutscene } = TICEN_DUEL.driver;
+        const driver = this.add.sprite(door.x, door.y - 4, texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(door.y + 24)).setAlpha(0);
+        this.tweens.add({ targets: driver, alpha: 1, y: door.y + 22, duration: 600, ease: 'Quad.easeOut' });
+        const bubble = this.createSpeechBubble(door.x, door.y - 18, speech).setVisible(false);
+        this.time.delayedCall(700, () => {
+            driver.setFrame(1);
+            bubble.setVisible(true);
+            this.cameras.main.shake(200, 0.004);
         });
+        this.time.delayedCall(cutscene - 1200, () => {
+            bubble.destroy();
+            driver.setFrame(0);
+            this.tweens.add({ targets: driver, y: door.y - 4, alpha: 0, duration: 600, onComplete: () => driver.destroy() });
+        });
+        this.time.delayedCall(cutscene - 400, () => this.closeBusDoor());
+    }
+
+    /** Balão de fala branco, com a ponta apontando para quem fala. */
+    private createSpeechBubble(x: number, y: number, text: string) {
+        const label = this.add.text(0, 0, text, {
+            fontFamily: 'PixelGamer, monospace',
+            fontSize: '9px',
+            color: '#101018',
+            align: 'center',
+            wordWrap: { width: 150 }
+        }).setOrigin(0.5, 1).setResolution(4);
+        const width = label.width + 14;
+        const height = label.height + 10;
+        const box = this.add.graphics();
+        box.fillStyle(0xffffff).fillRoundedRect(-width / 2, -height - 5, width, height, 5);
+        box.lineStyle(1, 0x101018).strokeRoundedRect(-width / 2, -height - 5, width, height, 5);
+        box.fillStyle(0xffffff).fillTriangle(-5, -6, 5, -6, 0, 2);
+        label.setPosition(0, -10);
+        return this.add.container(x, y, [box, label]).setDepth(22);
+    }
+
+    /** A porta do 763.2 fecha e a luz some: ninguém embarca até a disputa acabar. */
+    private closeBusDoor() {
+        this.isBusDoorOpen = false;
+        const objects = this.busDoorObjects;
+        this.busDoorObjects = [];
+        this.tweens.add({ targets: objects, alpha: 0, duration: 300, onComplete: () => objects.forEach((object) => object.destroy()) });
+    }
+
+    /** A dupla perde as cartas e luta de espada; o anfitrião solta os gaúchos e os baús. */
+    private startDuel() {
+        if (!this.player || this.isDuelOver) return;
+        this.upgrades.reset();
+        this.combat?.enterSwordDuel();
+        const partner = [...this.remotePlayers.values()][0];
+        if (this.combat && partner) {
+            this.combat.duelTarget = {
+                center: partner.feet,
+                isAlive: () => partner.isAlive && !this.isDuelOver,
+                hit: (damage) => this.hitRival(damage)
+            };
+        }
+        this.showFloatingHint(TICEN_DUEL.start);
+        if (!this.isMultiplayerHost()) return;
+        const { enemies, chest } = TICEN_DUEL;
+        this.duelTimers.push(
+            this.time.addEvent({ delay: enemies.interval, repeat: enemies.count - 1, callback: () => this.spawnDuelEnemy() }),
+            this.time.addEvent({ delay: chest.interval, loop: true, callback: () => this.spawnDuelChest() })
+        );
+    }
+
+    /** A espada acerta o parceiro: o dano vai para o cliente dele, que é quem manda na própria vida. */
+    private hitRival(damage: number) {
+        multiplayerClient.sendEvent({ kind: 'player.damage', amount: damage });
+        if (this.time.now < this.lifestealUntil) this.player?.health.heal(1);
+    }
+
+    /** Um piso livre dentro do terminal, longe dos dois jogadores e fora da porta do 763.2. */
+    private findTicenFloorPoint(minDistance: number) {
+        const map = this.roomMap;
+        if (!map) return undefined;
+        const people = [this.player?.sprite.body?.center, ...[...this.remotePlayers.values()].map((partner) => partner.feet)]
+            .filter((point): point is { x: number; y: number } => !!point);
+        const { left, right, top, bottom } = TICEN_GOAL;
+        for (let attempt = 0; attempt < 80; attempt += 1) {
+            const tileX = 2 + Math.floor(Math.random() * (map.width - 4));
+            const tileY = 7 + Math.floor(Math.random() * 27);
+            const point = { x: tileX * 16 + 8, y: tileY * 16 + 8 };
+            if (this.collisionLayers.some((layer) => layer.getTileAt(tileX, tileY)?.collides)) continue;
+            if (point.x > left - 24 && point.x < right + 24 && point.y > top - 24 && point.y < bottom + 24) continue;
+            if (people.some((person) => Math.hypot(person.x - point.x, person.y - point.y) < minDistance)) continue;
+            return point;
+        }
+        return undefined;
+    }
+
+    /** Roda no anfitrião: um gaúcho de espada entra na disputa e vai atrás de quem estiver mais perto. */
+    private spawnDuelEnemy() {
+        const point = this.findTicenFloorPoint(110);
+        if (!point || this.isDuelOver) return;
+        const spawn = { x: point.x, y: point.y, patrolLeft: point.x - 16, patrolRight: point.x + 16 };
+        const enemy = this.createEnemy('gaucho', spawn);
+        enemy.relentless = true;
+        for (const layer of this.collisionLayers) this.physics.add.collider(enemy.sprite, layer);
+        this.addEnemyToCombat(enemy);
+        multiplayerClient.sendEvent({
+            kind: 'enemy.spawn',
+            enemies: [{ kind: 'gaucho', ...spawn, health: enemy.health.current, maxHealth: enemy.health.max }]
+        });
+    }
+
+    /** Roda no anfitrião: um baú brilhando aparece com o próximo especial da lista. */
+    private spawnDuelChest() {
+        const point = this.findTicenFloorPoint(70);
+        if (!point || this.isDuelOver) return;
+        const id = ++this.duelChestSequence;
+        const { specials } = TICEN_DUEL;
+        const special = specials[(id - 1) % specials.length].id;
+        multiplayerClient.sendEvent({ kind: 'chest.spawn', id, x: point.x, y: point.y, special });
+        this.placeDuelChest(id, point.x, point.y, special);
+    }
+
+    private placeDuelChest(id: number, x: number, y: number, special: DuelSpecialId) {
+        const image = this.add.sprite(x, y, TICEN_DUEL.chest.texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(y));
+        // Brilho pulsando para os dois correrem até ele.
+        image.setTint(0xfff2b0);
+        this.tweens.add({ targets: image, scale: { from: 1, to: 1.15 }, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        playExplosion(this, x, y - 6, 14, 0xfff2b0);
+        this.duelChests.set(id, { image, special, opened: false, claimed: false });
+    }
+
+    /** Basta encostar: o anfitrião abre na hora; o convidado pede, e o anfitrião diz quem chegou primeiro. */
+    private updateDuelChests() {
+        if (!this.isDuelActive || this.isDuelOver || !this.player?.health.isAlive) return;
+        const feet = this.player.sprite.body?.center ?? this.player.sprite;
+        for (const [id, chest] of this.duelChests) {
+            if (chest.opened || chest.claimed) continue;
+            if (Math.hypot(feet.x - chest.image.x, feet.y - (chest.image.y - 6)) > TICEN_DUEL.chest.touchRadius) continue;
+            chest.claimed = true;
+            if (this.isMultiplayerHost()) this.openDuelChest(id, true);
+            else multiplayerClient.sendEvent({ kind: 'chest.claim', id });
+        }
+    }
+
+    /** Só o anfitrião decide: o primeiro pedido vale, os outros chegam com o baú já aberto. */
+    private openDuelChest(id: number, byHost: boolean) {
+        const chest = this.duelChests.get(id);
+        if (!chest || chest.opened) return;
+        multiplayerClient.sendEvent({ kind: 'chest.opened', id, byHost });
+        this.revealDuelChest(id, byHost);
+    }
+
+    private revealDuelChest(id: number, byHost: boolean) {
+        const chest = this.duelChests.get(id);
+        if (!chest || chest.opened) return;
+        chest.opened = true;
+        this.tweens.killTweensOf(chest.image);
+        chest.image.setFrame(1).setScale(1).clearTint();
+        const label = TICEN_DUEL.specials.find(({ id: special }) => special === chest.special)?.label ?? '';
+        const hint = this.createWorldHint(label).setPosition(chest.image.x, chest.image.y - 22);
+        this.tweens.add({ targets: hint, y: hint.y - 14, alpha: 0, delay: 900, duration: 600, onComplete: () => hint.destroy() });
+        this.tweens.add({ targets: chest.image, alpha: 0, delay: 700, duration: 400, onComplete: () => chest.image.destroy() });
+        if (byHost === this.isMultiplayerHost()) this.applyDuelSpecial(chest.special);
+    }
+
+    private applyDuelSpecial(special: DuelSpecialId) {
+        const player = this.player;
+        const combat = this.combat;
+        if (!player || !combat) return;
+        const { speed, shieldDuration, lifestealDuration, spin, clubMultiplier } = TICEN_DUEL;
+        switch (special) {
+            case 'heart':
+                player.health.increaseMax(COMBAT_CONFIG.player.healthPerHeart);
+                break;
+            case 'club':
+                combat.swordDamageMultiplier *= clubMultiplier;
+                break;
+            case 'speed':
+                player.setTemporaryMovementSpeedMultiplier(speed.multiplier);
+                this.time.delayedCall(speed.duration, () => this.player?.setTemporaryMovementSpeedMultiplier(1));
+                break;
+            case 'shield':
+                player.grantInvulnerability(shieldDuration);
+                player.sprite.setTint(0x8fd8ff);
+                this.time.delayedCall(shieldDuration, () => this.player?.sprite.clearTint());
+                break;
+            case 'lifesteal':
+                this.lifestealUntil = this.time.now + lifestealDuration;
+                break;
+            case 'spin':
+                combat.swordFullCircle = true;
+                combat.swordRangeMultiplier = spin.rangeMultiplier;
+                this.time.delayedCall(spin.duration, () => {
+                    combat.swordFullCircle = false;
+                    combat.swordRangeMultiplier = 1;
+                });
+                break;
+        }
+    }
+
+    /** Quem caiu avisa o parceiro: ele fica com a vaga. */
+    private loseDuel() {
+        if (this.isDuelOver) return;
+        this.isDuelOver = true;
+        multiplayerClient.sendEvent({ kind: 'duel.lost' });
+        this.playDuelEnding(false);
+    }
+
+    /**
+     * Fim da disputa, igual nas duas telas: quem perdeu morre, a porta do 763.2 reabre, o vencedor entra e
+     * senta (a cutscene do solo) e o ônibus vai embora. Quem perdeu vê que foi deixado para trás.
+     */
+    private playDuelEnding(localWon: boolean) {
+        const player = this.player;
+        const partner = [...this.remotePlayers.values()][0];
+        if (!player || !partner) return;
+        for (const timer of this.duelTimers) timer.remove(false);
+        this.duelTimers = [];
+        this.isGameOver = true;
+        this.combat?.clear();
+        if (this.isMultiplayerHost()) {
+            for (const enemy of this.drones) {
+                if (enemy !== this.golem && enemy.health.isAlive) enemy.takeDamage(enemy.health.current);
+            }
+        }
+        player.stopMovement();
+        this.physics.pause();
+        const loser = localWon ? partner.sprite : player.sprite;
+        const winner = localWon ? player.sprite : partner.sprite;
+        this.playDeathAnimation(loser);
+        const { deathTime, boardTime } = TICEN_DUEL;
+        const { door } = TICEN_ESCAPE;
+        const doorFeet = { x: door.x + door.width / 2, y: door.y + door.height + 12 };
+        this.time.delayedCall(deathTime, () => {
+            const camera = this.cameras.main;
+            camera.stopFollow();
+            camera.pan(doorFeet.x, doorFeet.y, 500, 'Sine.easeInOut');
+            camera.zoomTo(this.normalCameraZoom * TICEN_ESCAPE.doorCutscene.zoom, 500, 'Sine.easeInOut');
+            this.openBusDoor();
+            // O vencedor anda até a porta na própria tela; o parceiro vê pelo estado dele.
+            if (localWon) {
+                this.tweens.add({ targets: player.sprite, x: doorFeet.x, y: doorFeet.y, duration: boardTime * 0.7, ease: 'Sine.easeInOut' });
+                this.tweens.add({ targets: player.sprite, alpha: 0, delay: boardTime * 0.7, duration: boardTime * 0.3 });
+            }
+        });
+        this.time.delayedCall(deathTime + boardTime + 300, () => {
+            const ending = new BusEndingView(this.scene.get('CombatHud') as Scene, winner.texture.key);
+            ending.play(() => this.playBusDeparture(ending, () => {
+                this.victorySubtitle = localWon ? undefined : TICEN_DUEL.leftBehind;
+                void runTracker.win(undefined, !this.isMultiplayerGuest());
+            }));
+        });
+    }
+
+    /** Morte de quem perdeu: clarão vermelho, tomba e se desfaz. */
+    private playDeathAnimation(sprite: Phaser.GameObjects.Sprite) {
+        sprite.setTint(0xff4060);
+        this.cameras.main.shake(300, 0.008);
+        playExplosion(this, sprite.x, sprite.y, 22, 0xff4060);
+        this.tweens.add({ targets: sprite, angle: 90, y: sprite.y + 8, duration: 350, ease: 'Quad.easeIn' });
+        this.tweens.add({ targets: sprite, alpha: 0.35, delay: 400, duration: 700 });
     }
 
     /** Luz verde, braço girando e passagem livre: some o bloqueio invisível da catraca. */
@@ -2082,7 +2437,8 @@ export class World extends Scene {
 
     /** O próprio caído conta o tempo, pois é a autoridade sobre a sua vida. */
     private updateRevive(delta: number) {
-        if (!this.player || !this.isMultiplayerEnabled()) return;
+        // Na disputa pela vaga ninguém levanta o outro.
+        if (!this.player || !this.isMultiplayerEnabled() || this.isDuelActive) return;
         if (this.player.health.isAlive) {
             this.reviveBar?.clear();
             return;
@@ -2118,7 +2474,8 @@ export class World extends Scene {
         const partner = [...this.remotePlayers.values()][0];
         const isLocalDown = !this.player?.health.isAlive;
         let message = '';
-        if (this.cardBarrier.isWaitingForPeer || this.cardRelease) message = 'AGUARDANDO O PARCEIRO ESCOLHER...';
+        if (this.hasVotedEscape && !this.isDuelActive) message = TICEN_DUEL.waiting;
+        else if (this.cardBarrier.isWaitingForPeer || this.cardRelease) message = 'AGUARDANDO O PARCEIRO ESCOLHER...';
         else if (isLocalDown && !this.isGameOver) {
             message = this.getRevivesLeft() > 0
                 ? `VOCE CAIU! O PARCEIRO PRECISA FICAR EM CIMA DE VOCE (${this.getRevivesLeft()} RESTANTES)`
@@ -2304,6 +2661,27 @@ export class World extends Scene {
                 break;
             case 'boss.action':
                 this.golem?.applyRemoteAction(event.action);
+                break;
+            case 'escape.vote':
+                this.hasPartnerVotedEscape = true;
+                if (this.isMultiplayerHost()) this.checkEscapeVotes();
+                break;
+            case 'escape.duel':
+                this.playDriverCutscene();
+                break;
+            case 'chest.spawn':
+                this.placeDuelChest(event.id, event.x, event.y, event.special);
+                break;
+            case 'chest.claim':
+                if (this.isMultiplayerHost()) this.openDuelChest(event.id, false);
+                break;
+            case 'chest.opened':
+                this.revealDuelChest(event.id, event.byHost);
+                break;
+            case 'duel.lost':
+                if (this.isDuelOver) break;
+                this.isDuelOver = true;
+                this.playDuelEnding(true);
                 break;
             case 'world.ready':
                 break;

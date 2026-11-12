@@ -3,6 +3,7 @@ import type { RoomKey } from '../config/rooms';
 import type { CharacterId } from '../config/characters';
 import type { Direction } from '../entities/Player';
 import type { GolemAction } from '../entities/TopazioGolem';
+import type { DuelSpecialId } from '../config/ticen';
 
 export type MatchReadyMessage = {
     type: 'match.ready';
@@ -76,7 +77,14 @@ export type CoopEvent =
     /** O anfitrião acordou o golem: o convidado entra na luta e mostra a barra. */
     | { kind: 'boss.wake' }
     /** Cada golpe do golem do anfitrião, para o espelho do convidado repetir. */
-    | { kind: 'boss.action'; action: GolemAction };
+    | { kind: 'boss.action'; action: GolemAction }
+    /** Disputa pela vaga do 763.2: voto para embarcar, início da luta, baús e quem perdeu. */
+    | { kind: 'escape.vote' }
+    | { kind: 'escape.duel' }
+    | { kind: 'chest.spawn'; id: number; x: number; y: number; special: DuelSpecialId }
+    | { kind: 'chest.claim'; id: number }
+    | { kind: 'chest.opened'; id: number; byHost: boolean }
+    | { kind: 'duel.lost' };
 
 export type ServerMessage =
     | { type: 'session.welcome'; playerId: string }

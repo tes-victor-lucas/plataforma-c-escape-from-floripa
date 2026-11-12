@@ -105,7 +105,7 @@ export class CombatSystem {
         private readonly playerStats: PlayerUpgradeState = new PlayerUpgradeState(),
         private readonly tracker: RunTracker = runTracker,
         private readonly onEnemyKilled: () => void = () => undefined,
-        private readonly melee = false
+        private melee = false
     ) {
         const texture = 'combat-projectile-rounded';
         if (!scene.textures.exists(texture)) {
@@ -536,6 +536,26 @@ export class CombatSystem {
         }
     }
 
+    /** Rival da disputa pela vaga no TICEN: a espada também acerta o parceiro. */
+    duelTarget?: Readonly<{ center: Readonly<{ x: number; y: number }>; isAlive: () => boolean; hit: (damage: number) => void }>;
+    /** Especiais dos baús da disputa: cacete melhorado e giro de longo alcance. */
+    swordDamageMultiplier = 1;
+    swordRangeMultiplier = 1;
+    swordFullCircle = false;
+
+    /** Disputa pela última vaga: a dupla larga os tiros e os efeitos das cartas e passa a lutar de espada. */
+    enterSwordDuel() {
+        this.melee = true;
+        this.clear();
+        for (const spark of this.orbitSparks.splice(0)) {
+            spark.core.destroy();
+            spark.glow.destroy();
+        }
+        this.companion?.destroy();
+        this.companion = undefined;
+        this.equipSword();
+    }
+
     /** A espada coletada fica na mão do personagem até o próximo golpe. */
     equipSword() {
         if (!this.melee || this.heldSword) return;
@@ -554,8 +574,10 @@ export class CombatSystem {
             this.isSwingQueued ||= this.playerCooldown <= COMBAT_CONFIG.melee.bufferWindow;
             return false;
         }
-        const { range, arc, interval, damageMultiplier } = COMBAT_CONFIG.melee;
-        const swordDamage = this.playerStats.damage * damageMultiplier;
+        const { interval, damageMultiplier } = COMBAT_CONFIG.melee;
+        const range = COMBAT_CONFIG.melee.range * this.swordRangeMultiplier;
+        const arc = this.swordFullCircle ? Math.PI * 2 : COMBAT_CONFIG.melee.arc;
+        const swordDamage = this.playerStats.damage * damageMultiplier * this.swordDamageMultiplier;
         this.playerCooldown = interval;
         const origin = this.getCenter(this.player);
         const id = createProjectileId(this.tracker.snapshot().runId);
@@ -582,6 +604,16 @@ export class CombatSystem {
             playSwordHit(this.scene, target.x, target.y);
             const direction = distance > 0 ? { x: dx / distance, y: dy / distance } : { x: Math.cos(angle), y: Math.sin(angle) };
             this.hitEnemy(enemy, swordDamage, direction, id);
+        }
+        const rival = this.duelTarget;
+        if (rival?.isAlive()) {
+            const dx = rival.center.x - origin.x;
+            const dy = rival.center.y - origin.y;
+            const turn = Math.atan2(dy, dx) - angle;
+            if (Math.hypot(dx, dy) <= range && Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) <= arc / 2) {
+                playSwordHit(this.scene, rival.center.x, rival.center.y);
+                rival.hit(swordDamage);
+            }
         }
         this.tracker.finalizeProjectile(id);
         return true;

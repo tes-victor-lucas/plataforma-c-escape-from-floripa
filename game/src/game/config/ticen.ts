@@ -170,6 +170,56 @@ export const TICEN_ESCAPE = {
     departure: { distance: 460, duration: 2400 }
 } as const;
 
+/**
+ * Fim da fuga em dupla (multiplayer): os dois votam para embarcar, o motorista avisa que só cabe um e a dupla
+ * disputa a última vaga de espada, com gaúchos atrapalhando e baús de especiais. Tempos em milissegundos.
+ */
+export const TICEN_DUEL = {
+    question: 'ESCAPAR DE FLORIANÓPOLIS?',
+    waiting: 'AGUARDANDO JOGADOR',
+    caption: 'A ULTIMA VAGA',
+    start: 'LUTEM! SO UM EMBARCA',
+    leftBehind: 'VOCÊ FOI DEIXADO PARA TRÁS',
+    driver: {
+        texture: 'motorista',
+        path: 'assets/props/motorista.png',
+        frameWidth: 20,
+        frameHeight: 32,
+        speech: 'NÃO, NÃO! SÓ TEMOS ESPAÇO PARA UM DE VOCÊS... LUTEM ENTRE SI!',
+        // Quanto a câmera fica no ônibus: o motorista desce, avisa e volta para dentro.
+        cutscene: 4800
+    },
+    // Gaúchos de espada entrando aos poucos para atrapalhar a disputa.
+    enemies: { count: 10, interval: 2500 },
+    chest: {
+        texture: 'bau',
+        path: 'assets/props/bau.png',
+        frameWidth: 18,
+        frameHeight: 16,
+        interval: 10_000,
+        touchRadius: 16
+    },
+    // Um especial diferente por baú, na ordem em que aparecem; depois do sexto a lista recomeça.
+    specials: [
+        { id: 'heart', label: '+1 CORACAO' },
+        { id: 'club', label: 'CACETE MELHORADO' },
+        { id: 'speed', label: 'POCAO DE VELOCIDADE' },
+        { id: 'shield', label: 'ESCUDO' },
+        { id: 'lifesteal', label: 'ROUBO DE VIDA' },
+        { id: 'spin', label: 'GIRO DE LONGO ALCANCE' }
+    ],
+    clubMultiplier: 1.6,
+    speed: { multiplier: 1.5, duration: 8_000 },
+    shieldDuration: 5_000,
+    lifestealDuration: 12_000,
+    spin: { rangeMultiplier: 1.8, duration: 10_000 },
+    // Animação de morte de quem perdeu antes de a câmera ir para o ônibus.
+    deathTime: 1_400,
+    boardTime: 1_400
+} as const;
+
+export type DuelSpecialId = (typeof TICEN_DUEL.specials)[number]['id'];
+
 /** Estágio de rachadura do golem (0 a 3): cada quarto de vida perdido racha mais o corpo. */
 export function getGolemStage(current: number, max: number) {
     const ratio = max > 0 ? current / max : 0;
