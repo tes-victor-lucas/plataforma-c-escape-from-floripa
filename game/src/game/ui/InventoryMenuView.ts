@@ -126,6 +126,7 @@ export class InventoryMenuView {
     private itemSlots: Phaser.GameObjects.Rectangle[] = [];
     private detailTitle?: Phaser.GameObjects.Text;
     private detailText?: Phaser.GameObjects.Text;
+    private detailStatus?: Phaser.GameObjects.Text;
     private tooltip?: Phaser.GameObjects.Container;
     private tooltipBox?: Phaser.GameObjects.Graphics;
     private isDragging = false;
@@ -327,7 +328,9 @@ export class InventoryMenuView {
             lineSpacing: 5,
             wordWrap: { width: TOOLTIP_WIDTH - 28, useAdvancedWrap: true }
         }).setResolution(2);
-        this.tooltip = this.scene.add.container(0, 0, [this.tooltipBox, this.detailTitle, this.detailText]);
+        // Na ponta direita da faixa do nome: onde o item está agora.
+        this.detailStatus = this.text(TOOLTIP_WIDTH - 14, 19, '', 9, INV.bandCss).setOrigin(1, 0.5);
+        this.tooltip = this.scene.add.container(0, 0, [this.tooltipBox, this.detailTitle, this.detailStatus, this.detailText]);
         menu.add(this.tooltip);
     }
 
@@ -404,8 +407,8 @@ export class InventoryMenuView {
         ));
         const selected = this.options.items[this.selectedItem];
         this.detailTitle?.setText(selected?.name ?? 'NENHUM ITEM');
-        const status = selected?.id ? `\n\n${selected.equipped ? 'EQUIPADO' : 'GUARDADO'}` : '';
-        this.detailText?.setText(`${selected?.description ?? 'OS ITENS PEGOS PELO MAPA FICAM GUARDADOS AQUI.'}${status}`);
+        this.detailStatus?.setText(selected?.id ? (selected.equipped ? 'EQUIPADO' : 'GUARDADO') : '');
+        this.detailText?.setText(selected?.description ?? 'OS ITENS PEGOS PELO MAPA FICAM GUARDADOS AQUI.');
         this.placeTooltip();
         const canToggle = !!selected?.id && !!this.options.onToggle;
         this.toggleButton?.setVisible(canToggle);
