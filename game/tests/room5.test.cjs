@@ -128,3 +128,48 @@ test('salas III e IV abrem saída para a seguinte e a partida termina na porta d
     assert.equal(isBlocked((left + right) / 2, bottom - 4), false);
     assert.equal(isBlocked((left + right) / 2, top - 8), true, 'logo acima fica o 763.2');
 });
+
+test('golem racha em quatro estágios e pede um ônibus a cada limiar de vida', () => {
+    const { getGolemStage, getBusThrowsDue, TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const max = TOPAZIO_BOSS.maxHealth;
+    assert.deepEqual([max, max * 0.76, max * 0.75, max * 0.5, max * 0.26, max * 0.25, 1, 0].map((hp) => getGolemStage(hp, max)),
+        [0, 0, 1, 2, 2, 3, 3, 3]);
+    const thresholds = TOPAZIO_BOSS.busThresholds;
+    assert.equal(getBusThrowsDue(max, max, thresholds), 0);
+    assert.equal(getBusThrowsDue(max * 0.8, max, thresholds), 1);
+    assert.equal(getBusThrowsDue(max * 0.39, max, thresholds), 3, 'um golpe forte pode pedir vários de uma vez');
+    assert.equal(getBusThrowsDue(1, max, thresholds), TOPAZIO_BOSS.buses.length, 'todos saem antes de ele morrer');
+});
+
+test('golem arremessa os quatro ônibus das baias e deixa só o 763.2', () => {
+    const { TOPAZIO_BOSS, TICEN_GOAL } = load('../src/game/config/ticen.ts');
+    const buses = layer(TOPAZIO_BOSS.busLayer);
+    const tileset = map.tilesets.find(({ name }) => name === 'ticen_onibus');
+    const { tilesWide, tilesHigh } = TOPAZIO_BOSS.bus;
+    // O meio de cada ônibus no mapa é o meio da linha `route` do ticen_onibus.png.
+    const routeAt = (col, row) => {
+        const gid = buses.data[(row + 1) * map.width + col + 3];
+        assert.ok(gid >= tileset.firstgid && gid < tileset.firstgid + tileset.tilecount, `ônibus na coluna ${col}, linha ${row}`);
+        return Math.floor((gid - tileset.firstgid) / tileset.columns / tilesHigh);
+    };
+    for (const { route, col, row } of TOPAZIO_BOSS.buses) assert.equal(routeAt(col, row), route);
+    assert.equal(routeAt(38, 29), 3, 'o 763.2 continua na baia da Plataforma C');
+    // Todo tile de ônibus fora das quatro baias é do 763.2, onde o jogador embarca.
+    const thrown = (x, y) => TOPAZIO_BOSS.buses.some(({ col, row }) => x >= col && x < col + tilesWide && y >= row && y < row + tilesHigh);
+    buses.data.forEach((gid, index) => {
+        const x = index % map.width;
+        const y = Math.floor(index / map.width);
+        if (!gid || thrown(x, y)) return;
+        assert.ok(x >= 38 && x < 45 && y >= 29 && y < 32, `tile de ônibus solto em ${x},${y}`);
+    });
+    assert.ok(TICEN_GOAL.left >= 38 * 16 && TICEN_GOAL.right <= 45 * 16, 'a porta da fuga é a do 763.2');
+});
+
+test('golem dorme entre as plataformas, longe da catraca, e acorda antes do jogador chegar nele', () => {
+    const { TOPAZIO_BOSS, TICEN_GATE } = load('../src/game/config/ticen.ts');
+    const { spawn, feetOffset, wakeY, bounds } = TOPAZIO_BOSS;
+    assert.ok(wakeY < TICEN_GATE.y, 'só acorda depois de passar a catraca');
+    assert.ok(spawn.y + feetOffset < wakeY, 'acorda antes de o jogador encostar nele');
+    assert.ok(bounds.bottom + feetOffset < TICEN_GATE.y, 'não desce até a catraca');
+    assert.ok(spawn.x >= bounds.left && spawn.x <= bounds.right && spawn.y >= bounds.top && spawn.y <= bounds.bottom);
+});
