@@ -222,7 +222,8 @@ export const COMBAT_CONFIG = {
     multiplayer: {
         // Dois jogadores causam o dobro de dano nos mesmos inimigos; acima de 2 fica mais difícil.
         enemyHealthMultiplier: 2.5,
-        reviveDuration: 5_000,
+        // Segurar 3 s ao lado do parceiro caído: 5 s deixava a dupla exposta tempo demais.
+        reviveDuration: 3_000,
         reviveRadius: 28,
         reviveHealthRatio: 0.5,
         maxRevives: 2
