@@ -4450,3 +4450,43 @@ test('cajado de fogo queima quem está em volta por 5 s com pouco dano e recarre
     assert.ok(Math.abs(near.health.current - (COMBAT_CONFIG.drone.maxHealth - tick * ticks)) < 1e-9, 'a queimadura para depois de 5 s');
     assert.ok(tick * ticks <= upgrades.damage, 'no total, no máximo um tiro de dano');
 });
+
+test('golem joga o primeiro ônibus no jogador mais perto e depois alterna entre os dois', () => {
+    const { pickBusTarget } = load('../src/game/entities/TopazioGolem.ts');
+    const origin = { x: 0, y: 0 };
+    const host = { id: 'host', center: { x: 50, y: 0 } };
+    const guest = { id: 'guest', center: { x: 200, y: 0 } };
+    assert.equal(pickBusTarget(origin, [host, guest])?.id, 'host', 'o primeiro vai no mais perto');
+    assert.equal(pickBusTarget(origin, [host, guest], 'host')?.id, 'guest', 'o segundo vai no outro, mesmo mais longe');
+    assert.equal(pickBusTarget(origin, [host, guest], 'guest')?.id, 'host');
+    assert.equal(pickBusTarget(origin, [guest], 'guest')?.id, 'guest', 'com o parceiro caído, o vivo leva de novo');
+    assert.equal(pickBusTarget(origin, []), undefined);
+});
+
+test('no convidado, o alvo do ônibus aparece em quem o anfitrião escolheu', () => {
+    const { TopazioGolem } = load('../src/game/entities/TopazioGolem.ts');
+    const golem = Object.create(TopazioGolem.prototype);
+    const marks = [];
+    Object.assign(golem, {
+        health: new Health(10),
+        buses: [{ route: 4, col: 34, row: 20 }],
+        options: {
+            mirror: true,
+            getBusTargets: () => [{ id: 'host', center: { x: 300, y: 120 } }, { id: 'guest', center: { x: 40, y: 60 } }]
+        },
+        liftBus() {},
+        actionTime: 0,
+        busMarker: {
+            clear() { return this; },
+            fillStyle() { return this; },
+            fillEllipse(x, y) { marks.push({ x, y }); return this; },
+            lineStyle() { return this; },
+            strokeEllipse() { return this; },
+            setData() { return this; }
+        }
+    });
+    Object.defineProperty(golem, 'isMirror', { get: () => true });
+    golem.applyRemoteAction({ type: 'lift', route: 4, target: 'host' });
+    golem.updateHold(golem.getBusAim());
+    assert.equal(marks[0].x, 300, 'o alvo segue o anfitrião, não quem está jogando no convidado');
+});
