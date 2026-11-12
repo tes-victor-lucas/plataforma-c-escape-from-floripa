@@ -27,14 +27,8 @@ import {
 import { WaveThreatView } from '../ui/WaveThreatView';
 import { FlowField } from '../combat/FlowField';
 import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
-import {
-    basicUpgradeCards,
-    drawUpgradeCards,
-    drawUpgradeCardsFeaturing,
-    withoutRoom3Cards,
-    withoutRoom3FinalCards
-} from '../upgrades/drawUpgradeCards';
-import { AREA_UPGRADE_IDS, ROOM3_FINAL_UPGRADE_IDS, ROOM3_UPGRADE_IDS } from '../upgrades/catalog';
+import { drawTableCards, type CardTable } from '../upgrades/drawUpgradeCards';
+import { ROOM3_UPGRADE_IDS } from '../upgrades/catalog';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
 import { drawPlayerBar, RemotePlayer } from '../entities/RemotePlayer';
@@ -157,6 +151,13 @@ export function isRoom2WalkableLayer(layerName: string) {
 }
 
 /** A Sala I dá uma carta básica no fim; a Sala III, depois da horda 2, as cartas de área mais fortes. */
+/** Mesa de cartas de cada sala; o esconderijo usa a da sala por onde se entra nele. */
+export function getCardTable(roomKey: RoomKey): Exclude<CardTable, 'room3-final'> {
+    if (roomKey === 'room2' || roomKey === 'dungeon') return 'room2';
+    if (roomKey === 'room3') return 'room3';
+    return 'room1';
+}
+
 export function shouldOfferRoomCompletionUpgrade(roomKey: RoomKey) {
     return roomKey === 'room1' || roomKey === 'room3';
 }
@@ -2240,13 +2241,7 @@ export class World extends Scene {
         this.isWaveIntermissionOpen = true;
         this.piranhasBarPrompt?.setVisible(false);
         const overlayScene = this.scene.get('CombatHud') as Scene;
-        // Antes das hordas maiores, as cartas fortes de cada sala ficam garantidas na mesa.
-        const availableCards = this.upgrades.availableCards();
-        const cards = this.activeRoomKey === 'room3'
-            ? drawUpgradeCardsFeaturing(ROOM3_UPGRADE_IDS, undefined, withoutRoom3FinalCards(availableCards))
-            : this.activeRoomKey === 'room2'
-                ? drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, undefined, withoutRoom3Cards(availableCards))
-                : drawUpgradeCards(undefined, basicUpgradeCards(availableCards));
+        const cards = drawTableCards(getCardTable(this.activeRoomKey), undefined, this.upgrades.availableCards());
         new UpgradeSelectionView(overlayScene, cards).play((selected) => {
             this.acquireUpgrade(selected);
             this.waitForPartnerCard(() => {
@@ -2269,12 +2264,9 @@ export class World extends Scene {
 
         const overlayScene = this.scene.get('CombatHud') as Scene;
         const isRoom3 = this.activeRoomKey === 'room3';
-        const availableCards = this.upgrades.availableCards();
         new UpgradeSelectionView(
             overlayScene,
-            isRoom3
-                ? drawUpgradeCardsFeaturing(ROOM3_FINAL_UPGRADE_IDS, undefined, availableCards)
-                : drawUpgradeCards(undefined, basicUpgradeCards(availableCards)),
+            drawTableCards(isRoom3 ? 'room3-final' : getCardTable(this.activeRoomKey), undefined, this.upgrades.availableCards()),
             {
                 title: isRoom3 ? 'SALA III CONCLUÍDA' : 'SALA I CONCLUÍDA',
                 hint: 'Escolha uma recompensa'
@@ -2307,7 +2299,7 @@ export class World extends Scene {
         const overlayScene = this.scene.get('CombatHud') as Scene;
         new UpgradeSelectionView(
             overlayScene,
-            drawUpgradeCards(undefined, basicUpgradeCards(this.upgrades.availableCards())),
+            drawTableCards(getCardTable(this.activeRoomKey), undefined, this.upgrades.availableCards()),
             {
                 title: 'DUNGEON CONCLUÍDA',
                 hint: 'Escolha sua recompensa'

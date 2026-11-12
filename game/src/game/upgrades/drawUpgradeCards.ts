@@ -1,4 +1,12 @@
-import { AREA_UPGRADE_IDS, ROOM3_EXCLUSIVE_UPGRADE_IDS, ROOM3_FINAL_UPGRADE_IDS, UPGRADE_CARDS } from './catalog';
+import {
+    AREA_UPGRADE_IDS,
+    BASIC_UPGRADE_IDS,
+    EVERY_ROOM_UPGRADE_IDS,
+    RETIRED_UPGRADE_IDS,
+    ROOM3_FINAL_UPGRADE_IDS,
+    ROOM3_UPGRADE_IDS,
+    UPGRADE_CARDS
+} from './catalog';
 import type { UpgradeCardDefinition, UpgradeId } from './types';
 
 type RandomSource = () => number;
@@ -61,17 +69,33 @@ export function drawUpgradeCardsFeaturing(
     return [...highlighted, ...drawUpgradeCards(random, others).slice(0, 3 - highlighted.length)];
 }
 
-/** Cartas de área são só para as hordas; nos outros sorteios ficam as básicas. */
-export function basicUpgradeCards(availableCards: readonly UpgradeCardDefinition[]) {
-    return withoutRoom3Cards(availableCards).filter((card) => !AREA_UPGRADE_IDS.includes(card.id));
+/** Mesas de cartas: cada sala oferece as suas; o fim da Sala III destaca as cartas finais. */
+export type CardTable = 'room1' | 'room2' | 'room3' | 'room3-final';
+
+const TABLE_IDS: Record<Exclude<CardTable, 'room3-final'>, readonly UpgradeId[]> = {
+    room1: BASIC_UPGRADE_IDS,
+    room2: AREA_UPGRADE_IDS,
+    room3: ROOM3_UPGRADE_IDS
+};
+
+/**
+ * Cartas da mesa ainda disponíveis, junto com as que valem em todas as salas. Se a mesa já não tem três
+ * cartas com uma habilidade (tudo no nível máximo), completa com qualquer carta ainda disponível, menos as aposentadas.
+ */
+export function getTableCards(table: Exclude<CardTable, 'room3-final'>, availableCards: readonly UpgradeCardDefinition[]) {
+    const ids = [...TABLE_IDS[table], ...EVERY_ROOM_UPGRADE_IDS];
+    const cards = availableCards.filter((card) => ids.includes(card.id));
+    if (cards.length >= 3 && cards.some((card) => card.kind === 'ability')) return cards;
+    return availableCards.filter((card) => !RETIRED_UPGRADE_IDS.includes(card.id));
 }
 
-/** As cartas exclusivas da Sala III não vazam para as salas anteriores. */
-export function withoutRoom3Cards(availableCards: readonly UpgradeCardDefinition[]) {
-    return withoutRoom3FinalCards(availableCards).filter((card) => !ROOM3_EXCLUSIVE_UPGRADE_IDS.includes(card.id));
-}
-
-/** As cartas do fim da Sala III só aparecem depois da horda 2 dela. */
-export function withoutRoom3FinalCards(availableCards: readonly UpgradeCardDefinition[]) {
-    return availableCards.filter((card) => !ROOM3_FINAL_UPGRADE_IDS.includes(card.id));
+/** Sorteia a mesa: três cartas da sala; no fim da Sala III, duas finais garantidas e um curinga da mesa da sala. */
+export function drawTableCards(
+    table: CardTable,
+    random: RandomSource = Math.random,
+    availableCards: readonly UpgradeCardDefinition[] = UPGRADE_CARDS
+) {
+    if (table !== 'room3-final') return drawUpgradeCards(random, getTableCards(table, availableCards));
+    const finals = availableCards.filter((card) => ROOM3_FINAL_UPGRADE_IDS.includes(card.id));
+    return drawUpgradeCardsFeaturing(ROOM3_FINAL_UPGRADE_IDS, random, [...finals, ...getTableCards('room3', availableCards)]);
 }

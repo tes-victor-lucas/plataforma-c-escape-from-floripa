@@ -202,21 +202,39 @@ export const UPGRADE_CARDS = [
     }
 ] as const satisfies readonly UpgradeCardDefinition[];
 
-/** Cartas de dano em área, oferecidas antes da horda maior da Sala II. */
+/** Cartas básicas: só a Sala I (e o esconderijo que sai dela) oferece. */
+export const BASIC_UPGRADE_IDS: readonly UpgradeId[] = [
+    'attack-range',
+    'projectile-speed',
+    'projectile-damage',
+    'fire-rate',
+    'max-health',
+    'double-shot',
+    'piercing-shot',
+    'companion-drone',
+    'emergency-repair'
+];
+
+/** Cartas que entram na mesa de qualquer sala. */
+export const EVERY_ROOM_UPGRADE_IDS: readonly UpgradeId[] = ['ice-staff'];
+
+/** Fora de todas as mesas, mas ainda no catálogo: um checkpoint salvo com ela continua carregando. */
+export const RETIRED_UPGRADE_IDS: readonly UpgradeId[] = ['overclock'];
+
+/** Cartas de dano em área: a mesa da Sala II (e do esconderijo que sai dela). */
 export const AREA_UPGRADE_IDS: readonly UpgradeId[] = [
     'shock-pulse',
     'blast-shot',
     'spark-orbit',
     'chain-lightning',
     'death-blast',
-    'light-beams',
-    'fire-staff'
+    'light-beams'
 ];
 
 /** Cartas fortes que só aparecem na Sala III. */
 export const ROOM3_EXCLUSIVE_UPGRADE_IDS: readonly UpgradeId[] = [
     'heavy-rounds',
-    'overclock',
+    'fire-staff',
     'thunder-storm',
     'nova-pulse'
 ];
