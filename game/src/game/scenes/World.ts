@@ -81,6 +81,7 @@ import { MercadoNpcs } from '../entities/MercadoNpcs';
 import { TchayQueue } from '../entities/TchayQueue';
 import { createMercadoEntranceSign } from '../map/createMercadoEntranceSign';
 import { DuelStandoffView } from '../ui/DuelStandoffView';
+import { prefersReducedMotion } from '../ui/easing';
 import { PAGODE, PAGODE_FRAMES, POPULAR_BARS, TCHAY } from '../config/tchay';
 import { createStringLights } from '../map/createStringLights';
 import { createRadioactiveFlowers } from '../map/createRadioactiveFlowers';
@@ -1626,7 +1627,7 @@ export class World extends Scene {
         const y = feet.y - (body.center.y - this.player.sprite.y);
         this.player.sprite.setPosition(x, y);
         body.reset(x, y);
-        this.cameras.main.flash(250, 255, 255, 255);
+        if (!prefersReducedMotion()) this.cameras.main.flash(250, 255, 255, 255);
     }
 
     /** Roda no anfitrião: um gaúcho de espada entra na disputa e vai atrás de quem estiver mais perto. */

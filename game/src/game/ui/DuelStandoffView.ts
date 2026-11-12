@@ -2,6 +2,7 @@ import type { Scene } from 'phaser';
 import { CHARACTERS } from '../config/characters';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 import { WALK_FRAMES } from '../entities/PlayerAnimations';
+import { EASE_IN_OUT, EASE_OUT, prefersReducedMotion } from './easing';
 
 // Faixa dos olhos no frame de 38 px: 22 de largura centrada no rosto e 7 de altura centrada nos olhos.
 const FRAME = 38;
@@ -22,6 +23,9 @@ const NIGHT = 0x120a05;
  * apertando até virar uma fresta, e o "1 X 1" por cima. Cada cliente toca a sua; não depende de rede.
  */
 export class DuelStandoffView {
+    /** Com movimento reduzido: nada desliza nem cresce, a fresta já nasce fechada e não há clarão. */
+    private readonly reduce = prefersReducedMotion();
+
     constructor(private readonly scene: Scene, private readonly textures: readonly [string, string]) {}
 
     play(onDone: () => void) {
@@ -29,7 +33,7 @@ export class DuelStandoffView {
         const parts: Phaser.GameObjects.GameObject[] = [];
         const background = scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, NIGHT).setDepth(DEPTH).setAlpha(0);
         parts.push(background);
-        scene.tweens.add({ targets: background, alpha: 1, duration: 150 });
+        scene.tweens.add({ targets: background, alpha: 1, duration: 150, ease: EASE_OUT });
         this.textures.forEach((texture, index) => parts.push(...this.playStrip(texture, index)));
         const title = scene.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, '1 X 1', {
             fontFamily: 'PixelGamer, monospace',
@@ -37,15 +41,17 @@ export class DuelStandoffView {
             color: '#f4efe6',
             stroke: '#120a05',
             strokeThickness: 10
-        }).setOrigin(0.5).setDepth(DEPTH + 5).setResolution(2).setScale(0);
+        }).setOrigin(0.5).setDepth(DEPTH + 5).setResolution(2).setScale(this.reduce ? 1 : 0.9).setAlpha(0);
         parts.push(title);
-        scene.tweens.add({ targets: title, scale: 1, duration: 220, delay: 1300, ease: 'Back.easeOut' });
+        // Nada surge do zero: o título chega de 90% junto com a opacidade, sem quique.
+        scene.tweens.add({ targets: title, scale: 1, alpha: 1, duration: 200, delay: 1300, ease: EASE_OUT });
         scene.time.delayedCall(2500, () => {
-            scene.cameras.main.flash(180, 255, 255, 255);
+            if (!this.reduce) scene.cameras.main.flash(180, 255, 255, 255);
             scene.tweens.add({
                 targets: parts,
                 alpha: 0,
                 duration: 260,
+                ease: EASE_OUT,
                 onComplete: () => {
                     for (const part of parts) part.destroy();
                     onDone();
@@ -63,30 +69,39 @@ export class DuelStandoffView {
         const centerY = GAME_HEIGHT / 2 + (index === 0 ? -1 : 1) * (STRIP_HEIGHT / 2 + 14);
         const enterFrom = index === 0 ? -GAME_WIDTH : GAME_WIDTH;
         const delay = 120 + index * 160;
-        const sand = scene.add.rectangle(GAME_WIDTH / 2 + enterFrom, centerY, GAME_WIDTH, STRIP_HEIGHT, SAND).setDepth(DEPTH + 1);
+        const startX = GAME_WIDTH / 2 + (this.reduce ? 0 : enterFrom);
+        const sand = scene.add.rectangle(startX, centerY, GAME_WIDTH, STRIP_HEIGHT, SAND).setDepth(DEPTH + 1);
         // Origem na linha dos olhos: eles ficam no meio da faixa, onde a fresta fecha, e o zoom cresce a partir deles.
-        const face = scene.add.image(GAME_WIDTH / 2 + enterFrom, centerY, texture, WALK_FRAMES.down[0])
+        const face = scene.add.image(startX, centerY, texture, WALK_FRAMES.down[0])
             .setCrop(cropX, cropY, CROP.width, CROP.height)
             .setOrigin((cropX + CROP.width / 2) / FRAME, eyesY / FRAME)
             .setScale(SCALE)
             .setDepth(DEPTH + 2);
-        scene.tweens.add({ targets: [sand, face], x: GAME_WIDTH / 2, duration: 380, delay, ease: 'Cubic.easeOut' });
-        scene.tweens.add({ targets: face, scale: SCALE * 1.08, duration: 2200, delay: 400 });
+        if (this.reduce) {
+            sand.setAlpha(0);
+            face.setAlpha(0);
+            scene.tweens.add({ targets: [sand, face], alpha: 1, duration: 200, delay, ease: EASE_OUT });
+        } else {
+            scene.tweens.add({ targets: [sand, face], x: GAME_WIDTH / 2, duration: 380, delay, ease: EASE_OUT });
+            // Zoom contínuo, como a câmera chegando perto: linear, sem acelerar nem frear.
+            scene.tweens.add({ targets: face, scale: SCALE * 1.08, duration: 2200, delay: 400, ease: 'Linear' });
+        }
         // Pálpebras: cobrem a faixa de cima e de baixo e fecham devagar até sobrar a fresta dos olhos.
         const lidHeight = (STRIP_HEIGHT - SLIT) / 2;
         // Presas na borda da faixa, com altura zero, crescem para dentro: nunca invadem a outra faixa.
         const fullHeight = lidHeight + OVERFLOW;
         const lids = [-1, 1].map((side) => scene.add.rectangle(GAME_WIDTH / 2, centerY + side * (STRIP_HEIGHT / 2 + OVERFLOW), GAME_WIDTH, fullHeight, NIGHT)
             .setOrigin(0.5, side < 0 ? 0 : 1)
-            .setScale(1, OVERFLOW / fullHeight)
+            .setScale(1, this.reduce ? 1 : OVERFLOW / fullHeight)
             .setDepth(DEPTH + 3));
-        scene.tweens.add({ targets: lids, scaleY: 1, duration: 700, delay: 700, ease: 'Sine.easeInOut' });
+        // As pálpebras se mexem com tudo já na tela: ida e volta forte, devagar no começo e no fim.
+        if (!this.reduce) scene.tweens.add({ targets: lids, scaleY: 1, duration: 700, delay: 700, ease: EASE_IN_OUT });
         const label = scene.add.text(24, centerY + (index === 0 ? -STRIP_HEIGHT / 2 + 4 : STRIP_HEIGHT / 2 - 4), index === 0 ? 'VOCÊ' : 'PARCEIRO', {
             fontFamily: 'PixelGamer, monospace',
             fontSize: '18px',
             color: '#f4efe6'
         }).setOrigin(0, index === 0 ? 0 : 1).setDepth(DEPTH + 4).setResolution(2).setAlpha(0);
-        scene.tweens.add({ targets: label, alpha: 1, duration: 200, delay: delay + 380 });
+        scene.tweens.add({ targets: label, alpha: 1, duration: 200, delay: delay + 380, ease: EASE_OUT });
         return [sand, face, ...lids, label];
     }
 }
