@@ -1011,9 +1011,16 @@ export class World extends Scene {
             || this.isMultiplayerGuest()
             || !this.isGameplayReady || this.isGameOver || this.isRoomCombatComplete
         ) return;
-        if (this.activeRoomKey === 'room3' && this.room3CardCode.push(event.key)) {
-            this.grantRandomStrongCard();
-            return;
+        if (this.room3CardCode.push(event.key)) {
+            if (this.activeRoomKey === 'room3') {
+                this.grantRandomStrongCard();
+                return;
+            }
+            // Na Sala V, cada 8080 tira 10% da vida máxima do golem, para testar estágios, ônibus e cutscene.
+            if (this.golem?.health.isAlive) {
+                this.golem.takeDamage(this.golem.health.max * 0.1);
+                return;
+            }
         }
         if (!this.roomClearCode.push(event.key)) return;
 

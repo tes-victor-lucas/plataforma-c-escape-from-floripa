@@ -1,5 +1,5 @@
 export const ROOM_CLEAR_CODE = '9090';
-/** Atalho de teste: na Sala III, dá uma carta forte aleatória. */
+/** Atalho de teste: na Sala III, dá uma carta forte aleatória; na Sala V, tira 10% da vida do golem. */
 export const ROOM3_CARD_CODE = '8080';
 
 /** Mantém somente o trecho necessário para reconhecer uma sequência secreta. */
