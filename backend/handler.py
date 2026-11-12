@@ -55,7 +55,8 @@ def _identity(event: dict[str, Any]) -> tuple[str, str]:
     context = event.get("requestContext") or {}
     claims = ((context.get("authorizer") or {}).get("jwt") or {}).get("claims") or {}
     player_id = claims.get("sub")
-    player_name = claims.get("name") or claims.get("preferred_username") or claims.get("email")
+    # Só o primeiro nome vai para o placar público quando o token traz (login com Google).
+    player_name = claims.get("given_name") or claims.get("name") or claims.get("preferred_username") or claims.get("email")
     if player_id:
         return str(player_id), str(player_name or "Jogador")[:40]
 
