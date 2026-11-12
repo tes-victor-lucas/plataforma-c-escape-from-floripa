@@ -220,7 +220,7 @@ export class Player {
         this.playWalkAnimation(walkAnimationKey(this.texture, 'up'));
     }
 
-    /** Veste o item: aparece no personagem e passa a valer o efeito dele (bloqueio ou velocidade). */
+    /** Veste o item: aparece no personagem e passa a valer o efeito dele (bloqueio, velocidade ou dash). */
     equipItem(id: ItemId) {
         if (this.wornItems.has(id)) return;
         this.wornItems.set(id, attachWornItem(this.scene, this.sprite, ITEMS[id]));
@@ -237,6 +237,7 @@ export class Player {
         const worn = [...this.wornItems.keys()].map((id) => ITEMS[id]);
         this.blockChance = Math.max(0, ...worn.map(({ blockChance }) => blockChance));
         this.equipmentSpeedMultiplier = worn.reduce((total, { speedMultiplier }) => total * speedMultiplier, 1);
+        this.dash.cooldownMultiplier = worn.reduce((total, { dashCooldownMultiplier }) => total * dashCooldownMultiplier, 1);
     }
 
     takeDamage(amount: number) {

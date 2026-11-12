@@ -209,7 +209,9 @@ export const TICEN_DUEL = {
         { id: 'speed', label: 'POCAO DE VELOCIDADE' },
         { id: 'shield', label: 'ESCUDO' },
         { id: 'lifesteal', label: 'ROUBO DE VIDA' },
-        { id: 'spin', label: 'GIRO DE LONGO ALCANCE' }
+        { id: 'spin', label: 'GIRO DE LONGO ALCANCE' },
+        { id: 'silver-boots', label: 'BOTAS DE PRATA' },
+        { id: 'diamond-boots', label: 'BOTAS DE DIAMANTE' }
     ],
     clubMultiplier: 1.6,
     speed: { multiplier: 1.5, duration: 8_000 },

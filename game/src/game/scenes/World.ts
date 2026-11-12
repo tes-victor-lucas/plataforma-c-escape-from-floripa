@@ -75,7 +75,7 @@ import { playExplosion } from '../effects/playAreaEffects';
 import { getBusFrame, TopazioGolem } from '../entities/TopazioGolem';
 import { BusEndingView } from '../ui/BusEndingView';
 import { CinematicBarsView } from '../ui/CinematicBarsView';
-import { encodeWornItems, GAUCHO_HAT, ITEM_IDS, ITEMS, type ItemId } from '../config/items';
+import { encodeWornItems, GAUCHO_HAT, ITEM_CHESTS, ITEM_IDS, ITEMS, type ItemId } from '../config/items';
 import { createItemTexture, createItemTextures } from '../entities/WornItem';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
 import { TchayQueue } from '../entities/TchayQueue';
@@ -111,6 +111,7 @@ import {
     saveCampaignProgress
 } from '../progress/CampaignProgress';
 import { runTracker } from '../scoring/RunTracker';
+import { formatElapsedTime } from '../scoring/ScoreCalculator';
 import { SCORE_CONFIG } from '../config/score';
 import {
     createDungeonSessionState,
@@ -208,6 +209,14 @@ export class World extends Scene {
         claimed: boolean;
     }>();
     private duelChestSequence = 0;
+    private itemChest?: {
+        image: Phaser.GameObjects.Sprite;
+        hint: Phaser.GameObjects.Text;
+        glow?: Phaser.GameObjects.Graphics;
+        item: ItemId;
+    };
+    // Sobrevive à ida e volta dos esconderijos: quando a sala começou e se o baú dela foi destrancado.
+    private readonly itemChestRuns = new Map<RoomKey, { startedAt: number; unlocked: boolean }>();
     private lifestealUntil = 0;
     private victorySubtitle?: string;
     private busDoorObjects: Phaser.GameObjects.GameObject[] = [];
@@ -428,6 +437,7 @@ export class World extends Scene {
         }
         // Skatistas, comerciantes e o casal do Mercado Público; a horda espera a travessia.
         this.mercadoNpcs = roomKey === 'room4' ? new MercadoNpcs(this, !savedCombat) : undefined;
+        this.createItemChest(roomKey, !savedCombat);
         // Sala I: rua dos bares com o TCHAY lotado e o varal de lâmpadas.
         this.barQueues = [];
         // Sala III: as flores dos canteiros da Praça XV estão contaminadas.
@@ -517,6 +527,7 @@ export class World extends Scene {
             this.isRoomCombatComplete = true;
             this.waves = undefined;
             recordRoomCompletionScore(roomKey);
+            this.finishItemChestRun(roomKey);
             if (roomKey === 'gaucho-dungeon') this.createGauchoHatPickup();
             if (this.isMultiplayerHost()) {
                 this.sendEnemySnapshot();
@@ -711,6 +722,7 @@ export class World extends Scene {
         this.wakeGolem();
         this.updateTicenGoal();
         this.updateDuelChests();
+        this.updateItemChest();
         if (this.isRoomTransitioning) return;
         this.stairClimbEffect?.update();
         if (this.isMultiplayerGuest()) {
@@ -1572,9 +1584,9 @@ export class World extends Scene {
         this.placeDuelChest(id, point.x, point.y, special);
     }
 
-    private placeDuelChest(id: number, x: number, y: number, special: DuelSpecialId) {
-        const image = this.add.sprite(x, y, TICEN_DUEL.chest.texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(y));
-        // Brilho extra para achar o baú de longe: halo dourado no chão, um facho de luz subindo e faíscas.
+    /** Brilho extra para achar o baú de longe: halo dourado no chão, um facho de luz subindo e faíscas. */
+    private addChestGlow(image: Phaser.GameObjects.Sprite) {
+        const { x, y } = image;
         const glow = this.add.graphics().setDepth(getActorDepth(y) - 0.001).setBlendMode(1);
         for (const [radius, alpha] of [[26, 0.12], [17, 0.2], [9, 0.32]] as const) {
             glow.fillStyle(0xffd75a, alpha).fillEllipse(x, y - 2, radius * 2, radius);
@@ -1591,6 +1603,72 @@ export class World extends Scene {
             const spark = this.add.rectangle(x + (Math.random() - 0.5) * 18, y - 8, 2, 2, 0xfff2b0).setDepth(getActorDepth(y) + 0.01).setBlendMode(1);
             this.tweens.add({ targets: spark, y: spark.y - 26, alpha: 0, duration: 800, onComplete: () => spark.destroy() });
         } });
+        return glow;
+    }
+
+    /** Baú de item da sala: trancado até o combate terminar no tempo; quem já tem o item o encontra aberto. */
+    private createItemChest(roomKey: RoomKey, isFreshRoom: boolean) {
+        this.itemChest = undefined;
+        const config = ITEM_CHESTS[roomKey];
+        if (!config) return;
+        if (isFreshRoom) this.itemChestRuns.set(roomKey, { startedAt: runTracker.snapshot().elapsedTimeMs, unlocked: false });
+        const { x, y, item } = config;
+        const image = this.add.sprite(x, y, TICEN_DUEL.chest.texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(y));
+        if (this.ownedItems.includes(item)) {
+            image.setFrame(1);
+            return;
+        }
+        const hint = this.createWorldHint(
+            `COMPLETE A ${config.roomName} EM ${formatElapsedTime(config.timeLimitMs)}\nPARA DESBLOQUEAR UM ITEM`
+        ).setAlign('center').setPosition(x, y - 32).setVisible(false);
+        this.itemChest = { image: image.setTint(0x7a7a8c), hint, item };
+        if (this.itemChestRuns.get(roomKey)?.unlocked) this.unlockItemChest();
+    }
+
+    /** O combate da sala acabou: dentro do tempo, o baú destranca e passa a brilhar. */
+    private finishItemChestRun(roomKey: RoomKey) {
+        const run = this.itemChestRuns.get(roomKey);
+        const config = ITEM_CHESTS[roomKey];
+        if (!run || !config) return;
+        run.unlocked = runTracker.snapshot().elapsedTimeMs - run.startedAt <= config.timeLimitMs;
+        if (run.unlocked && this.itemChest) {
+            this.unlockItemChest();
+            this.showFloatingHint('BAÚ DESBLOQUEADO');
+        }
+    }
+
+    private unlockItemChest() {
+        const chest = this.itemChest;
+        if (!chest || chest.glow) return;
+        chest.image.clearTint();
+        chest.hint.setVisible(false);
+        chest.glow = this.addChestGlow(chest.image);
+    }
+
+    /** Trancado, o baú explica o desafio a quem chega perto; destrancado, basta encostar para vestir o item. */
+    private updateItemChest() {
+        const chest = this.itemChest;
+        if (!chest || !this.player) return;
+        const feet = this.player.sprite.body?.center ?? this.player.sprite;
+        const distance = Math.hypot(feet.x - chest.image.x, feet.y - (chest.image.y - 6));
+        const { touchRadius } = TICEN_DUEL.chest;
+        if (!chest.glow) {
+            chest.hint.setVisible(distance <= touchRadius * 2);
+            return;
+        }
+        if (distance > touchRadius) return;
+        this.itemChest = undefined;
+        this.tweens.killTweensOf(chest.image);
+        chest.image.setFrame(1).setScale(1);
+        chest.glow.destroy();
+        chest.hint.destroy();
+        this.equipFoundItem(chest.item);
+        this.showFloatingHint(ITEMS[chest.item].name);
+    }
+
+    private placeDuelChest(id: number, x: number, y: number, special: DuelSpecialId) {
+        const image = this.add.sprite(x, y, TICEN_DUEL.chest.texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(y));
+        const glow = this.addChestGlow(image);
         playExplosion(this, x, y - 6, 14, 0xfff2b0);
         this.duelChests.set(id, { image, glow, special, opened: false, claimed: false });
     }
@@ -1645,6 +1723,10 @@ export class World extends Scene {
                 break;
             case 'boots':
                 this.equipFoundItem('rubber-boots');
+                break;
+            case 'silver-boots':
+            case 'diamond-boots':
+                this.equipFoundItem(special);
                 break;
             case 'club':
                 combat.swordDamageMultiplier *= clubMultiplier;
