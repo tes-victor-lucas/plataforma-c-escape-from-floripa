@@ -79,6 +79,7 @@ import { encodeWornItems, GAUCHO_HAT, getChestCandidates, ITEM_CHESTS, ITEM_IDS,
 import { createItemTexture, createItemTextures } from '../entities/WornItem';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
 import { TchayQueue } from '../entities/TchayQueue';
+import { createMercadoEntranceSign } from '../map/createMercadoEntranceSign';
 import { PAGODE, PAGODE_FRAMES, POPULAR_BARS, TCHAY } from '../config/tchay';
 import { createStringLights } from '../map/createStringLights';
 import { createRadioactiveFlowers } from '../map/createRadioactiveFlowers';
@@ -435,6 +436,7 @@ export class World extends Scene {
                     .setOrigin(0.5).setResolution(4).setAlpha(0.8).setDepth(20.5);
             }
         }
+        if (roomKey === 'room4') createMercadoEntranceSign(this);
         // Skatistas, comerciantes e o casal do Mercado Público; a horda espera a travessia.
         this.mercadoNpcs = roomKey === 'room4' ? new MercadoNpcs(this, !savedCombat) : undefined;
         this.createItemChest(roomKey, !savedCombat);
