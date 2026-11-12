@@ -612,7 +612,7 @@ export class CombatSystem {
 
         const hand = this.getHandPosition();
         this.heldSword.setVisible(false);
-        this.playSwing(hand.x, hand.y, angle, () => this.heldSword?.setVisible(true));
+        this.playSwing(hand.x, hand.y, angle, () => this.heldSword?.setVisible(true), this.flameSword && !this.melee);
         this.network?.onPlayerSwing(hand.x, hand.y, angle);
 
         for (const enemy of this.enemies) {
@@ -651,10 +651,10 @@ export class CombatSystem {
         this.playSwing(x, y, angle);
     }
 
-    private playSwing(x: number, y: number, angle: number, onComplete?: () => void) {
+    private playSwing(x: number, y: number, angle: number, onComplete?: () => void, flame = false) {
         const { arc, swingDuration } = COMBAT_CONFIG.melee;
         // O ícone da espada aponta a lâmina para cima e à direita (-45°).
-        const sword = this.scene.add.image(x, y - 2, 'sword')
+        const sword = this.scene.add.image(x, y - 2, flame ? FLAME_SWORD.texture : 'sword')
             .setOrigin(0.15, 0.85)
             .setDepth(15)
             .setRotation(angle - arc / 2 + Math.PI / 4);
@@ -663,10 +663,36 @@ export class CombatSystem {
             rotation: angle + arc / 2 + Math.PI / 4,
             duration: swingDuration,
             ease: 'Quad.Out',
+            // A cada quadro do golpe, uma chama nasce na ponta da lâmina e sobe se apagando.
+            onUpdate: flame ? () => this.emitFlame(sword) : undefined,
             onComplete: () => {
                 sword.destroy();
                 onComplete?.();
             }
+        });
+    }
+
+    /** Labareda na ponta da lâmina: sobe, encolhe e some, deixando o rastro do arco do golpe no ar. */
+    private emitFlame(sword: Phaser.GameObjects.Image) {
+        const { trailColors } = COMBAT_CONFIG.flameSword;
+        // A ponta fica a 3/4 da diagonal da textura, na direção da lâmina (rotação menos 45°).
+        const reach = sword.displayWidth * 0.95;
+        const blade = sword.rotation - Math.PI / 4;
+        const color = trailColors[Math.floor(Math.random() * trailColors.length)];
+        const flame = this.scene.add.circle(
+            sword.x + Math.cos(blade) * reach + (Math.random() - 0.5) * 4,
+            sword.y + Math.sin(blade) * reach + (Math.random() - 0.5) * 4,
+            2 + Math.random() * 2,
+            color
+        ).setDepth(15.1).setBlendMode(1);
+        this.scene.tweens.add({
+            targets: flame,
+            y: flame.y - 10 - Math.random() * 8,
+            scale: 0.2,
+            alpha: 0,
+            duration: 320 + Math.random() * 160,
+            ease: 'Sine.Out',
+            onComplete: () => flame.destroy()
         });
     }
 
