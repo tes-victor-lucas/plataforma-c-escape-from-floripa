@@ -2970,7 +2970,8 @@ export class World extends Scene {
             if (!row || !enemy.health.isAlive) continue;
             enemy.sprite.anims.stop();
             // O golem afina na horizontal quando gira; os outros inimigos não mandam escala.
-            if (row[5] !== undefined) enemy.sprite.setScale(row[5], 1);
+            // Só a largura vem do anfitrião (o giro); a altura é a do espelho, que ajoelha sozinho no atordoamento.
+            if (row[5] !== undefined) enemy.sprite.setScale(row[5], enemy.sprite.scaleY);
             enemy.sprite.setFrame(row[3]).setFlipX(row[4] === 1).setPosition(
                 Phaser.Math.Linear(enemy.sprite.x, row[0], 0.35),
                 Phaser.Math.Linear(enemy.sprite.y, row[1], 0.35)

@@ -6,6 +6,7 @@ import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import { playExplosion, playShockwave } from '../effects/playAreaEffects';
 import type { CombatEnemy } from './CombatEnemy';
 import type { Player } from './Player';
+import { EASE_IN_OUT, EASE_OUT, prefersReducedMotion } from '../ui/easing';
 
 type Point = Readonly<{ x: number; y: number }>;
 type Action = 'walk' | 'slam' | 'spin' | 'fetch' | 'hold' | 'roar' | 'stun' | 'dead';
@@ -57,6 +58,11 @@ const ROW_DEATH = 13;
 // Giro: uma coluna por estágio de rachadura.
 const ROW_SPIN_FRONT = 14;
 const ROW_SPIN_BACK = 15;
+// Golem atordoado: de joelhos (achata e desce um pouco) e cinco estrelas girando numa elipse sobre a cabeça.
+const STUN_LOOK = {
+    kneel: { scaleX: 1.06, scaleY: 0.84, drop: 0.08 },
+    halo: { count: 5, period: 900, radiusX: 26, radiusY: 7, headOffset: 0.36, star: { texture: 'golem-stun-star', scale: 2 } }
+} as const;
 const ROAR_THRESHOLDS = TOPAZIO_BOSS.roar.cutscenes.map(({ at }) => at);
 
 /** Quadro de um ônibus inteiro (uma linha do ticen_onibus.png), criado na primeira vez que é pedido. */
@@ -86,6 +92,7 @@ export class TopazioGolem implements CombatEnemy {
     private spinBursts = 0;
     private busesThrown = 0;
     private hasStunned = false;
+    private readonly stunHalo: Phaser.GameObjects.Image[] = [];
     /** Tempo desde o último arremesso (ou desde que acordou): passou de busInterval, ele vai atrás de um ônibus. */
     private sinceLastBus = 0;
     private roarsDone = 0;
@@ -206,6 +213,7 @@ export class TopazioGolem implements CombatEnemy {
         body.setVelocity(0, 0);
         this.hitBySpikes();
         if (this.action === 'stun') {
+            this.updateStunHalo();
             if (this.actionTime >= TOPAZIO_BOSS.stun.duration) this.endStun();
             return;
         }
@@ -360,20 +368,63 @@ export class TopazioGolem implements CombatEnemy {
     }
 
     /** Desaba de lado, acinzentado; o tempo de 4 s só corre depois que a rodada de cartas fecha (o mundo fica parado). */
+    /**
+     * Cai de joelhos no lugar, acinzentado, sem girar: deitado, ele ficava amassado por cima dos quiosques.
+     * Achata e desce um pouco, e a auréola de estrelas começa a girar sobre a cabeça.
+     */
     private startStun() {
         if (this.hasStunned) return;
         this.hasStunned = true;
         this.startAction('stun');
         this.sprite.setTint(0x9a9aa6);
-        this.scene.tweens.add({ targets: this.sprite, angle: 90, duration: 260, ease: 'Quad.easeOut' });
+        const { kneel } = STUN_LOOK;
+        const kneeled = { scaleX: kneel.scaleX, scaleY: kneel.scaleY, y: this.sprite.y + this.sprite.displayHeight * kneel.drop };
+        if (prefersReducedMotion()) this.sprite.setScale(kneeled.scaleX, kneeled.scaleY).setY(kneeled.y);
+        else this.scene.tweens.add({ targets: this.sprite, ...kneeled, duration: 220, ease: EASE_OUT });
         this.scene.cameras.main.shake(220, 0.008);
+        this.createStunHalo();
         this.options.onStun?.();
     }
 
     private endStun() {
         this.sprite.clearTint();
-        this.scene.tweens.add({ targets: this.sprite, angle: 0, duration: 260, ease: 'Quad.easeOut' });
+        // Levanta de volta pelo mesmo caminho: algo que já está na tela, ida e volta forte.
+        const rise = { scaleX: 1, scaleY: 1, y: `-=${this.sprite.height * STUN_LOOK.kneel.drop}` };
+        if (prefersReducedMotion()) this.sprite.setScale(1).setY(this.sprite.y - this.sprite.height * STUN_LOOK.kneel.drop);
+        else this.scene.tweens.add({ targets: this.sprite, ...rise, duration: 260, ease: EASE_IN_OUT });
+        const halo = this.stunHalo.splice(0);
+        this.scene.tweens.add({ targets: halo, alpha: 0, duration: 180, ease: EASE_OUT, onComplete: () => halo.forEach((star) => star.destroy()) });
         this.finishAttack();
+    }
+
+    /** Estrelas de pixel desenhadas uma vez; entram de 60% junto com a opacidade, nunca do zero. */
+    private createStunHalo() {
+        const { star, count } = STUN_LOOK.halo;
+        if (!this.scene.textures.exists(star.texture)) {
+            const graphics = this.scene.make.graphics({}, false);
+            graphics.fillStyle(0xffd75a, 1).fillRect(2, 0, 3, 7).fillRect(0, 2, 7, 3);
+            graphics.fillStyle(0xfff6c8, 1).fillRect(3, 1, 1, 5).fillRect(1, 3, 5, 1);
+            graphics.generateTexture(star.texture, 7, 7);
+            graphics.destroy();
+        }
+        for (let index = 0; index < count; index += 1) {
+            const image = this.scene.add.image(this.sprite.x, this.sprite.y, star.texture).setScale(star.scale * 0.6).setAlpha(0);
+            this.scene.tweens.add({ targets: image, alpha: 1, scale: star.scale, duration: 200, delay: index * 40, ease: EASE_OUT });
+            this.stunHalo.push(image);
+        }
+        this.updateStunHalo();
+    }
+
+    /** Elipse sobre a cabeça, girando em ritmo constante; as estrelas de trás passam atrás do golem. */
+    private updateStunHalo() {
+        const { count, period, radiusX, radiusY, headOffset } = STUN_LOOK.halo;
+        const turn = prefersReducedMotion() ? 0 : (this.actionTime / period) * Math.PI * 2;
+        const headY = this.sprite.y - this.sprite.displayHeight * headOffset;
+        this.stunHalo.forEach((star, index) => {
+            const angle = turn + (index / count) * Math.PI * 2;
+            star.setPosition(this.sprite.x + Math.cos(angle) * radiusX, headY + Math.sin(angle) * radiusY)
+                .setDepth(this.sprite.depth + (Math.sin(angle) < 0 ? -0.01 : 0.01));
+        });
     }
 
     private finishAttack() {
