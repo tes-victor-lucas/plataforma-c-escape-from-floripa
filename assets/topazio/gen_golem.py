@@ -393,8 +393,30 @@ def build_sheet():
     return sheet
 
 
+def build_gem():
+    """Topázio que cai no chão quando o golem explode: gota lapidada laranja com reflexo."""
+    size = 12
+    img = Image.new('RGBA', (size, size), T)
+    px = img.load()
+    for y in range(1, 11):
+        half = (y - 1) * 0.9 if y < 5 else (10 - y) * 0.75 + 0.5
+        for x in range(size):
+            if abs(x - 5.5) <= half:
+                left = x < 5.5
+                px[x, y] = rgba(BODY[5] if y < 4 and left else BODY[4] if left else BODY[3] if y < 6 else BODY[2])
+    px[4, 3] = px[4, 4] = rgba(BODY[6])
+    solid = {(x, y) for y in range(size) for x in range(size) if px[x, y][3]}
+    for x, y in solid:
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            n = (x + dx, y + dy)
+            if n not in solid and 0 <= n[0] < size and 0 <= n[1] < size:
+                px[n] = rgba(BODY[0])
+    return img
+
+
 if __name__ == '__main__':
     assert CRACKS_PER_STAGE == tuple(sorted(CRACKS_PER_STAGE)) and len(CRACKS_PER_STAGE) == STAGES
     os.makedirs(OUT, exist_ok=True)
     build_sheet().save(os.path.join(OUT, 'topazio-golem.png'))
+    build_gem().save(os.path.join(OUT, 'topazio-gema.png'))
     print('ok')
