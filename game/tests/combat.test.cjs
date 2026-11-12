@@ -4552,3 +4552,17 @@ test('disputa do TICEN: teletransporte, close de duelo e só depois a luta', () 
     finishStandoff();
     assert.deepEqual(steps, ['teleporte', 'close', 'luta']);
 });
+
+test('curva de Bézier das cenas segue a do CSS: começa em 0, termina em 1 e a de saída corre no começo', () => {
+    const { cubicBezier, EASE_OUT, EASE_IN_OUT, prefersReducedMotion } = load('../src/game/ui/easing.ts');
+    const linear = cubicBezier(0, 0, 1, 1);
+    for (const x of [0.1, 0.5, 0.9]) assert.ok(Math.abs(linear(x) - x) < 1e-4, 'a reta continua reta');
+    assert.equal(EASE_OUT(0), 0);
+    assert.equal(EASE_OUT(1), 1);
+    assert.ok(EASE_OUT(0.25) > 0.75, 'a de saída já percorreu quase tudo no primeiro quarto');
+    const samples = Array.from({ length: 21 }, (_, index) => EASE_IN_OUT(index / 20));
+    assert.ok(samples.every((value, index) => index === 0 || value >= samples[index - 1]), 'a de ida e volta só avança');
+    assert.ok(EASE_IN_OUT(0.2) < 0.1 && EASE_IN_OUT(0.8) > 0.9, 'devagar nas pontas, rápida no meio');
+    assert.equal(prefersReducedMotion(() => ({ matches: true })), true);
+    assert.equal(prefersReducedMotion(undefined), false);
+});
