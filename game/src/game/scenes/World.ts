@@ -428,7 +428,7 @@ export class World extends Scene {
         }
         if (roomKey === 'room2') this.createPiranhasBarPrompt();
         if (roomKey === 'mercado-interior') this.createArcadePrompt();
-        if (isTicenRoom(roomKey)) this.createTicenGate(roomKey === 'room5' ? TICEN_GATE.originalTexture : TICEN_GATE.texture);
+        if (isTicenRoom(roomKey)) this.createTicenGate(roomKey === 'room51' ? TICEN_GATE.originalTexture : TICEN_GATE.texture);
         const secretGateway = SECRET_DUNGEON_GATEWAYS.find((gateway) => gateway.from === roomKey);
         if (secretGateway) this.createSecretEntranceHint(secretGateway);
         if (roomKey === 'room2') {
