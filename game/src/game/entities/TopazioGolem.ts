@@ -82,6 +82,8 @@ export class TopazioGolem implements CombatEnemy {
     private hasSlammed = false;
     private spinBursts = 0;
     private busesThrown = 0;
+    /** Tempo desde o último arremesso (ou desde que acordou): passou de busInterval, ele vai atrás de um ônibus. */
+    private sinceLastBus = 0;
     private roarsDone = 0;
     private gemsCollected = 0;
     private isDeathDeferred = false;
@@ -292,8 +294,10 @@ export class TopazioGolem implements CombatEnemy {
             this.emit({ type: 'roar', caption });
             return;
         }
-        if (this.busesThrown + (this.fetching ? 1 : 0) < countThresholdsCrossed(this.health.current, this.health.max, TOPAZIO_BOSS.busThresholds)
-            && this.buses.length > 0) {
+        this.sinceLastBus += delta;
+        const isOwedBus = this.busesThrown + (this.fetching ? 1 : 0) < countThresholdsCrossed(this.health.current, this.health.max, TOPAZIO_BOSS.busThresholds);
+        if ((isOwedBus || this.sinceLastBus >= TOPAZIO_BOSS.busInterval) && this.buses.length > 0) {
+            this.sinceLastBus = 0;
             this.startFetch();
             return;
         }
