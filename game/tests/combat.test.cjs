@@ -4300,3 +4300,17 @@ test('arrastar no inventário equipa ao soltar no boneco e guarda ao soltar na g
     assert.equal(shouldToggleOnDrop(true, ...doll), false, 'equipado solto no boneco continua vestido');
     assert.equal(shouldToggleOnDrop(false, 700, 170), false, 'fora das áreas nada muda');
 });
+
+test('atributos do inventário somam os itens vestidos em barrinhas e porcentagem', () => {
+    const { getEquipmentStats } = load('../src/game/ui/InventoryMenuView.ts');
+    assert.deepEqual(getEquipmentStats([]), [
+        { label: 'BLOQUEIO', pips: 0, value: '0%' },
+        { label: 'VELOCIDADE', pips: 0, value: '+0%' },
+        { label: 'DASH', pips: 0, value: '-0%' }
+    ]);
+    const [block, speed, dash] = getEquipmentStats(['gaucho-hat', 'silver-boots']);
+    assert.deepEqual([block.pips, block.value], [2, '20%']);
+    assert.deepEqual([speed.pips, speed.value], [2, '+10%']);
+    assert.equal(dash.pips, 0);
+    assert.deepEqual(getEquipmentStats(['helmet', 'diamond-boots']).map(({ pips }) => pips), [3, 0, 4]);
+});
