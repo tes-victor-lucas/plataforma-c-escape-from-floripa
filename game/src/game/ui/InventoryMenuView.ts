@@ -41,6 +41,8 @@ const INV = {
     panel: 0x25272c,
     raised: 0x30333a,
     well: 0x1a1b1f,
+    backdrop: 0x46525c,
+    floor: 0x343d45,
     outline: 0x0c0c0f,
     band: 0xd68a2c,
     shine: 0xf6c56c,
@@ -56,7 +58,8 @@ const TITLE_TAB = { x: 36, y: 8, width: 190, height: 36 };
 const CLOSE_TAB = { x: 823, y: 8, width: 36, height: 36 };
 const CARDS = { x: 36, y: 66, width: 174, height: 300 };
 const CHIMARRAO = { x: 36, y: 378, width: 174, height: 50 };
-const DOLL = { x: 232, y: 66, width: 200, height: 220 };
+// Retrato do personagem, um cartão em pé como numa ficha.
+const DOLL = { x: 232, y: 66, width: 150, height: 172 };
 const DETAILS = { x: 610, y: 66, width: 243, height: 220 };
 // Encaixes do boneco; cada item de equipar ocupa o seu.
 const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ['CABEÇA', 'CORPO', 'MÃOS', 'PÉS'];
@@ -189,14 +192,14 @@ export class InventoryMenuView {
     }
 
     private addDoll(menu: CleanOverlayMenu) {
-        const grid = this.box(DOLL);
-        grid.lineStyle(1, INV.band, 0.12);
-        for (let x = DOLL.x + 12; x < DOLL.x + DOLL.width; x += 12) grid.lineBetween(x, DOLL.y + 4, x, DOLL.y + DOLL.height - 4);
-        for (let y = DOLL.y + 12; y < DOLL.y + DOLL.height; y += 12) grid.lineBetween(DOLL.x + 4, y, DOLL.x + DOLL.width - 4, y);
+        // Fundo mais claro que o painel e uma faixa de chão: o personagem se destaca como numa foto.
+        const grid = this.scene.add.graphics();
+        drawFramedBox(grid, DOLL, INV.backdrop);
+        grid.fillStyle(INV.floor, 1).fillRect(DOLL.x + 7, DOLL.y + DOLL.height - 43, DOLL.width - 14, 36);
         const character = CHARACTERS[this.options.characterId];
         // De frente e parado, ampliado: os itens equipados vão aparecer por cima dele.
-        const doll = this.scene.add.image(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height / 2 + 6, character.texture, WALK_FRAMES.down[0])
-            .setScale(4.5 * character.scaleMultiplier);
+        const doll = this.scene.add.image(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height / 2 + 2, character.texture, WALK_FRAMES.down[0])
+            .setScale(3.6 * character.scaleMultiplier);
         menu.add([grid, doll, this.text(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height - 16, character.label, 12, INV.bandCss).setOrigin(0.5)]);
         // O que vai na cabeça e nos pés aparece no boneco, como no personagem pelo mapa.
         for (const equipped of this.equippedItems) {
