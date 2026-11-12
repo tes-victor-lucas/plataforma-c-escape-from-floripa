@@ -4211,3 +4211,91 @@ test('catraca do TICEN nao pede o cartao de novo para quem ja entrou', () => {
     assert.equal(world.isWalletOpen, false);
     multiplayerClient.disconnect();
 });
+
+const googleIdToken = (claims) => `cabecalho.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.assinatura`;
+const fairRespondsWith = (status, calls = []) => async (url, init) => {
+    calls.push({ url, init });
+    return { status };
+};
+
+test('login le o nome e a validade do ID token do Google, com acentos', () => {
+    const { decodeIdToken } = load('../src/game/auth/GoogleAuth.ts');
+    const token = googleIdToken({ given_name: 'João', name: 'João da Silva', exp: 2000 });
+    assert.deepEqual(decodeIdToken(token), { name: 'João', token, expiresAt: 2_000_000 });
+    assert.equal(decodeIdToken(googleIdToken({ email: 'a@b.c', exp: 1 })).name, 'a@b.c');
+    assert.equal(decodeIdToken('lixo'), undefined);
+    assert.equal(decodeIdToken(googleIdToken({ name: 'Sem validade' })), undefined);
+});
+
+test('sessao do Google vale enquanto o token nao vence e some ao sair da conta', () => {
+    const { GoogleAuth } = load('../src/game/auth/GoogleAuth.ts');
+    let now = 1_000_000;
+    const auth = new GoogleAuth(() => now);
+    assert.equal(auth.user, undefined);
+    auth.accept(googleIdToken({ name: 'Ana', exp: 2000 }));
+    assert.equal(auth.user.name, 'Ana');
+    now = 2_000_000;
+    assert.equal(auth.user, undefined, 'token vencido nao vai para o placar nem para a feira');
+    now = 1_000_000;
+    auth.signOut();
+    assert.equal(auth.user, undefined);
+});
+
+test('credito da feira manda o produto 97 e 100 tijolinhos com o token do jogador', async () => {
+    const { creditFair } = load('../src/game/auth/GoogleAuth.ts');
+    const calls = [];
+    assert.equal(await creditFair('token-do-google', fairRespondsWith(201, calls)), 'PAID');
+    assert.equal(calls[0].url, 'https://feira-de-jogos.dev.br/api/v2/credit');
+    assert.equal(calls[0].init.method, 'POST');
+    assert.equal(calls[0].init.headers.authorization, 'Bearer token-do-google');
+    assert.deepEqual(JSON.parse(calls[0].init.body), { product: 97, value: 100 });
+});
+
+test('credito da feira avisa credito recente (429) e falha sem derrubar a tela de vitoria', async () => {
+    const { creditFair } = load('../src/game/auth/GoogleAuth.ts');
+    assert.equal(await creditFair('t', fairRespondsWith(429)), 'RECENT');
+    assert.equal(await creditFair('t', fairRespondsWith(401)), 'FAILED');
+    assert.equal(await creditFair('t', async () => { throw new Error('sem rede'); }), 'FAILED');
+});
+
+test('vitoria so paga a feira para quem jogou logado', async () => {
+    const { GoogleAuth, payFairCredit } = load('../src/game/auth/GoogleAuth.ts');
+    const { FAIR } = load('../src/game/config/fair.ts');
+    const calls = [];
+    const auth = new GoogleAuth(() => 0);
+    assert.equal(await payFairCredit(auth, fairRespondsWith(201, calls)), undefined);
+    assert.equal(calls.length, 0, 'sem login nao ha requisicao: na feira o pagamento e manual');
+    auth.accept(googleIdToken({ name: 'Ana', exp: 10 }));
+    assert.equal(await payFairCredit(auth, fairRespondsWith(201, calls)), FAIR.messages.PAID);
+    assert.equal(calls.length, 1);
+});
+
+test('menu principal so mostra a conta quando o login esta disponivel', () => {
+    const labels = (account) => createMainMenuActions(() => undefined, () => undefined, account).map(({ label }) => label);
+    assert.deepEqual(labels(undefined), ['JOGAR', 'PLACAR', 'OPÇÕES', 'SAIR']);
+    assert.deepEqual(
+        labels({ label: 'ENTRAR COM GOOGLE', onSelect() {} }),
+        ['JOGAR', 'PLACAR', 'ENTRAR COM GOOGLE', 'OPÇÕES', 'SAIR']
+    );
+});
+
+test('placar recebe o token do Google de quem entrou', async () => {
+    const { googleAuth } = load('../src/game/auth/GoogleAuth.ts');
+    const { scoreApi } = load('../src/game/scoring/ScoreApi.ts');
+    const token = googleIdToken({ name: 'Ana', exp: Date.now() / 1000 + 3600 });
+    const originalFetch = globalThis.fetch;
+    const headers = [];
+    globalThis.fetch = async (_url, init) => {
+        headers.push(init.headers.authorization);
+        return { ok: true, json: async () => ({}) };
+    };
+    try {
+        await scoreApi.startRun('run-1', 'SINGLE_PLAYER');
+        googleAuth.accept(token);
+        await scoreApi.startRun('run-2', 'SINGLE_PLAYER');
+    } finally {
+        globalThis.fetch = originalFetch;
+        googleAuth.signOut();
+    }
+    assert.deepEqual(headers, [undefined, `Bearer ${token}`]);
+});
