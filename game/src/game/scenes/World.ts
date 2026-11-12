@@ -1743,6 +1743,7 @@ export class World extends Scene {
                 break;
             case 'silver-boots':
             case 'diamond-boots':
+            case 'ice-staff':
                 this.equipFoundItem(special);
                 break;
             case 'club':

@@ -211,7 +211,9 @@ export const TICEN_DUEL = {
         { id: 'lifesteal', label: 'ROUBO DE VIDA' },
         { id: 'spin', label: 'GIRO DE LONGO ALCANCE' },
         { id: 'silver-boots', label: 'BOTAS DE PRATA' },
-        { id: 'diamond-boots', label: 'BOTAS DE DIAMANTE' }
+        { id: 'diamond-boots', label: 'BOTAS DE DIAMANTE' },
+        // Na disputa todos já lutam de espada: dos itens de mão, só o cajado muda alguma coisa.
+        { id: 'ice-staff', label: 'CAJADO DE GELO' }
     ],
     clubMultiplier: 1.6,
     speed: { multiplier: 1.5, duration: 8_000 },
