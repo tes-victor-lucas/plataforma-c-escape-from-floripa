@@ -797,6 +797,17 @@ test('parede entre os personagens impede disparos dos dois lados', () => {
     assert.equal(groups[1].shots.length, 0);
 });
 
+test('jogador atira no golem mesmo com quiosque ou pilar no meio, e o tiro atravessa até ele', () => {
+    const { combat, groups, drones } = setup([[150, 100]], [
+        { getLeft: () => 120, getTop: () => 90, width: 16, height: 32 }
+    ]);
+    drones[0].kind = 'golem';
+    combat.update(COMBAT_CONFIG.player.fireInterval);
+    assert.equal(groups[0].shots.length, 1, 'o golem fica por cima dos obstáculos e continua na mira');
+    assert.equal(combat.projectiles.get(groups[0].shots[0]).passesWalls, true);
+    assert.equal(groups[1].shots.length, 0, 'o golem não atira como drone');
+});
+
 test('tiro normal ganha 10% de dano e 5% de velocidade a cada sala', () => {
     const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
     near(getPlayerShotMultipliers('room1').damage, 1);
