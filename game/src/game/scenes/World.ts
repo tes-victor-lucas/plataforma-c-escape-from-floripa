@@ -764,8 +764,8 @@ export class World extends Scene {
             this.isGameOver = true;
             this.combat?.clear();
             this.physics.pause();
-            // Solo a partida continua aberta no servidor para recomeçar do checkpoint.
-            runTracker.lose(undefined, this.isMultiplayerEnabled());
+            // A partida continua aberta no servidor para recomeçar do checkpoint, solo ou em dupla.
+            runTracker.lose(undefined, false);
             return;
         }
         if (this.isHitStopActive) return;
