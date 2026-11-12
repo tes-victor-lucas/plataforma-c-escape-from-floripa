@@ -40,6 +40,8 @@ const FRAME = { outline: 0x000a0c, band: 0x0aa5b3, shine: 0x5ce5f1, fill: 0x0a22
 const PANEL = { x: 16, y: 34, width: 857, height: 452 };
 // Aba do título, presa por cima do painel como a orelha de uma pasta.
 const TITLE_TAB = { x: 36, y: 8, width: 190, height: 36 };
+// Botão de fechar, outra aba na ponta direita.
+const CLOSE_TAB = { x: 823, y: 8, width: 36, height: 36 };
 const CARDS = { x: 36, y: 66, width: 174, height: 300 };
 const CHIMARRAO = { x: 36, y: 378, width: 174, height: 50 };
 const DOLL = { x: 232, y: 66, width: 200, height: 220 };
@@ -95,6 +97,7 @@ export class InventoryMenuView {
         panel.fillStyle(CLEAN_MENU_COLORS.panel, 1).fillRect(TITLE_TAB.x + 7, PANEL.y, TITLE_TAB.width - 14, 7);
         menu.add(panel);
         menu.add(this.text(TITLE_TAB.x + TITLE_TAB.width / 2, TITLE_TAB.y + 17, 'INVENTÁRIO', 18, CLEAN_MENU_COLORS.text).setOrigin(0.5));
+        this.addCloseTab(menu);
         addUpgradePanel(this.scene, menu, this.options.upgrades, CARDS);
         this.addChimarraos(menu);
         this.addDoll(menu);
@@ -110,6 +113,17 @@ export class InventoryMenuView {
         this.scene.events.once('shutdown', () => keyboard?.off('keydown-E', toggle));
         // Redesenho depois de equipar ou retirar: sem a animação de abertura, o menu não parece fechar e abrir.
         if (this.options.selectedItem === undefined) menu.fadeIn();
+    }
+
+    /** X vermelho no canto: fecha com o mouse sem precisar descer até o VOLTAR. */
+    private addCloseTab(menu: CleanOverlayMenu) {
+        const { x, y, width, height } = CLOSE_TAB;
+        const tab = this.scene.add.graphics();
+        drawFramedBox(tab, { x, y, width, height: height - 6 }, CLEAN_MENU_COLORS.danger);
+        const hitArea = this.scene.add.rectangle(x + width / 2, y + 15, width, height - 6, 0x000000, 0)
+            .setInteractive({ useHandCursor: true })
+            .on('pointerdown', this.options.onBack);
+        menu.add([tab, this.text(x + width / 2, y + 15, 'X', 16, CLEAN_MENU_COLORS.text).setOrigin(0.5), hitArea]);
     }
 
     private get equippedItems() {
