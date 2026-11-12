@@ -538,7 +538,8 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
                     setRotation() { return this; },
                     setScale() { return this; },
                     setPosition() { return this; },
-                    setVisible() { return this; }
+                    setVisible() { return this; },
+                    destroy() {}
                 };
             },
             sprite(x, y, texture, frame) {
@@ -4373,4 +4374,25 @@ test('baú sorteia ao destrancar só o que falta, guarda o sorteio e abre vazio 
     world.itemChestRuns.set('room3', { startedAt: 0, unlocked: false, claimed: false });
     world.createItemChest('room3', false);
     assert.equal(world.itemChest, undefined, 'quem já tem tudo da lista encontra o baú aberto');
+});
+
+test('espada flamejante golpeia nas salas com tiro sem atrasar o tiro automático', () => {
+    const { combat, drones, groups, player } = setup([[125, 100]]);
+    player.getAimDirection = () => ({ x: 1, y: 0 });
+    combat.update(0);
+    assert.equal(groups[0].getLength(), 1, 'o tiro saiu');
+    const afterShot = drones[0].health.current;
+    assert.equal(combat.swing(0), false, 'sem a espada flamejante não há golpe');
+    combat.setFlameSword(true);
+    assert.equal(combat.hasSword(), true, 'o botão USAR do toque vira a espada');
+    assert.equal(combat.swing(0), true);
+    const { damage } = COMBAT_CONFIG.player;
+    assert.equal(drones[0].health.current, afterShot - damage * COMBAT_CONFIG.flameSword.damageMultiplier);
+    assert.equal(combat.swing(0), false, 'a recarga do golpe vale');
+    // A recarga do tiro (600 ms) é a mais longa das duas: ao fim dela, saem o tiro e o golpe.
+    combat.update(Math.max(COMBAT_CONFIG.player.fireInterval, COMBAT_CONFIG.flameSword.interval));
+    assert.equal(groups[0].getLength(), 2, 'golpear não segurou o tiro seguinte');
+    assert.equal(combat.swing(0), true);
+    combat.setFlameSword(false);
+    assert.equal(combat.hasSword(), false, 'guardar a espada tira o golpe');
 });
