@@ -442,7 +442,8 @@ export class World extends Scene {
                 room.collisionLayers.find((layer) => layer.layer.name === TOPAZIO_BOSS.busLayer),
                 this.getTicenBusTexture(),
                 () => this.time.delayedCall(TICEN_ESCAPE.doorCutscene.delay, () => this.playBusDoorCutscene()),
-                (caption) => this.playGolemCutscene(caption)
+                (caption) => this.playGolemCutscene(caption),
+                (collected, total) => this.showFloatingHint(`TOPAZIO ${collected}/${total}`)
             );
         }
         this.connectCombatToPartner();
