@@ -54,10 +54,10 @@ const {
     selectDroneSpawnsWithPriority
 } = load('../src/game/combat/DroneWaves.ts');
 const {
-    basicUpgradeCards,
+    drawTableCards,
     drawUpgradeCards,
     drawUpgradeCardsFeaturing,
-    withoutRoom3Cards
+    getTableCards
 } = load('../src/game/upgrades/drawUpgradeCards.ts');
 const {
     getUpgradeCard,
@@ -3365,13 +3365,11 @@ test('serras orbitais e faíscas dividem o efeito e o mais forte prevalece', () 
 });
 
 test('cartas do fim da Sala III só aparecem depois da horda 2', () => {
-    const { withoutRoom3Cards, withoutRoom3FinalCards, drawUpgradeCardsFeaturing } = load('../src/game/upgrades/drawUpgradeCards.ts');
     const { ROOM3_FINAL_UPGRADE_IDS } = load('../src/game/upgrades/catalog.ts');
     const finals = new Set(ROOM3_FINAL_UPGRADE_IDS);
     const all = new PlayerUpgradeState().availableCards();
-    assert.ok(!withoutRoom3Cards(all).some((card) => finals.has(card.id)));
-    assert.ok(!withoutRoom3FinalCards(all).some((card) => finals.has(card.id)));
-    const table = drawUpgradeCardsFeaturing(ROOM3_FINAL_UPGRADE_IDS, () => 0, all);
+    for (const table of ['room1', 'room2', 'room3']) assert.ok(!getTableCards(table, all).some((card) => finals.has(card.id)), table);
+    const table = drawTableCards('room3-final', () => 0, all);
     assert.equal(table.filter((card) => finals.has(card.id)).length, 2, 'duas finais garantidas');
     assert.equal(new Set(table.map((card) => card.id)).size, 3, 'e um curinga de fora: a mesa não é sempre a mesma');
 });
@@ -3684,16 +3682,35 @@ test('patinete continua parando para se recuperar depois da investida', () => {
     assert.equal(charger.state, 'recover');
 });
 
-test('fora da horda da Sala II os sorteios só trazem as cartas básicas', () => {
-    const { basicUpgradeCards } = load('../src/game/upgrades/drawUpgradeCards.ts');
-    const { UPGRADE_CARDS } = load('../src/game/upgrades/catalog.ts');
-    const basic = basicUpgradeCards(UPGRADE_CARDS);
-    assert.ok(basic.length >= 3 && basic.some((card) => card.kind === 'ability'), 'ainda dá para sortear três com uma habilidade');
-    assert.ok(basic.every((card) => !AREA_UPGRADE_IDS.includes(card.id)));
-    for (const roll of [0, 0.25, 0.5, 0.75, 0.99]) {
-        const cards = drawUpgradeCards(() => roll, basic);
-        assert.ok(cards.every((card) => !AREA_UPGRADE_IDS.includes(card.id)), `sorteio ${roll}`);
+test('cartas básicas só na Sala I, Cajado de gelo em todas as mesas e Overclock em nenhuma', () => {
+    const { BASIC_UPGRADE_IDS, UPGRADE_CARDS } = load('../src/game/upgrades/catalog.ts');
+    const room1 = getTableCards('room1', UPGRADE_CARDS);
+    assert.ok(room1.length >= 3 && room1.some((card) => card.kind === 'ability'), 'ainda dá para sortear três com uma habilidade');
+    assert.ok(room1.every((card) => BASIC_UPGRADE_IDS.includes(card.id) || card.id === 'ice-staff'));
+    for (const table of ['room1', 'room2', 'room3']) {
+        const ids = getTableCards(table, UPGRADE_CARDS).map((card) => card.id);
+        assert.ok(ids.includes('ice-staff'), `${table} oferece o Cajado de gelo`);
+        assert.ok(!ids.includes('overclock'), `${table} não oferece o Overclock`);
+        if (table !== 'room1') assert.ok(!ids.some((id) => BASIC_UPGRADE_IDS.includes(id)), `${table} sem cartas básicas`);
     }
+    const room3 = getTableCards('room3', UPGRADE_CARDS).map((card) => card.id);
+    assert.ok(room3.includes('fire-staff') && !getTableCards('room2', UPGRADE_CARDS).some((card) => card.id === 'fire-staff'), 'o fogo saiu da Sala II para a III');
+    for (const roll of [0, 0.25, 0.5, 0.75, 0.99]) {
+        const cards = drawTableCards('room2', () => roll, UPGRADE_CARDS);
+        assert.ok(cards.every((card) => !BASIC_UPGRADE_IDS.includes(card.id)), `sorteio ${roll}`);
+    }
+});
+
+test('esconderijo usa a mesa da sala por onde se entra e a mesa sem cartas completa com as outras', () => {
+    const { getCardTable } = load('../src/game/scenes/World.ts');
+    assert.equal(getCardTable('gaucho-dungeon'), 'room1');
+    assert.equal(getCardTable('dungeon'), 'room2');
+    assert.equal(getCardTable('room3'), 'room3');
+    const { UPGRADE_CARDS } = load('../src/game/upgrades/catalog.ts');
+    const onlyArea = UPGRADE_CARDS.filter((card) => AREA_UPGRADE_IDS.slice(0, 2).includes(card.id) || card.id === 'overclock' || card.id === 'max-health');
+    const fallback = getTableCards('room2', onlyArea).map((card) => card.id);
+    assert.ok(fallback.includes('max-health'), 'com a mesa no fim, completa com o que ainda dá para pegar');
+    assert.ok(!fallback.includes('overclock'), 'mas nunca com a carta aposentada');
 });
 
 test('room3 abre pela rota direta e recebe a saída da room2', () => {
@@ -3734,13 +3751,13 @@ test('checkpoint da room3 libera o continuar', () => {
 
 test('cartas exclusivas da room3 não aparecem nas salas anteriores', () => {
     const exclusive = (card) => ROOM3_EXCLUSIVE_UPGRADE_IDS.includes(card.id);
-    assert.equal(basicUpgradeCards(UPGRADE_CARDS).some(exclusive), false);
-    assert.equal(withoutRoom3Cards(UPGRADE_CARDS).some(exclusive), false);
+    assert.equal(getTableCards('room1', UPGRADE_CARDS).some(exclusive), false);
+    assert.equal(getTableCards('room2', UPGRADE_CARDS).some(exclusive), false);
     for (let seed = 0; seed < 20; seed += 1) {
-        const room2Cards = drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, () => (seed * 0.37) % 1, withoutRoom3Cards(UPGRADE_CARDS));
+        const room2Cards = drawTableCards('room2', () => (seed * 0.37) % 1, UPGRADE_CARDS);
         assert.equal(room2Cards.some(exclusive), false);
-        const room3Cards = drawUpgradeCardsFeaturing(ROOM3_UPGRADE_IDS, () => (seed * 0.37) % 1, UPGRADE_CARDS);
-        assert.ok(room3Cards.filter((card) => ROOM3_UPGRADE_IDS.includes(card.id)).length >= 2);
+        const room3Cards = drawTableCards('room3', () => (seed * 0.37) % 1, UPGRADE_CARDS);
+        assert.ok(room3Cards.every((card) => ROOM3_UPGRADE_IDS.includes(card.id) || card.id === 'ice-staff'));
     }
 });
 
@@ -4639,4 +4656,18 @@ test('fim da Sala III não oferece sempre a mesma mesa', () => {
         tables.add(drawUpgradeCardsFeaturing(ROOM3_FINAL_UPGRADE_IDS, random, all).map((card) => card.id).sort().join());
     }
     assert.ok(tables.size >= 5, `mesas diferentes em 30 partidas: ${tables.size}`);
+});
+
+test('carta Cajado de gelo congela como o item, com raio que cresce por nível', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('ice-staff'));
+    assert.equal(upgrades.freezeRadius, 150);
+    const { combat, drones } = setup([[100 + 150 - 10, 100]], [], upgrades);
+    drones[0].sprite.setVelocity = () => drones[0].sprite;
+    drones[0].sprite.setTint = () => drones[0].sprite;
+    combat.playerCooldown = 99_999;
+    combat.update(0);
+    assert.equal(combat.isFrozen(drones[0]), true, 'congela sem o item, só com a carta');
+    upgrades.acquire(getUpgradeCard('ice-staff'));
+    assert.equal(upgrades.freezeRadius, 180, '+30 px no nível 2');
 });
