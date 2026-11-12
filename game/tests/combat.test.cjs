@@ -4894,3 +4894,14 @@ test('botas viram perfil quando o personagem anda para o lado', () => {
     assert.equal(getWalkSide(WALK_FRAMES.up[0]), 0);
     assert.deepEqual(SILVER_BOOTS.sidePixels, sideBootPixels(0x9aa4b4, 0xe6ecf4));
 });
+
+test('direcional anda pelas cartas do inventário e sai pela direita de volta à mochila', () => {
+    const { moveCardFocus } = load('../src/game/ui/InventoryMenuView.ts');
+    assert.equal(moveCardFocus(0, 7, 3, 1, 0), 1);
+    assert.equal(moveCardFocus(2, 7, 3, 1, 0), undefined, 'da última coluna, para a direita volta à mochila');
+    assert.equal(moveCardFocus(6, 7, 3, 1, 0), undefined, 'a última carta também sai pela direita');
+    assert.equal(moveCardFocus(3, 7, 3, -1, 0), 3, 'na primeira coluna, para a esquerda fica');
+    assert.equal(moveCardFocus(1, 7, 3, 0, 1), 4, 'para baixo, uma linha');
+    assert.equal(moveCardFocus(5, 7, 3, 0, 1), 5, 'sem carta embaixo, fica');
+    assert.equal(moveCardFocus(4, 7, 3, 0, -1), 1);
+});
