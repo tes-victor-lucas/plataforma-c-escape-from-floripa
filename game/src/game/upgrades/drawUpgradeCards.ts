@@ -40,15 +40,20 @@ export function drawUpgradeCards(
     return selected;
 }
 
-/** Coloca as cartas em destaque que ainda podem ser escolhidas e completa com o sorteio normal. */
+/**
+ * Garante até duas cartas em destaque que ainda podem ser escolhidas e completa com o sorteio normal.
+ * A terceira vaga é um curinga das outras cartas: com o destaque ocupando as três, a mesa era sempre parecida
+ * (no fim da Sala III, que tem só três cartas finais, saíam sempre as mesmas).
+ */
 export function drawUpgradeCardsFeaturing(
     featured: readonly UpgradeId[],
     random: RandomSource = Math.random,
-    availableCards: readonly UpgradeCardDefinition[] = UPGRADE_CARDS
+    availableCards: readonly UpgradeCardDefinition[] = UPGRADE_CARDS,
+    featuredSlots = 2
 ) {
     const highlighted: UpgradeCardDefinition[] = [];
     const featuredPool = availableCards.filter((card) => featured.includes(card.id));
-    while (highlighted.length < 3 && featuredPool.length > 0) highlighted.push(takeRandom(featuredPool, random));
+    while (highlighted.length < featuredSlots && featuredPool.length > 0) highlighted.push(takeRandom(featuredPool, random));
     const others = availableCards.filter((card) => !featured.includes(card.id));
     if (highlighted.length === 0 || others.length < 3 || !others.some((card) => card.kind === 'ability')) {
         return drawUpgradeCards(random, availableCards);
