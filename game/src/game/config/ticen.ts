@@ -96,7 +96,11 @@ export const TOPAZIO_BOSS = {
     // Bate no chão: topázios brotam em três cadeias, em leque, na direção do jogador.
     slam: { windup: 700, recover: 700, spikeInterval: 55, spikeSpacing: 22, spikeCount: 15, spikeRadius: 13, damage: 2, spread: 0.42 },
     // Gira em pé no lugar, como um pião (turnSpeed em radianos por ms), cuspindo topázios em volta.
-    spin: { duration: 2200, burstInterval: 280, shardsPerBurst: 10, shardSpeed: 125, shardLifetime: 3000, damage: 1, turnSpeed: 0.022 },
+    // A varredura dos punhos (sweepRadius) machuca quem chega perto, como o giro do Garen e do Balmond.
+    spin: {
+        duration: 2200, burstInterval: 280, shardsPerBurst: 10, shardSpeed: 125, shardLifetime: 3000, damage: 1, turnSpeed: 0.022,
+        sweepRadius: 58, sweepDamage: 1
+    },
     // Cutscenes rápidas aos 70% e aos 40%: a câmera vai até ele, ele ruge e a luta volta. calmBefore deixa ônibus e cadeias terminarem.
     roar: {
         calmBefore: 900, panTime: 380, duration: 1500, zoom: 1.45,

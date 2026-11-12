@@ -38,6 +38,9 @@ export class TopazioGolem implements CombatEnemy {
     private spinBursts = 0;
     private busesThrown = 0;
     private roarsDone = 0;
+    private sweepBack?: Phaser.GameObjects.Graphics;
+    private sweepFront?: Phaser.GameObjects.Graphics;
+    private lastGhostAt = -Infinity;
     private readonly buses: TicenBus[] = [...TOPAZIO_BOSS.buses];
     private fetching?: TicenBus;
     private heldBus?: Phaser.GameObjects.Image;
@@ -246,11 +249,60 @@ export class TopazioGolem implements CombatEnemy {
         const { duration, burstInterval } = TOPAZIO_BOSS.spin;
         while (this.spinBursts * burstInterval <= this.actionTime && this.actionTime < duration) {
             this.releaseShards(this.spinBursts);
+            // Poeira no chão a cada rajada, como o anel sob o Garen e o Balmond girando.
+            playShockwave(this.scene, this.sprite.x, this.sprite.y + TOPAZIO_BOSS.feetOffset - 4, 34, 0xf29b38);
             this.spinBursts += 1;
         }
+        this.drawSweep();
         if (this.actionTime < duration) return;
+        this.sweepBack?.clear();
+        this.sweepFront?.clear();
         this.sprite.setScale(1);
         this.finishAttack();
+    }
+
+    /**
+     * Varredura do giro (referência: Julgamento do Garen e Ciclone do Balmond): dois crescentes com rastro
+     * seguem os punhos numa elipse achatada no chão. A metade da frente passa por cima do golem, a de trás por baixo.
+     * Quem estiver dentro do raio da varredura leva dano, além dos estilhaços.
+     */
+    private drawSweep() {
+        const { turnSpeed, sweepRadius, sweepDamage } = TOPAZIO_BOSS.spin;
+        const { x } = this.sprite;
+        const y = this.sprite.y + 16;
+        this.sweepBack ??= this.scene.add.graphics().setDepth(TOPAZIO_BOSS.depth - 0.05).setBlendMode(1);
+        this.sweepFront ??= this.scene.add.graphics().setDepth(TOPAZIO_BOSS.depth + 0.05).setBlendMode(1);
+        for (const layer of [this.sweepBack, this.sweepFront]) layer.clear().setPosition(x, y).setScale(1, 0.45);
+        // Disco de borrão: o golpe ocupa o círculo todo, como a lâmina girando rápido demais para ser vista.
+        this.sweepBack.fillStyle(0xf29b38, 0.14).fillCircle(0, 0, sweepRadius + 4);
+        this.sweepBack.fillStyle(0x6ee2ff, 0.08).fillCircle(0, 0, sweepRadius * 0.7);
+        const angle = this.actionTime * turnSpeed;
+        const segments = 14;
+        const step = 0.2;
+        for (const fist of [0, Math.PI]) {
+            for (let index = 0; index < segments; index += 1) {
+                const end = angle + fist - index * step;
+                const middle = end - step / 2;
+                const fade = 1 - index / segments;
+                const layer = Math.sin(middle) > 0 ? this.sweepFront : this.sweepBack;
+                layer.lineStyle(16 * fade + 3, 0xf29b38, 0.6 * fade).beginPath()
+                    .arc(0, 0, sweepRadius, end - step, end).strokePath();
+                layer.lineStyle(4 * fade + 1, 0x9ff0ff, 0.9 * fade).beginPath()
+                    .arc(0, 0, sweepRadius - 3, end - step, end).strokePath();
+            }
+        }
+        // Rastros do corpo: cópias ciano que somem, para o giro parecer rápido demais para o olho.
+        if (this.actionTime - this.lastGhostAt >= 60) {
+            this.lastGhostAt = this.actionTime;
+            const ghost = this.scene.add.image(x, this.sprite.y, this.sprite.texture.key, this.sprite.frame.name)
+                .setScale(this.sprite.scaleX, 1).setDepth(TOPAZIO_BOSS.depth - 0.02).setAlpha(0.35)
+                .setTint(0x6ee2ff).setBlendMode(1);
+            this.scene.tweens.add({ targets: ghost, alpha: 0, duration: 200, onComplete: () => ghost.destroy() });
+        }
+        const center = this.player.sprite.body?.center ?? this.player.sprite;
+        if (this.player.health.isAlive && Math.hypot(center.x - x, (center.y - y) / 0.45) <= sweepRadius + 6) {
+            this.player.takeDamage(sweepDamage);
+        }
     }
 
     private releaseShards(burst: number) {
@@ -407,6 +459,8 @@ export class TopazioGolem implements CombatEnemy {
 
     private finishDeath() {
         this.startAction('dead');
+        this.sweepBack?.clear();
+        this.sweepFront?.clear();
         this.sprite.setScale(1).clearTint();
         const body = this.sprite.body;
         if (body instanceof Physics.Arcade.Body) body.enable = false;
