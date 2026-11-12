@@ -4506,3 +4506,10 @@ test('gelo do parceiro chega pela rede: congela sem dano e nunca por mais que o 
     world.applyPartnerHit({ kind: 'enemy.hit', index: 7, damage: 0, dx: 0, dy: 0, freeze: 1_000 });
     assert.equal(frozen.length, 1, 'índice que não existe é ignorado');
 });
+
+test('atalho ?start= leva a dupla do multiplayer direto para a sala pedida', () => {
+    const { getMultiplayerStartRoom } = load('../src/game/config/rooms.ts');
+    assert.equal(getMultiplayerStartRoom('?room=teste'), 'room1', 'sem start, começa na Sala I');
+    assert.equal(getMultiplayerStartRoom('?room=teste&start=5'), 'room5');
+    assert.equal(getMultiplayerStartRoom('?start=3'), 'room3');
+});

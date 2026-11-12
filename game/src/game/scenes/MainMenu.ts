@@ -4,7 +4,7 @@ import { CHARACTERS, loadCharacterId, nextCharacterId, saveCharacterId } from '.
 import { musicDirector } from '../audio/MusicDirector';
 import { AUDIO_CONFIG } from '../config/audio';
 import { multiplayerClient } from '../network/MultiplayerClient';
-import { replaceRequestedRoomKey } from '../config/rooms';
+import { getMultiplayerStartRoom, replaceRequestedRoomKey } from '../config/rooms';
 import {
     clearCampaignProgress,
     loadCampaignProgress,
@@ -151,9 +151,11 @@ export class MainMenu extends Scene {
             if (attempt !== this.joinAttempt) return;
             this.registry.set('multiplayerEnabled', true);
             runTracker.startNew('MULTIPLAYER');
-            replaceRequestedRoomKey('room1');
+            // Sem `?start=`, a dupla começa na Sala I; com ele, as duas abas pulam para a mesma sala.
+            const startRoom = getMultiplayerStartRoom();
+            replaceRequestedRoomKey(startRoom);
             view.setStatus('DUPLA ENCONTRADA!');
-            this.scene.launch('RoomTransition', { roomKey: 'room1' });
+            this.scene.launch('RoomTransition', { roomKey: startRoom });
         } catch (error) {
             if (attempt !== this.joinAttempt) return;
             this.isStartingGame = false;

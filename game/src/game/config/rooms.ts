@@ -270,6 +270,17 @@ export function getRequestedRoomKey(
     return requestedRoom === '2' || requestedRoom === 'room2' ? 'room2' : 'room1';
 }
 
+/**
+ * Atalho de teste do multiplayer: `?start=5` leva a dupla direto para a sala pedida.
+ * O `room` não serve aqui porque no multiplayer ele é o nome da partida.
+ */
+export function getMultiplayerStartRoom(
+    search = typeof window === 'undefined' ? '' : window.location.search
+): RoomKey {
+    const start = new URLSearchParams(search).get('start');
+    return start ? getRequestedRoomKey(`?room=${encodeURIComponent(start)}`) : 'room1';
+}
+
 export function getRoomSearch(roomKey: RoomKey, search = '') {
     const parameters = new URLSearchParams(search);
     if (roomKey === 'room1') parameters.delete('room');
