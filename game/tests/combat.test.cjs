@@ -4566,3 +4566,15 @@ test('curva de Bézier das cenas segue a do CSS: começa em 0, termina em 1 e a 
     assert.equal(prefersReducedMotion(() => ({ matches: true })), true);
     assert.equal(prefersReducedMotion(undefined), false);
 });
+
+test('raio do VS atravessa a tela de canto a canto e se desenha aos poucos', () => {
+    const { getBoltPoints, getPartialPath } = load('../src/game/ui/DuelStandoffView.ts');
+    const points = getBoltPoints(889, 500);
+    assert.ok(points[0].x < 0 && points[0].y > 500, 'nasce fora da tela, embaixo à esquerda');
+    assert.ok(points.at(-1).x > 889 && points.at(-1).y < 0, 'termina fora da tela, em cima à direita');
+    assert.deepEqual(getPartialPath(points, 0), [points[0]], 'no começo só existe a ponta');
+    assert.deepEqual(getPartialPath(points, 1), points, 'no fim, o raio inteiro');
+    const half = getPartialPath(points, 0.5);
+    assert.ok(half.length > 1 && half.length < points.length, 'na metade, parte das dobras');
+    assert.ok(half.at(-1).x > 0 && half.at(-1).x < 889);
+});
