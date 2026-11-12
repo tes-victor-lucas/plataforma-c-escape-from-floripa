@@ -42,7 +42,8 @@ import {
     type CoopTarget
 } from '../network/coop';
 import { multiplayerClient } from '../network/MultiplayerClient';
-import type { CoopEvent, EnemySnapshotRow, ServerMessage } from '../network/protocol';
+import type { CoopEvent, EnemySnapshotRow, PartnerPauseReason, ServerMessage } from '../network/protocol';
+import { GAME_WIDTH } from '../config/display';
 import { playDamageNumber } from '../effects/playDamageNumber';
 import { playSwordHit } from '../effects/playSwordHit';
 import {
@@ -119,6 +120,12 @@ import {
 import { createLampLight } from '../map/createLampLights';
 import { getGamepadInput } from '../input/GamepadInput';
 import { isTouchScreen, touchInput } from '../input/TouchInput';
+
+const PARTNER_PAUSE_TEXT: Record<PartnerPauseReason, string> = {
+    pause: 'PARCEIRO PAUSOU',
+    piranhas: 'PARCEIRO NO PIRANHAS',
+    menu: 'PARCEIRO NUM MENU'
+};
 
 const ROOM2_WALKABLE_LAYERS = [
     'floor',
@@ -236,6 +243,10 @@ export class World extends Scene {
     private isGatewayConfirmOpen = false;
     private isClimbingLadder = false;
     private isGatewayConfirmArmed = true;
+    /** Motivo do menu aberto do parceiro, que congela esta tela também; e o último motivo que este cliente avisou. */
+    private partnerPause?: PartnerPauseReason;
+    private sentPauseReason?: PartnerPauseReason;
+    private partnerPauseLabel?: Phaser.GameObjects.Text;
     private arcadePrompt?: Phaser.GameObjects.Text;
     private hasSelectedPiranhasItem = false;
     private isGameplayReady = false;
@@ -326,6 +337,9 @@ export class World extends Scene {
         this.isGatewayConfirmOpen = false;
         this.isClimbingLadder = false;
         this.isGatewayConfirmArmed = true;
+        this.partnerPause = undefined;
+        this.sentPauseReason = undefined;
+        this.partnerPauseLabel = undefined;
         this.isGameOver = false;
         this.isGameplayReady = false;
         this.isRoomExitOpen = false;
@@ -727,6 +741,13 @@ export class World extends Scene {
             else this.handleSwordGamepad();
         }
         this.updateNauseaEffect();
+        this.sendLocalPause(this.isPiranhasMenuOpen ? 'piranhas'
+            : this.isArcadeOpen || this.isGatewayConfirmOpen || this.isWalletOpen ? 'menu' : undefined);
+        if (this.partnerPause) {
+            // Um menu local que fecha retoma a física; com o parceiro pausado, ela volta a parar.
+            if (!this.physics.world.isPaused) this.physics.pause();
+            return;
+        }
         if (
             this.isPiranhasMenuOpen || this.isWaveIntermissionOpen || this.isArcadeOpen
             || this.isGatewayConfirmOpen || this.isWalletOpen || this.isClimbingLadder || this.isCutsceneActive
@@ -2597,6 +2618,8 @@ export class World extends Scene {
         ) return;
 
         this.isPauseMenuOpen = true;
+        // A cena para inteira com o menu aberto, então o aviso ao parceiro sai aqui, e não pelo update.
+        this.sendLocalPause('pause');
         const data: PauseMenuData = {
             upgrades: this.upgrades.exportProgress(),
             view,
@@ -2609,6 +2632,35 @@ export class World extends Scene {
 
     private resetPauseMenuState() {
         this.isPauseMenuOpen = false;
+        this.sendLocalPause(undefined);
+    }
+
+    /** Avisa o parceiro só quando o motivo muda: um evento ao abrir o menu e outro ao fechar. */
+    private sendLocalPause(reason: PartnerPauseReason | undefined) {
+        if (reason === this.sentPauseReason || !this.isCoopActive()) return;
+        this.sentPauseReason = reason;
+        multiplayerClient.sendEvent({ kind: 'game.pause', ...(reason ? { reason } : {}) });
+    }
+
+    /** Parceiro abriu um menu: a dupla inteira congela, inclusive os inimigos do anfitrião, e aparece o motivo. */
+    private applyPartnerPause(reason: PartnerPauseReason | undefined) {
+        this.partnerPause = reason;
+        this.partnerPauseLabel?.destroy();
+        this.partnerPauseLabel = undefined;
+        if (reason) {
+            this.player?.stopMovement();
+            this.physics.pause();
+            const hud = this.scene.get('CombatHud') as Scene | undefined;
+            if (hud?.sys.isActive()) {
+                this.partnerPauseLabel = hud.add.text(GAME_WIDTH / 2, 120, PARTNER_PAUSE_TEXT[reason], {
+                    fontFamily: 'PixelGamer, monospace', fontSize: '22px', color: '#f7f7f7', stroke: '#000000', strokeThickness: 6
+                }).setOrigin(0.5).setDepth(150).setResolution(2);
+            }
+            return;
+        }
+        const isLocallyFrozen = this.isPauseMenuOpen || this.isPiranhasMenuOpen || this.isWaveIntermissionOpen || this.isArcadeOpen
+            || this.isGatewayConfirmOpen || this.isWalletOpen || this.isCutsceneActive || this.isGameOver;
+        if (!isLocallyFrozen) this.physics.resume();
     }
 
     private getPlayerSpawn(base = this.activeSpawn) {
@@ -2951,6 +3003,9 @@ export class World extends Scene {
                 break;
             case 'boss.action':
                 this.golem?.applyRemoteAction(event.action);
+                break;
+            case 'game.pause':
+                this.applyPartnerPause(event.reason);
                 break;
             case 'escape.vote':
                 this.hasPartnerVotedEscape = true;

@@ -35,6 +35,9 @@ export type RemotePlayerState = {
 type Point = Readonly<{ x: number; y: number }>;
 
 /** Efeito visual de carta, repetido na tela do parceiro. */
+/** Por que o parceiro congelou a dupla: o texto que aparece na tela do outro. */
+export type PartnerPauseReason = 'pause' | 'piranhas' | 'menu';
+
 export type PlayerEffect =
     | { effect: 'shockwave' | 'explosion' | 'slash'; x: number; y: number; radius: number; color: number }
     | { effect: 'lightning'; points: readonly Point[]; color: number }
@@ -85,6 +88,10 @@ export type CoopEvent =
     | { kind: 'boss.action'; action: GolemAction }
     /** Disputa pela vaga do 763.2: voto para embarcar, início da luta, baús e quem perdeu. */
     | { kind: 'escape.vote' }
+    // Menu aberto num cliente congela os dois; sem reason, o menu fechou.
+    | { kind: 'game.pause'; reason?: PartnerPauseReason }
+    // Pergunta dos esconderijos: quem pisa pergunta, os dois respondem, só entram com os dois SIM.
+    | { kind: 'gateway.vote'; phase: 'ask' | 'yes' | 'no'; question?: string }
     | { kind: 'escape.duel' }
     | { kind: 'chest.spawn'; id: number; x: number; y: number; special: DuelSpecialId }
     | { kind: 'chest.claim'; id: number }
