@@ -17,13 +17,14 @@ const RESULT_DURATION = 1_800;
 const HOLD_DELAY = 170;
 const HOLD_REPEAT = 60;
 const HELD_ACTIONS = ['left', 'right', 'down'] as const satisfies readonly GamepadAction[];
-// Controle no padrão Tetris: botão A gira e o direcional para cima solta a peça.
+// Controle no padrão Tetris: o botão principal gira e o direcional para cima solta a peça.
+// No controle USB estilo SNES do jogo (0810:0001), o principal é o B e o de voltar é o A (GamepadInput.ts).
 const CONTROLS = [
-    ['GIRAR', 'W / ↑', 'A'],
+    ['GIRAR', 'W / ↑', 'B'],
     ['MOVER', 'A D / ← →', '← →'],
     ['DESCER', 'S / ↓', '↓'],
     ['SOLTAR', 'ESPAÇO', '↑'],
-    ['SAIR', 'ESC', 'B']
+    ['SAIR', 'ESC', 'A']
 ] as const;
 
 /** Fliperama do Mercado Público: caixotes caindo; cada linha completa vale pontos. */
@@ -76,7 +77,7 @@ export class ArcadeMinigame extends Scene {
         const buttons: [string, number, number, () => void][] = [
             ['<', 110, 380, () => this.act(() => this.puzzle.move(-1))],
             ['>', 210, 380, () => this.act(() => this.puzzle.move(1))],
-            ['W / ↑ / A', 160, 300, () => this.act(() => this.puzzle.rotate())],
+            ['W / ↑ / B', 160, 300, () => this.act(() => this.puzzle.rotate())],
             ['DESCER', GAME_WIDTH - 210, 380, () => this.act(() => this.puzzle.step())],
             ['SOLTAR', GAME_WIDTH - 110, 380, () => this.act(() => this.puzzle.drop())],
             ['SAIR', GAME_WIDTH - 160, 460, () => this.finish(false)]
