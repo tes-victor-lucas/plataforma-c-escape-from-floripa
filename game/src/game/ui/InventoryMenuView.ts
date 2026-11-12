@@ -61,6 +61,8 @@ const CHIMARRAO = { x: 36, y: 378, width: 174, height: 50 };
 // Retrato do personagem, um cartão em pé como numa ficha.
 const DOLL = { x: 232, y: 66, width: 150, height: 172 };
 const DETAILS = { x: 610, y: 66, width: 243, height: 220 };
+// Linhas de atributos à direita dos encaixes: onde as barrinhas começam e a distância entre as linhas.
+const STATS = { x: 548, y: 84, rowGap: 34, pipWidth: 18 };
 // Encaixes do boneco; cada item de equipar ocupa o seu.
 const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ['CABEÇA', 'CORPO', 'MÃOS', 'PÉS'];
 const SLOT = 44;
@@ -144,6 +146,7 @@ export class InventoryMenuView {
         this.addChimarraos(menu);
         this.addDoll(menu);
         this.addEquipmentSlots(menu);
+        this.addStats(menu);
         this.addDetails(menu);
         this.addItemGrid(menu);
         // Sem o botão VOLTAR: fecha no X, no ESC ou no botão de voltar do controle.
@@ -250,6 +253,30 @@ export class InventoryMenuView {
                 menu.add(icon.setScale((SLOT - 10) / Math.max(icon.width, icon.height)));
                 this.makeDraggable(menu, icon, this.options.items.indexOf(equipped));
             }
+        });
+    }
+
+    /** Uma linha por atributo: nome, dez barrinhas e o valor exato, como numa ficha de personagem. */
+    private addStats(menu: CleanOverlayMenu) {
+        const stats = getEquipmentStats(this.equippedItems.flatMap(({ id }) => (id ? [id] : [])));
+        const bars = this.scene.add.graphics();
+        menu.add(bars);
+        stats.forEach(({ label, pips, value }, row) => {
+            const y = STATS.y + row * STATS.rowGap;
+            menu.add(this.text(STATS.x - 12, y, label, 12, INV.text).setOrigin(1, 0.5));
+            for (let pip = 0; pip < STAT_PIPS; pip += 1) {
+                const x = STATS.x + pip * (STATS.pipWidth + 4);
+                bars.fillStyle(INV.outline, 1).fillRect(x, y - 8, STATS.pipWidth, 16);
+                bars.fillStyle(pip < pips ? INV.band : INV.well, 1).fillRect(x + 2, y - 6, STATS.pipWidth - 4, 12);
+                if (pip < pips) bars.fillStyle(INV.shine, 1).fillRect(x + 2, y - 6, STATS.pipWidth - 4, 2);
+            }
+            // Monospace porque a PixelGamer não tem o sinal de porcentagem.
+            menu.add(this.scene.add.text(STATS.x + STAT_PIPS * (STATS.pipWidth + 4) + 6, y, value, {
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                fontStyle: 'bold',
+                color: INV.bandCss
+            }).setOrigin(0, 0.5).setResolution(2));
         });
     }
 
