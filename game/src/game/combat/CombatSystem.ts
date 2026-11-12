@@ -641,7 +641,9 @@ export class CombatSystem {
             }
             this.frozen.set(enemy, left);
             // O piscar de dano troca a cor; reaplicar a cada quadro mantém o gelo visível.
+            // Modo SCREEN (4 em Phaser.TintModes): clareia para o azul-gelo até drones escuros, sem apagar o desenho.
             enemy.sprite.setVelocity(0, 0).setTint(COMBAT_CONFIG.iceStaff.color);
+            enemy.sprite.setTintMode?.(4);
         }
     }
 
