@@ -4396,3 +4396,32 @@ test('espada flamejante golpeia nas salas com tiro sem atrasar o tiro automátic
     combat.setFlameSword(false);
     assert.equal(combat.hasSword(), false, 'guardar a espada tira o golpe');
 });
+
+test('cajado de gelo congela só quem está no raio, por 1 s, sem dano, e espera alguém chegar perto', () => {
+    const { radius, interval, freezeDuration } = COMBAT_CONFIG.iceStaff;
+    const { combat, drones } = setup([[100 + radius - 10, 100], [100 + radius + 60, 100]]);
+    const [near, far] = drones;
+    for (const drone of drones) {
+        drone.tint = undefined;
+        drone.sprite.setVelocity = (x, y) => { drone.velocity = { x, y }; return drone.sprite; };
+        drone.sprite.setTint = (color) => { drone.tint = color; return drone.sprite; };
+        drone.sprite.clearTint = () => { drone.tint = undefined; return drone.sprite; };
+    }
+    combat.playerCooldown = 99_999;
+    combat.setIceStaff(true);
+    combat.update(0);
+    assert.equal(combat.isFrozen(near), true);
+    assert.equal(combat.isFrozen(far), false, 'fora do raio não congela');
+    assert.equal(near.health.current, COMBAT_CONFIG.drone.maxHealth, 'o gelo não fere');
+    combat.update(16);
+    assert.deepEqual(near.velocity, { x: 0, y: 0 });
+    assert.equal(near.tint, COMBAT_CONFIG.iceStaff.color);
+    combat.update(freezeDuration);
+    assert.equal(combat.isFrozen(near), false, 'derrete depois de 1 s');
+    assert.equal(near.tint, undefined, 'e volta à cor normal');
+    combat.update(interval - freezeDuration - 32);
+    assert.equal(combat.isFrozen(near), false, 'ainda na recarga de 4 s');
+    combat.update(32);
+    assert.equal(combat.isFrozen(near), true, 'fim da recarga congela de novo');
+    combat.setIceStaff(false);
+});
