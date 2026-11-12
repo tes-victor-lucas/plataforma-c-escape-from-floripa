@@ -38,6 +38,8 @@ type ProjectileState = {
     damage: number;
     remainingPierces: number;
     hitEnemies: Set<CombatEnemy>;
+    /** Tiro mirado no golem: ele fica de pé por cima de quiosques e pilares, então o tiro atravessa até ele. */
+    passesWalls?: boolean;
 };
 
 /** Ligações opcionais do multiplayer; sem elas o combate segue como em uma partida solo. */
@@ -135,7 +137,12 @@ export class CombatSystem {
 
         for (const wall of walls) {
             for (const group of [this.playerShots, this.enemyShots]) {
-                scene.physics.add.collider(group, wall, (shot) => this.removeShot(shot as Physics.Arcade.Image));
+                scene.physics.add.collider(
+                    group,
+                    wall,
+                    (shot) => this.removeShot(shot as Physics.Arcade.Image),
+                    (shot) => !this.projectiles.get(shot as Physics.Arcade.Image)?.passesWalls
+                );
             }
         }
         for (const enemy of enemies) {
@@ -240,7 +247,8 @@ export class CombatSystem {
             const target = this.getCenter(this.player);
             const distance = (origin.x - target.x) ** 2 + (origin.y - target.y) ** 2;
             if (distance > Math.max(this.playerStats.range, COMBAT_CONFIG.drone.range) ** 2) continue;
-            if (!hasLineOfSight(this.walls, origin, target)) continue;
+            // O golem é gigante e fica por cima de quiosques, pilares e ônibus: o centro dele cai num tile que colide.
+            if (enemy.kind !== 'golem' && !hasLineOfSight(this.walls, origin, target)) continue;
 
             if (distance <= nearestDistance) {
                 nearest = enemy;
@@ -792,7 +800,8 @@ export class CombatSystem {
                 angle,
                 this.playerShots,
                 weapon,
-                this.playerStats.piercingTargets
+                this.playerStats.piercingTargets,
+                target.kind === 'golem'
             );
         }
         const sound = AUDIO_CONFIG.effects.playerShot;
@@ -804,7 +813,8 @@ export class CombatSystem {
         angle: number,
         group: Physics.Arcade.Group,
         weapon: Weapon,
-        remainingPierces: number
+        remainingPierces: number,
+        passesWalls = false
     ) {
         const shot = group.create(origin.x, origin.y, 'combat-projectile-rounded') as Physics.Arcade.Image;
         const id = createProjectileId(this.tracker.snapshot().runId);
@@ -817,7 +827,8 @@ export class CombatSystem {
             lifetime: COMBAT_CONFIG.projectile.lifetime,
             damage: weapon.damage,
             remainingPierces,
-            hitEnemies: new Set()
+            hitEnemies: new Set(),
+            passesWalls
         });
         this.tracker.registerProjectile(id);
     }
