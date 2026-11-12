@@ -4305,8 +4305,8 @@ test('atributos do inventário somam os itens vestidos em barrinhas e porcentage
     const { getEquipmentStats } = load('../src/game/ui/InventoryMenuView.ts');
     assert.deepEqual(getEquipmentStats([]), [
         { label: 'BLOQUEIO', pips: 0, value: '0%' },
-        { label: 'VELOCIDADE', pips: 0, value: '+0%' },
-        { label: 'DASH', pips: 0, value: '-0%' }
+        { label: 'VELOCIDADE', pips: 0, value: '0%' },
+        { label: 'DASH', pips: 0, value: '0%' }
     ]);
     const [block, speed, dash] = getEquipmentStats(['gaucho-hat', 'silver-boots']);
     assert.deepEqual([block.pips, block.value], [2, '20%']);
