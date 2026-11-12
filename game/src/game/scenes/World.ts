@@ -1430,7 +1430,8 @@ export class World extends Scene {
         const { texture, speech, cutscene } = TICEN_DUEL.driver;
         const driver = this.add.sprite(door.x, door.y - 4, texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(door.y + 24)).setAlpha(0);
         this.tweens.add({ targets: driver, alpha: 1, y: door.y + 22, duration: 600, ease: 'Quad.easeOut' });
-        const bubble = this.createSpeechBubble(door.x, door.y - 18, speech).setVisible(false);
+        // À esquerda do motorista: a porta fica rente à borda do mapa e o alto da tela é do HUD.
+        const bubble = this.createSpeechBubble(door.x - 12, door.y + 6, speech).setVisible(false);
         this.time.delayedCall(700, () => {
             driver.setFrame(1);
             bubble.setVisible(true);
@@ -1444,22 +1445,23 @@ export class World extends Scene {
         this.time.delayedCall(cutscene - 400, () => this.closeBusDoor());
     }
 
-    /** Balão de fala branco, com a ponta apontando para quem fala. */
+    /** Balão de fala branco à esquerda de quem fala, com a ponta apontando para ele em (x, y). */
     private createSpeechBubble(x: number, y: number, text: string) {
         const label = this.add.text(0, 0, text, {
             fontFamily: 'PixelGamer, monospace',
             fontSize: '9px',
             color: '#101018',
             align: 'center',
-            wordWrap: { width: 150 }
-        }).setOrigin(0.5, 1).setResolution(4);
+            wordWrap: { width: 120 }
+        }).setOrigin(0.5).setResolution(4);
         const width = label.width + 14;
         const height = label.height + 10;
+        const left = -width - 8;
         const box = this.add.graphics();
-        box.fillStyle(0xffffff).fillRoundedRect(-width / 2, -height - 5, width, height, 5);
-        box.lineStyle(1, 0x101018).strokeRoundedRect(-width / 2, -height - 5, width, height, 5);
-        box.fillStyle(0xffffff).fillTriangle(-5, -6, 5, -6, 0, 2);
-        label.setPosition(0, -10);
+        box.fillStyle(0xffffff).fillRoundedRect(left, -height / 2, width, height, 5);
+        box.lineStyle(1, 0x101018).strokeRoundedRect(left, -height / 2, width, height, 5);
+        box.fillStyle(0xffffff).fillTriangle(-9, -5, -9, 5, 0, 0);
+        label.setPosition(left + width / 2, 0);
         return this.add.container(x, y, [box, label]).setDepth(22);
     }
 
