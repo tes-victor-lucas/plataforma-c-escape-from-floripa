@@ -60,7 +60,8 @@ const CARDS = { x: 36, y: 66, width: 174, height: 300 };
 const CHIMARRAO = { x: 36, y: 378, width: 174, height: 50 };
 // Retrato do personagem, um cartão em pé como numa ficha.
 const DOLL = { x: 232, y: 66, width: 150, height: 172 };
-const DETAILS = { x: 610, y: 66, width: 243, height: 220 };
+// Balão de descrição que acompanha o item selecionado.
+const TOOLTIP_WIDTH = 232;
 // Linhas de atributos à direita dos encaixes: onde as barrinhas começam e a distância entre as linhas.
 const STATS = { x: 548, y: 84, rowGap: 34, pipWidth: 18 };
 const TOGGLE = { x: 656, y: 210 };
@@ -69,7 +70,7 @@ const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ['CABEÇA', 'CORPO', 'MÃOS', 
 const SLOT = 44;
 const GRID = { x: 232, y: 308, columns: 12, rows: 2, gap: 6 };
 // Onde soltar um item arrastado: boneco e encaixes equipam; a grade de baixo guarda.
-const EQUIP_ZONE = { x: DOLL.x, y: DOLL.y, width: DETAILS.x - DOLL.x, height: DOLL.height };
+const EQUIP_ZONE = { x: DOLL.x, y: DOLL.y, width: DOLL.width + 12 + SLOT, height: 4 * (SLOT + 6) };
 const STORAGE_ZONE = {
     x: GRID.x,
     y: GRID.y,
@@ -104,6 +105,14 @@ export function getEquipmentStats(ids: readonly ItemId[]): EquipmentStat[] {
     ];
 }
 
+/** O balão nasce à direita e abaixo do meio do encaixe e é empurrado para dentro do painel quando não cabe. */
+export function getTooltipPosition(slotX: number, slotY: number, height: number) {
+    return {
+        x: Math.min(slotX + 14, PANEL.x + PANEL.width - TOOLTIP_WIDTH - 10),
+        y: Math.min(slotY + 10, PANEL.y + PANEL.height - height - 10)
+    };
+}
+
 /** Item guardado solto no boneco ou nos encaixes equipa; item equipado solto na grade volta a ser guardado. */
 export function shouldToggleOnDrop(equipped: boolean, x: number, y: number) {
     const zone = equipped ? STORAGE_ZONE : EQUIP_ZONE;
@@ -116,6 +125,8 @@ export class InventoryMenuView {
     private itemSlots: Phaser.GameObjects.Rectangle[] = [];
     private detailTitle?: Phaser.GameObjects.Text;
     private detailText?: Phaser.GameObjects.Text;
+    private tooltip?: Phaser.GameObjects.Container;
+    private tooltipBox?: Phaser.GameObjects.Graphics;
     private toggleButton?: Phaser.GameObjects.Rectangle;
     private toggleLabel?: Phaser.GameObjects.Text;
 
@@ -151,6 +162,8 @@ export class InventoryMenuView {
         this.addDetails(menu);
         this.addToggleButton(menu);
         this.addItemGrid(menu);
+        // O balão foi criado antes da grade (ela já seleciona um item) e precisa ficar por cima dela.
+        if (this.tooltip) menu.root.bringToTop(this.tooltip);
         // Sem o botão VOLTAR: fecha no X, no ESC ou no botão de voltar do controle.
         // E equipa ou retira o item selecionado, sem precisar do mouse.
         const keyboard = this.scene.input.keyboard;
@@ -282,16 +295,31 @@ export class InventoryMenuView {
         });
     }
 
+    /** Balão com o nome numa faixa e a descrição embaixo; a posição e a altura mudam a cada item. */
     private addDetails(menu: CleanOverlayMenu) {
-        this.detailTitle = this.text(DETAILS.x + 16, DETAILS.y + 18, '', 15, INV.text);
-        this.detailText = this.scene.add.text(DETAILS.x + 16, DETAILS.y + 48, '', {
+        this.tooltipBox = this.scene.add.graphics();
+        this.detailTitle = this.text(14, 19, '', 13, INV.text);
+        this.detailText = this.scene.add.text(14, 38, '', {
             fontFamily: FONT,
-            fontSize: '11px',
+            fontSize: '10px',
             color: INV.muted,
-            lineSpacing: 6,
-            wordWrap: { width: DETAILS.width - 32, useAdvancedWrap: true }
+            lineSpacing: 5,
+            wordWrap: { width: TOOLTIP_WIDTH - 28, useAdvancedWrap: true }
         }).setResolution(2);
-        menu.add([this.box(DETAILS), this.detailTitle, this.detailText]);
+        this.tooltip = this.scene.add.container(0, 0, [this.tooltipBox, this.detailTitle, this.detailText]);
+        menu.add(this.tooltip);
+    }
+
+    private placeTooltip() {
+        const slot = this.itemSlots[this.selectedItem];
+        if (!slot || !this.tooltip || !this.tooltipBox || !this.detailText) return;
+        const height = 38 + this.detailText.height + 12;
+        this.tooltipBox.clear();
+        drawFramedBox(this.tooltipBox, { x: 0, y: 0, width: TOOLTIP_WIDTH, height });
+        // Faixa escura atrás do nome, separando do texto sem precisar de linha.
+        this.tooltipBox.fillStyle(INV.well, 1).fillRect(7, 7, TOOLTIP_WIDTH - 14, 24);
+        const { x, y } = getTooltipPosition(slot.x, slot.y, height);
+        this.tooltip.setPosition(x, y);
     }
 
     /** Botão de equipar ou retirar o item selecionado, logo abaixo dos atributos que ele muda. */
@@ -340,6 +368,7 @@ export class InventoryMenuView {
         this.detailTitle?.setText(selected?.name ?? 'NENHUM ITEM');
         const status = selected?.id ? `\n\n${selected.equipped ? 'EQUIPADO' : 'GUARDADO'}` : '';
         this.detailText?.setText(`${selected?.description ?? 'OS ITENS PEGOS PELO MAPA FICAM GUARDADOS AQUI.'}${status}`);
+        this.placeTooltip();
         const canToggle = !!selected?.id && !!this.options.onToggle;
         this.toggleButton?.setVisible(canToggle);
         this.toggleLabel?.setVisible(canToggle).setText(selected?.equipped ? 'RETIRAR' : 'EQUIPAR');
