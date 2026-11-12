@@ -191,3 +191,15 @@ test('golem tem cutscene aos 70% e aos 40% e fica na frente de pilares, placas e
     // itens-topo (toldos, pilares, placas, quiosques) fica na profundidade 20 (FOREGROUND_DEPTH de createRoom).
     assert.ok(TOPAZIO_BOSS.depth > 20);
 });
+
+test('a porta que abre depois do golem é a do 763.2, logo acima da área de embarque', () => {
+    const { TICEN_ESCAPE, TICEN_GOAL, TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const { door, bus } = TICEN_ESCAPE;
+    const { frameWidth, frameHeight } = TOPAZIO_BOSS.bus;
+    assert.equal(bus.route, 3, 'rota 3 do ticen_onibus.png é o 763.2 via Kobrasol');
+    assert.ok(TOPAZIO_BOSS.buses.every(({ route }) => route !== bus.route), 'o golem nunca arremessa o 763.2');
+    assert.ok(door.x >= bus.col * 16 && door.x + door.width <= bus.col * 16 + frameWidth, 'porta dentro do ônibus');
+    assert.ok(door.y >= bus.row * 16 && door.y + door.height <= bus.row * 16 + frameHeight, 'porta dentro do ônibus');
+    assert.ok(door.x + door.width / 2 >= TICEN_GOAL.left && door.x + door.width / 2 <= TICEN_GOAL.right, 'o embarque fica embaixo da porta');
+    assert.ok(Math.abs(TICEN_GOAL.top - (door.y + door.height)) <= 8, 'o feixe de luz desce até a área de embarque');
+});
