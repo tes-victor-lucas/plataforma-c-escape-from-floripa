@@ -83,17 +83,17 @@ test('patinetes e bicicletas estacionados ficam na calçada sem fechar o caminho
     }
 });
 
-test('Sala V usa as cores originais e ?room=51 guarda a versão cyberpunk, com o mesmo mapa', () => {
+test('Sala V usa a paleta cyberpunk e ?room=51 guarda as cores originais, com o mesmo mapa', () => {
     const { getRequestedRoomKey } = load('../src/game/config/rooms.ts');
     const backup = ROOM_DEFINITIONS.room51;
     assert.equal(getRequestedRoomKey('?room=51'), 'room51');
     assert.equal(backup.mapPath, ROOM_DEFINITIONS.room5.mapPath);
     assert.equal(backup.tilesets.length, ROOM_DEFINITIONS.room5.tilesets.length);
-    for (const tileset of backup.tilesets) {
+    for (const tileset of ROOM_DEFINITIONS.room5.tilesets) {
         assert.ok(existsSync(path.resolve(__dirname, '../public', tileset.path)), tileset.path);
         if (tileset.mapName.startsWith('ticen_')) assert.doesNotMatch(tileset.path, /_original\.png$/);
     }
-    for (const tileset of ROOM_DEFINITIONS.room5.tilesets) {
+    for (const tileset of backup.tilesets) {
         if (tileset.mapName.startsWith('ticen_')) assert.match(tileset.path, /_original\.png$/);
     }
 });
