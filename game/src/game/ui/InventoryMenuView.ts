@@ -109,7 +109,15 @@ export class InventoryMenuView {
         menu.add(panel);
         menu.add(this.text(TITLE_TAB.x + TITLE_TAB.width / 2, TITLE_TAB.y + 17, 'INVENTÁRIO', 18, INV.text).setOrigin(0.5));
         this.addCloseTab(menu);
-        addUpgradePanel(this.scene, menu, this.options.upgrades, CARDS);
+        // A moldura é a do inventário; o painel de upgrades vai por dentro, sem a borda própria.
+        menu.add(this.box(CARDS));
+        addUpgradePanel(
+            this.scene,
+            menu,
+            this.options.upgrades,
+            { x: CARDS.x + 7, y: CARDS.y + 7, width: CARDS.width - 14, height: CARDS.height - 14 },
+            { panel: INV.raised, frame: INV.raised, button: INV.well, buttonHover: INV.band, text: INV.text, mutedText: INV.muted }
+        );
         this.addChimarraos(menu);
         this.addDoll(menu);
         this.addEquipmentSlots(menu);
