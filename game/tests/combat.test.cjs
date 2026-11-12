@@ -561,6 +561,7 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
                     setScale() { return this; },
                     setPosition(nextX, nextY) { this.x = nextX; this.y = nextY; return this; },
                     setBlendMode() { return this; },
+                    setVisible() { return this; },
                     destroy() {}
                 };
                 rings.push(circle);
@@ -4377,7 +4378,7 @@ test('baú sorteia ao destrancar só o que falta, guarda o sorteio e abre vazio 
 });
 
 test('espada flamejante golpeia nas salas com tiro sem atrasar o tiro automático', () => {
-    const { combat, drones, groups, player } = setup([[125, 100]]);
+    const { combat, drones, groups, player, rings } = setup([[125, 100]]);
     player.getAimDirection = () => ({ x: 1, y: 0 });
     combat.update(0);
     assert.equal(groups[0].getLength(), 1, 'o tiro saiu');
@@ -4393,6 +4394,7 @@ test('espada flamejante golpeia nas salas com tiro sem atrasar o tiro automátic
     combat.update(Math.max(COMBAT_CONFIG.player.fireInterval, COMBAT_CONFIG.flameSword.interval));
     assert.equal(groups[0].getLength(), 2, 'golpear não segurou o tiro seguinte');
     assert.equal(combat.swing(0), true);
+    assert.ok(rings.length >= COMBAT_CONFIG.flameSword.trailFlames, 'cada golpe solta o rastro de labaredas pelo arco');
     combat.setFlameSword(false);
     assert.equal(combat.hasSword(), false, 'guardar a espada tira o golpe');
 });
