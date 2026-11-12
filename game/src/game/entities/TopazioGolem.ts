@@ -43,6 +43,7 @@ export class TopazioGolem implements CombatEnemy {
     private sweepBack?: Phaser.GameObjects.Graphics;
     private sweepFront?: Phaser.GameObjects.Graphics;
     private lastGhostAt = -Infinity;
+    private spinSound?: Phaser.Sound.BaseSound;
     private readonly buses: TicenBus[] = [...TOPAZIO_BOSS.buses];
     private fetching?: TicenBus;
     private heldBus?: Phaser.GameObjects.Image;
@@ -188,6 +189,13 @@ export class TopazioGolem implements CombatEnemy {
             this.startAction(this.nextAttack);
             this.hasSlammed = false;
             this.spinBursts = 0;
+            if (this.nextAttack === 'spin') {
+                // O som tem a duração do giro; guardado para parar se ele morrer girando.
+                const { key, volume } = AUDIO_CONFIG.effects.golemSpin;
+                this.spinSound = this.scene.sound.add(key, { volume });
+                this.spinSound.once('complete', () => this.spinSound?.destroy());
+                this.spinSound.play();
+            }
             // Mais pancadas do que giros; nunca dois giros seguidos.
             this.nextAttack = this.nextAttack === 'spin' || Math.random() < 0.6 ? 'slam' : 'spin';
             return;
@@ -207,6 +215,8 @@ export class TopazioGolem implements CombatEnemy {
         const { windup, recover } = TOPAZIO_BOSS.slam;
         if (!this.hasSlammed && this.actionTime >= windup) {
             this.hasSlammed = true;
+            const { key, volume } = AUDIO_CONFIG.effects.golemSlam;
+            this.scene.sound.play(key, { volume });
             const feet = { x: this.sprite.x, y: this.sprite.y + TOPAZIO_BOSS.feetOffset - 8 };
             this.scene.cameras.main.shake(140, 0.005);
             playShockwave(this.scene, feet.x, feet.y, 40, 0xffa040);
@@ -486,6 +496,7 @@ export class TopazioGolem implements CombatEnemy {
 
     private finishDeath() {
         this.startAction('dead');
+        this.spinSound?.stop();
         this.sweepBack?.clear();
         this.sweepFront?.clear();
         this.sprite.setScale(1).clearTint();
