@@ -3772,6 +3772,18 @@ test('8080 dá uma carta forte aleatória só na room3', () => {
     assert.equal(hints[1], 'CARTAS FORTES NO MÁXIMO');
 });
 
+test('8080 na room5 tira 10% da vida máxima do golem a cada vez', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const hits = [];
+    world.isGameplayReady = true;
+    world.activeRoomKey = 'room5';
+    world.golem = { health: { isAlive: true, max: 400 }, takeDamage: (amount) => hits.push(amount) };
+    for (const key of '80808080') world.handleSecretCodeKey({ key, repeat: false });
+    assert.deepEqual(hits, [40, 40]);
+    assert.deepEqual(world.upgrades.exportProgress(), [], 'fora da room3 não dá carta');
+});
+
 test('drone forte aparece a partir da horda 2 da room2 e ganha +5 a cada horda', () => {
     const heavyIn = (room, wave) => getWaveEnemyKinds(room, wave, COMBAT_CONFIG.wavesByRoom[room][wave])
         .filter((kind) => kind === 'heavy-drone').length;
