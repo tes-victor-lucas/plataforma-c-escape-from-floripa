@@ -1,6 +1,6 @@
 # Infraestrutura AWS — Escape from Floripa
 
-Provisiona a API serverless de pontuação: API Gateway HTTP API, Lambda Python, tabela DynamoDB com TTL, criptografia e recuperação point-in-time, logs no CloudWatch e Cognito opcional.
+Provisiona a API serverless de pontuação: API Gateway HTTP API, Lambda Python, tabela DynamoDB com TTL, criptografia e recuperação point-in-time, logs no CloudWatch e login com Google opcional nas escritas.
 
 ## Implantação
 
@@ -12,14 +12,14 @@ pulumi up
 
 O output `score_api_url` deve ser fornecido ao frontend em `ESCAPE_FROM_FLORIPA_CONFIG.scoreApiUrl`.
 
-Para proteger as escritas com Cognito/JWT:
+Para exigir o login com Google nas escritas (o API Gateway valida o ID token do Google):
 
 ```bash
 pulumi config set requireAuthentication true
 pulumi up
 ```
 
-Com autenticação ativa, configure também `ESCAPE_FROM_FLORIPA_CONFIG.accessToken` com o JWT da sessão. O endpoint público de consulta ao placar permanece sem autenticação.
+Com autenticação ativa, só quem escolhe ENTRAR COM GOOGLE no menu do jogo registra runs, com o nome da conta no placar; quem joga sem entrar não aparece nele. O Client ID aceito é o da Feira de Jogos e pode ser trocado com `pulumi config set googleClientId <id>`. O endpoint público de consulta ao placar permanece sem autenticação.
 
 ## Site do jogo (stack `prod`)
 
@@ -39,4 +39,4 @@ A delegação de `escape-from-floripa.negoci.online` é feita fora desta conta, 
 
 O `prod` também sobe o servidor multiplayer de `server/` em uma EC2, acessível somente pelo CloudFront em `/ws`. Alterar `server/` e rodar `pulumi up` recria a instância. O passo a passo completo está em [docs/deploy-aws.md](../docs/deploy-aws.md).
 
-No MVP, o `prod` não exige autenticação: o jogo ainda não tem login no Cognito, então qualquer cliente consegue registrar runs. Para exigir JWT, use `pulumi config set requireAuthentication true` depois que o frontend enviar `accessToken`.
+Por enquanto o `prod` não exige autenticação: qualquer cliente consegue registrar runs, todas com o nome "Jogador". Para o placar passar a usar a conta Google de quem entrou, use `pulumi config set requireAuthentication true` e `pulumi up` depois que o jogo com o login estiver no ar.

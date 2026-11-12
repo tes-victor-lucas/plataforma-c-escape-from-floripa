@@ -8,6 +8,8 @@ from multiplayer_server import SERVER_PORT, build_user_data
 
 config = pulumi.Config()
 require_authentication = config.get_bool("requireAuthentication") or False
+# Client ID do Google da Feira de Jogos: o mesmo do login do jogo (game/src/game/config/fair.ts).
+google_client_id = config.get("googleClientId") or "331191695151-ku8mdhd76pc2k36itas8lm722krn0u64.apps.googleusercontent.com"
 root = Path(__file__).resolve().parent.parent
 site_domain = "escape-from-floripa.negoci.online"
 # Repositórios criados depois de 15/07/2026 identificam dono e repositório por ID no `sub` do OIDC.
@@ -94,30 +96,18 @@ integration = aws.apigatewayv2.Integration(
 
 route_auth: dict[str, object] = {}
 if require_authentication:
-    user_pool = aws.cognito.UserPool(
-        "players",
-        username_attributes=["email"],
-        auto_verified_attributes=["email"],
-    )
-    user_pool_client = aws.cognito.UserPoolClient(
-        "web-player",
-        user_pool_id=user_pool.id,
-        generate_secret=False,
-        explicit_auth_flows=["ALLOW_REFRESH_TOKEN_AUTH", "ALLOW_USER_SRP_AUTH"],
-    )
+    # O jogo entra com Google (GSI) e manda o ID token: o API Gateway confere assinatura, emissor e audiência.
     authorizer = aws.apigatewayv2.Authorizer(
         "players-jwt-authorizer",
         api_id=api.id,
         authorizer_type="JWT",
         identity_sources=["$request.header.Authorization"],
         jwt_configuration=aws.apigatewayv2.AuthorizerJwtConfigurationArgs(
-            audiences=[user_pool_client.id],
-            issuer=user_pool.endpoint.apply(lambda endpoint: f"https://{endpoint}"),
+            audiences=[google_client_id],
+            issuer="https://accounts.google.com",
         ),
     )
     route_auth = {"authorization_type": "JWT", "authorizer_id": authorizer.id}
-    pulumi.export("cognito_user_pool_id", user_pool.id)
-    pulumi.export("cognito_web_client_id", user_pool_client.id)
 
 for name, route_key, protected in [
     ("start-run", "POST /runs", True),

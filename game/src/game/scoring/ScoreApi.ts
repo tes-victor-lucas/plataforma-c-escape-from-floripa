@@ -1,4 +1,5 @@
 import { SCORE_VERSION, type GameMode } from '../config/score';
+import { googleAuth } from '../auth/GoogleAuth';
 
 type RuntimeConfig = Readonly<{ scoreApiUrl?: string; accessToken?: string }>;
 
@@ -34,8 +35,11 @@ const getRuntimeConfig = () => (globalThis as typeof globalThis & {
     ESCAPE_FROM_FLORIPA_CONFIG?: RuntimeConfig;
 }).ESCAPE_FROM_FLORIPA_CONFIG;
 
+/** Quem entrou com Google manda o ID token: o placar usa o nome e o `sub` dele. */
+const getAccessToken = () => googleAuth.user?.token ?? getRuntimeConfig()?.accessToken?.trim();
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-    const accessToken = getRuntimeConfig()?.accessToken?.trim();
+    const accessToken = getAccessToken();
     const response = await fetch(`${getBaseUrl()}${path}`, {
         ...init,
         headers: {
@@ -64,7 +68,7 @@ export const scoreApi = {
     },
 
     discardRun(runId: string) {
-        const accessToken = getRuntimeConfig()?.accessToken?.trim();
+        const accessToken = getAccessToken();
         return fetch(`${getBaseUrl()}/runs/${encodeURIComponent(runId)}`, {
             method: 'DELETE',
             headers: accessToken ? { authorization: `Bearer ${accessToken}` } : undefined
