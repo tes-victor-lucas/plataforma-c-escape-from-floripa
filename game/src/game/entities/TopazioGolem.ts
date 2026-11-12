@@ -49,6 +49,7 @@ export class TopazioGolem implements CombatEnemy {
     private busesThrown = 0;
     private roarsDone = 0;
     private gemsCollected = 0;
+    private isDeathDeferred = false;
     private readonly activeSpikes = new Set<Point>();
     private sweepBack?: Phaser.GameObjects.Graphics;
     private sweepFront?: Phaser.GameObjects.Graphics;
@@ -129,6 +130,8 @@ export class TopazioGolem implements CombatEnemy {
         // Os ônibus e as cutscenes que faltam acontecem antes do fim: só o 763.2 pode sobrar no TICEN.
         if (!this.health.isAlive && (this.buses.length > 0 || this.isThrowingBus || this.roarsDone < ROAR_THRESHOLDS.length)) {
             this.health.current = 1;
+            // O golpe final fica guardado: ele morre sozinho assim que terminar o que falta (updateWalk).
+            this.isDeathDeferred = true;
         }
         this.flashHit();
         const stage = getGolemStage(this.health.current, this.health.max);
@@ -192,6 +195,12 @@ export class TopazioGolem implements CombatEnemy {
         if (this.busesThrown + (this.fetching ? 1 : 0) < countThresholdsCrossed(this.health.current, this.health.max, TOPAZIO_BOSS.busThresholds)
             && this.buses.length > 0) {
             this.startFetch();
+            return;
+        }
+        // Sem ônibus nem cutscene pendentes, o golpe final que ficou guardado derruba o golem (depois de o último ônibus cair).
+        if (this.isDeathDeferred && this.buses.length === 0 && this.actionTime >= TOPAZIO_BOSS.roar.calmBefore) {
+            this.health.current = 0;
+            this.finishDeath();
             return;
         }
         if (!target) return;
