@@ -247,6 +247,8 @@ export class World extends Scene {
     private partnerPause?: PartnerPauseReason;
     private sentPauseReason?: PartnerPauseReason;
     private partnerPauseLabel?: Phaser.GameObjects.Text;
+    /** Pergunta do esconderijo em aberto: a passagem e quem já respondeu SIM. */
+    private gatewayVote?: { pass: () => void; local: boolean; partner: boolean };
     private arcadePrompt?: Phaser.GameObjects.Text;
     private hasSelectedPiranhasItem = false;
     private isGameplayReady = false;
@@ -339,6 +341,7 @@ export class World extends Scene {
         this.isGatewayConfirmArmed = true;
         this.partnerPause = undefined;
         this.sentPauseReason = undefined;
+        this.gatewayVote = undefined;
         this.partnerPauseLabel = undefined;
         this.isGameOver = false;
         this.isGameplayReady = false;
@@ -2065,23 +2068,11 @@ export class World extends Scene {
         // Quem respondeu NÃO só é perguntado de novo depois de sair da passagem.
         if (!isAtEntrance && !isAtReturn) this.isGatewayConfirmArmed = true;
         if (secretGateway && isAtEntrance) {
-            this.passSecretGateway(secretGateway.confirm?.enter, () => {
-                this.dungeonState ??= createDungeonSessionState();
-                this.transitionToRoom(secretGateway.to, {
-                    dungeonState: this.dungeonState
-                });
-            });
+            this.passSecretGateway(secretGateway.confirm?.enter, this.getSecretGatewayPass(secretGateway, 'enter'));
             return;
         }
         if (returnGateway && isAtReturn) {
-            const leave = () => this.transitionToRoom(returnGateway.from, {
-                spawn: returnGateway.returnSpawn,
-                dungeonState: this.dungeonState
-            });
-            this.passSecretGateway(returnGateway.confirm?.exit, () => {
-                if (this.activeRoomKey === 'gaucho-dungeon') this.climbSewerLadder(leave);
-                else leave();
-            });
+            this.passSecretGateway(returnGateway.confirm?.exit, this.getSecretGatewayPass(returnGateway, 'exit'));
             return;
         }
         const exitGateway = ROOM_EXIT_GATEWAYS.find(({ from }) => from === this.activeRoomKey);
@@ -2108,7 +2099,31 @@ export class World extends Scene {
         climbSewerLadder(this, this.player.sprite, this.dungeonReturnArea, leave);
     }
 
-    /** Passa direto, ou pergunta antes quando a passagem tem confirmação. */
+    /** Entrar no esconderijo ou voltar dele; a mesma função serve ao anfitrião quando quem perguntou foi o convidado. */
+    private getSecretGatewayPass(gateway: SecretDungeonGateway, direction: 'enter' | 'exit') {
+        if (direction === 'enter') {
+            return () => {
+                this.dungeonState ??= createDungeonSessionState();
+                this.transitionToRoom(gateway.to, { dungeonState: this.dungeonState });
+            };
+        }
+        const leave = () => this.transitionToRoom(gateway.from, { spawn: gateway.returnSpawn, dungeonState: this.dungeonState });
+        return () => {
+            if (this.activeRoomKey === 'gaucho-dungeon') this.climbSewerLadder(leave);
+            else leave();
+        };
+    }
+
+    /** A passagem que a pergunta do parceiro pede, nesta sala; outra pergunta qualquer não abre nada. */
+    private findSecretGatewayPass(question: string) {
+        const entrance = SECRET_DUNGEON_GATEWAYS.find((gateway) => gateway.from === this.activeRoomKey);
+        if (entrance?.confirm?.enter === question) return this.getSecretGatewayPass(entrance, 'enter');
+        const exit = SECRET_DUNGEON_GATEWAYS.find((gateway) => gateway.to === this.activeRoomKey);
+        if (exit?.confirm?.exit === question) return this.getSecretGatewayPass(exit, 'exit');
+        return undefined;
+    }
+
+    /** Passa direto, ou pergunta antes quando a passagem tem confirmação; em dupla, pergunta aos dois. */
     private passSecretGateway(question: string | undefined, pass: () => void) {
         if (!question) {
             pass();
@@ -2116,19 +2131,69 @@ export class World extends Scene {
         }
         if (!this.isGatewayConfirmArmed || !this.player) return;
         this.isGatewayConfirmArmed = false;
+        if (this.isCoopActive()) multiplayerClient.sendEvent({ kind: 'gateway.vote', phase: 'ask', question });
+        this.openGatewayPrompt(question, pass);
+    }
+
+    private openGatewayPrompt(question: string, pass: () => void, hint?: string) {
+        if (this.isGatewayConfirmOpen || !this.player) return;
         this.isGatewayConfirmOpen = true;
+        this.gatewayVote = { pass, local: false, partner: false };
         this.player.stopMovement();
         this.physics.pause();
         const data: ConfirmPromptData = {
             title: question,
+            hint,
             onChoice: (confirmed) => {
                 this.isGatewayConfirmOpen = false;
                 this.physics.resume();
-                if (confirmed) pass();
+                if (!this.isCoopActive()) {
+                    this.gatewayVote = undefined;
+                    if (confirmed) pass();
+                    return;
+                }
+                multiplayerClient.sendEvent({ kind: 'gateway.vote', phase: confirmed ? 'yes' : 'no' });
+                if (!confirmed || !this.gatewayVote) {
+                    this.gatewayVote = undefined;
+                    return;
+                }
+                this.gatewayVote.local = true;
+                if (!this.gatewayVote.partner) this.showFloatingHint('AGUARDANDO O PARCEIRO');
+                this.tryGatewayPass();
             }
         };
         this.scene.launch('ConfirmPrompt', data);
         this.scene.bringToTop('ConfirmPrompt');
+    }
+
+    /** Resposta do parceiro: o SIM conta para a passagem; o NÃO fecha a pergunta aqui também. */
+    private applyPartnerGatewayVote(event: Extract<CoopEvent, { kind: 'gateway.vote' }>) {
+        if (event.phase === 'ask') {
+            const pass = event.question ? this.findSecretGatewayPass(event.question) : undefined;
+            if (pass && event.question) this.openGatewayPrompt(event.question, pass, 'O PARCEIRO QUER PASSAR');
+            return;
+        }
+        if (!this.gatewayVote) return;
+        if (event.phase === 'yes') {
+            this.gatewayVote.partner = true;
+            this.tryGatewayPass();
+            return;
+        }
+        this.gatewayVote = undefined;
+        if (this.isGatewayConfirmOpen) {
+            this.scene.stop('ConfirmPrompt');
+            this.isGatewayConfirmOpen = false;
+            this.physics.resume();
+        }
+        this.showFloatingHint('PARCEIRO RECUSOU');
+    }
+
+    /** Com os dois SIM, o anfitrião faz a passagem e leva a dupla junto. */
+    private tryGatewayPass() {
+        const vote = this.gatewayVote;
+        if (!vote?.local || !vote.partner) return;
+        this.gatewayVote = undefined;
+        if (this.isMultiplayerHost()) vote.pass();
     }
 
     private transitionToRoom(
@@ -3006,6 +3071,9 @@ export class World extends Scene {
                 break;
             case 'game.pause':
                 this.applyPartnerPause(event.reason);
+                break;
+            case 'gateway.vote':
+                this.applyPartnerGatewayVote(event);
                 break;
             case 'escape.vote':
                 this.hasPartnerVotedEscape = true;
