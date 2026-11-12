@@ -204,7 +204,6 @@ export class InventoryMenuView {
             .on('pointerdown', () => this.selectItem(index))
             .on('pointerover', () => this.selectItem(index))
             .on('dragstart', () => {
-                menu.root.bringToTop(icon);
                 // Durante o arrasto o balão sairia do lugar e taparia onde soltar.
                 this.isDragging = true;
                 this.tooltip?.setVisible(false);
@@ -273,7 +272,7 @@ export class InventoryMenuView {
             const x = DOLL.x + DOLL.width + 12;
             const equipped = this.equippedItems.find(({ slot }) => slot === label);
             const slot = this.scene.add.rectangle(x + SLOT / 2, y + SLOT / 2, SLOT, SLOT, INV.well)
-                .setStrokeStyle(equipped ? 2 : 1, INV.band, equipped ? 1 : 0.6);
+                .setStrokeStyle(2, equipped ? INV.band : INV.outline);
             // Clicar no encaixe seleciona o item para poder retirá-lo.
             if (equipped) {
                 const select = () => this.selectItem(this.options.items.indexOf(equipped));
@@ -367,7 +366,7 @@ export class InventoryMenuView {
             menu.add(slot);
             const item = items[index];
             if (!item) {
-                slot.setStrokeStyle(1, INV.band, 0.35);
+                slot.setStrokeStyle(2, INV.outline);
                 continue;
             }
             const icon = this.scene.add.image(x, y, item.texture);
@@ -390,9 +389,10 @@ export class InventoryMenuView {
         if (this.isDragging) return;
         const item = this.options.items[index];
         this.selectedItem = item ? index : this.selectedItem;
+        // Encaixes em baixo-relevo, separados só pelo tom; o selecionado ganha a borda clara da moldura.
         this.itemSlots.forEach((slot, slotIndex) => slot?.setStrokeStyle(
-            slotIndex === this.selectedItem ? 3 : 1,
-            slotIndex === this.selectedItem ? INV.accent : INV.band
+            slotIndex === this.selectedItem ? 3 : 2,
+            slotIndex === this.selectedItem ? INV.shine : INV.outline
         ));
         const selected = this.options.items[this.selectedItem];
         this.detailTitle?.setText(selected?.name ?? 'NENHUM ITEM');
