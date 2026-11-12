@@ -80,6 +80,7 @@ import { createItemTexture, createItemTextures } from '../entities/WornItem';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
 import { TchayQueue } from '../entities/TchayQueue';
 import { createMercadoEntranceSign } from '../map/createMercadoEntranceSign';
+import { DuelStandoffView } from '../ui/DuelStandoffView';
 import { PAGODE, PAGODE_FRAMES, POPULAR_BARS, TCHAY } from '../config/tchay';
 import { createStringLights } from '../map/createStringLights';
 import { createRadioactiveFlowers } from '../map/createRadioactiveFlowers';
@@ -1518,11 +1519,33 @@ export class World extends Scene {
         this.tweens.add({ targets: objects, alpha: 0, duration: 300, onComplete: () => objects.forEach((object) => object.destroy()) });
     }
 
-    /** A dupla perde as cartas e luta de espada; o anfitrião solta os gaúchos e os baús. */
+    /** Fim do motorista: cada um vai para o seu extremo, passa o close de duelo e só então a luta começa. */
     private startDuel() {
         if (!this.player || this.isDuelOver) return;
-        this.upgrades.reset();
         this.teleportToDuelCorner();
+        this.playDuelStandoff(() => this.beginDuelFight());
+    }
+
+    /** Close de faroeste nos olhos dos dois antes da luta; o jogo fica parado enquanto passa. */
+    private playDuelStandoff(onDone: () => void) {
+        const player = this.player;
+        if (!player) return;
+        const partner = [...this.remotePlayers.values()][0];
+        const textures = [player.sprite.texture.key, partner?.sprite.texture.key ?? player.sprite.texture.key] as const;
+        this.isCutsceneActive = true;
+        player.stopMovement();
+        this.physics.pause();
+        new DuelStandoffView(this.scene.get('CombatHud') as Scene, textures).play(() => {
+            this.isCutsceneActive = false;
+            if (!this.isPauseMenuOpen && !this.isGameOver) this.physics.resume();
+            onDone();
+        });
+    }
+
+    /** Depois do close: a dupla perde as cartas, pega a espada e o anfitrião solta os gaúchos e os baús. */
+    private beginDuelFight() {
+        if (!this.player || this.isDuelOver) return;
+        this.upgrades.reset();
         this.combat?.enterSwordDuel();
         const partner = [...this.remotePlayers.values()][0];
         partner?.holdSword();
