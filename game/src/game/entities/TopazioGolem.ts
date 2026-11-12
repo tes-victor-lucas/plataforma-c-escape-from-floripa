@@ -1,7 +1,7 @@
 import { Physics, type Scene } from 'phaser';
 import { Health } from '../combat/Health';
 import { AUDIO_CONFIG } from '../config/audio';
-import { countThresholdsCrossed, getGolemStage, TOPAZIO_BOSS } from '../config/ticen';
+import { countThresholdsCrossed, getGolemStage, TICEN_GOAL, TOPAZIO_BOSS } from '../config/ticen';
 import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import { playExplosion, playShockwave } from '../effects/playAreaEffects';
 import type { CombatEnemy } from './CombatEnemy';
@@ -65,7 +65,7 @@ export class TopazioGolem implements CombatEnemy {
     constructor(
         private readonly scene: Scene,
         private readonly player: Player,
-        walls: Phaser.Tilemaps.TilemapLayer[],
+        private readonly walls: Phaser.Tilemaps.TilemapLayer[],
         private readonly busLayer: Phaser.Tilemaps.TilemapLayer | undefined,
         private readonly busTexture: string,
         private readonly onDefeated: () => void,
@@ -512,6 +512,29 @@ export class TopazioGolem implements CombatEnemy {
         });
     }
 
+    /**
+     * Onde o topázio cai: perto do golem e num chão que o jogador alcança, nunca em cima de ônibus,
+     * quiosque ou pilar, nem na área de embarque do 763.2 (pegar ali embarcaria antes de pegar o resto). Tenta direções e distâncias em volta e, sem lugar livre, vai abrindo o raio.
+     */
+    private findGemLanding(feet: Point, angle: number) {
+        const { width, height } = this.scene.physics.world.bounds;
+        const margin = 10; // metade do corpo do jogador, para ele conseguir encostar
+        const { left, right, top, bottom } = TICEN_GOAL;
+        const isBoarding = (px: number, py: number) => px > left - margin * 2 && px < right + margin * 2
+            && py > top - margin * 2 && py < bottom + margin * 2;
+        const isFree = (px: number, py: number) => px > margin && py > margin && px < width - margin && py < height - margin
+            && !isBoarding(px, py)
+            && [[0, 0], [margin, 0], [-margin, 0], [0, margin], [0, -margin]].every(([dx, dy]) =>
+                !this.walls.some((layer) => layer.getTileAtWorldXY(px + dx, py + dy)?.collides));
+        for (let attempt = 0; attempt < 40; attempt += 1) {
+            const tryAngle = angle + attempt * 0.7 + Math.random() * 0.4;
+            const reach = 30 + Math.random() * 60 + attempt * 4;
+            const point = { x: feet.x + Math.cos(tryAngle) * reach, y: feet.y + Math.sin(tryAngle) * reach * 0.55 };
+            if (isFree(point.x, point.y)) return point;
+        }
+        return feet;
+    }
+
     /** Encostar pega o topázio: ele sobe brilhando e some, e a contagem aparece sobre o jogador. */
     private makeCollectible(gem: Phaser.Physics.Arcade.Image) {
         const pickup = this.scene.physics.add.overlap(this.player.sprite, gem, () => {
@@ -546,10 +569,10 @@ export class TopazioGolem implements CombatEnemy {
             playExplosion(this.scene, x, y, 70, 0xf29b38);
             playShockwave(this.scene, x, y + TOPAZIO_BOSS.feetOffset, 120, 0x6ee2ff);
             for (let index = 0; index < TOPAZIO_BOSS.gemCount; index += 1) {
-                const angle = index / TOPAZIO_BOSS.gemCount * Math.PI * 2 + Math.random() * 0.4;
-                const reach = 30 + Math.random() * 60;
-                const landX = x + Math.cos(angle) * reach;
-                const landY = y + TOPAZIO_BOSS.feetOffset + Math.sin(angle) * reach * 0.55;
+                const { x: landX, y: landY } = this.findGemLanding(
+                    { x, y: y + TOPAZIO_BOSS.feetOffset },
+                    index / TOPAZIO_BOSS.gemCount * Math.PI * 2
+                );
                 const gem = this.scene.physics.add.image(x, y, TOPAZIO_BOSS.gemTexture).setDepth(getActorDepth(landY));
                 // O tween move o corpo junto; ele só pode ser pego depois de pousar.
                 if (gem.body instanceof Physics.Arcade.Body) gem.body.moves = false;
