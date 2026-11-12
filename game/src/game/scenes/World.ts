@@ -1622,6 +1622,9 @@ export class World extends Scene {
     private beginDuelFight() {
         if (!this.player || this.isDuelOver) return;
         this.upgrades.reset();
+        // Luta justa: os dois começam iguais, com 5 corações cheios, depois do close.
+        const duelHealth = TICEN_DUEL.duelHearts * COMBAT_CONFIG.player.healthPerHeart;
+        this.player.health.restore(duelHealth, duelHealth);
         this.combat?.enterSwordDuel();
         const partner = [...this.remotePlayers.values()][0];
         partner?.holdSword();
@@ -1642,7 +1645,9 @@ export class World extends Scene {
     }
 
     /** A espada acerta o parceiro: o dano vai para o cliente dele, que é quem manda na própria vida. */
-    private hitRival(damage: number) {
+    private hitRival(_swordDamage: number) {
+        // Dano fixo entre os jogadores; o cacete melhorado do baú ainda vale, arredondado para meio coração.
+        const damage = Math.round(TICEN_DUEL.rivalDamage * (this.combat?.swordDamageMultiplier ?? 1));
         multiplayerClient.sendEvent({ kind: 'player.damage', amount: damage });
         if (this.time.now < this.lifestealUntil) this.player?.health.heal(1);
     }

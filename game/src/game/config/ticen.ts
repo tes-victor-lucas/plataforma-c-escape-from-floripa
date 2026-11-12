@@ -227,6 +227,10 @@ export const TICEN_DUEL = {
         { id: 'ice-staff', label: 'CAJADO DE GELO' }
     ],
     clubMultiplier: 1.6,
+    // Começo da luta: os dois com 5 corações cheios. O golpe no rival tira 1 coração (1,5 com o cacete melhorado),
+    // e não o dano cheio da espada, que derrubava com um golpe só.
+    duelHearts: 5,
+    rivalDamage: 2,
     speed: { multiplier: 1.5, duration: 8_000 },
     shieldDuration: 5_000,
     lifestealDuration: 12_000,
