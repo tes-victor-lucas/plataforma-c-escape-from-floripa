@@ -144,7 +144,7 @@ export const TICEN_ESCAPE = {
         frontPath: 'assets/ui/onibus-interior-frente.png',
         viewTexture: 'onibus-vista',
         viewPath: 'assets/ui/onibus-vista.png',
-        // Gaúcho, anjo de Halloween e homem-cachorro sentados nos outros bancos.
+        // Gaúcho e homem-cachorro sentados nos outros bancos.
         passengersTexture: 'onibus-passageiros',
         passengersPath: 'assets/ui/onibus-passageiros.png',
         // Céu com o sol vermelho e o mar: fica parado enquanto a ponte corre pela janela.

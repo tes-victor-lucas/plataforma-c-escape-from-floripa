@@ -217,6 +217,7 @@ def front_layer():
 SKIN = (230, 180, 150, 255)
 SKIN_D = (196, 140, 112, 255)
 EYE = (20, 16, 20, 255)
+GLASSES = (14, 12, 18, 255)
 
 
 def seated_body(d, ox, shirt, shirt_d, pants, pants_d, shoes, skin=SKIN, skin_d=SKIN_D):
@@ -236,8 +237,10 @@ def seated_body(d, ox, shirt, shirt_d, pants, pants_d, shoes, skin=SKIN, skin_d=
 
 
 def round_glasses(d, ox):
-    d.rectangle((ox + 8, 89, ox + 11, 92), outline=(210, 210, 220, 255))
-    d.line((ox + 4, 90, ox + 8, 90), fill=(150, 150, 160, 255))                     # haste até a orelha
+    """Óculos de armação escura e fina; um ponto claro é o reflexo na lente."""
+    d.rectangle((ox + 8, 89, ox + 11, 92), outline=GLASSES)
+    d.line((ox + 4, 90, ox + 8, 90), fill=GLASSES)                                  # haste até a orelha
+    d.point((ox + 10, 90), fill=(200, 210, 220, 255))
 
 
 def gaucho(d, ox):
@@ -260,33 +263,15 @@ def gaucho(d, ox):
     d.line((ox + 2, 85, ox + 10, 85), fill=R2)                                      # fita
 
 
-def angel(d, ox):
-    """Fantasia de anjo de Halloween: asas, auréola, cabelo preto médio, óculos redondos, vestido e saia brancos."""
-    white, white_d, feather = (236, 236, 240, 255), (180, 180, 196, 255), (210, 210, 222, 255)
-    # asas atrás das costas, por cima do encosto
-    for k, (dx, top) in enumerate(((-7, 84), (-5, 88), (-3, 92))):
-        d.polygon([(ox + 2, 100), (ox + dx, top), (ox + dx - 2, top + 10), (ox + dx + 1, 114 - k * 2)], fill=feather if k else white, outline=white_d)
-    seated_body(d, ox, white, white_d, SKIN, SKIN_D, K0)
-    # saia branca rodada sobre as coxas
-    d.polygon([(ox, 110), (ox + 17, 110), (ox + 21, 123), (ox - 1, 123)], fill=white, outline=white_d)
-    d.line((ox + 1, 118, ox + 19, 118), fill=white_d)
-    d.rectangle((ox + 6, 109, ox + 15, 112), fill=white_d)                          # manga no colo
-    # cabelo preto até os ombros, com franja
-    hair = (18, 16, 22, 255)
-    d.rectangle((ox + 1, 85, ox + 10, 88), fill=hair)
-    d.rectangle((ox + 1, 86, ox + 6, 101), fill=hair)
-    d.rectangle((ox + 9, 88, ox + 11, 89), fill=hair)
-    round_glasses(d, ox)
-    d.ellipse((ox + 2, 80, ox + 11, 83), outline=(250, 210, 80, 255))               # auréola
-
-
 def dog_man(d, ox):
-    """Meio homem, meio cachorro: cabelo loiro cacheado, orelhas caídas, óculos redondos e focinho de pug."""
-    seated_body(d, ox, (60, 110, 170, 255), (36, 70, 120, 255), (40, 52, 90, 255), (24, 32, 60, 255), (230, 230, 236, 255))
-    blond, blond_d = (236, 200, 96, 255), (180, 140, 50, 255)
-    # cachos: bolinhas por cima e atrás da cabeça
-    for cx, cy in ((3, 85), (6, 84), (9, 85), (12, 86), (2, 88), (4, 87), (8, 87), (2, 91)):
-        d.ellipse((ox + cx - 2, cy - 2, ox + cx + 1, cy + 1), fill=blond, outline=blond_d)
+    """Meio homem, meio cachorro: cabelo castanho cacheado e volumoso, óculos de armação escura,
+    camiseta escura, orelha caída e focinho de pug."""
+    seated_body(d, ox, (44, 44, 52, 255), (26, 26, 32, 255), (40, 52, 90, 255), (24, 32, 60, 255), (230, 230, 236, 255))
+    curl, curl_d, curl_l = (104, 66, 38, 255), (62, 38, 22, 255), (150, 100, 58, 255)
+    # cachos: bolinhas por cima, atrás da cabeça e caindo na testa
+    for cx, cy in ((2, 85), (5, 83), (8, 83), (11, 85), (13, 87), (1, 88), (4, 86), (7, 86), (10, 87), (1, 91), (2, 94), (12, 89)):
+        d.ellipse((ox + cx - 2, cy - 2, ox + cx + 1, cy + 1), fill=curl, outline=curl_d)
+        d.point((ox + cx - 1, cy - 1), fill=curl_l)
     # orelha de cachorro caída
     ear, ear_l = (70, 48, 36, 255), (110, 80, 60, 255)
     d.polygon([(ox + 3, 88), (ox + 7, 88), (ox + 7, 97), (ox + 4, 98)], fill=ear, outline=(40, 26, 20, 255))
@@ -305,6 +290,8 @@ def grade(img):
     solid = {(x, y) for y in range(H) for x in range(W) if px[x, y][3]}
     for x, y in solid:
         r, g, b, a = px[x, y]
+        if max(r, g, b) < 30:
+            continue  # preto continua preto
         r, g, b = int(r * 0.62 + 18), int(g * 0.4), int(b * 0.48)
         if (x + 1, y) not in solid or (x, y - 1) not in solid:
             r, g, b = (r + R3[0]) // 2, (g + R3[1]) // 2, (b + R3[2]) // 2
@@ -316,8 +303,8 @@ def grade(img):
     return img
 
 
-# Bancos ocupados: o gaúcho atrás do jogador, o anjo no banco da frente e o homem-cachorro mais à frente.
-PASSENGERS = ((66, gaucho), (170, angel), (222, dog_man))
+# Bancos ocupados: o gaúcho atrás do jogador e o homem-cachorro mais à frente.
+PASSENGERS = ((66, gaucho), (222, dog_man))
 
 
 def passengers():
