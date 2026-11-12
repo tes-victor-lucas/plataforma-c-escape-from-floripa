@@ -67,6 +67,7 @@ const TOOLTIP_WIDTH = 232;
 // Linhas de atributos à direita dos encaixes: onde as barrinhas começam e a distância entre as linhas.
 const STATS = { x: 548, y: 84, rowGap: 34, pipWidth: 18 };
 const TOGGLE = { x: 656, y: 210 };
+const DRAG_THRESHOLD = 6;
 // Encaixes do boneco; cada item de equipar ocupa o seu.
 const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ['CABEÇA', 'CORPO', 'MÃOS', 'PÉS'];
 const SLOT = 44;
@@ -241,6 +242,8 @@ export class InventoryMenuView {
         const id = item?.id;
         if (!id || !this.options.onToggle) return;
         const home = { x: icon.x, y: icon.y };
+        // Um toque com o dedo tremendo não pode virar arrasto: só arrasta depois de andar alguns pixels.
+        this.scene.input.dragDistanceThreshold = DRAG_THRESHOLD;
         icon.setInteractive({ useHandCursor: true, draggable: true })
             .on('pointerdown', () => this.selectItem(index))
             .on('pointerover', () => this.selectItem(index))
