@@ -125,6 +125,7 @@ export class InventoryMenuView {
     private detailText?: Phaser.GameObjects.Text;
     private tooltip?: Phaser.GameObjects.Container;
     private tooltipBox?: Phaser.GameObjects.Graphics;
+    private isDragging = false;
     private toggleButton?: Phaser.GameObjects.Rectangle;
     private toggleLabel?: Phaser.GameObjects.Text;
 
@@ -201,11 +202,18 @@ export class InventoryMenuView {
         icon.setInteractive({ useHandCursor: true, draggable: true })
             .on('pointerdown', () => this.selectItem(index))
             .on('pointerover', () => this.selectItem(index))
-            .on('dragstart', () => menu.root.bringToTop(icon))
+            .on('dragstart', () => {
+                menu.root.bringToTop(icon);
+                // Durante o arrasto o balão sairia do lugar e taparia onde soltar.
+                this.isDragging = true;
+                this.tooltip?.setVisible(false);
+            })
             .on('drag', (_pointer: unknown, x: number, y: number) => icon.setPosition(x, y))
             .on('dragend', () => {
-                if (shouldToggleOnDrop(!!item.equipped, icon.x, icon.y)) this.options.onToggle?.(id, index);
-                else icon.setPosition(home.x, home.y);
+                this.isDragging = false;
+                if (shouldToggleOnDrop(!!item.equipped, icon.x, icon.y)) return this.options.onToggle?.(id, index);
+                icon.setPosition(home.x, home.y);
+                this.tooltip?.setVisible(true);
             });
     }
 
@@ -366,6 +374,8 @@ export class InventoryMenuView {
     }
 
     private selectItem(index: number) {
+        // Arrastando, o ícone passa por cima de outros encaixes: a seleção não deve pular para eles.
+        if (this.isDragging) return;
         const item = this.options.items[index];
         this.selectedItem = item ? index : this.selectedItem;
         this.itemSlots.forEach((slot, slotIndex) => slot?.setStrokeStyle(
