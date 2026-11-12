@@ -162,7 +162,7 @@ export class RemotePlayer {
             this.wornItems.delete(id);
         }
         for (const id of wanted) {
-            if (!this.wornItems.has(id)) this.wornItems.set(id, attachWornItem(this.sprite.scene, this.sprite, ITEMS[id]));
+            if (!this.wornItems.has(id)) this.wornItems.set(id, attachWornItem(this.sprite.scene, this.sprite, ITEMS[id], true));
         }
     }
 

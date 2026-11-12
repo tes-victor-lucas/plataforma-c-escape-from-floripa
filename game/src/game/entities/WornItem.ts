@@ -64,9 +64,9 @@ export function getItemOffsetX(item: ItemDefinition, displayWidth: number) {
 }
 
 /** Item vestido que acompanha o personagem pelo mapa, inclusive subindo a escada; devolve como tirá-lo. */
-export function attachWornItem(scene: Scene, sprite: Phaser.GameObjects.Sprite, item: ItemDefinition) {
-    // A espada flamejante já aparece na mão pelo combate, que a gira a cada golpe.
-    if (item.heldByCombat) return () => undefined;
+export function attachWornItem(scene: Scene, sprite: Phaser.GameObjects.Sprite, item: ItemDefinition, isPartner = false) {
+    // No jogador local a espada flamejante já aparece na mão pelo combate; no parceiro não há combate para desenhá-la.
+    if (item.heldByCombat && !isPartner) return () => undefined;
     const image = scene.add.image(sprite.x, sprite.y, getWornTexture(scene, item, sprite.texture.key));
     const detach = () => {
         scene.events.off('postupdate', follow);
