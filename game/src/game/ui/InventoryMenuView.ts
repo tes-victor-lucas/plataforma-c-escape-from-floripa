@@ -200,7 +200,8 @@ export class InventoryMenuView {
         // De frente e parado, ampliado: os itens equipados vão aparecer por cima dele.
         const doll = this.scene.add.image(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height / 2 + 2, character.texture, WALK_FRAMES.down[0])
             .setScale(3.6 * character.scaleMultiplier);
-        menu.add([grid, doll, this.text(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height - 16, character.label, 12, INV.bandCss).setOrigin(0.5)]);
+        // O nome fica fora do cartão, embaixo, como legenda.
+        menu.add([grid, doll, this.text(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height + 16, character.label, 14, INV.text).setOrigin(0.5)]);
         // O que vai na cabeça e nos pés aparece no boneco, como no personagem pelo mapa.
         for (const equipped of this.equippedItems) {
             const item = equipped.id ? ITEMS[equipped.id] : undefined;
