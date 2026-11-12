@@ -68,17 +68,28 @@ export class PauseMenuView {
 }
 
 /** Grade das cartas da partida com descrição ao passar o mouse; usada na pausa e no inventário. */
+/** Cores do painel de upgrades: quem o usa fora do menu de pausa pode trocar a paleta. */
+export type UpgradePanelColors = Readonly<{
+    panel: number;
+    frame: number;
+    button: number;
+    buttonHover: number;
+    text: string;
+    mutedText: string;
+}>;
+
 export function addUpgradePanel(
     scene: Scene,
     menu: CleanOverlayMenu,
     upgrades: UpgradeProgress,
-    bounds: Readonly<{ x: number; y: number; width: number; height: number }> = UPGRADE_PANEL
+    bounds: Readonly<{ x: number; y: number; width: number; height: number }> = UPGRADE_PANEL,
+    colors: UpgradePanelColors = CLEAN_MENU_COLORS
 ) {
     const entries = getPauseUpgradeEntries(upgrades);
     const panel = scene.add.graphics();
-    panel.fillStyle(CLEAN_MENU_COLORS.panel, 1)
+    panel.fillStyle(colors.panel, 1)
         .fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-    panel.lineStyle(2, CLEAN_MENU_COLORS.frame, 1)
+    panel.lineStyle(2, colors.frame, 1)
         .strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
     const title = scene.add.text(
         bounds.x + bounds.width / 2,
@@ -87,7 +98,7 @@ export function addUpgradePanel(
         {
             fontFamily: 'PixelGamer, monospace',
             fontSize: '15px',
-            color: CLEAN_MENU_COLORS.text
+            color: colors.text
         }
     ).setOrigin(0.5).setResolution(2);
     menu.add([panel, title]);
@@ -100,7 +111,7 @@ export function addUpgradePanel(
             {
                 fontFamily: 'PixelGamer, monospace',
                 fontSize: '11px',
-                color: CLEAN_MENU_COLORS.mutedText,
+                color: colors.mutedText,
                 align: 'center',
                 lineSpacing: 5
             }
@@ -112,7 +123,7 @@ export function addUpgradePanel(
     // Medido do fundo: cabe o título e quatro linhas de descrição em qualquer altura de painel.
     const dividerY = bounds.y + bounds.height - 102;
     const divider = scene.add.graphics();
-    divider.fillStyle(CLEAN_MENU_COLORS.frame, 0.45)
+    divider.fillStyle(colors.frame, 0.45)
         .fillRect(bounds.x + 14, dividerY, bounds.width - 28, 1);
     const tooltipTitle = scene.add.text(
         bounds.x + bounds.width / 2,
@@ -121,7 +132,7 @@ export function addUpgradePanel(
         {
             fontFamily: 'PixelGamer, monospace',
             fontSize: '11px',
-            color: CLEAN_MENU_COLORS.text,
+            color: colors.text,
             align: 'center',
             wordWrap: { width: bounds.width - 22, useAdvancedWrap: true }
         }
@@ -157,10 +168,10 @@ export function addUpgradePanel(
             y,
             ICON_SIZE,
             ICON_SIZE,
-            CLEAN_MENU_COLORS.button,
+            colors.button,
             1
         ).setStrokeStyle(1, color).setInteractive({ useHandCursor: true });
-        const icon = createUpgradeIcon(scene, card.id, color, CLEAN_MENU_COLORS.button)
+        const icon = createUpgradeIcon(scene, card.id, color, colors.button)
             .setPosition(x, y)
             .setScale(0.42);
         const levelLabel = level > 1
@@ -174,7 +185,7 @@ export function addUpgradePanel(
             : undefined;
 
         square.on('pointerover', () => {
-            square.setFillStyle(CLEAN_MENU_COLORS.buttonHover, 1).setStrokeStyle(2, color);
+            square.setFillStyle(colors.buttonHover, 1).setStrokeStyle(2, color);
             tooltipTitle
                 .setText(`${card.title.toUpperCase()}${level > 1 ? `  NÍVEL ${level}` : ''}`)
                 .setColor(card.kind === 'ability' ? '#a98bfa' : '#78dce8')
@@ -182,7 +193,7 @@ export function addUpgradePanel(
             tooltipDescription.setText(card.description).setVisible(true);
         });
         square.on('pointerout', () => {
-            square.setFillStyle(CLEAN_MENU_COLORS.button, 1).setStrokeStyle(1, color);
+            square.setFillStyle(colors.button, 1).setStrokeStyle(1, color);
             tooltipTitle.setVisible(false);
             tooltipDescription.setVisible(false);
         });
