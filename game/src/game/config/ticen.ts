@@ -76,6 +76,10 @@ export const TOPAZIO_BOSS = {
     shardTexture: 'topazio-projeteis',
     shardPath: 'assets/enemies/topazio/topazio-projeteis.png',
     shardFrameSize: 16,
+    // Topázios que ficam no chão quando ele explode.
+    gemTexture: 'topazio-gema',
+    gemPath: 'assets/enemies/topazio/topazio-gema.png',
+    gemCount: 14,
     // Centro do corpo; os pés ficam uns 44 px abaixo.
     spawn: { x: 384, y: 21 * 16 },
     feetOffset: 44,
@@ -121,6 +125,39 @@ export const TOPAZIO_BOSS = {
         { route: 2, col: 12, row: 20 },
         { route: 4, col: 34, row: 20 }
     ]
+} as const;
+
+/**
+ * Depois do golem: o 763.2 abre as portas com um feixe de luz e, na partida solo, o final dentro do ônibus.
+ * Tempos em milissegundos.
+ */
+export const TICEN_ESCAPE = {
+    // Porta da frente do 763.2: x 82-92, y 12-40 do ônibus no ticen_onibus.png, na baia da coluna 38, linha 29.
+    door: { x: 690, y: 476, width: 11, height: 29 },
+    bus: { route: 3, col: 38, row: 29 },
+    // Espera o golem estilhaçar antes de a câmera ir até o ônibus.
+    doorCutscene: { delay: 1700, hold: 1800, zoom: 1.6, caption: 'O 763.2 ABRIU AS PORTAS' },
+    interior: {
+        texture: 'onibus-interior',
+        path: 'assets/ui/onibus-interior.png',
+        frontTexture: 'onibus-interior-frente',
+        frontPath: 'assets/ui/onibus-interior-frente.png',
+        viewTexture: 'onibus-vista',
+        viewPath: 'assets/ui/onibus-vista.png',
+        // As imagens são 1/3 da tela (assets/ticen/gen_onibus_interior.py).
+        scale: 3,
+        // Escala do jogador na tela: maior que no mapa, na proporção dos bancos.
+        playerScale: 4.2,
+        // Em pixels da imagem: centro do assento, pés andando no corredor e pés sentado, escondidos atrás do
+        // assento e do banco da frente (o assento começa na linha 120).
+        seatX: 136,
+        floorY: 160,
+        seatedFeetY: 134,
+        walkTime: 1400,
+        seatedPause: 700,
+        departTime: 2400
+    },
+    departure: { distance: 460, duration: 2400 }
 } as const;
 
 /** Estágio de rachadura do golem (0 a 3): cada quarto de vida perdido racha mais o corpo. */

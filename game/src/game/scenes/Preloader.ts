@@ -1,7 +1,7 @@
 import { CHARACTERS } from '../config/characters';
 import { MERCADO_NPCS } from '../config/mercado';
 import { PAGODE, POPULAR_BARS, TCHAY } from '../config/tchay';
-import { TICEN_GATE, TOPAZIO_BOSS, WALLET_UI } from '../config/ticen';
+import { TICEN_ESCAPE, TICEN_GATE, TOPAZIO_BOSS, WALLET_UI } from '../config/ticen';
 import { Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
 import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
@@ -93,6 +93,11 @@ export class Preloader extends Scene {
         this.load.spritesheet(TICEN_GATE.originalTexture, TICEN_GATE.originalPath, { frameWidth: TICEN_GATE.frameSize, frameHeight: TICEN_GATE.frameSize });
         this.load.spritesheet(TOPAZIO_BOSS.texture, TOPAZIO_BOSS.path, { frameWidth: TOPAZIO_BOSS.frameSize, frameHeight: TOPAZIO_BOSS.frameSize });
         this.load.spritesheet(TOPAZIO_BOSS.shardTexture, TOPAZIO_BOSS.shardPath, { frameWidth: TOPAZIO_BOSS.shardFrameSize, frameHeight: TOPAZIO_BOSS.shardFrameSize });
+        this.load.image(TOPAZIO_BOSS.gemTexture, TOPAZIO_BOSS.gemPath);
+        const { interior } = TICEN_ESCAPE;
+        this.load.image(interior.texture, interior.path);
+        this.load.image(interior.frontTexture, interior.frontPath);
+        this.load.image(interior.viewTexture, interior.viewPath);
         this.load.spritesheet(TCHAY.peopleTexture, TCHAY.peoplePath, { frameWidth: TCHAY.frameWidth, frameHeight: TCHAY.frameHeight });
         this.load.image(TCHAY.signTexture, TCHAY.signPath);
         this.load.spritesheet(POPULAR_BARS.texture, POPULAR_BARS.path, { frameWidth: POPULAR_BARS.frameWidth, frameHeight: POPULAR_BARS.frameHeight });
