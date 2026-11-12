@@ -89,6 +89,22 @@ export function getTableCards(table: Exclude<CardTable, 'room3-final'>, availabl
     return availableCards.filter((card) => !RETIRED_UPGRADE_IDS.includes(card.id));
 }
 
+/**
+ * Rodada do golem na Sala V: até cinco cartas das mesas das Salas II e III (com as finais e as de todas as salas),
+ * só entre as que o jogador ainda não pegou nenhuma vez.
+ */
+export function drawGolemCards(
+    acquired: readonly UpgradeId[],
+    random: RandomSource = Math.random,
+    availableCards: readonly UpgradeCardDefinition[] = UPGRADE_CARDS
+) {
+    const ids = [...AREA_UPGRADE_IDS, ...ROOM3_UPGRADE_IDS, ...ROOM3_FINAL_UPGRADE_IDS, ...EVERY_ROOM_UPGRADE_IDS];
+    const pool = availableCards.filter((card) => ids.includes(card.id) && !acquired.includes(card.id));
+    const drawn: UpgradeCardDefinition[] = [];
+    while (drawn.length < 5 && pool.length > 0) drawn.push(takeRandom(pool, random));
+    return drawn;
+}
+
 /** Sorteia a mesa: três cartas da sala; no fim da Sala III, duas finais garantidas e um curinga da mesa da sala. */
 export function drawTableCards(
     table: CardTable,

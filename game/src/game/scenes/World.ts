@@ -27,7 +27,7 @@ import {
 import { WaveThreatView } from '../ui/WaveThreatView';
 import { FlowField } from '../combat/FlowField';
 import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
-import { drawTableCards, type CardTable } from '../upgrades/drawUpgradeCards';
+import { drawGolemCards, drawTableCards, type CardTable } from '../upgrades/drawUpgradeCards';
 import { ROOM3_UPGRADE_IDS } from '../upgrades/catalog';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
@@ -513,7 +513,8 @@ export class World extends Scene {
                     onAction: (action) => {
                         if (this.isMultiplayerHost()) multiplayerClient.sendEvent({ kind: 'boss.action', action });
                     },
-                    getBusTargets: () => this.getBusTargets()
+                    getBusTargets: () => this.getBusTargets(),
+                    onStun: () => this.playGolemCardRound()
                 }
             );
         }
@@ -2250,6 +2251,30 @@ export class World extends Scene {
                     if (this.isGameplayReady && !this.isGameOver) this.physics.resume();
                     resume();
                 });
+            });
+        });
+    }
+
+    /** Golem atordoado em 60%: cinco cartas que o jogador ainda não pegou. O atordoamento só conta depois da escolha. */
+    private playGolemCardRound() {
+        const acquired = this.upgrades.exportProgress().map(([id]) => id);
+        const cards = drawGolemCards(acquired, undefined, this.upgrades.availableCards());
+        this.cardBarrier.open();
+        // Sem carta nova para oferecer, ainda conta como escolhida: no multiplayer o parceiro espera as duas escolhas.
+        // Caído também escolhe: a carta vale quando ele levantar, e a dupla não fica travada.
+        if (cards.length === 0) {
+            this.waitForPartnerCard(() => undefined);
+            return;
+        }
+        this.combat?.clear();
+        this.physics.pause();
+        this.isWaveIntermissionOpen = true;
+        const overlayScene = this.scene.get('CombatHud') as Scene;
+        new UpgradeSelectionView(overlayScene, cards, { title: 'GOLEM ATORDOADO', hint: 'Escolha uma carta e aproveite' }).play((selected) => {
+            this.acquireUpgrade(selected);
+            this.waitForPartnerCard(() => {
+                this.isWaveIntermissionOpen = false;
+                if (this.isGameplayReady && !this.isGameOver && !this.isPauseMenuOpen) this.physics.resume();
             });
         });
     }
