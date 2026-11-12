@@ -4513,3 +4513,27 @@ test('atalho ?start= leva a dupla do multiplayer direto para a sala pedida', () 
     assert.equal(getMultiplayerStartRoom('?room=teste&start=5'), 'room5');
     assert.equal(getMultiplayerStartRoom('?start=3'), 'room3');
 });
+
+test('disputa do TICEN leva o anfitrião para a plataforma A e o convidado para a D', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { TICEN_DUEL } = load('../src/game/config/ticen.ts');
+    const place = (isHost) => {
+        const world = new World();
+        const body = {};
+        body.center = { x: 100, y: 110 };
+        body.reset = (x, y) => { body.at = { x, y }; };
+        world.player = { sprite: { x: 100, y: 100, body, setPosition() {} } };
+        world.roomMap = { hasTileAt: () => false };
+        world.collisionLayers = [];
+        world.cameras = { main: { flash() {} } };
+        world.isMultiplayerHost = () => isHost;
+        world.teleportToDuelCorner();
+        // O pé cai no tile do canto; o sprite fica 10 px acima, como estava em relação ao corpo.
+        return { x: body.at.x, y: body.at.y + 10 };
+    };
+    const [hostCorner, guestCorner] = TICEN_DUEL.corners;
+    const host = place(true);
+    const guest = place(false);
+    assert.ok(Math.abs(host.x - hostCorner.x) < 16 && Math.abs(host.y - hostCorner.y) < 16, 'anfitrião no canto A');
+    assert.ok(Math.abs(guest.x - guestCorner.x) < 16 && Math.abs(guest.y - guestCorner.y) < 16, 'convidado no canto D');
+});
