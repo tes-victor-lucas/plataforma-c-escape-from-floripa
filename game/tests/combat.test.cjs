@@ -2346,7 +2346,7 @@ test('multiplayer: reviver exige o parceiro por perto e recomeça ao sair', () =
     const { advanceRevive, isWithinReviveRadius } = load('../src/game/network/coop.ts');
     const { multiplayer } = COMBAT_CONFIG;
 
-    assert.equal(multiplayer.reviveDuration, 5000);
+    assert.equal(multiplayer.reviveDuration, 3000);
     assert.equal(advanceRevive(4000, 16, true), 4016);
     assert.equal(advanceRevive(4000, 16, false), 0);
     assert.equal(isWithinReviveRadius({ x: 0, y: 0 }, { x: multiplayer.reviveRadius, y: 0 }), true);
@@ -4766,4 +4766,112 @@ test('fim da Sala IV oferece as duas cartas mais fortes ainda disponíveis e uma
     for (let level = 0; level < strongest.maxLevel; level += 1) maxed.acquire(strongest);
     const ids = drawTableCards('room4', () => 0, maxed.availableCards()).map((card) => card.id);
     assert.deepEqual(ids.slice(0, 2), STRONGEST_UPGRADE_IDS.slice(1, 3), 'a mais forte no máximo dá lugar à seguinte');
+});
+
+test('pausa da dupla: avisa só quando o motivo muda e o parceiro congela até o menu fechar', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { multiplayerClient } = load('../src/game/network/MultiplayerClient.ts');
+    const sent = [];
+    const originalSend = multiplayerClient.sendEvent;
+    multiplayerClient.sendEvent = (event) => sent.push(event);
+    try {
+        const world = new World();
+        world.isCoopActive = () => true;
+        world.sendLocalPause('piranhas');
+        world.sendLocalPause('piranhas');
+        world.sendLocalPause(undefined);
+        assert.deepEqual(sent, [{ kind: 'game.pause', reason: 'piranhas' }, { kind: 'game.pause' }], 'um aviso ao abrir e outro ao fechar');
+        let paused = 0;
+        let resumed = 0;
+        world.physics = { pause: () => { paused += 1; }, resume: () => { resumed += 1; } };
+        world.player = { stopMovement() {} };
+        world.scene = { get: () => undefined };
+        world.applyPartnerPause('pause');
+        assert.equal(world.partnerPause, 'pause');
+        assert.equal(paused, 1, 'a física para também deste lado');
+        world.applyPartnerPause(undefined);
+        assert.equal(world.partnerPause, undefined);
+        assert.equal(resumed, 1, 'e volta quando o parceiro fecha o menu');
+        world.isPauseMenuOpen = true;
+        world.applyPartnerPause(undefined);
+        assert.equal(resumed, 1, 'com o próprio menu aberto, continua parado');
+    } finally {
+        multiplayerClient.sendEvent = originalSend;
+    }
+});
+
+test('esconderijo em dupla só passa com os dois SIM, e quem passa é o anfitrião', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const vote = (isHost) => {
+        const world = new World();
+        let passes = 0;
+        world.isMultiplayerHost = () => isHost;
+        world.showFloatingHint = () => undefined;
+        world.gatewayVote = { pass: () => { passes += 1; }, local: true, partner: false };
+        world.applyPartnerGatewayVote({ kind: 'gateway.vote', phase: 'yes' });
+        return passes;
+    };
+    assert.equal(vote(true), 1, 'os dois disseram SIM: o anfitrião leva a dupla');
+    assert.equal(vote(false), 0, 'o convidado espera o anfitrião trocar a sala');
+    const world = new World();
+    let stopped = 0;
+    let resumed = 0;
+    world.showFloatingHint = () => undefined;
+    world.scene = { stop: () => { stopped += 1; } };
+    world.physics = { resume: () => { resumed += 1; } };
+    world.isGatewayConfirmOpen = true;
+    world.gatewayVote = { pass: () => assert.fail('não pode passar'), local: false, partner: false };
+    world.applyPartnerGatewayVote({ kind: 'gateway.vote', phase: 'no' });
+    assert.equal(stopped, 1, 'o NÃO do parceiro fecha a pergunta aqui');
+    assert.equal(world.isGatewayConfirmOpen, false);
+    assert.equal(world.gatewayVote, undefined);
+});
+
+test('TENTAR NOVAMENTE em dupla recomeça os dois do início da sala salva', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { multiplayerClient } = load('../src/game/network/MultiplayerClient.ts');
+    const sent = [];
+    const originalSend = multiplayerClient.sendEvent;
+    multiplayerClient.sendEvent = (event) => sent.push(event);
+    try {
+        const registry = new Map([['coopCheckpoint', { roomKey: 'room3', playerProgress: { currentHealth: 4 } }]]);
+        const make = (isHost) => {
+            const world = new World();
+            const restarts = [];
+            world.registry = { get: (key) => registry.get(key) };
+            world.isMultiplayerGuest = () => !isHost;
+            world.restartCoopRoom = (roomKey) => restarts.push(roomKey);
+            return { world, restarts };
+        };
+        const guest = make(false);
+        guest.world.retryCoopRoom();
+        assert.deepEqual(sent.pop(), { kind: 'room.request', roomKey: 'room3', retry: true }, 'o convidado pede ao anfitrião');
+        assert.deepEqual(guest.restarts, []);
+        const host = make(true);
+        host.world.retryCoopRoom();
+        assert.deepEqual(sent.pop(), { kind: 'room.transition', roomKey: 'room3', retry: true }, 'o anfitrião avisa e recomeça');
+        assert.deepEqual(host.restarts, ['room3']);
+        registry.clear();
+        make(true).world.retryCoopRoom();
+        assert.equal(sent.pop().roomKey, 'room1', 'sem checkpoint, partida nova na Sala I');
+    } finally {
+        multiplayerClient.sendEvent = originalSend;
+    }
+});
+
+test('rajada espiral do parceiro aparece como fragmentos só de enfeite', () => {
+    const { combat, rings } = setup([]);
+    combat.playPartnerEffect({ effect: 'spiral', x: 100, y: 100, startAngle: 0, shards: 4, range: 150 });
+    assert.equal(rings.length, 8, 'halo e núcleo para cada fragmento');
+});
+
+test('botas viram perfil quando o personagem anda para o lado', () => {
+    const { getWalkSide } = load('../src/game/entities/WornItem.ts');
+    const { WALK_FRAMES } = load('../src/game/entities/PlayerAnimations.ts');
+    const { SILVER_BOOTS, sideBootPixels } = load('../src/game/config/items.ts');
+    assert.equal(getWalkSide(WALK_FRAMES.left[3]), -1);
+    assert.equal(getWalkSide(WALK_FRAMES.right[0]), 1);
+    assert.equal(getWalkSide(WALK_FRAMES.down[0]), 0);
+    assert.equal(getWalkSide(WALK_FRAMES.up[0]), 0);
+    assert.deepEqual(SILVER_BOOTS.sidePixels, sideBootPixels(0x9aa4b4, 0xe6ecf4));
 });
