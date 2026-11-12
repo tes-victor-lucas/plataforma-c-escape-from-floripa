@@ -63,6 +63,7 @@ const DOLL = { x: 232, y: 66, width: 150, height: 172 };
 const DETAILS = { x: 610, y: 66, width: 243, height: 220 };
 // Linhas de atributos à direita dos encaixes: onde as barrinhas começam e a distância entre as linhas.
 const STATS = { x: 548, y: 84, rowGap: 34, pipWidth: 18 };
+const TOGGLE = { x: 656, y: 210 };
 // Encaixes do boneco; cada item de equipar ocupa o seu.
 const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ['CABEÇA', 'CORPO', 'MÃOS', 'PÉS'];
 const SLOT = 44;
@@ -148,6 +149,7 @@ export class InventoryMenuView {
         this.addEquipmentSlots(menu);
         this.addStats(menu);
         this.addDetails(menu);
+        this.addToggleButton(menu);
         this.addItemGrid(menu);
         // Sem o botão VOLTAR: fecha no X, no ESC ou no botão de voltar do controle.
         // E equipa ou retira o item selecionado, sem precisar do mouse.
@@ -289,13 +291,17 @@ export class InventoryMenuView {
             lineSpacing: 6,
             wordWrap: { width: DETAILS.width - 32, useAdvancedWrap: true }
         }).setResolution(2);
-        const buttonY = DETAILS.y + DETAILS.height - 30;
-        this.toggleButton = this.scene.add.rectangle(DETAILS.x + DETAILS.width / 2, buttonY, 150, 32, INV.well)
+        menu.add([this.box(DETAILS), this.detailTitle, this.detailText]);
+    }
+
+    /** Botão de equipar ou retirar o item selecionado, logo abaixo dos atributos que ele muda. */
+    private addToggleButton(menu: CleanOverlayMenu) {
+        this.toggleButton = this.scene.add.rectangle(TOGGLE.x, TOGGLE.y, 170, 30, INV.well)
             .setStrokeStyle(2, INV.band)
             .setInteractive({ useHandCursor: true })
             .on('pointerdown', () => this.toggleSelected());
-        this.toggleLabel = this.text(DETAILS.x + DETAILS.width / 2, buttonY, '', 14, INV.text).setOrigin(0.5);
-        menu.add([this.box(DETAILS), this.detailTitle, this.detailText, this.toggleButton, this.toggleLabel]);
+        this.toggleLabel = this.text(TOGGLE.x, TOGGLE.y, '', 14, INV.text).setOrigin(0.5);
+        menu.add([this.toggleButton, this.toggleLabel]);
     }
 
     private addItemGrid(menu: CleanOverlayMenu) {
