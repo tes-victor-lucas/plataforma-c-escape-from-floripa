@@ -95,12 +95,14 @@ export function getEquipmentStats(ids: readonly ItemId[]): EquipmentStat[] {
     const speed = worn.reduce((total, { speedMultiplier }) => total * speedMultiplier, 1) - 1;
     const dash = 1 - worn.reduce((total, { dashCooldownMultiplier }) => total * dashCooldownMultiplier, 1);
     const pips = (value: number, perPip: number) => Math.min(STAT_PIPS, Math.round(value / perPip));
-    const percent = (value: number) => Math.round(value * 100);
+    // Sem bônus fica só "0%": sinal na frente de zero parece erro.
+    const percent = (value: number, sign = '') => `${Math.round(value * 100) === 0 ? '' : sign}${Math.round(value * 100)}%`;
     return [
-        { label: 'BLOQUEIO', pips: pips(block, 0.1), value: `${percent(block)}%` },
+        { label: 'BLOQUEIO', pips: pips(block, 0.1), value: percent(block) },
         // A velocidade sobe pouco por item: cada barrinha vale 5%.
-        { label: 'VELOCIDADE', pips: pips(speed, 0.05), value: `+${percent(speed)}%` },
-        { label: 'DASH', pips: pips(dash, 0.1), value: `-${percent(dash)}%` }
+        { label: 'VELOCIDADE', pips: pips(speed, 0.05), value: percent(speed, '+') },
+        // No dash o ganho é recarga menor, por isso o sinal de menos.
+        { label: 'DASH', pips: pips(dash, 0.1), value: percent(dash, '-') }
     ];
 }
 
