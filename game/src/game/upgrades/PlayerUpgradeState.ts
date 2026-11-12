@@ -49,6 +49,10 @@ export class PlayerUpgradeState {
     burnDuration = 0;
     burnDamageRatio = 0;
     freezeRadius = 0;
+    volleyShards = 0;
+    volleyRange = 0;
+    volleyInterval = 0;
+    volleyDamageRatio = 0;
 
     reset() {
         this.levels.clear();
@@ -95,6 +99,10 @@ export class PlayerUpgradeState {
         this.burnDuration = 0;
         this.burnDamageRatio = 0;
         this.freezeRadius = 0;
+        this.volleyShards = 0;
+        this.volleyRange = 0;
+        this.volleyInterval = 0;
+        this.volleyDamageRatio = 0;
     }
 
     exportProgress(): UpgradeProgress {
@@ -223,6 +231,12 @@ export class PlayerUpgradeState {
                 this.bombardRange = effect.range;
                 this.bombardInterval = effect.interval;
                 this.bombardDamageRatio = effect.damageRatio;
+                break;
+            case 'spiral-volley':
+                this.volleyShards = this.volleyShards === 0 ? effect.shards : this.volleyShards + effect.shardsPerLevel;
+                this.volleyRange = effect.range;
+                this.volleyInterval = effect.interval;
+                this.volleyDamageRatio = effect.damageRatio;
                 break;
         }
         return true;

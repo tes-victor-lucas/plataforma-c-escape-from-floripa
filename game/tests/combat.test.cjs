@@ -240,7 +240,7 @@ test('código secreto reconhece 9090 mesmo após teclas anteriores', () => {
 
 test('room2 possui entrada oficial no centro da via vertical', () => {
     assert.deepEqual(ROOM_DEFINITIONS.room2.spawn, { x: 184, y: 536 });
-    assert.equal(ROOM_DEFINITIONS.room2.title, 'Sala II: O Antigo Terminal');
+    assert.equal(ROOM_DEFINITIONS.room2.title, 'Sala II:\nO Antigo Terminal');
 });
 
 test('rota direta preserva parametros e aponta para a room2', () => {
@@ -570,7 +570,7 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
             graphics() {
                 // Registra o que os efeitos em área desenham, sem renderizar nada.
                 const layer = { circles: [], lines: 0 };
-                for (const method of ['setDepth', 'setBlendMode', 'setPosition', 'setScale', 'setRotation', 'fillStyle', 'lineStyle', 'fillCircle', 'fillRect', 'beginPath', 'moveTo', 'lineTo', 'closePath', 'fillPath', 'destroy']) {
+                for (const method of ['setDepth', 'setBlendMode', 'setPosition', 'setScale', 'setRotation', 'fillStyle', 'lineStyle', 'fillCircle', 'fillRect', 'beginPath', 'moveTo', 'lineTo', 'closePath', 'fillPath', 'clear', 'lineBetween', 'destroy']) {
                     layer[method] = function () { return this; };
                 }
                 layer.strokeCircle = function (_x, _y, radius) { this.circles.push(radius); return this; };
@@ -1808,11 +1808,13 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
     assert.equal(clears, 1);
 });
 
-test('9090 conclui as salas com combate, a III e o esconderijo, mas não a dungeon da Sala II', () => {
+test('9090 elimina só a horda atual: as cartas e a próxima horda seguem; na última, a sala conclui', () => {
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();
     let clears = 0;
     let completions = 0;
+    let intermissions = 0;
+    let resumeIntermission;
     const createDrone = (health) => ({
         health: { current: health, isAlive: true },
         takeDamage(amount) {
@@ -1820,54 +1822,52 @@ test('9090 conclui as salas com combate, a III e o esconderijo, mas não a dunge
             this.health.isAlive = this.health.current > 0;
         }
     });
-    const drones = [createDrone(60), createDrone(40)];
-    world.activeRoomKey = 'room1';
+    world.activeRoomKey = 'room3';
     world.isGameplayReady = true;
-    world.drones = drones;
-    world.waves = {};
+    world.drones = [];
     world.combat = { clear() { clears++; } };
-    world.completeRoomCombat = () => {
-        completions++;
-        world.isRoomCombatComplete = true;
-        world.waves = undefined;
-    };
+    // Duas hordas de 5 que nascem de 2 em 2: a primeira ainda tem gente para nascer quando o atalho entra.
+    const hordes = [{ batchSize: 2, maxAlive: 2, interval: 1_000 }, { batchSize: 2, maxAlive: 2, interval: 1_000 }];
+    world.waves = new DroneWaves(
+        (count) => { for (let index = 0; index < count; index++) world.drones.push(createDrone(30)); return count; },
+        () => { completions++; },
+        (resume) => { intermissions++; resumeIntermission = resume; },
+        [5, 5],
+        hordes
+    );
+    world.completeRoomCombat = () => { completions++; };
+    world.waves.update(world.drones, 16);
+    assert.equal(world.drones.length, 2, 'a horda 1 começou');
 
     for (const key of '909') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(drones.every((drone) => drone.health.isAlive), true);
+    assert.ok(world.drones.every((drone) => drone.health.isAlive));
     world.handleSecretCodeKey({ key: '0', repeat: false });
-
-    assert.equal(drones.every((drone) => !drone.health.isAlive), true);
+    assert.ok(world.drones.every((drone) => !drone.health.isAlive), 'a horda atual morre');
     assert.equal(clears, 1);
-    assert.equal(completions, 1);
-    assert.equal(world.waves, undefined);
+    assert.equal(completions, 0, 'a sala não conclui no meio');
+    world.waves.update(world.drones, 16);
+    assert.equal(world.drones.length, 2, 'quem faltava nascer na horda 1 não nasce');
+    assert.equal(intermissions, 1, 'as cartas abrem antes da horda 2');
 
-    world.activeRoomKey = 'room2';
-    world.isRoomCombatComplete = false;
+    resumeIntermission();
+    assert.equal(world.drones.length, 4, 'a horda 2 começa depois das cartas');
     for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(completions, 2);
+    world.waves.update(world.drones, 16);
+    assert.equal(completions, 1, 'na última horda o atalho leva à conclusão da sala');
 
-    // A room3 deixou de ser a última: concluir abre a saída para a room4, sem vitória.
-    const room3Drones = [createDrone(30)];
-    world.activeRoomKey = 'room3';
-    world.isRoomCombatComplete = false;
-    world.drones = room3Drones;
-    world.waves = {};
-    for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(room3Drones[0].health.isAlive, false);
-    assert.equal(world.waves, undefined);
-    assert.equal(completions, 3, 'o segredo conclui a room3 e libera a saída');
-
-    world.activeRoomKey = 'dungeon';
-    world.isRoomCombatComplete = false;
-    for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(completions, 3, 'o segredo não deve concluir a dungeon');
-
-    // O esconderijo dos gaúchos aceita o atalho: concluir derruba o chapéu e abre a saída.
+    // Sem hordas em andamento, o atalho conclui a sala como antes.
     world.activeRoomKey = 'gaucho-dungeon';
+    world.isRoomCombatComplete = false;
+    world.waves = undefined;
     world.drones = [createDrone(20)];
     for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
     assert.equal(world.drones[0].health.isAlive, false);
-    assert.equal(completions, 4, 'o segredo conclui o esconderijo dos gaúchos');
+    assert.equal(completions, 2, 'o segredo conclui o esconderijo dos gaúchos');
+
+    world.activeRoomKey = 'dungeon';
+    world.drones = [createDrone(20)];
+    for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
+    assert.equal(world.drones[0].health.isAlive, true, 'o segredo não vale na dungeon da Sala II');
 });
 
 test('mundo bloqueia combate e HUD até a revelação; reinício não espera outra transição', () => {
@@ -2171,7 +2171,7 @@ test('abertura da room2 escreve Sala II antes de revelar o mapa', () => {
     view.typeTitle(() => { completed = true; });
     while (timers.length) timers.shift()();
 
-    assert.equal(writtenTitles.at(-1), 'Sala II: O Antigo Terminal');
+    assert.equal(writtenTitles.at(-1), 'Sala II:\nO Antigo Terminal');
     assert.equal(completed, true);
 });
 
@@ -3277,6 +3277,33 @@ test('antes da horda maior as cartas de área vêm garantidas', () => {
         'só a carta de área que sobrou, completada com as comuns');
 });
 
+test('rajada espiral solta um fragmento por vez, girando, e cada um fere uma vez até o alcance', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('spiral-volley'));
+    upgrades.range = 1;
+    // O 1º fragmento sai para a direita (0°) e o 4º para baixo (90°).
+    const { combat, drones, rings } = setup([[160, 100], [100, 170], [400, 100]], [], upgrades);
+    for (const drone of drones) {
+        drone.health = new Health(1000);
+        drone.takeDamage = (amount) => drone.health.takeDamage(amount);
+    }
+    const shard = upgrades.damage * 0.6;
+    combat.update(0);
+    assert.equal(rings.length, 2, 'só o primeiro fragmento saiu (halo e núcleo)');
+    for (let step = 0; step < 30; step++) combat.update(20);
+    assert.equal(drones[0].health.current, 1000 - shard, 'o fragmento da direita passou pelo inimigo uma vez');
+    assert.equal(drones[1].health.current, 1000 - shard, 'o de 90° acertou o de baixo');
+    assert.equal(drones[2].health.current, 1000, 'fora do alcance de 150 px');
+    assert.equal(rings.length, 24, '12 fragmentos, um após o outro');
+});
+
+test('a Sala II dá duas escolhas de carta seguidas entre as hordas', () => {
+    const { getIntermissionCardPicks } = load('../src/game/scenes/World.ts');
+    assert.equal(getIntermissionCardPicks('room2'), 2);
+    assert.equal(getIntermissionCardPicks('room1'), 1);
+    assert.equal(getIntermissionCardPicks('room3'), 1);
+});
+
 test('pulso de choque atinge todos dentro do raio no ritmo da carta', () => {
     const upgrades = new PlayerUpgradeState();
     upgrades.acquire(getUpgradeCard('shock-pulse'));
@@ -3308,27 +3335,30 @@ test('pulso de choque atravessa obstáculos, como o tronco da figueira', () => {
     assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth - upgrades.damage * 1.25);
 });
 
-test('golpe giratório corta cada inimigo do raio uma vez por volta, a cada 7 s', () => {
+test('golpe giratório sai do jogador em espiral e corta cada inimigo do raio uma vez, a cada 7 s', () => {
     const upgrades = new PlayerUpgradeState();
     upgrades.acquire(getUpgradeCard('spin-slash'));
     upgrades.range = 1;
-    // Jogador em (100, 100): um acima (a lâmina começa no alto), um à esquerda, um fora do raio.
-    const { combat, drones, effects } = setup([[100, 0], [0, 100], [400, 100]], [], upgrades);
+    // Jogador em (100, 100): um inimigo perto, um no meio do raio e um fora dele.
+    const { combat, drones, effects } = setup([[100, 60], [0, 100], [400, 100]], [], upgrades);
     for (const drone of drones) {
         drone.health = new Health(1000);
         drone.takeDamage = (amount) => drone.health.takeDamage(amount);
     }
     const cut = upgrades.damage * 9;
     combat.update(0);
-    assert.equal(drones[0].health.current, 1000 - cut, 'a lâmina sai do alto');
-    assert.equal(drones[1].health.current, 1000, 'a esquerda só no fim da volta');
-    combat.update(450);
-    assert.equal(drones[1].health.current, 1000 - cut);
-    assert.equal(drones[0].health.current, 1000 - cut, 'um corte por volta');
+    assert.equal(drones[0].health.current, 1000, 'a espiral nasce no jogador');
+    combat.update(120);
+    assert.equal(drones[0].health.current, 1000 - cut, 'a lâmina já passou dos 40 px');
+    assert.equal(drones[1].health.current, 1000, 'ainda não chegou aos 100 px');
+    combat.update(330);
+    assert.equal(drones[1].health.current, 1000 - cut, 'no fim da espiral todo o raio foi cortado');
+    assert.equal(drones[0].health.current, 1000 - cut, 'um corte por golpe');
     assert.equal(drones[2].health.current, 1000, 'fora do raio');
     combat.update(6_000);
     assert.equal(drones[0].health.current, 1000 - cut, 'espera a recarga');
     combat.update(1_000);
+    combat.update(450);
     assert.equal(drones[0].health.current, 1000 - cut * 2);
     assert.ok(effects.length > 0);
 });
@@ -3714,7 +3744,7 @@ test('esconderijo usa a mesa da sala por onde se entra e a mesa sem cartas compl
 });
 
 test('room3 abre pela rota direta e recebe a saída da room2', () => {
-    assert.equal(ROOM_DEFINITIONS.room3.title, 'Sala III: A Praça XV');
+    assert.equal(ROOM_DEFINITIONS.room3.title, 'Sala III:\nA Praça XV');
     assert.equal(getRequestedRoomKey('?room=3'), 'room3');
     assert.equal(getRoomSearch('room3', '?debug=1'), '?debug=1&room=3');
     assert.deepEqual(getInitialSceneRoute('?room=3'), { key: 'RoomTransition', data: { roomKey: 'room3' } });

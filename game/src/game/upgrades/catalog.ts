@@ -162,7 +162,7 @@ export const UPGRADE_CARDS = [
         id: 'spin-slash',
         kind: 'ability',
         title: 'Golpe giratório',
-        description: 'A cada 7 s, um corte gira à sua volta e causa 900% em 170 px. +35 px por nível.',
+        description: 'A cada 7 s, um corte sai de você em espiral e causa 900% até 170 px. +35 px por nível.',
         maxLevel: 2,
         effect: { type: 'spin-slash', radius: 170, radiusPerLevel: 35, interval: 7_000, damageRatio: 9 }
     },
@@ -199,6 +199,14 @@ export const UPGRADE_CARDS = [
         maxLevel: 2,
         // Ritmo e duração são os do item (COMBAT_CONFIG.iceStaff); a carta só define o raio.
         effect: { type: 'freeze-pulse', radius: 150, radiusPerLevel: 30 }
+    },
+    {
+        id: 'spiral-volley',
+        kind: 'ability',
+        title: 'Rajada espiral',
+        description: 'A cada 2 s, 12 fragmentos de 60% saem em espiral até 150 px. +4 por nível.',
+        maxLevel: 3,
+        effect: { type: 'spiral-volley', shards: 12, shardsPerLevel: 4, range: 150, interval: 2_000, damageRatio: 0.6 }
     }
 ] as const satisfies readonly UpgradeCardDefinition[];
 
@@ -224,6 +232,7 @@ export const RETIRED_UPGRADE_IDS: readonly UpgradeId[] = ['overclock'];
 /** Cartas de dano em área: a mesa da Sala II (e do esconderijo que sai dela). */
 export const AREA_UPGRADE_IDS: readonly UpgradeId[] = [
     'shock-pulse',
+    'spiral-volley',
     'blast-shot',
     'spark-orbit',
     'chain-lightning',

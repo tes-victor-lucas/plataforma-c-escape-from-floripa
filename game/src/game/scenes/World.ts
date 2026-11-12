@@ -150,7 +150,11 @@ export function isRoom2WalkableLayer(layerName: string) {
     return ROOM2_WALKABLE_LAYERS.some((name) => name === localName);
 }
 
-/** A Sala I dá uma carta básica no fim; a Sala III, depois da horda 2, as cartas de área mais fortes. */
+/** Quantas cartas o jogador escolhe entre as hordas: a Sala II dá duas seguidas. */
+export function getIntermissionCardPicks(roomKey: RoomKey) {
+    return roomKey === 'room2' ? 2 : 1;
+}
+
 /** Mesa de cartas de cada sala; o esconderijo usa a da sala por onde se entra nele. */
 export function getCardTable(roomKey: RoomKey): Exclude<CardTable, 'room3-final'> {
     if (roomKey === 'room2' || roomKey === 'dungeon') return 'room2';
@@ -158,6 +162,7 @@ export function getCardTable(roomKey: RoomKey): Exclude<CardTable, 'room3-final'
     return 'room1';
 }
 
+/** A Sala I dá uma carta básica no fim; a Sala III, depois da horda 2, as cartas de área mais fortes. */
 export function shouldOfferRoomCompletionUpgrade(roomKey: RoomKey) {
     return roomKey === 'room1' || roomKey === 'room3';
 }
@@ -1119,11 +1124,16 @@ export class World extends Scene {
         if (!this.roomClearCode.push(event.key)) return;
 
         this.combat?.clear();
-        this.waves = undefined;
         for (const enemy of this.drones) {
             if (enemy.health.isAlive) enemy.takeDamage(enemy.health.current);
         }
-        // A vitória agora é no 763.2 (Sala V): o atalho conclui qualquer sala com combate.
+        // Elimina só a horda atual: o fluxo normal segue para as cartas e a próxima horda,
+        // e depois da última, para a conclusão da sala.
+        if (this.waves) {
+            this.waves.skipCurrentWave();
+            return;
+        }
+        // Sem hordas em andamento, o atalho conclui a sala como antes.
         this.completeRoomCombat?.();
     }
 
@@ -2242,17 +2252,26 @@ export class World extends Scene {
         this.isWaveIntermissionOpen = true;
         this.piranhasBarPrompt?.setVisible(false);
         const overlayScene = this.scene.get('CombatHud') as Scene;
-        const cards = drawTableCards(getCardTable(this.activeRoomKey), undefined, this.upgrades.availableCards());
-        new UpgradeSelectionView(overlayScene, cards).play((selected) => {
-            this.acquireUpgrade(selected);
-            this.waitForPartnerCard(() => {
-                new WaveThreatView(overlayScene, this.cameras.main).play(() => {
-                    this.isWaveIntermissionOpen = false;
-                    if (this.isGameplayReady && !this.isGameOver) this.physics.resume();
-                    resume();
-                });
+        // Cada sala sorteia da sua mesa (BASIC/AREA/ROOM3 em catalog.ts), de novo a cada escolha.
+        const drawCards = () => drawTableCards(getCardTable(this.activeRoomKey), undefined, this.upgrades.availableCards());
+        const finish = () => this.waitForPartnerCard(() => {
+            new WaveThreatView(overlayScene, this.cameras.main).play(() => {
+                this.isWaveIntermissionOpen = false;
+                if (this.isGameplayReady && !this.isGameOver) this.physics.resume();
+                resume();
             });
         });
+        // Cada mesa é sorteada depois da escolha anterior, para não repetir a carta que subiu de nível.
+        const picks = getIntermissionCardPicks(this.activeRoomKey);
+        const choose = (pick: number) => {
+            const options = picks > 1 ? { hint: `Escolha ${pick} de ${picks}` } : {};
+            new UpgradeSelectionView(overlayScene, drawCards(), options).play((selected) => {
+                this.acquireUpgrade(selected);
+                if (pick < picks) choose(pick + 1);
+                else finish();
+            });
+        };
+        choose(1);
     }
 
     /** Golem atordoado em 60%: cinco cartas que o jogador ainda não pegou. O atordoamento só conta depois da escolha. */
