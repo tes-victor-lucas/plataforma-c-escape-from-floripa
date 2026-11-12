@@ -483,6 +483,8 @@ export class World extends Scene {
             roomKey === 'gaucho-dungeon'
         );
         this.combat.shotMultipliers = getPlayerShotMultipliers(roomKey);
+        // Os itens já foram vestidos antes do combate existir: a mão precisa ser aplicada de novo.
+        this.applyEquipment();
         // No multiplayer o anfitrião decide o golem e o convidado tem um espelho que repete as ações dele.
         if (isTicenRoom(roomKey)) {
             this.golem = new TopazioGolem(
@@ -1018,6 +1020,8 @@ export class World extends Scene {
             if (this.equippedItems.includes(id)) this.player?.equipItem(id);
             else this.player?.unequipItem(id);
         }
+        // O que vai na mão também muda o combate: golpe da espada flamejante e o gelo do cajado.
+        this.combat?.setFlameSword(this.equippedItems.includes('flame-sword'));
     }
 
     private buildInventory(): InventoryData {
