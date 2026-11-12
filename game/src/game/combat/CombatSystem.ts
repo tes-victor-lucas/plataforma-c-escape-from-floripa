@@ -66,7 +66,7 @@ export function createProjectileId(runId = 'untracked') {
 
 /** Disparos automáticos, colisões e duração dos projéteis da sala. */
 /** Quem atira: drones comuns e fortes. Inimigos sem `kind` são dublês de testes antigos e contam como drone. */
-function isRangedEnemy(kind: EnemyKind | undefined) {
+function isRangedEnemy(kind: EnemyKind | 'golem' | undefined) {
     return kind === undefined || kind === 'drone' || kind === 'heavy-drone';
 }
 

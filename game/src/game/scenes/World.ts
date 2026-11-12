@@ -67,7 +67,8 @@ import type { ConfirmPromptData } from './ConfirmPrompt';
 import type { PauseMenuData } from './PauseMenu';
 import type { InventoryData } from '../ui/InventoryMenuView';
 import type { WalletMenuData } from './WalletMenu';
-import { formatBalance, TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_SITTERS, WALLET_UI } from '../config/ticen';
+import { formatBalance, TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_SITTERS, TOPAZIO_BOSS, WALLET_UI } from '../config/ticen';
+import { TopazioGolem } from '../entities/TopazioGolem';
 import { GAUCHO_HAT, ITEMS, type ItemId } from '../config/items';
 import { createGauchoHatTexture } from '../entities/GauchoHat';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
@@ -182,6 +183,8 @@ export class World extends Scene {
     private isTicenGateOpen = false;
     private ticenGate?: Phaser.GameObjects.Sprite;
     private ticenGateHint?: Phaser.GameObjects.Text;
+    private golem?: TopazioGolem;
+    private isGolemAwake = false;
     private isArcadeArmed = true;
     private isGatewayConfirmOpen = false;
     private isClimbingLadder = false;
@@ -253,6 +256,8 @@ export class World extends Scene {
         this.isTicenGateOpen = false;
         this.ticenGate = undefined;
         this.ticenGateHint = undefined;
+        this.golem = undefined;
+        this.isGolemAwake = false;
         this.isArcadeArmed = true;
         this.arcadePrompt = undefined;
         this.isGatewayConfirmOpen = false;
@@ -425,6 +430,18 @@ export class World extends Scene {
             roomKey === 'gaucho-dungeon'
         );
         this.combat.shotMultipliers = getPlayerShotMultipliers(roomKey);
+        // shortcut: o chefe só existe na partida solo; no multiplayer o convidado não sabe criar o golem pelo snapshot.
+        if (isTicenRoom(roomKey) && !this.isMultiplayerEnabled()) {
+            const busTexture = ROOM_DEFINITIONS[roomKey].tilesets.find(({ mapName }) => mapName === 'ticen_onibus')?.textureKey ?? 'ticen_onibus';
+            this.golem = new TopazioGolem(
+                this,
+                this.player,
+                room.collisionLayers,
+                room.collisionLayers.find((layer) => layer.layer.name === TOPAZIO_BOSS.busLayer),
+                busTexture,
+                () => this.cameras.main.flash(500, 110, 226, 255)
+            );
+        }
         this.connectCombatToPartner();
         if (roomKey === 'gaucho-dungeon') {
             // Cada jogador tem a sua espada, então o item só existe para quem ainda não pegou.
@@ -532,7 +549,10 @@ export class World extends Scene {
             getUseAction: () => !this.player?.health.isAlive ? undefined
                 : this.combat?.hasSword() ? 'sword'
                 : this.piranhasBarPrompt?.visible ? 'interact' : undefined,
-            ...(this.isMultiplayerEnabled() ? { getCoopStatus: () => this.getCoopStatus() } : {})
+            ...(this.isMultiplayerEnabled() ? { getCoopStatus: () => this.getCoopStatus() } : {}),
+            getBossHealth: () => this.isGolemAwake && this.golem?.health.isAlive
+                ? { title: TOPAZIO_BOSS.title, current: this.golem.health.current, max: this.golem.health.max }
+                : undefined
         });
         if (this.activeRoomKey === 'gaucho-dungeon' && !this.isRoomCombatComplete) this.playGauchoDungeonWarning();
     }
@@ -626,6 +646,7 @@ export class World extends Scene {
         this.updateRoomGateway();
         this.updateArcadeCabinet();
         this.updateTicenGate();
+        this.wakeGolem();
         this.updateTicenGoal();
         if (this.isRoomTransitioning) return;
         this.stairClimbEffect?.update();
@@ -1129,9 +1150,21 @@ export class World extends Scene {
         this.scene.bringToTop('WalletMenu');
     }
 
-    /** Embarcar no 763.2 via Kobrasol encerra a partida com vitória. */
+    /** O golem dorme até o jogador passar a catraca e subir para a Plataforma D; só então entra no combate. */
+    private wakeGolem() {
+        if (!this.golem || this.isGolemAwake || !this.isTicenGateOpen || !this.player) return;
+        const { y } = this.player.sprite.body?.center ?? this.player.sprite;
+        if (y > TOPAZIO_BOSS.wakeY) return;
+        this.isGolemAwake = true;
+        this.drones.push(this.golem);
+        this.combat?.registerEnemy(this.golem);
+        this.cameras.main.shake(400, 0.008);
+    }
+
+    /** Embarcar no 763.2 via Kobrasol encerra a partida com vitória, depois de derrubar o golem. */
     private updateTicenGoal() {
         if (!isTicenRoom(this.activeRoomKey) || !this.player || this.isGameOver) return;
+        if (this.golem?.health.isAlive) return;
         const { x, y } = this.player.sprite.body?.center ?? this.player.sprite;
         const { left, right, top, bottom } = TICEN_GOAL;
         if (x < left || x > right || y < top || y > bottom) return;
@@ -1380,7 +1413,7 @@ export class World extends Scene {
     private rememberCombatProgress() {
         if (!this.dungeonState) return;
         const enemies = this.drones.flatMap((enemy) => {
-            if (!enemy.health.isAlive) return [];
+            if (!enemy.health.isAlive || enemy.kind === 'golem') return [];
             return [{
                 kind: enemy.kind ?? 'drone',
                 x: enemy.sprite.x,
