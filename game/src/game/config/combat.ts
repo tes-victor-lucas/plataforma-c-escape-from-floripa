@@ -146,6 +146,25 @@ export const COMBAT_CONFIG = {
         // Clique dado nesse final da recarga fica guardado e sai assim que ela termina.
         bufferWindow: 150
     },
+    // Espada flamejante dos baús: golpe nas salas com tiro, sem parar de atirar.
+    // Dano médio: 1,25 do tiro, entre o tiro e a espada do esconderijo; cada golpe deixa um rastro de fogo.
+    flameSword: {
+        damageMultiplier: 1.25,
+        interval: 550,
+        trailColors: [0xff6a1f, 0xffb347, 0xffe27a]
+    },
+    // Cajado de gelo dos baús: congela quem está em volta, sem dano, para atrasar a horda.
+    iceStaff: {
+        radius: 150,
+        interval: 4_000,
+        freezeDuration: 1_000,
+        color: 0x9fe6ff
+    },
+    // Queimadura da carta Cajado de fogo: o dano sai em pedaços a cada tick enquanto dura.
+    burn: {
+        tickInterval: 500,
+        color: 0xff7a2a
+    },
     gaucho: {
         maxHealth: PLAYER_COMBAT_STATS.maxHealth,
         range: 20,

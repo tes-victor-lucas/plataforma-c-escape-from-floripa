@@ -80,6 +80,8 @@ export class CombatSystem {
     private companionCooldown = 0;
     private heldSword?: Phaser.GameObjects.Image;
     private isSwingQueued = false;
+    /** Recarga do golpe, separada da do tiro: com a espada flamejante os dois andam juntos. */
+    private swingCooldown = 0;
     private pulseCooldown = 0;
     /** Crescimento do tiro normal pela sala atual (getPlayerShotMultipliers). */
     shotMultipliers = { damage: 1, speed: 1 };
@@ -217,6 +219,7 @@ export class CombatSystem {
         if (!isPlayerAlive && !this.network) return;
 
         this.playerCooldown = Math.max(0, this.playerCooldown - delta);
+        this.swingCooldown = Math.max(0, this.swingCooldown - delta);
         let nearest: CombatEnemy | undefined;
         let nearestDistance = this.playerStats.range ** 2;
 
@@ -246,7 +249,7 @@ export class CombatSystem {
         if (!isPlayerAlive) return;
         // Na sala corpo a corpo o jogador só ataca com a espada, sem tiro nem companheiro.
         if (this.melee) {
-            if (this.isSwingQueued && this.playerCooldown === 0) {
+            if (this.isSwingQueued && this.swingCooldown === 0) {
                 this.isSwingQueued = false;
                 this.swing();
             }
@@ -570,15 +573,15 @@ export class CombatSystem {
     /** Golpe em arco para onde o personagem olha; cada golpe conta como um ataque para multi-kills. */
     swing(angle = this.getAimAngle()) {
         if (!this.heldSword || !this.player.health.isAlive) return false;
-        if (this.playerCooldown > 0) {
-            this.isSwingQueued ||= this.playerCooldown <= COMBAT_CONFIG.melee.bufferWindow;
+        if (this.swingCooldown > 0) {
+            this.isSwingQueued ||= this.swingCooldown <= COMBAT_CONFIG.melee.bufferWindow;
             return false;
         }
         const { interval, damageMultiplier } = COMBAT_CONFIG.melee;
         const range = COMBAT_CONFIG.melee.range * this.swordRangeMultiplier;
         const arc = this.swordFullCircle ? Math.PI * 2 : COMBAT_CONFIG.melee.arc;
         const swordDamage = this.playerStats.damage * damageMultiplier * this.swordDamageMultiplier;
-        this.playerCooldown = interval;
+        this.swingCooldown = interval;
         const origin = this.getCenter(this.player);
         const id = createProjectileId(this.tracker.snapshot().runId);
         this.tracker.registerProjectile(id);
