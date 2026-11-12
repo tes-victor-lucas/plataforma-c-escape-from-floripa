@@ -13,7 +13,7 @@ type TicenBus = Readonly<{ route: number; col: number; row: number }>;
 
 /** O que o golem do anfitrião faz e o espelho do convidado repete, com o que precisa para repetir igual. */
 export type GolemAction =
-    | { type: 'slam'; ox: number; oy: number; tx: number; ty: number }
+    | { type: 'slam'; ox: number; oy: number; tx: number; ty: number; rows?: number }
     | { type: 'spin' }
     | { type: 'lift'; route: number; target?: string }
     | { type: 'throw'; tx: number; ty: number }
@@ -148,7 +148,7 @@ export class TopazioGolem implements CombatEnemy {
                 this.startAction('slam');
                 this.hasSlammed = true;
                 this.playSlamImpact({ x: action.ox, y: action.oy });
-                this.eruptChains({ x: action.ox, y: action.oy }, { x: action.tx, y: action.ty });
+                this.eruptChains({ x: action.ox, y: action.oy }, { x: action.tx, y: action.ty }, action.rows ?? 3);
                 break;
             case 'spin':
                 this.startAction('spin');
@@ -350,18 +350,20 @@ export class TopazioGolem implements CombatEnemy {
             const feet = { x: this.sprite.x, y: this.sprite.y + TOPAZIO_BOSS.feetOffset - 8 };
             this.playSlamImpact(feet);
             if (target) {
-                this.eruptChains(feet, target);
-                this.emit({ type: 'slam', ox: feet.x, oy: feet.y, tx: target.x, ty: target.y });
+                // O anfitrião decide quantas cadeias e manda junto: o espelho não sabe a vida exata do golem.
+                const rows = this.health.current > this.health.max * TOPAZIO_BOSS.slam.fanBelow ? 1 : 3;
+                this.eruptChains(feet, target, rows);
+                this.emit({ type: 'slam', ox: feet.x, oy: feet.y, tx: target.x, ty: target.y, rows });
             }
         }
         if (this.actionTime >= windup + recover) this.finishAttack();
     }
 
     /** Topázios brotam um atrás do outro numa linha até o jogador; da metade da vida em diante são três linhas. */
-    private eruptChains(origin: Point, target: Point) {
+    private eruptChains(origin: Point, target: Point, rows: number) {
         const { spikeCount, spikeInterval, spikeSpacing, spread } = TOPAZIO_BOSS.slam;
         const aim = Math.atan2(target.y - origin.y, target.x - origin.x);
-        for (const angle of [aim - spread, aim, aim + spread]) {
+        for (const angle of rows === 1 ? [aim] : [aim - spread, aim, aim + spread]) {
             for (let step = 1; step <= spikeCount; step += 1) {
                 this.scene.time.delayedCall(step * spikeInterval, () => this.eruptSpike(
                     origin.x + Math.cos(angle) * step * spikeSpacing,

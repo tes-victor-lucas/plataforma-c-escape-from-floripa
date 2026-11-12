@@ -99,8 +99,11 @@ export const TOPAZIO_BOSS = {
     // Respiro entre ataques em cada estágio de rachadura: quanto mais rachado, mais rápido.
     rest: [1700, 1400, 1150, 900],
     firstRest: 1200,
-    // Bate no chão: topázios brotam em três cadeias, em leque, na direção do jogador.
-    slam: { windup: 700, recover: 700, spikeInterval: 55, spikeSpacing: 22, spikeCount: 15, spikeRadius: 13, spikeLifetime: 640, damage: 2, spread: 0.42 },
+    // Bate no chão: topázios brotam numa cadeia na direção do jogador; abaixo de 70% da vida, em três, em leque.
+    slam: {
+        windup: 700, recover: 700, spikeInterval: 55, spikeSpacing: 22, spikeCount: 15, spikeRadius: 13, spikeLifetime: 640, damage: 2, spread: 0.42,
+        fanBelow: 0.7
+    },
     // Gira em pé no lugar, como um pião (turnSpeed em radianos por ms), cuspindo topázios em volta.
     // A varredura dos punhos (sweepRadius) machuca quem chega perto, como o giro do Garen e do Balmond.
     spin: {
@@ -119,6 +122,8 @@ export const TOPAZIO_BOSS = {
     busLayer: 'onibus',
     // Um ônibus a cada limiar de vida. O golem não morre enquanto sobrar ônibus para arremessar.
     busThresholds: [0.8, 0.6, 0.4, 0.2],
+    // Sem passar de limiar, ele busca um ônibus mesmo assim depois desse tempo: com pouco dano a luta não fica sem ônibus.
+    busInterval: 20_000,
     // Baias do room5.json (assets/ticen/gen_room5_map.py); `route` é a linha do ticen_onibus.png.
     // O 763.2 via Kobrasol (Estrela, rota 3, coluna 38 da linha 29) fica de fora: é a fuga.
     buses: [
