@@ -4211,3 +4211,81 @@ test('catraca do TICEN nao pede o cartao de novo para quem ja entrou', () => {
     assert.equal(world.isWalletOpen, false);
     multiplayerClient.disconnect();
 });
+
+test('botas de prata aceleram o passo e as de diamante encurtam a recarga do dash', () => {
+    const { Player } = load('../src/game/entities/Player.ts');
+    const { SILVER_BOOTS, DIAMOND_BOOTS, ITEM_CHESTS, ITEMS } = load('../src/game/config/items.ts');
+    const player = Object.create(Player.prototype);
+    player.dash = { cooldownMultiplier: 1 };
+    player.wornItems = new Map([['silver-boots', () => {}]]);
+    player.refreshEquipment();
+    assert.equal(player.equipmentSpeedMultiplier, SILVER_BOOTS.speedMultiplier);
+    assert.equal(player.dash.cooldownMultiplier, 1);
+    player.wornItems = new Map([['diamond-boots', () => {}]]);
+    player.refreshEquipment();
+    assert.equal(player.equipmentSpeedMultiplier, 1);
+    assert.equal(player.dash.cooldownMultiplier, DIAMOND_BOOTS.dashCooldownMultiplier);
+    assert.ok(DIAMOND_BOOTS.dashCooldownMultiplier < 1);
+    assert.equal(SILVER_BOOTS.slot, DIAMOND_BOOTS.slot, 'os dois pares disputam os pés');
+    for (const chest of Object.values(ITEM_CHESTS)) assert.ok(ITEMS[chest.item], 'todo baú guarda um item do catálogo');
+});
+
+test('baú da Sala I fica trancado com o aviso e só entrega as botas se a sala acabar no tempo', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { ITEM_CHESTS } = load('../src/game/config/items.ts');
+    const { x, y, timeLimitMs } = ITEM_CHESTS.room1;
+    const fakeObject = () => {
+        const object = { visible: true, tinted: false, frame: 0, destroy() {} };
+        for (const method of ['setOrigin', 'setDepth', 'setAlign', 'setPosition', 'setScale']) object[method] = () => object;
+        object.setVisible = (visible) => { object.visible = visible; return object; };
+        object.setTint = () => { object.tinted = true; return object; };
+        object.clearTint = () => { object.tinted = false; return object; };
+        object.setFrame = (frame) => { object.frame = frame; return object; };
+        return object;
+    };
+    const createWorld = () => {
+        const world = new World();
+        const hints = [];
+        world.hints = hints;
+        world.equipped = [];
+        world.add = { sprite: (sx, sy) => Object.assign(fakeObject(), { x: sx, y: sy }) };
+        world.tweens = { add() {}, killTweensOf() {} };
+        world.createWorldHint = (text) => { const hint = Object.assign(fakeObject(), { text, x: 0, y: 0 }); hints.push(hint); return hint; };
+        world.addChestGlow = fakeObject;
+        world.player = { sprite: { x: x + 200, y }, equipItem(id) { world.equipped.push(id); }, unequipItem() {} };
+        return world;
+    };
+
+    const late = createWorld();
+    late.createItemChest('room1', true);
+    assert.equal(late.itemChest.image.tinted, true, 'o baú nasce apagado');
+    assert.match(late.hints[0].text, /COMPLETE A SALA I EM 01:30\nPARA DESBLOQUEAR UM ITEM/);
+    late.updateItemChest();
+    assert.equal(late.hints[0].visible, false, 'de longe não há aviso');
+    late.player.sprite.x = x;
+    late.updateItemChest();
+    assert.equal(late.hints[0].visible, true, 'perto do baú trancado aparece o desafio');
+    late.itemChestRuns.get('room1').startedAt = -timeLimitMs - 1;
+    late.finishItemChestRun('room1');
+    late.updateItemChest();
+    assert.deepEqual(late.ownedItems, [], 'fora do tempo o baú continua trancado');
+    assert.equal(late.hints[0].visible, true);
+
+    const fast = createWorld();
+    fast.createItemChest('room1', true);
+    fast.finishItemChestRun('room1');
+    assert.equal(fast.itemChest.image.tinted, false, 'no tempo, o baú acende');
+    const chest = fast.itemChest.image;
+    // Volta do esconderijo: a sala é recriada e o baú segue destrancado.
+    fast.createItemChest('room1', false);
+    assert.ok(fast.itemChest.glow, 'o destrancado sobrevive à ida ao esconderijo');
+    fast.player.sprite.x = x;
+    fast.updateItemChest();
+    assert.equal(chest.frame, 0);
+    assert.equal(fast.itemChest, undefined);
+    assert.deepEqual(fast.ownedItems, ['silver-boots']);
+    assert.deepEqual(fast.equippedItems, ['silver-boots']);
+    assert.ok(fast.equipped.includes('silver-boots'), 'as botas já entram nos pés');
+    fast.createItemChest('room1', false);
+    assert.equal(fast.itemChest, undefined, 'quem já tem as botas encontra o baú aberto');
+});

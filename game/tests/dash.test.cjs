@@ -51,3 +51,16 @@ test('dash expõe uma carga progressiva para o HUD', () => {
     dash.tick(350);
     assert.equal(dash.charge, 1);
 });
+
+test('item que encurta a recarga libera o dash mais cedo e a barra enche até o fim', () => {
+    const dash = new DashState(130, 700);
+    dash.cooldownMultiplier = 0.6;
+    assert.equal(dash.tryStart({ x: 1, y: 0 }), true);
+    assert.equal(dash.cooldownRemaining, 420);
+    assert.equal(dash.charge, 0);
+    dash.tick(419);
+    assert.equal(dash.tryStart({ x: 1, y: 0 }), false);
+    dash.tick(1);
+    assert.equal(dash.charge, 1);
+    assert.equal(dash.tryStart({ x: 1, y: 0 }), true);
+});
