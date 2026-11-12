@@ -212,8 +212,9 @@ export class InventoryMenuView {
 
     private addEquipmentSlots(menu: CleanOverlayMenu) {
         EQUIPMENT_SLOTS.forEach((label, index) => {
-            const y = DOLL.y + 14 + index * 52;
-            const x = DOLL.x + DOLL.width + 26;
+            // Coluna colada no retrato, da cabeça aos pés.
+            const y = DOLL.y + index * (SLOT + 6);
+            const x = DOLL.x + DOLL.width + 12;
             const equipped = this.equippedItems.find(({ slot }) => slot === label);
             const slot = this.scene.add.rectangle(x + SLOT / 2, y + SLOT / 2, SLOT, SLOT, INV.well)
                 .setStrokeStyle(equipped ? 2 : 1, INV.band, equipped ? 1 : 0.6);
@@ -222,11 +223,9 @@ export class InventoryMenuView {
                 slot.setInteractive({ useHandCursor: true })
                     .on('pointerdown', () => this.selectItem(this.options.items.indexOf(equipped)));
             }
-            menu.add([
-                slot,
-                this.text(x + SLOT + 10, y + 12, label, 12, INV.text),
-                this.text(x + SLOT + 10, y + 28, equipped?.name ?? 'VAZIO', 10, INV.muted)
-            ]);
+            menu.add(slot);
+            // Vazio, o encaixe diz o que cabe nele; ocupado, o ícone fala por si.
+            if (!equipped) menu.add(this.text(x + SLOT / 2, y + SLOT / 2, label, 8, INV.muted).setOrigin(0.5));
             if (equipped) {
                 const icon = this.scene.add.image(x + SLOT / 2, y + SLOT / 2, equipped.texture);
                 menu.add(icon.setScale((SLOT - 10) / Math.max(icon.width, icon.height)));
