@@ -4578,3 +4578,51 @@ test('raio do VS atravessa a tela de canto a canto e se desenha aos poucos', () 
     assert.ok(half.length > 1 && half.length < points.length, 'na metade, parte das dobras');
     assert.ok(half.at(-1).x > 0 && half.at(-1).x < 889);
 });
+
+test('golem solta uma cadeia de topázio e só abre as três abaixo de 70% da vida', () => {
+    const { TopazioGolem } = load('../src/game/entities/TopazioGolem.ts');
+    const { TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const slamWith = (healthRatio) => {
+        const golem = Object.create(TopazioGolem.prototype);
+        let spikes = 0;
+        const emitted = [];
+        Object.assign(golem, {
+            health: { current: TOPAZIO_BOSS.maxHealth * healthRatio, max: TOPAZIO_BOSS.maxHealth },
+            hasSlammed: false,
+            actionTime: TOPAZIO_BOSS.slam.windup,
+            sprite: { x: 100, y: 100 },
+            options: { onAction: (action) => emitted.push(action) },
+            playSlamImpact() {},
+            scene: { time: { delayedCall() { spikes += 1; } } }
+        });
+        golem.updateSlam({ x: 300, y: 100 });
+        return { chains: spikes / TOPAZIO_BOSS.slam.spikeCount, rows: emitted[0].rows };
+    };
+    assert.deepEqual(slamWith(1), { chains: 1, rows: 1 }, 'cheio: uma cadeia só');
+    assert.deepEqual(slamWith(0.71), { chains: 1, rows: 1 });
+    assert.deepEqual(slamWith(0.7), { chains: 3, rows: 3 }, 'em 70%: o leque de três, e o convidado recebe o mesmo número');
+});
+
+test('golem busca um ônibus a cada 20 s mesmo sem passar dos limiares de vida', () => {
+    const { TopazioGolem } = load('../src/game/entities/TopazioGolem.ts');
+    const { TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const golem = Object.create(TopazioGolem.prototype);
+    let fetches = 0;
+    Object.assign(golem, {
+        health: { current: TOPAZIO_BOSS.maxHealth, max: TOPAZIO_BOSS.maxHealth },
+        buses: [...TOPAZIO_BOSS.buses],
+        busesThrown: 0,
+        sinceLastBus: 0,
+        restTimer: Infinity,
+        roarsDone: 0,
+        isDeathDeferred: false,
+        startFetch() { fetches += 1; }
+    });
+    const body = { setVelocity() {} };
+    golem.updateWalk(body, undefined, TOPAZIO_BOSS.busInterval - 1);
+    assert.equal(fetches, 0, 'com vida cheia, ainda não');
+    golem.updateWalk(body, undefined, 1);
+    assert.equal(fetches, 1, 'passados 20 s, vai atrás de um ônibus');
+    golem.updateWalk(body, undefined, 1);
+    assert.equal(fetches, 1, 'e o tempo recomeça');
+});
