@@ -1,6 +1,7 @@
 import type { Scene } from 'phaser';
 import { CHARACTERS, type FeetFit } from '../config/characters';
 import { ITEMS, type ItemDefinition, type ItemPixels } from '../config/items';
+import { WALK_FRAMES } from './PlayerAnimations';
 
 // Frame das folhas de personagem: as medidas das pernas são contadas nele.
 const CHARACTER_FRAME = 38;
@@ -22,8 +23,20 @@ function getCharacterFeet(characterTexture: string): FeetFit {
     return Object.values(CHARACTERS).find(({ texture }) => texture === characterTexture)?.feet ?? CHARACTERS.padrao.feet;
 }
 
-/** Textura do item no corpo: as botas são redesenhadas na largura e no vão das pernas de quem as veste. */
-export function getWornTexture(scene: Scene, item: ItemDefinition, characterTexture: string) {
+/** -1 andando para a esquerda, 1 para a direita, 0 de frente ou de costas: pelo quadro da folha de andar. */
+export function getWalkSide(frame: number) {
+    if (WALK_FRAMES.left.includes(frame)) return -1;
+    if (WALK_FRAMES.right.includes(frame)) return 1;
+    return 0;
+}
+
+/** Textura do item no corpo: as botas são redesenhadas na largura e no vão das pernas de quem as veste; de lado, de perfil. */
+export function getWornTexture(scene: Scene, item: ItemDefinition, characterTexture: string, isSide = false) {
+    if (isSide && item.sidePixels) {
+        const key = `${item.texture}-lado`;
+        drawPixelTexture(scene, key, item.sidePixels, 10, item.height);
+        return key;
+    }
     if (!item.fitFeet) {
         createItemTexture(scene, item);
         return item.texture;
@@ -78,8 +91,11 @@ export function attachWornItem(scene: Scene, sprite: Phaser.GameObjects.Sprite, 
             return;
         }
         // O parceiro pode trocar de personagem no meio da partida: a bota acompanha as pernas novas.
-        const texture = getWornTexture(scene, item, sprite.texture.key);
+        // De lado, a bota vira perfil; o desenho aponta para a esquerda e espelha para a direita.
+        const side = item.anchor === 'feet' ? getWalkSide(Number(sprite.frame.name)) : 0;
+        const texture = getWornTexture(scene, item, sprite.texture.key, side !== 0);
         if (image.texture.key !== texture) image.setTexture(texture);
+        image.setFlipX(side === 1);
         image.setPosition(
             sprite.x + getItemOffsetX(item, sprite.displayWidth),
             sprite.y + getItemOffsetY(item, sprite.displayHeight, sprite.texture.key)

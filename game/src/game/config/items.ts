@@ -14,6 +14,16 @@ export type ItemPixels = readonly (readonly [number, number, number, number, num
 // Medida das pernas do personagem padrão: o ícone do inventário usa essa.
 const DEFAULT_FEET = { legWidth: 6, gap: 2 };
 
+/** Bota de perfil 10x5 com a ponta para a esquerda: cano no calcanhar (à direita), pé e sola na largura toda. */
+export function sideBootPixels(color: number, shine: number): ItemPixels {
+    return [
+        [4, 0, 6, 3, color],
+        [4, 0, 1, 3, shine],
+        [0, 3, 10, 1, color],
+        [0, 4, 10, 1, 0x101018]
+    ];
+}
+
 /**
  * Par de botas de 5 px de altura, uma por perna: cano um pixel mais estreito por dentro, pé e sola na largura toda.
  * Largura total = duas pernas mais o vão.
@@ -53,6 +63,8 @@ export type ItemDefinition = Readonly<{
     pixels: ItemPixels;
     /** Só as botas: desenho refeito na medida das pernas de cada personagem. */
     fitFeet?: (feet: FeetFit) => ItemPixels;
+    /** Só as botas: de lado as pernas ficam juntas, então vira um pé só de perfil, com a ponta para a esquerda. */
+    sidePixels?: ItemPixels;
 }>;
 
 /** Chapéu campeiro: cai quando todos os gaúchos do esconderijo morrem e bloqueia parte dos golpes. */
@@ -122,7 +134,8 @@ export const RUBBER_BOOTS: ItemDefinition = {
     width: 14,
     height: 5,
     pixels: bootPixels(0x2e7d4a, 0x56b070),
-    fitFeet: (feet) => bootPixels(0x2e7d4a, 0x56b070, feet)
+    fitFeet: (feet) => bootPixels(0x2e7d4a, 0x56b070, feet),
+    sidePixels: sideBootPixels(0x2e7d4a, 0x56b070)
 };
 
 /** Botas de prata do baú da Sala I: um pouco mais de velocidade. */
@@ -139,7 +152,8 @@ export const SILVER_BOOTS: ItemDefinition = {
     width: 14,
     height: 5,
     pixels: bootPixels(0x9aa4b4, 0xe6ecf4),
-    fitFeet: (feet) => bootPixels(0x9aa4b4, 0xe6ecf4, feet)
+    fitFeet: (feet) => bootPixels(0x9aa4b4, 0xe6ecf4, feet),
+    sidePixels: sideBootPixels(0x9aa4b4, 0xe6ecf4)
 };
 
 /** Botas de diamante do baú da Marinha, na Sala II: o dash recarrega mais rápido. */
@@ -156,7 +170,8 @@ export const DIAMOND_BOOTS: ItemDefinition = {
     width: 14,
     height: 5,
     pixels: bootPixels(0x35c8e0, 0xc8f6ff),
-    fitFeet: (feet) => bootPixels(0x35c8e0, 0xc8f6ff, feet)
+    fitFeet: (feet) => bootPixels(0x35c8e0, 0xc8f6ff, feet),
+    sidePixels: sideBootPixels(0x35c8e0, 0xc8f6ff)
 };
 
 /** Lâmina na diagonal, do cabo embaixo à esquerda até a ponta em cima à direita, como o ícone da espada do jogo. */
