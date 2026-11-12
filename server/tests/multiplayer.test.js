@@ -256,3 +256,18 @@ test('catraca do TICEN e ações do golem chegam ao parceiro', () => {
     assert.deepEqual(messagesFor(sent, 'p2', 'match.event').map(({ message }) => message.event), events);
     assert.equal(messagesFor(sent, 'p1', 'error').length, 0);
 });
+
+test('voto, baús e o fim da disputa pela vaga chegam ao parceiro', () => {
+    const { broker, sent } = startedRoom();
+    const events = [
+        { kind: 'escape.vote' },
+        { kind: 'escape.duel' },
+        { kind: 'chest.spawn', id: 1, x: 10, y: 20, special: 'heart' },
+        { kind: 'chest.claim', id: 1 },
+        { kind: 'chest.opened', id: 1, byHost: false },
+        { kind: 'duel.lost' }
+    ];
+    for (const event of events) broker.publish('client.message', { clientId: 'p1', message: { type: 'match.event', event } });
+    assert.deepEqual(messagesFor(sent, 'p2', 'match.event').map(({ message }) => message.event), events);
+    assert.equal(messagesFor(sent, 'p1', 'error').length, 0);
+});
