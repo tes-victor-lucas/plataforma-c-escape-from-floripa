@@ -629,6 +629,8 @@ export class CombatSystem {
             ) continue;
 
             playSwordHit(this.scene, target.x, target.y);
+            // Acerto da espada flamejante explode numa labareda pequena em cima do inimigo.
+            if (this.flameSword && !this.melee) playExplosion(this.scene, target.x, target.y, 10, COMBAT_CONFIG.burn.color);
             const direction = distance > 0 ? { x: dx / distance, y: dy / distance } : { x: Math.cos(angle), y: Math.sin(angle) };
             this.hitEnemy(enemy, swordDamage, direction, id);
         }
