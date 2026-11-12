@@ -144,6 +144,9 @@ export const TICEN_ESCAPE = {
         frontPath: 'assets/ui/onibus-interior-frente.png',
         viewTexture: 'onibus-vista',
         viewPath: 'assets/ui/onibus-vista.png',
+        // Céu com o sol vermelho e o mar: fica parado enquanto a ponte corre pela janela.
+        skyTexture: 'onibus-ceu',
+        skyPath: 'assets/ui/onibus-ceu.png',
         // As imagens são 1/3 da tela (assets/ticen/gen_onibus_interior.py).
         scale: 3,
         // Escala do jogador na tela: maior que no mapa, na proporção dos bancos.

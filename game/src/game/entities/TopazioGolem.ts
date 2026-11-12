@@ -48,6 +48,7 @@ export class TopazioGolem implements CombatEnemy {
     private spinBursts = 0;
     private busesThrown = 0;
     private roarsDone = 0;
+    private gemsCollected = 0;
     private readonly activeSpikes = new Set<Point>();
     private sweepBack?: Phaser.GameObjects.Graphics;
     private sweepFront?: Phaser.GameObjects.Graphics;
@@ -67,7 +68,8 @@ export class TopazioGolem implements CombatEnemy {
         private readonly busLayer: Phaser.Tilemaps.TilemapLayer | undefined,
         private readonly busTexture: string,
         private readonly onDefeated: () => void,
-        private readonly onRoar: (caption: string) => void
+        private readonly onRoar: (caption: string) => void,
+        private readonly onGemCollected: (collected: number, total: number) => void = () => undefined
     ) {
         const { spawn, texture, hitbox } = TOPAZIO_BOSS;
         this.sprite = scene.physics.add.sprite(spawn.x, spawn.y, texture, 0).setDepth(TOPAZIO_BOSS.depth);
@@ -501,6 +503,17 @@ export class TopazioGolem implements CombatEnemy {
         });
     }
 
+    /** Encostar pega o topázio: ele sobe brilhando e some, e a contagem aparece sobre o jogador. */
+    private makeCollectible(gem: Phaser.Physics.Arcade.Image) {
+        const pickup = this.scene.physics.add.overlap(this.player.sprite, gem, () => {
+            pickup.destroy();
+            this.gemsCollected += 1;
+            playShockwave(this.scene, gem.x, gem.y, 12, 0xf29b38);
+            this.scene.tweens.add({ targets: gem, y: gem.y - 18, alpha: 0, scale: 1.6, duration: 260, onComplete: () => gem.destroy() });
+            this.onGemCollected(this.gemsCollected, TOPAZIO_BOSS.gemCount);
+        });
+    }
+
     private finishDeath() {
         this.startAction('dead');
         this.spinSound?.stop();
@@ -528,11 +541,12 @@ export class TopazioGolem implements CombatEnemy {
                 const reach = 30 + Math.random() * 60;
                 const landX = x + Math.cos(angle) * reach;
                 const landY = y + TOPAZIO_BOSS.feetOffset + Math.sin(angle) * reach * 0.55;
-                const gem = this.scene.add.image(x, y, TOPAZIO_BOSS.gemTexture).setDepth(getActorDepth(landY));
-                // Arco: sobe e cai quicando onde pousa.
+                const gem = this.scene.physics.add.image(x, y, TOPAZIO_BOSS.gemTexture).setDepth(getActorDepth(landY));
+                // O tween move o corpo junto; ele só pode ser pego depois de pousar.
+                if (gem.body instanceof Physics.Arcade.Body) gem.body.moves = false;
                 this.scene.tweens.add({ targets: gem, x: landX, duration: 520, ease: 'Linear' });
                 this.scene.tweens.add({ targets: gem, y: landY - 26 - Math.random() * 20, duration: 220, ease: 'Quad.easeOut', onComplete: () => {
-                    this.scene.tweens.add({ targets: gem, y: landY, duration: 300, ease: 'Bounce.easeOut' });
+                    this.scene.tweens.add({ targets: gem, y: landY, duration: 300, ease: 'Bounce.easeOut', onComplete: () => this.makeCollectible(gem) });
                 } });
             }
         });

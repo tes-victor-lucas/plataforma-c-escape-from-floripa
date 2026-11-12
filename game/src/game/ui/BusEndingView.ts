@@ -30,9 +30,11 @@ export class BusEndingView {
     private board(onDark: () => void) {
         const { interior } = TICEN_ESCAPE;
         const scale = interior.scale;
+        const sky = this.scene.add.image(0, 0, interior.skyTexture).setOrigin(0).setScale(scale).setDepth(DEPTH - 0.1);
         const view = this.scene.add.tileSprite(0, 0, GAME_WIDTH / scale, GAME_HEIGHT / scale, interior.viewTexture)
             .setOrigin(0).setScale(scale).setDepth(DEPTH);
         const room = this.scene.add.image(0, 0, interior.texture).setOrigin(0).setScale(scale).setDepth(DEPTH + 0.1);
+        this.objects.push(sky, ...this.floatDust());
         // Entra pela porta da frente (direita) andando para o fundo do ônibus.
         // No corredor ele passa na frente dos bancos; ao sentar, fica entre o encosto dele e o banco da frente.
         const player = this.scene.add.sprite(GAME_WIDTH + 60, interior.floorY * scale, this.playerTexture, WALK_FRAMES.left[0])
@@ -57,6 +59,27 @@ export class BusEndingView {
                     onComplete: () => this.scene.time.delayedCall(interior.seatedPause, () => this.depart(view, onDark))
                 });
             }
+        });
+    }
+
+    /** Poeira vermelha flutuando nos feixes de luz que entram pelas janelas. */
+    private floatDust() {
+        const { scale } = TICEN_ESCAPE.interior;
+        return Array.from({ length: 26 }, () => {
+            const x = (40 + Math.random() * 170) * scale;
+            const y = (40 + Math.random() * 110) * scale;
+            const mote = this.scene.add.rectangle(x, y, scale, scale, 0xff6070, 0.5 + Math.random() * 0.4).setDepth(DEPTH + 0.15);
+            this.scene.tweens.add({
+                targets: mote,
+                x: x - (8 + Math.random() * 12) * scale,
+                y: y + (4 + Math.random() * 8) * scale,
+                alpha: 0.1,
+                duration: 2500 + Math.random() * 2500,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+            return mote;
         });
     }
 
