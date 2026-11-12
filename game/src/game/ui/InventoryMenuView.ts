@@ -336,10 +336,12 @@ export class InventoryMenuView {
         this.tooltipBox = this.scene.add.graphics();
         this.detailTitle = this.text(14, 19, '', 13, INV.text);
         this.detailText = this.scene.add.text(14, 38, '', {
-            fontFamily: FONT,
+            // Monospace porque a PixelGamer não tem o sinal de porcentagem das descrições.
+            fontFamily: 'monospace',
             fontSize: '10px',
+            fontStyle: 'bold',
             color: INV.muted,
-            lineSpacing: 5,
+            lineSpacing: 4,
             wordWrap: { width: TOOLTIP_WIDTH - 28, useAdvancedWrap: true }
         }).setResolution(2);
         // Na ponta direita da faixa do nome: onde o item está agora.
