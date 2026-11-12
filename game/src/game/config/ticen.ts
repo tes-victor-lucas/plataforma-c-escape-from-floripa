@@ -159,7 +159,6 @@ export const TICEN_ESCAPE = {
         seatX: 136,
         floorY: 160,
         seatedFeetY: 134,
-        floorTop: 142,
         // Linhas do quadro de lado (38x38) dos personagens: o quadril, a calça e o sapato.
         seatedLegs: { hipRow: 29, pantsRows: [29, 31], shoeRows: [33, 35] },
         walkTime: 1400,

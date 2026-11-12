@@ -81,19 +81,20 @@ export class BusEndingView {
         const shoes = this.commonColor(player, shoeRows);
         const hipY = player.y - (frame.height - hipRow) * unit;
         const hipX = player.x - unit;
-        const floorY = interior.floorTop * interior.scale;
         const outline = 0x05040a;
         const highlight = Phaser.Display.Color.IntegerToColor(pants).lighten(18).color;
         const legs = this.scene.add.graphics().setDepth(DEPTH + 0.32);
-        const thigh = { x: hipX - unit * 2, y: hipY - unit * 3, width: unit * 11, height: unit * 3 };
-        const shin = { x: hipX + unit * 6, y: hipY - unit * 3, width: unit * 3, height: floorY - hipY + unit * 2 };
+        // Na proporção do sprite: coxa curta no assento e canela de 5 pixels, com o pé pendurado sem chegar ao chão.
+        const thigh = { x: hipX - unit * 2, y: hipY - unit * 3, width: unit * 9, height: unit * 3 };
+        const shin = { x: hipX + unit * 4, y: hipY - unit * 3, width: unit * 3, height: unit * 8 };
+        const footY = shin.y + shin.height;
         legs.fillStyle(outline).fillRect(thigh.x - unit, thigh.y - unit, thigh.width + unit * 2, thigh.height + unit * 2);
         legs.fillRect(shin.x - unit, shin.y, shin.width + unit * 2, shin.height + unit);
         legs.fillStyle(pants).fillRect(thigh.x, thigh.y, thigh.width, thigh.height);                 // coxas no assento
         legs.fillRect(shin.x, shin.y, shin.width, shin.height);                                      // canela até o chão
         legs.fillStyle(highlight).fillRect(thigh.x, thigh.y, thigh.width - unit, unit);              // luz em cima da coxa
-        legs.fillStyle(outline).fillRect(shin.x - unit, floorY - unit * 2, unit * 7, unit * 3);
-        legs.fillStyle(shoes).fillRect(shin.x, floorY - unit, unit * 5, unit);                       // sapato
+        legs.fillStyle(outline).fillRect(shin.x - unit, footY - unit, unit * 7, unit * 3);
+        legs.fillStyle(shoes).fillRect(shin.x, footY, unit * 5, unit);                               // sapato
         this.objects.push(legs);
     }
 
