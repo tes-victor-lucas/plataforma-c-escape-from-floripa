@@ -4,6 +4,7 @@ import type { EquipmentSlot, ItemId } from '../config/items';
 import { ITEMS } from '../config/items';
 import { getItemOffsetY } from '../entities/WornItem';
 import { WALK_FRAMES } from '../entities/PlayerAnimations';
+import { bindGamepadActions } from '../input/GamepadInput';
 import type { UpgradeProgress } from '../upgrades/types';
 import { CleanOverlayMenu, drawCleanMenuBox, type CleanMenuBounds } from './CleanOverlayMenu';
 import { addUpgradePanel } from './PauseMenuView';
@@ -123,13 +124,17 @@ export class InventoryMenuView {
         this.addEquipmentSlots(menu);
         this.addDetails(menu);
         this.addItemGrid(menu);
-        menu.addButton('VOLTAR', 446, this.options.onBack, { width: 220, height: 38, fontSize: '19px' });
-        menu.enableKeyboardNavigation({ onCancel: this.options.onBack });
+        // Sem o botão VOLTAR: fecha no X, no ESC ou no botão de voltar do controle.
         // E equipa ou retira o item selecionado, sem precisar do mouse.
         const keyboard = this.scene.input.keyboard;
         const toggle = () => this.toggleSelected();
         keyboard?.on('keydown-E', toggle);
-        this.scene.events.once('shutdown', () => keyboard?.off('keydown-E', toggle));
+        keyboard?.once('keydown-ESC', this.options.onBack);
+        bindGamepadActions(this.scene, { cancel: this.options.onBack, confirm: toggle });
+        this.scene.events.once('shutdown', () => {
+            keyboard?.off('keydown-E', toggle);
+            keyboard?.off('keydown-ESC', this.options.onBack);
+        });
         // Redesenho depois de equipar ou retirar: sem a animação de abertura, o menu não parece fechar e abrir.
         if (this.options.selectedItem === undefined) menu.fadeIn();
     }
