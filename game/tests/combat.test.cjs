@@ -4490,3 +4490,19 @@ test('no convidado, o alvo do ônibus aparece em quem o anfitrião escolheu', ()
     golem.updateHold(golem.getBusAim());
     assert.equal(marks[0].x, 300, 'o alvo segue o anfitrião, não quem está jogando no convidado');
 });
+
+test('gelo do parceiro chega pela rede: congela sem dano e nunca por mais que o cajado', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const frozen = [];
+    let damaged = 0;
+    const enemy = { health: { isAlive: true }, sprite: { x: 0, y: 0 }, takeDamage() { damaged += 1; return 0; } };
+    world.drones = [enemy];
+    world.combat = { freezeEnemy: (target, duration) => frozen.push([target, duration]) };
+    world.isMultiplayerHost = () => true;
+    world.applyPartnerHit({ kind: 'enemy.hit', index: 0, damage: 0, dx: 0, dy: 0, freeze: 60_000 });
+    assert.deepEqual(frozen, [[enemy, COMBAT_CONFIG.iceStaff.freezeDuration]], 'valor vindo de fora não congela além do cajado');
+    assert.equal(damaged, 0, 'o gelo não fere');
+    world.applyPartnerHit({ kind: 'enemy.hit', index: 7, damage: 0, dx: 0, dy: 0, freeze: 1_000 });
+    assert.equal(frozen.length, 1, 'índice que não existe é ignorado');
+});
