@@ -265,22 +265,38 @@ def gaucho(d, ox):
 
 def dog_man(d, ox):
     """Meio homem, meio cachorro: cabelo castanho cacheado e volumoso, óculos de armação escura,
-    camiseta escura, orelha caída e focinho de pug."""
+    camiseta escura e focinho de pug."""
     seated_body(d, ox, (44, 44, 52, 255), (26, 26, 32, 255), (40, 52, 90, 255), (24, 32, 60, 255), (230, 230, 236, 255))
     curl, curl_d, curl_l = (104, 66, 38, 255), (62, 38, 22, 255), (150, 100, 58, 255)
     # cachos: bolinhas por cima, atrás da cabeça e caindo na testa
     for cx, cy in ((2, 85), (5, 83), (8, 83), (11, 85), (13, 87), (1, 88), (4, 86), (7, 86), (10, 87), (1, 91), (2, 94), (12, 89)):
         d.ellipse((ox + cx - 2, cy - 2, ox + cx + 1, cy + 1), fill=curl, outline=curl_d)
         d.point((ox + cx - 1, cy - 1), fill=curl_l)
-    # orelha de cachorro caída
-    ear, ear_l = (70, 48, 36, 255), (110, 80, 60, 255)
-    d.polygon([(ox + 3, 88), (ox + 7, 88), (ox + 7, 97), (ox + 4, 98)], fill=ear, outline=(40, 26, 20, 255))
-    d.line((ox + 5, 90, ox + 5, 95), fill=ear_l)
     round_glasses(d, ox)
     # focinho de pug saindo do rosto, com o nariz preto
     d.rectangle((ox + 10, 92, ox + 14, 97), fill=(66, 50, 44, 255), outline=(36, 26, 22, 255))
     d.rectangle((ox + 13, 92, ox + 14, 93), fill=K0)
     d.line((ox + 11, 96, ox + 13, 96), fill=(40, 20, 20, 255))
+
+
+def cat(d, seat_x):
+    """Gato preto e branco dormindo enrolado sozinho no assento, com a mancha preta de bigodinho no focinho."""
+    white, white_d, black = (236, 236, 236, 255), (186, 186, 196, 255), (14, 12, 16, 255)
+    x = seat_x
+    # rabo preto enrolado para a frente do corpo
+    d.arc((x + 7, 110, x + 15, 121), 90, 300, fill=black, width=2)
+    d.ellipse((x + 9, 110, x + 27, 121), fill=white, outline=white_d)                # corpo deitado
+    d.ellipse((x + 12, 111, x + 19, 117), fill=black)                               # manchas
+    d.ellipse((x + 20, 115, x + 24, 119), fill=black)
+    d.ellipse((x + 23, 105, x + 32, 114), fill=white, outline=white_d)              # cabeça
+    d.polygon([(x + 24, 107), (x + 25, 102), (x + 28, 106)], fill=black)             # orelhas
+    d.polygon([(x + 28, 106), (x + 31, 102), (x + 32, 108)], fill=black)
+    d.rectangle((x + 23, 105, x + 27, 108), fill=black)                             # mancha preta na cabeça
+    d.line((x + 26, 109, x + 27, 109), fill=black)                                  # olhos fechados
+    d.line((x + 29, 109, x + 30, 109), fill=black)
+    d.point((x + 31, 110), fill=(250, 150, 170, 255))                               # nariz
+    d.line((x + 29, 111, x + 32, 111), fill=black)                                  # bigodinho
+    d.point((x + 30, 112), fill=black)
 
 
 def grade(img):
@@ -303,8 +319,9 @@ def grade(img):
     return img
 
 
-# Bancos ocupados: o gaúcho atrás do jogador e o homem-cachorro mais à frente.
+# Bancos ocupados: o gato no banco do fundo, o gaúcho atrás do jogador e o homem-cachorro mais à frente.
 PASSENGERS = ((66, gaucho), (222, dog_man))
+CAT_SEAT = 14
 
 
 def passengers():
@@ -312,6 +329,7 @@ def passengers():
     d = ImageDraw.Draw(img)
     for seat_x, draw in PASSENGERS:
         draw(d, seat_x + 9)
+    cat(d, CAT_SEAT)
     return grade(img)
 
 
