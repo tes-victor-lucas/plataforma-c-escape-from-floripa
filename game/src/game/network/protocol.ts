@@ -38,7 +38,9 @@ type Point = Readonly<{ x: number; y: number }>;
 export type PlayerEffect =
     | { effect: 'shockwave' | 'explosion' | 'slash'; x: number; y: number; radius: number; color: number }
     | { effect: 'lightning'; points: readonly Point[]; color: number }
-    | { effect: 'beams'; origin: Point; angles: readonly number[]; length: number; color: number };
+    | { effect: 'beams'; origin: Point; angles: readonly number[]; length: number; color: number }
+    // Rajada espiral: o parceiro redesenha os fragmentos; o dano já foi resolvido por quem tem a carta.
+    | { effect: 'spiral'; x: number; y: number; startAngle: number; shards: number; range: number };
 
 export type EnemySpawnRow = Readonly<{
     kind: EnemyKind;

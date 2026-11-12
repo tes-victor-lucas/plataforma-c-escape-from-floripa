@@ -323,6 +323,11 @@ export class CombatSystem {
                     this.volleyCooldown = volleyInterval;
                     this.volleyQueued = volleyShards;
                     this.volleyGap = 0;
+                    // Só para o parceiro: aqui os fragmentos de verdade já aparecem.
+                    const origin = this.getCenter(this.player);
+                    this.network?.onPlayerEffect({
+                        effect: 'spiral', x: origin.x, y: origin.y, startAngle: this.volleyAngle, shards: volleyShards, range: volleyRange
+                    });
                 }
             }
             this.volleyGap -= delta;
@@ -550,6 +555,27 @@ export class CombatSystem {
         this.network?.onPlayerEffect(effect);
     }
 
+    /** Fragmentos só de enfeite, no mesmo ritmo, ângulo e velocidade dos de verdade, sem colisão nem dano. */
+    private playPartnerSpiral(effect: Extract<PlayerEffect, { effect: 'spiral' }>) {
+        const { launchGap, angleStep, speed } = SPIRAL_VOLLEY;
+        const duration = effect.range / speed * 1000;
+        for (let index = 0; index < effect.shards; index += 1) {
+            const angle = effect.startAngle + index * angleStep;
+            const parts = [
+                this.scene.add.circle(effect.x, effect.y, 5, 0xe90931, 0.55).setDepth(14).setBlendMode(1),
+                this.scene.add.circle(effect.x, effect.y, 2, 0xffffff).setDepth(15)
+            ];
+            this.scene.tweens.add({
+                targets: parts,
+                x: effect.x + Math.cos(angle) * effect.range,
+                y: effect.y + Math.sin(angle) * effect.range,
+                delay: index * launchGap,
+                duration,
+                onComplete: () => parts.forEach((part) => part.destroy())
+            });
+        }
+    }
+
     playPartnerEffect(effect: PlayerEffect) {
         switch (effect.effect) {
             case 'shockwave': return playShockwave(this.scene, effect.x, effect.y, effect.radius, effect.color);
@@ -557,6 +583,7 @@ export class CombatSystem {
             case 'lightning': return playLightning(this.scene, effect.points, effect.color);
             case 'beams': return playBeams(this.scene, effect.origin, effect.angles, effect.length, effect.color);
             case 'slash': return playSlash(this.scene, effect.x, effect.y, effect.radius, effect.color);
+            case 'spiral': return this.playPartnerSpiral(effect);
         }
     }
 
