@@ -104,11 +104,12 @@ import {
     type PlayerProgress
 } from '../progress/PlayerProgress';
 import {
+    COOP_CHECKPOINT_KEY,
     clearCampaignProgress,
     loadCampaignProgress,
     saveCampaignProgress
 } from '../progress/CampaignProgress';
-import { runTracker } from '../scoring/RunTracker';
+import { runTracker, type RunCheckpoint } from '../scoring/RunTracker';
 import { formatElapsedTime } from '../scoring/ScoreCalculator';
 import { SCORE_CONFIG } from '../config/score';
 import {
@@ -120,6 +121,8 @@ import {
 import { createLampLight } from '../map/createLampLights';
 import { getGamepadInput } from '../input/GamepadInput';
 import { isTouchScreen, touchInput } from '../input/TouchInput';
+
+type CoopCheckpoint = Readonly<{ roomKey: RoomKey; playerProgress: PlayerProgress; run?: RunCheckpoint }>;
 
 const PARTNER_PAUSE_TEXT: Record<PartnerPauseReason, string> = {
     pause: 'PARCEIRO PAUSOU',
@@ -642,9 +645,9 @@ export class World extends Scene {
         this.scene.launch('CombatHud', {
             player: this.player,
             onPause: () => this.openPauseMenu(),
-            // Recomeçar sozinho deixaria o parceiro em outra partida: volta ao menu.
+            // Em dupla, os dois recomeçam juntos do início da sala.
             onRestart: () => this.isMultiplayerEnabled()
-                ? this.returnToMainMenuFromDefeat()
+                ? this.retryCoopRoom()
                 : this.restartFromDefeatMenu(),
             onQuit: () => this.returnToMainMenuFromDefeat(),
             getDefeatTitle: () => this.mercadoNpcs?.hasRunOverPlayer ? MERCADO_NPCS.skaters.defeatTitle : undefined,
@@ -670,6 +673,34 @@ export class World extends Scene {
                 this.isWaveIntermissionOpen = false;
                 if (!this.isGameOver && !this.isPauseMenuOpen) this.physics.resume();
             });
+        });
+    }
+
+    /**
+     * TENTAR NOVAMENTE em dupla: quem apertar primeiro decide. O anfitrião recomeça e avisa; o convidado pede ao
+     * anfitrião. Sem checkpoint (perderam na Sala I), a dupla começa uma partida nova.
+     */
+    private retryCoopRoom() {
+        const roomKey = (this.registry.get(COOP_CHECKPOINT_KEY) as CoopCheckpoint | undefined)?.roomKey ?? 'room1';
+        if (this.isMultiplayerGuest()) {
+            multiplayerClient.sendEvent({ kind: 'room.request', roomKey, retry: true });
+            return;
+        }
+        multiplayerClient.sendEvent({ kind: 'room.transition', roomKey, retry: true });
+        this.restartCoopRoom(roomKey);
+    }
+
+    private restartCoopRoom(roomKey: RoomKey) {
+        const checkpoint = this.registry.get(COOP_CHECKPOINT_KEY) as CoopCheckpoint | undefined;
+        if (checkpoint?.roomKey === roomKey && checkpoint.run) runTracker.restore(checkpoint.run);
+        else runTracker.startNew('MULTIPLAYER');
+        replaceRequestedRoomKey(roomKey);
+        this.stopGameplayOverlays();
+        this.scene.restart({
+            waitForReveal: false,
+            roomKey,
+            spawn: ROOM_DEFINITIONS[roomKey].spawn,
+            ...(checkpoint?.roomKey === roomKey ? { playerProgress: checkpoint.playerProgress } : {})
         });
     }
 
@@ -2250,6 +2281,15 @@ export class World extends Scene {
         this.physics.pause();
         const playerProgress = capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected, this.ownedItems, this.equippedItems);
         const checkpointRooms: readonly RoomKey[] = ['room1', 'room2', 'room3', 'room4', 'room5', 'dungeon'];
+        if (this.isMultiplayerEnabled() && checkpointRooms.includes(roomKey)) {
+            // Em dupla o checkpoint fica só na memória da partida: o menu não continua partida em dupla.
+            const checkpoint: CoopCheckpoint = {
+                roomKey: roomKey === 'dungeon' ? 'room2' : roomKey,
+                playerProgress,
+                run: runTracker.checkpoint()
+            };
+            this.registry.set(COOP_CHECKPOINT_KEY, checkpoint);
+        }
         if (!this.isMultiplayerEnabled() && checkpointRooms.includes(roomKey)) {
             // Todo início de sala é checkpoint; a dungeon é uma rota secreta da fase 2.
             saveCampaignProgress({
@@ -3040,6 +3080,11 @@ export class World extends Scene {
                 break;
             }
             case 'room.request':
+                // Pedido de recomeço do convidado: vale só com a dupla derrotada aqui também, e só uma vez.
+                if (event.retry) {
+                    if (this.isMultiplayerHost() && this.isGameOver) this.retryCoopRoom();
+                    break;
+                }
                 if (this.isMultiplayerHost()) {
                     if (isDungeonRoom(event.roomKey)) this.dungeonState ??= createDungeonSessionState();
                     this.transitionToRoom(event.roomKey, {
@@ -3049,6 +3094,10 @@ export class World extends Scene {
                 }
                 break;
             case 'room.transition': {
+                if (event.retry) {
+                    if (this.isGameOver) this.restartCoopRoom(event.roomKey);
+                    break;
+                }
                 // A semente do anfitrião vence a criada aqui ao pisar na entrada: o mapa precisa ser igual.
                 if (event.seed !== undefined) {
                     this.dungeonState ??= createDungeonSessionState(event.seed);

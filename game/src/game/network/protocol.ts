@@ -78,8 +78,9 @@ export type CoopEvent =
     | { kind: 'combat.complete'; rewardClaimed: boolean }
     | { kind: 'cards.chosen' }
     | { kind: 'cards.released' }
-    | { kind: 'room.request'; roomKey: RoomKey; spawn?: Readonly<{ x: number; y: number }> }
-    | { kind: 'room.transition'; roomKey: RoomKey; spawn?: Readonly<{ x: number; y: number }>; seed?: number }
+    // retry: a dupla perdeu e recomeça do início da sala (o checkpoint que cada cliente guardou ao entrar nela).
+    | { kind: 'room.request'; roomKey: RoomKey; spawn?: Readonly<{ x: number; y: number }>; retry?: boolean }
+    | { kind: 'room.transition'; roomKey: RoomKey; spawn?: Readonly<{ x: number; y: number }>; seed?: number; retry?: boolean }
     /** O parceiro passou a catraca do TICEN com o cartão dele; ela fecha atrás de cada um. */
     | { kind: 'ticen.gate' }
     /** O anfitrião acordou o golem: o convidado entra na luta e mostra a barra. */

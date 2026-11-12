@@ -6,6 +6,7 @@ import { AUDIO_CONFIG } from '../config/audio';
 import { multiplayerClient } from '../network/MultiplayerClient';
 import { getMultiplayerStartRoom, replaceRequestedRoomKey } from '../config/rooms';
 import {
+    COOP_CHECKPOINT_KEY,
     clearCampaignProgress,
     loadCampaignProgress,
     type CampaignProgress
@@ -150,6 +151,8 @@ export class MainMenu extends Scene {
             await multiplayerClient.connect((status) => view.setStatus(status), roomName);
             if (attempt !== this.joinAttempt) return;
             this.registry.set('multiplayerEnabled', true);
+            // Partida nova em dupla: o checkpoint da anterior não vale mais.
+            this.registry.remove(COOP_CHECKPOINT_KEY);
             runTracker.startNew('MULTIPLAYER');
             // Sem `?start=`, a dupla começa na Sala I; com ele, as duas abas pulam para a mesma sala.
             const startRoom = getMultiplayerStartRoom();
