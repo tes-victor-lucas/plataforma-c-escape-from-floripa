@@ -4289,3 +4289,14 @@ test('baú da Sala I fica trancado com o aviso e só entrega as botas se a sala 
     fast.createItemChest('room1', false);
     assert.equal(fast.itemChest, undefined, 'quem já tem as botas encontra o baú aberto');
 });
+
+test('arrastar no inventário equipa ao soltar no boneco e guarda ao soltar na grade', () => {
+    const { shouldToggleOnDrop } = load('../src/game/ui/InventoryMenuView.ts');
+    const doll = [330, 170];
+    const grid = [260, 330];
+    assert.equal(shouldToggleOnDrop(false, ...doll), true, 'guardado solto no boneco equipa');
+    assert.equal(shouldToggleOnDrop(false, ...grid), false, 'guardado solto na própria grade volta ao lugar');
+    assert.equal(shouldToggleOnDrop(true, ...grid), true, 'equipado solto na grade é retirado');
+    assert.equal(shouldToggleOnDrop(true, ...doll), false, 'equipado solto no boneco continua vestido');
+    assert.equal(shouldToggleOnDrop(false, 700, 170), false, 'fora das áreas nada muda');
+});
