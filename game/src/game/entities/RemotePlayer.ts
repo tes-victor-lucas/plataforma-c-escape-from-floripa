@@ -33,6 +33,8 @@ export class RemotePlayer {
     private position: { x: number; y: number };
     private lastSequence = -1;
     private facing: Direction = 'down';
+    /** Espada da disputa do TICEN: o parceiro também luta com ela na mão. */
+    private heldSword?: Phaser.GameObjects.Image;
     private reviveProgress = 0;
     revivesLeft: number = COMBAT_CONFIG.multiplayer.maxRevives;
     private characterId: CharacterId = 'padrao';
@@ -105,6 +107,10 @@ export class RemotePlayer {
         this.center.x = this.sprite.x + feetOffset.x;
         this.center.y = this.sprite.y + feetOffset.y;
         this.sprite.setDepth(getActorDepth(this.center.y));
+        // Mesma posição da espada do jogador local: na mão do lado para onde olha, atrás do corpo de costas.
+        const side = this.facing === 'left' ? -1 : 1;
+        this.heldSword?.setPosition(this.center.x + side * 5, this.center.y - 6).setScale(side * 0.7, 0.7)
+            .setDepth(this.sprite.depth + (this.facing === 'up' ? -0.0001 : 0.0001));
 
         const isAlive = this.health.isAlive;
         this.sprite.setAngle(isAlive ? 0 : 90);
@@ -166,7 +172,19 @@ export class RemotePlayer {
         }
     }
 
+    holdSword() {
+        this.heldSword ??= this.sprite.scene.add.image(this.center.x, this.center.y, 'sword').setOrigin(0.15, 0.85);
+    }
+
+    /** O golpe do parceiro já desenha a espada girando: a parada some enquanto ele dura. */
+    hideSwordFor(duration: number) {
+        if (!this.heldSword) return;
+        this.heldSword.setVisible(false);
+        this.sprite.scene.time.delayedCall(duration, () => this.heldSword?.setVisible(true));
+    }
+
     destroy() {
+        this.heldSword?.destroy();
         for (const detach of this.wornItems.values()) detach();
         this.wornItems.clear();
         for (const spark of this.orbitSparks) spark.destroy();

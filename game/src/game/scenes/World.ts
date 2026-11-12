@@ -1524,6 +1524,7 @@ export class World extends Scene {
         this.upgrades.reset();
         this.combat?.enterSwordDuel();
         const partner = [...this.remotePlayers.values()][0];
+        partner?.holdSword();
         if (this.combat && partner) {
             this.combat.duelTarget = {
                 center: partner.feet,
@@ -2786,6 +2787,7 @@ export class World extends Scene {
                 this.combat?.spawnPartnerShot(event.x, event.y, event.angle, event.speed, event.color, event.pierces);
                 break;
             case 'player.swing':
+                for (const partner of this.remotePlayers.values()) partner.hideSwordFor(COMBAT_CONFIG.melee.swingDuration);
                 this.combat?.playPartnerSwing(event.x, event.y, event.angle, event.flame === true);
                 break;
             case 'player.effect':
