@@ -21,6 +21,7 @@ type VictoryPayload = Readonly<{
     dungeonsCompleted: number;
     multiKills: readonly number[];
     arcadeWon: boolean;
+    topazAllCollected: boolean;
     pausedMs: number;
 }>;
 

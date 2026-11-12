@@ -18,3 +18,6 @@ A fórmula v3 soma `arcadePoints`: 5.000 pontos quando `arcadeWon` é verdadeiro
 fliperama CAIXOTES do Mercado Público). O cliente também envia `pausedMs`, o tempo passado no
 fliperama, e a Lambda desconta esse valor do tempo da run, com teto de 360.000 ms (duas tentativas
 de três minutos). Os dois campos são declarados pelo cliente, como as mortes e as dungeons.
+
+A fórmula v4 soma `topazPoints`: 2.000 pontos quando `topazAllCollected` é verdadeiro (o jogador
+pegou os 14 topázios que o Golem de Topázio derruba no TICEN). Também é declarado pelo cliente.

@@ -8,6 +8,7 @@ export type ScoreBreakdown = Readonly<{
     multiKillPoints: number;
     damagePoints: number;
     arcadePoints: number;
+    topazPoints: number;
     total: number;
 }>;
 
@@ -20,6 +21,7 @@ export type ScoreInput = Readonly<{
     hitsTaken: number;
     multiKillBonuses: readonly number[];
     arcadeWon?: boolean;
+    topazAllCollected?: boolean;
 }>;
 
 export function calculateTimePoints(elapsedTimeMs: number) {
@@ -58,9 +60,11 @@ export function calculateScore(input: ScoreInput): ScoreBreakdown {
     );
     const damagePoints = completed ? calculateDamagePoints(input.hitsTaken) : 0;
     const arcadePoints = input.arcadeWon ? SCORE_CONFIG.arcade.winBonus : 0;
+    const topazPoints = input.topazAllCollected ? SCORE_CONFIG.topazBonus : 0;
     const total = Math.max(
         0,
         victoryPoints + dungeonPoints + timePoints + enemyPoints + multiKillPoints + damagePoints + arcadePoints
+            + topazPoints
     );
     return {
         victoryPoints,
@@ -70,6 +74,7 @@ export function calculateScore(input: ScoreInput): ScoreBreakdown {
         multiKillPoints,
         damagePoints,
         arcadePoints,
+        topazPoints,
         total
     };
 }
