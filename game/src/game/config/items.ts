@@ -178,8 +178,8 @@ export const ITEM_CHESTS: Partial<Record<RoomKey, Readonly<{
 }>>> = {
     // À direita do balcão do TCHAY, fora da fila.
     room1: { x: 640, y: 88, item: 'silver-boots', timeLimitMs: 90_000, roomName: 'SALA I' },
-    // Ao pé da escada do Centro Cultural da Marinha.
-    room2: { x: 264, y: 270, item: 'diamond-boots', timeLimitMs: 180_000, roomName: 'SALA II' }
+    // No alto da escada do Centro Cultural da Marinha, logo abaixo da placa.
+    room2: { x: 216, y: 188, item: 'diamond-boots', timeLimitMs: 180_000, roomName: 'SALA II' }
 };
 
 /** Itens vestidos viram um número, um bit por item na ordem de ITEM_IDS: cabe no estado enviado 20 vezes por segundo. */
