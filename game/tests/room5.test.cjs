@@ -173,3 +173,11 @@ test('golem dorme entre as plataformas, longe da catraca, e acorda antes do joga
     assert.ok(bounds.bottom + feetOffset < TICEN_GATE.y, 'não desce até a catraca');
     assert.ok(spawn.x >= bounds.left && spawn.x <= bounds.right && spawn.y >= bounds.top && spawn.y <= bounds.bottom);
 });
+
+test('folha do golem tem as 16 linhas que o chefe usa, com o giro de frente e de costas no fim', () => {
+    const { TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const png = readFileSync(path.resolve(__dirname, '../public', TOPAZIO_BOSS.path));
+    // Largura e altura ficam no cabeçalho IHDR do PNG.
+    assert.equal(png.readUInt32BE(16), TOPAZIO_BOSS.frameSize * 4);
+    assert.equal(png.readUInt32BE(20), TOPAZIO_BOSS.frameSize * 16);
+});
