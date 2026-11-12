@@ -1,3 +1,4 @@
+import type { FeetFit } from './characters';
 import type { RoomKey } from './rooms';
 
 /** Itens de equipar guardados no inventário; cada um entra aqui quando for implementado. */
@@ -8,19 +9,26 @@ export type EquipmentSlot = 'CABEÇA' | 'CORPO' | 'MÃOS' | 'PÉS';
 export const ITEM_IDS: readonly ItemId[] = ['gaucho-hat', 'helmet', 'rubber-boots', 'silver-boots', 'diamond-boots'];
 
 /** Pixel art do item: retângulos [x, y, largura, altura, cor] desenhados uma vez numa textura. */
-type ItemPixels = readonly (readonly [number, number, number, number, number])[];
+export type ItemPixels = readonly (readonly [number, number, number, number, number])[];
 
-/** Par de botas 14x5 com a sola escura; só as cores mudam de um par para o outro. */
-function bootPixels(color: number, shine: number): ItemPixels {
+// Medida das pernas do personagem padrão: o ícone do inventário usa essa.
+const DEFAULT_FEET = { legWidth: 6, gap: 2 };
+
+/**
+ * Par de botas de 5 px de altura, uma por perna: cano um pixel mais estreito por dentro, pé e sola na largura toda.
+ * Largura total = duas pernas mais o vão.
+ */
+export function bootPixels(color: number, shine: number, { legWidth, gap }: Pick<FeetFit, 'legWidth' | 'gap'> = DEFAULT_FEET): ItemPixels {
+    const right = legWidth + gap;
     return [
-        [1, 0, 4, 3, color],
-        [9, 0, 4, 3, color],
+        [1, 0, legWidth - 1, 3, color],
+        [right, 0, legWidth - 1, 3, color],
         [1, 0, 1, 3, shine],
-        [9, 0, 1, 3, shine],
-        [0, 3, 6, 1, color],
-        [8, 3, 6, 1, color],
-        [0, 4, 6, 1, 0x101018],
-        [8, 4, 6, 1, 0x101018]
+        [right, 0, 1, 3, shine],
+        [0, 3, legWidth, 1, color],
+        [right, 3, legWidth, 1, color],
+        [0, 4, legWidth, 1, 0x101018],
+        [right, 4, legWidth, 1, 0x101018]
     ];
 }
 
@@ -41,6 +49,8 @@ export type ItemDefinition = Readonly<{
     width: number;
     height: number;
     pixels: ItemPixels;
+    /** Só as botas: desenho refeito na medida das pernas de cada personagem. */
+    fitFeet?: (feet: FeetFit) => ItemPixels;
 }>;
 
 /** Chapéu campeiro: cai quando todos os gaúchos do esconderijo morrem e bloqueia parte dos golpes. */
@@ -109,7 +119,8 @@ export const RUBBER_BOOTS: ItemDefinition = {
     // 14x5: duas botas verdes de borracha com a sola escura.
     width: 14,
     height: 5,
-    pixels: bootPixels(0x2e7d4a, 0x56b070)
+    pixels: bootPixels(0x2e7d4a, 0x56b070),
+    fitFeet: (feet) => bootPixels(0x2e7d4a, 0x56b070, feet)
 };
 
 /** Botas de prata do baú da Sala I: um pouco mais de velocidade. */
@@ -125,7 +136,8 @@ export const SILVER_BOOTS: ItemDefinition = {
     description: 'BOTAS DE PRATA, GUARDADAS NUM BAÚ.\nANDA 10% MAIS RÁPIDO.',
     width: 14,
     height: 5,
-    pixels: bootPixels(0x9aa4b4, 0xe6ecf4)
+    pixels: bootPixels(0x9aa4b4, 0xe6ecf4),
+    fitFeet: (feet) => bootPixels(0x9aa4b4, 0xe6ecf4, feet)
 };
 
 /** Botas de diamante do baú da Marinha, na Sala II: o dash recarrega mais rápido. */
@@ -141,7 +153,8 @@ export const DIAMOND_BOOTS: ItemDefinition = {
     description: 'BOTAS DE DIAMANTE, GUARDADAS NUM BAÚ.\nO DASH RECARREGA 40% MAIS RÁPIDO.',
     width: 14,
     height: 5,
-    pixels: bootPixels(0x35c8e0, 0xc8f6ff)
+    pixels: bootPixels(0x35c8e0, 0xc8f6ff),
+    fitFeet: (feet) => bootPixels(0x35c8e0, 0xc8f6ff, feet)
 };
 
 export const ITEMS: Readonly<Record<ItemId, ItemDefinition>> = {
