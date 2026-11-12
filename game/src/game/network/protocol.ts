@@ -2,6 +2,7 @@ import type { EnemyKind } from '../config/combat';
 import type { RoomKey } from '../config/rooms';
 import type { CharacterId } from '../config/characters';
 import type { Direction } from '../entities/Player';
+import type { GolemAction } from '../entities/TopazioGolem';
 
 export type MatchReadyMessage = {
     type: 'match.ready';
@@ -47,7 +48,7 @@ export type EnemySpawnRow = Readonly<{
 }>;
 
 /** Estado visual de um inimigo; `null` quando ele já morreu no cliente anfitrião. */
-export type EnemySnapshotRow = readonly [x: number, y: number, health: number, frame: string | number, flipX: 0 | 1] | null;
+export type EnemySnapshotRow = readonly [x: number, y: number, health: number, frame: string | number, flipX: 0 | 1, scaleX?: number] | null;
 
 export type CoopEvent =
     | { kind: 'enemy.spawn'; enemies: readonly EnemySpawnRow[] }
@@ -69,7 +70,13 @@ export type CoopEvent =
     | { kind: 'cards.chosen' }
     | { kind: 'cards.released' }
     | { kind: 'room.request'; roomKey: RoomKey; spawn?: Readonly<{ x: number; y: number }> }
-    | { kind: 'room.transition'; roomKey: RoomKey; spawn?: Readonly<{ x: number; y: number }>; seed?: number };
+    | { kind: 'room.transition'; roomKey: RoomKey; spawn?: Readonly<{ x: number; y: number }>; seed?: number }
+    /** O parceiro passou a catraca do TICEN com o cartão dele; ela fecha atrás de cada um. */
+    | { kind: 'ticen.gate' }
+    /** O anfitrião acordou o golem: o convidado entra na luta e mostra a barra. */
+    | { kind: 'boss.wake' }
+    /** Cada golpe do golem do anfitrião, para o espelho do convidado repetir. */
+    | { kind: 'boss.action'; action: GolemAction };
 
 export type ServerMessage =
     | { type: 'session.welcome'; playerId: string }

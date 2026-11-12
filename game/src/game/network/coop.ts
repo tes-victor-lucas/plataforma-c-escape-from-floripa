@@ -73,13 +73,14 @@ export class CardBarrier {
 
 export function createEnemySnapshotRow(enemy: CombatEnemy): EnemySnapshotRow {
     if (!enemy.health.isAlive) return null;
-    return [
-        Math.round(enemy.sprite.x * 10) / 10,
-        Math.round(enemy.sprite.y * 10) / 10,
-        enemy.health.current,
-        enemy.sprite.frame.name,
-        enemy.sprite.flipX ? 1 : 0
-    ];
+    const x = Math.round(enemy.sprite.x * 10) / 10;
+    const y = Math.round(enemy.sprite.y * 10) / 10;
+    const flipX = enemy.sprite.flipX ? 1 : 0;
+    // Só o golem manda a escala: é como o giro em pé aparece no convidado.
+    if (enemy.kind === 'golem') {
+        return [x, y, enemy.health.current, enemy.sprite.frame.name, flipX, Math.round(enemy.sprite.scaleX * 100) / 100];
+    }
+    return [x, y, enemy.health.current, enemy.sprite.frame.name, flipX];
 }
 
 /**

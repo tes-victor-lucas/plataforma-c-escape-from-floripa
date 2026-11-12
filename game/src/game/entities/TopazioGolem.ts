@@ -11,6 +11,21 @@ type Point = Readonly<{ x: number; y: number }>;
 type Action = 'walk' | 'slam' | 'spin' | 'fetch' | 'hold' | 'roar' | 'dead';
 type TicenBus = Readonly<{ route: number; col: number; row: number }>;
 
+/** O que o golem do anfitrião faz e o espelho do convidado repete, com o que precisa para repetir igual. */
+export type GolemAction =
+    | { type: 'slam'; ox: number; oy: number; tx: number; ty: number }
+    | { type: 'spin' }
+    | { type: 'lift'; route: number }
+    | { type: 'throw'; tx: number; ty: number }
+    | { type: 'roar'; caption: string }
+    | { type: 'defeated' };
+
+type GolemOptions = Readonly<{
+    /** Convidado do multiplayer: sem decisões nem movimento, só repete as ações do anfitrião. */
+    mirror?: boolean;
+    onAction?: (action: GolemAction) => void;
+}>;
+
 // Linhas da folha (assets/topazio/gen_golem.py): estágio * 3 + animação; 13 é a morte.
 const ROW_IDLE = 0;
 const ROW_WALK = 1;
@@ -70,7 +85,8 @@ export class TopazioGolem implements CombatEnemy {
         private readonly busTexture: string,
         private readonly onDefeated: () => void,
         private readonly onRoar: (caption: string) => void,
-        private readonly onGemCollected: (collected: number, total: number) => void = () => undefined
+        private readonly onGemCollected: (collected: number, total: number) => void = () => undefined,
+        private readonly options: GolemOptions = {}
     ) {
         const { spawn, texture, hitbox } = TOPAZIO_BOSS;
         this.sprite = scene.physics.add.sprite(spawn.x, spawn.y, texture, 0).setDepth(TOPAZIO_BOSS.depth);
@@ -90,6 +106,53 @@ export class TopazioGolem implements CombatEnemy {
         this.updateFrame();
     }
 
+    private get isMirror() {
+        return this.options.mirror === true;
+    }
+
+    private emit(action: GolemAction) {
+        if (!this.isMirror) this.options.onAction?.(action);
+    }
+
+    /**
+     * Espelho do convidado: repete a ação que o golem do anfitrião acabou de fazer. A posição, o quadro e a
+     * vida chegam pelo snapshot; aqui ficam os golpes, que machucam o jogador deste lado.
+     */
+    applyRemoteAction(action: GolemAction) {
+        if (!this.health.isAlive) return;
+        switch (action.type) {
+            case 'slam':
+                this.startAction('slam');
+                this.hasSlammed = true;
+                this.playSlamImpact({ x: action.ox, y: action.oy });
+                this.eruptChains({ x: action.ox, y: action.oy }, { x: action.tx, y: action.ty });
+                break;
+            case 'spin':
+                this.startAction('spin');
+                this.spinBursts = 0;
+                this.playSpinSound();
+                break;
+            case 'lift': {
+                const bus = this.buses.find(({ route }) => route === action.route);
+                if (!bus) break;
+                this.buses.splice(this.buses.indexOf(bus), 1);
+                this.liftBus(bus, this.busCenter(bus));
+                break;
+            }
+            case 'throw':
+                this.throwBus({ x: action.tx, y: action.ty });
+                break;
+            case 'roar':
+                this.roarsDone += 1;
+                this.onRoar(action.caption);
+                break;
+            case 'defeated':
+                this.health.current = 0;
+                this.finishDeath();
+                break;
+        }
+    }
+
     get isThrowingBus() {
         return this.action === 'fetch' || this.action === 'hold';
     }
@@ -101,11 +164,21 @@ export class TopazioGolem implements CombatEnemy {
         this.actionTime += delta;
         this.animTime += delta;
         const target = player?.health.isAlive ? player.sprite.body?.center ?? player.sprite : undefined;
-        if (player && target && this.scene.physics.overlap(this.sprite, player.sprite)) {
-            player.takeDamage(TOPAZIO_BOSS.contactDamage);
+        // O contato machuca só o jogador deste cliente: no anfitrião o alvo pode ser o parceiro, que não tem corpo aqui.
+        if (this.player.health.isAlive && this.scene.physics.overlap(this.sprite, this.player.sprite)) {
+            this.player.takeDamage(TOPAZIO_BOSS.contactDamage);
         }
         body.setVelocity(0, 0);
         this.hitBySpikes();
+        if (this.isMirror) {
+            // Espelho: posição e quadro vêm do anfitrião; aqui só correm o giro e o ônibus erguido.
+            if (this.action === 'spin') this.updateSpin(body, undefined);
+            if (this.action === 'hold') {
+                this.updateHold(this.player.health.isAlive ? this.player.sprite.body?.center : undefined);
+                if (this.actionTime >= TOPAZIO_BOSS.bus.liftTime) this.heldBus?.setPosition(this.sprite.x, this.sprite.y - 64);
+            }
+            return;
+        }
         switch (this.action) {
             case 'walk': this.updateWalk(body, target, delta); break;
             case 'slam': this.updateSlam(target); break;
@@ -128,7 +201,8 @@ export class TopazioGolem implements CombatEnemy {
         const previous = this.health.current;
         this.health.takeDamage(amount);
         // Os ônibus e as cutscenes que faltam acontecem antes do fim: só o 763.2 pode sobrar no TICEN.
-        if (!this.health.isAlive && (this.buses.length > 0 || this.isThrowingBus || this.roarsDone < ROAR_THRESHOLDS.length)) {
+        // No espelho a morte só chega pelo aviso do anfitrião.
+        if (!this.health.isAlive && (this.isMirror || this.buses.length > 0 || this.isThrowingBus || this.roarsDone < ROAR_THRESHOLDS.length)) {
             this.health.current = 1;
             // O golpe final fica guardado: ele morre sozinho assim que terminar o que falta (updateWalk).
             this.isDeathDeferred = true;
@@ -190,6 +264,7 @@ export class TopazioGolem implements CombatEnemy {
             this.roarsDone += 1;
             this.startAction('roar');
             this.onRoar(caption);
+            this.emit({ type: 'roar', caption });
             return;
         }
         if (this.busesThrown + (this.fetching ? 1 : 0) < countThresholdsCrossed(this.health.current, this.health.max, TOPAZIO_BOSS.busThresholds)
@@ -210,11 +285,8 @@ export class TopazioGolem implements CombatEnemy {
             this.hasSlammed = false;
             this.spinBursts = 0;
             if (this.nextAttack === 'spin') {
-                // O som tem a duração do giro; guardado para parar se ele morrer girando.
-                const { key, volume } = AUDIO_CONFIG.effects.golemSpin;
-                this.spinSound = this.scene.sound.add(key, { volume });
-                this.spinSound.once('complete', () => this.spinSound?.destroy());
-                this.spinSound.play();
+                this.playSpinSound();
+                this.emit({ type: 'spin' });
             }
             // Mais pancadas do que giros; nunca dois giros seguidos.
             this.nextAttack = this.nextAttack === 'spin' || Math.random() < 0.6 ? 'slam' : 'spin';
@@ -226,6 +298,21 @@ export class TopazioGolem implements CombatEnemy {
         if (distance > 40) body.setVelocity(dx / distance * TOPAZIO_BOSS.speed, dy / distance * TOPAZIO_BOSS.speed);
     }
 
+    /** O som tem a duração do giro; guardado para parar se ele morrer girando. */
+    private playSpinSound() {
+        const { key, volume } = AUDIO_CONFIG.effects.golemSpin;
+        this.spinSound = this.scene.sound.add(key, { volume });
+        this.spinSound.once('complete', () => this.spinSound?.destroy());
+        this.spinSound.play();
+    }
+
+    private playSlamImpact(feet: Point) {
+        const { key, volume } = AUDIO_CONFIG.effects.golemSlam;
+        this.scene.sound.play(key, { volume });
+        this.scene.cameras.main.shake(140, 0.005);
+        playShockwave(this.scene, feet.x, feet.y, 40, 0xffa040);
+    }
+
     private finishAttack() {
         this.restTimer = TOPAZIO_BOSS.rest[this.stage];
         this.startAction('walk');
@@ -235,12 +322,12 @@ export class TopazioGolem implements CombatEnemy {
         const { windup, recover } = TOPAZIO_BOSS.slam;
         if (!this.hasSlammed && this.actionTime >= windup) {
             this.hasSlammed = true;
-            const { key, volume } = AUDIO_CONFIG.effects.golemSlam;
-            this.scene.sound.play(key, { volume });
             const feet = { x: this.sprite.x, y: this.sprite.y + TOPAZIO_BOSS.feetOffset - 8 };
-            this.scene.cameras.main.shake(140, 0.005);
-            playShockwave(this.scene, feet.x, feet.y, 40, 0xffa040);
-            if (target) this.eruptChains(feet, target);
+            this.playSlamImpact(feet);
+            if (target) {
+                this.eruptChains(feet, target);
+                this.emit({ type: 'slam', ox: feet.x, oy: feet.y, tx: target.x, ty: target.y });
+            }
         }
         if (this.actionTime >= windup + recover) this.finishAttack();
     }
@@ -415,6 +502,7 @@ export class TopazioGolem implements CombatEnemy {
         }
         const frame = getBusFrame(this.scene, this.busTexture, bus.route);
         this.heldBus = this.scene.add.image(center.x, center.y, this.busTexture, frame).setDepth(21);
+        this.emit({ type: 'lift', route: bus.route });
         this.busMarker = this.scene.add.graphics().setDepth(3);
         this.fetching = undefined;
         this.startAction('hold');
@@ -438,14 +526,15 @@ export class TopazioGolem implements CombatEnemy {
                 .lineStyle(2, 0xff3048, 0.9).strokeEllipse(target.x, target.y + 6, radius * 2, radius);
             this.busMarker.setData('target', { x: target.x, y: target.y });
         }
-        if (this.actionTime < liftTime + holdTime) return;
+        if (this.isMirror || this.actionTime < liftTime + holdTime) return;
         this.throwBus();
     }
 
-    private throwBus() {
+    private throwBus(remoteTarget?: Point) {
         const image = this.heldBus;
         const marker = this.busMarker;
-        const target = (marker?.getData('target') as Point | undefined) ?? { x: this.sprite.x, y: this.sprite.y + 80 };
+        const target = remoteTarget ?? (marker?.getData('target') as Point | undefined) ?? { x: this.sprite.x, y: this.sprite.y + 80 };
+        this.emit({ type: 'throw', tx: target.x, ty: target.y });
         this.heldBus = undefined;
         this.busMarker = undefined;
         // Conta já no arremesso: durante o voo ele não pode sair atrás do próximo.
@@ -547,6 +636,7 @@ export class TopazioGolem implements CombatEnemy {
     }
 
     private finishDeath() {
+        this.emit({ type: 'defeated' });
         this.startAction('dead');
         this.spinSound?.stop();
         this.sweepBack?.clear();

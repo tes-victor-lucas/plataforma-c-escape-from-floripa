@@ -179,6 +179,10 @@ export class World extends Scene {
     private isWalletOpen = false;
     private isTicenGateArmed = true;
     private isTicenGateOpen = false;
+    /** A catraca fecha atrás de quem passa; isto lembra que o jogador local já entrou no terminal. */
+    private hasPassedTicenGate = false;
+    private hasPartnerPassedTicenGate = false;
+    private ticenRailTiles: Phaser.Tilemaps.Tile[] = [];
     private ticenGate?: Phaser.GameObjects.Sprite;
     private ticenGateHint?: Phaser.GameObjects.Text;
     private golem?: TopazioGolem;
@@ -255,6 +259,9 @@ export class World extends Scene {
         this.isWalletOpen = false;
         this.isTicenGateArmed = true;
         this.isTicenGateOpen = false;
+        this.hasPassedTicenGate = false;
+        this.hasPartnerPassedTicenGate = false;
+        this.ticenRailTiles = [];
         this.ticenGate = undefined;
         this.ticenGateHint = undefined;
         this.golem = undefined;
@@ -434,8 +441,8 @@ export class World extends Scene {
             roomKey === 'gaucho-dungeon'
         );
         this.combat.shotMultipliers = getPlayerShotMultipliers(roomKey);
-        // shortcut: o chefe só existe na partida solo; no multiplayer o convidado não sabe criar o golem pelo snapshot.
-        if (isTicenRoom(roomKey) && !this.isMultiplayerEnabled()) {
+        // No multiplayer o anfitrião decide o golem e o convidado tem um espelho que repete as ações dele.
+        if (isTicenRoom(roomKey)) {
             this.golem = new TopazioGolem(
                 this,
                 this.player,
@@ -451,6 +458,12 @@ export class World extends Scene {
                         return;
                     }
                     this.showFloatingHint(`TOPAZIO ${collected}/${total}`);
+                },
+                {
+                    mirror: this.isMultiplayerGuest(),
+                    onAction: (action) => {
+                        if (this.isMultiplayerHost()) multiplayerClient.sendEvent({ kind: 'boss.action', action });
+                    }
                 }
             );
         }
@@ -664,6 +677,8 @@ export class World extends Scene {
         this.stairClimbEffect?.update();
         if (this.isMultiplayerGuest()) {
             this.updateEnemiesFromSnapshot();
+            // O espelho do golem corre o giro e o ônibus erguido deste lado, com o dano no jogador local.
+            if (this.isGolemAwake) this.golem?.update(this.player, delta);
         } else {
             for (const enemy of this.drones) {
                 enemy.update(this.getEnemyTarget(enemy.sprite) as Player | undefined, delta);
@@ -1137,8 +1152,13 @@ export class World extends Scene {
 
     /** Chegar na catraca abre a carteira; usar o cartão libera a passagem. */
     private updateTicenGate() {
-        if (!isTicenRoom(this.activeRoomKey) || !this.player || this.isTicenGateOpen) return;
+        if (!isTicenRoom(this.activeRoomKey) || !this.player) return;
         const center = this.player.sprite.body?.center ?? this.player.sprite;
+        if (this.isTicenGateOpen) {
+            // Passou para dentro do terminal: a catraca fecha atrás, e quem vem depois passa o próprio cartão.
+            if (center.y < TICEN_GATE.y - TICEN_GATE.passedMargin) this.closeTicenGateBehind();
+            return;
+        }
         const { approach, triggerDistance, rearmDistance, hintDistance } = TICEN_GATE;
         const distance = Math.hypot(center.x - approach.x, center.y - approach.y);
         this.ticenGateHint?.setVisible(distance <= hintDistance);
@@ -1166,9 +1186,20 @@ export class World extends Scene {
 
     /** O golem dorme até o jogador passar a catraca e subir para a Plataforma D; só então entra no combate. */
     private wakeGolem() {
-        if (!this.golem || this.isGolemAwake || !this.isTicenGateOpen || !this.player) return;
-        const { y } = this.player.sprite.body?.center ?? this.player.sprite;
-        if (y > TOPAZIO_BOSS.wakeY) return;
+        // No multiplayer quem acorda o golem é o anfitrião, quando qualquer um dos dois sobe depois da catraca.
+        if (!this.golem || this.isGolemAwake || !this.player || this.isMultiplayerGuest()) return;
+        const local = this.player.sprite.body?.center ?? this.player.sprite;
+        const partner = [...this.remotePlayers.values()][0]?.feet;
+        const isLocalUp = this.hasPassedTicenGate && local.y <= TOPAZIO_BOSS.wakeY;
+        const isPartnerUp = this.hasPartnerPassedTicenGate && !!partner && partner.y <= TOPAZIO_BOSS.wakeY;
+        if (!isLocalUp && !isPartnerUp) return;
+        if (this.isMultiplayerHost()) multiplayerClient.sendEvent({ kind: 'boss.wake' });
+        this.awakenGolem();
+    }
+
+    /** Entra no combate e mostra a barra; no convidado chega pelo aviso do anfitrião. */
+    private awakenGolem() {
+        if (!this.golem || this.isGolemAwake) return;
         this.isGolemAwake = true;
         this.drones.push(this.golem);
         this.combat?.registerEnemy(this.golem);
@@ -1304,13 +1335,38 @@ export class World extends Scene {
         this.isTicenGateOpen = true;
         this.ticenGateHint?.setVisible(false);
         const { openFrameDuration, railLayer, row, widenCols } = TICEN_GATE;
-        [1, 2, 3].forEach((frame, index) => {
-            this.time.delayedCall(openFrameDuration * index, () => this.ticenGate?.setFrame(frame));
-        });
+        this.playTicenGateFrames([1, 2, 3]);
         this.time.delayedCall(openFrameDuration * 2, () => {
             // A máquina continua sólida; a passagem abre na grade dos dois lados dela.
             const rails = this.collisionLayers.find((layer) => layer.layer.name === railLayer);
-            for (const col of widenCols) rails?.removeTileAt(col, row);
+            this.ticenRailTiles = widenCols.flatMap((col) => {
+                const tile = rails?.removeTileAt(col, row);
+                return tile ? [tile] : [];
+            });
+        });
+    }
+
+    /** Quem passou entra no terminal e a catraca volta a fechar a passagem, avisando o parceiro. */
+    private closeTicenGateBehind() {
+        this.isTicenGateOpen = false;
+        this.hasPassedTicenGate = true;
+        const rails = this.collisionLayers.find((layer) => layer.layer.name === TICEN_GATE.railLayer);
+        for (const tile of this.ticenRailTiles) rails?.putTileAt(tile, tile.x, tile.y);
+        this.ticenRailTiles = [];
+        this.playTicenGateFrames([2, 1, 0]);
+        if (this.isMultiplayerEnabled()) multiplayerClient.sendEvent({ kind: 'ticen.gate' });
+    }
+
+    /** O parceiro passou a catraca dele: aqui ela só gira e fecha, sem abrir a passagem. */
+    private playPartnerTicenGate() {
+        this.hasPartnerPassedTicenGate = true;
+        if (this.isTicenGateOpen) return;
+        this.playTicenGateFrames([1, 2, 3, 3, 2, 1, 0]);
+    }
+
+    private playTicenGateFrames(frames: readonly number[]) {
+        frames.forEach((frame, index) => {
+            this.time.delayedCall(TICEN_GATE.openFrameDuration * index, () => this.ticenGate?.setFrame(frame));
         });
     }
 
@@ -2107,6 +2163,8 @@ export class World extends Scene {
             const row = this.enemySnapshot[index];
             if (!row || !enemy.health.isAlive) continue;
             enemy.sprite.anims.stop();
+            // O golem afina na horizontal quando gira; os outros inimigos não mandam escala.
+            if (row[5] !== undefined) enemy.sprite.setScale(row[5], 1);
             enemy.sprite.setFrame(row[3]).setFlipX(row[4] === 1).setPosition(
                 Phaser.Math.Linear(enemy.sprite.x, row[0], 0.35),
                 Phaser.Math.Linear(enemy.sprite.y, row[1], 0.35)
@@ -2238,6 +2296,15 @@ export class World extends Scene {
                 });
                 break;
             }
+            case 'ticen.gate':
+                this.playPartnerTicenGate();
+                break;
+            case 'boss.wake':
+                this.awakenGolem();
+                break;
+            case 'boss.action':
+                this.golem?.applyRemoteAction(event.action);
+                break;
             case 'world.ready':
                 break;
         }

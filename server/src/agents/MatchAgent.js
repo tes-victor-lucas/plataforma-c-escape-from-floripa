@@ -4,7 +4,9 @@ const EVENT_KINDS = new Set([
     'enemy.spawn', 'enemy.snapshot', 'enemy.shot', 'enemy.hit', 'enemy.killed',
     'player.shot', 'player.damage', 'world.ready', 'wave.intermission', 'combat.complete',
     'cards.chosen', 'cards.released', 'room.request', 'room.transition',
-    'player.swing', 'enemy.strike', 'item.drop', 'item.collected', 'player.effect'
+    'player.swing', 'enemy.strike', 'item.drop', 'item.collected', 'player.effect',
+    // Sala V: catraca de um em um e o golem decidido pelo anfitrião.
+    'ticen.gate', 'boss.wake', 'boss.action'
 ]);
 const MAX_EVENT_BYTES = 16_384;
 

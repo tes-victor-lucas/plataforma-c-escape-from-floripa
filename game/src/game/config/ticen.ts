@@ -8,6 +8,8 @@ export const TICEN_GATE = {
     // Encostado na catraca, vindo da calçada: é dali que o jogador passa o cartão.
     approach: { x: 384, y: 598 },
     triggerDistance: 16,
+    // Já dentro do terminal: a catraca fecha atrás de quem passou, e o próximo usa o próprio cartão.
+    passedMargin: 14,
     // Quem fechou a carteira sem usar o cartão precisa se afastar para ela abrir de novo.
     rearmDistance: 64,
     blockerLayer: 'catraca-fechada',
