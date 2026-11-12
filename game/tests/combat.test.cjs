@@ -3267,12 +3267,12 @@ test('antes da horda maior as cartas de área vêm garantidas', () => {
     }
 
     const upgrades = new PlayerUpgradeState();
-    for (const id of AREA_UPGRADE_IDS.slice(0, 5)) {
+    for (const id of AREA_UPGRADE_IDS.slice(0, -1)) {
         for (let level = 0; level < 3; level++) upgrades.acquire(getUpgradeCard(id));
     }
     const lastArea = drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, () => 0.4, upgrades.availableCards());
     assert.equal(lastArea.length, 3);
-    assert.deepEqual(lastArea.filter((card) => AREA_UPGRADE_IDS.includes(card.id)).map((card) => card.id), ['light-beams'],
+    assert.deepEqual(lastArea.filter((card) => AREA_UPGRADE_IDS.includes(card.id)).map((card) => card.id), [AREA_UPGRADE_IDS.at(-1)],
         'só a carta de área que sobrou, completada com as comuns');
 });
 
@@ -4424,4 +4424,27 @@ test('cajado de gelo congela só quem está no raio, por 1 s, sem dano, e espera
     combat.update(32);
     assert.equal(combat.isFrozen(near), true, 'fim da recarga congela de novo');
     combat.setIceStaff(false);
+});
+
+test('cajado de fogo queima quem está em volta por 5 s com pouco dano e recarrega em 10 s', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('fire-staff'));
+    const { combat, drones } = setup([[200, 100], [100 + upgrades.burnRadius + 40, 100]], [], upgrades);
+    const [near, far] = drones;
+    const { tickInterval } = COMBAT_CONFIG.burn;
+    const tick = upgrades.damage * upgrades.burnDamageRatio;
+    combat.playerCooldown = 99_999;
+    combat.update(0);
+    assert.equal(near.health.current, COMBAT_CONFIG.drone.maxHealth, 'pegar fogo não dá dano de uma vez');
+    combat.playerCooldown = 99_999;
+    combat.update(tickInterval);
+    assert.ok(Math.abs(near.health.current - (COMBAT_CONFIG.drone.maxHealth - tick)) < 1e-9, 'um tick de queimadura');
+    assert.equal(far.health.current, COMBAT_CONFIG.drone.maxHealth, 'fora do raio não queima');
+    for (let elapsed = tickInterval; elapsed < upgrades.burnDuration + tickInterval * 2; elapsed += tickInterval) {
+        combat.playerCooldown = 99_999;
+        combat.update(tickInterval);
+    }
+    const ticks = upgrades.burnDuration / tickInterval;
+    assert.ok(Math.abs(near.health.current - (COMBAT_CONFIG.drone.maxHealth - tick * ticks)) < 1e-9, 'a queimadura para depois de 5 s');
+    assert.ok(tick * ticks <= upgrades.damage, 'no total, no máximo um tiro de dano');
 });
