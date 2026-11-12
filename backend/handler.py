@@ -134,6 +134,9 @@ def _finish_victory(event: dict[str, Any], run_id: str) -> dict[str, Any]:
     arcade_won = body.get("arcadeWon")
     if not isinstance(arcade_won, bool):
         raise ValueError("Resultado do fliperama inválido")
+    topaz_all_collected = body.get("topazAllCollected")
+    if not isinstance(topaz_all_collected, bool):
+        raise ValueError("Resultado dos topázios inválido")
     paused_ms = _bounded_integer(body.get("pausedMs"), 0, MAX_ARCADE_PAUSE_MS)
 
     completed_at, completed_epoch_ms = _now()
@@ -147,6 +150,7 @@ def _finish_victory(event: dict[str, Any], run_id: str) -> dict[str, Any]:
         dungeons_completed=dungeons,
         multi_kills=multi_kills,
         arcade_won=arcade_won,
+        topaz_all_collected=topaz_all_collected,
     )
     try:
         TABLE.update_item(

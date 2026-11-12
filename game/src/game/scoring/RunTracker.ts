@@ -33,6 +33,7 @@ export type RunCheckpoint = Readonly<{
     completedDungeonIds: readonly string[];
     pausedMs: number;
     arcadeWon: boolean;
+    topazAllCollected: boolean;
     scoreVersion: number;
     mode: GameMode;
     status: 'RUNNING';
@@ -65,6 +66,7 @@ export class RunTracker {
     private pausedMs = 0;
     private pausedSince?: number;
     private arcadeWon = false;
+    private topazAllCollected = false;
     private status: RunStatus = 'IDLE';
     private mode: GameMode = 'SINGLE_PLAYER';
     private listeners = new Set<Listener>();
@@ -102,6 +104,7 @@ export class RunTracker {
         this.completedDungeonIds = new Set(checkpoint.completedDungeonIds);
         this.pausedMs = checkpoint.pausedMs;
         this.arcadeWon = checkpoint.arcadeWon;
+        this.topazAllCollected = checkpoint.topazAllCollected;
         this.mode = checkpoint.mode;
         this.status = 'RUNNING';
         this.emit();
@@ -168,6 +171,14 @@ export class RunTracker {
         return true;
     }
 
+    /** Os 14 topázios do golem valem um bônus, uma vez por partida. */
+    recordTopazCollection() {
+        if (this.status !== 'RUNNING' || this.topazAllCollected) return false;
+        this.topazAllCollected = true;
+        this.emit();
+        return true;
+    }
+
     recordDungeonCompletion(dungeonId: string) {
         if (this.status !== 'RUNNING' || this.completedDungeonIds.has(dungeonId)) return false;
         this.completedDungeonIds.add(dungeonId);
@@ -195,6 +206,7 @@ export class RunTracker {
                 dungeonsCompleted: this.completedDungeonIds.size,
                 multiKills: this.multiKills.map(({ enemies }) => enemies),
                 arcadeWon: this.arcadeWon,
+                topazAllCollected: this.topazAllCollected,
                 pausedMs: this.cappedPausedMs()
             }).catch(() => undefined);
         }
@@ -233,6 +245,7 @@ export class RunTracker {
             completedDungeonIds: [...this.completedDungeonIds],
             pausedMs: this.cappedPausedMs(),
             arcadeWon: this.arcadeWon,
+            topazAllCollected: this.topazAllCollected,
             scoreVersion: SCORE_VERSION,
             mode: this.mode,
             status: 'RUNNING'
@@ -251,7 +264,8 @@ export class RunTracker {
             hitsTaken: this.hitsTaken,
             dungeonsCompleted: this.completedDungeonIds.size,
             multiKillBonuses: this.multiKills.map(({ bonus }) => bonus),
-            arcadeWon: this.arcadeWon
+            arcadeWon: this.arcadeWon,
+            topazAllCollected: this.topazAllCollected
         });
         return {
             runId: this.runId,
@@ -312,6 +326,7 @@ export class RunTracker {
         this.pausedMs = 0;
         this.pausedSince = undefined;
         this.arcadeWon = false;
+        this.topazAllCollected = false;
         this.status = 'IDLE';
         this.mode = 'SINGLE_PLAYER';
         this.startRequest = undefined;

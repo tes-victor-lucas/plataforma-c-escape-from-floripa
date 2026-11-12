@@ -47,6 +47,7 @@ function isRunCheckpoint(value: unknown): value is RunCheckpoint {
         && Array.isArray(run.completedDungeonIds)
         && typeof run.pausedMs === 'number'
         && typeof run.arcadeWon === 'boolean'
+        && typeof run.topazAllCollected === 'boolean'
         && run.scoreVersion === SCORE_VERSION
         && (run.mode === 'SINGLE_PLAYER' || run.mode === 'MULTIPLAYER')
         && run.status === 'RUNNING';

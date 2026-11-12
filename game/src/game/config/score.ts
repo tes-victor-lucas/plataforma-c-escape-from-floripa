@@ -1,4 +1,4 @@
-export const SCORE_VERSION = 3;
+export const SCORE_VERSION = 4;
 
 export const SCORE_CONFIG = Object.freeze({
     victory: 1_000,
@@ -22,7 +22,9 @@ export const SCORE_CONFIG = Object.freeze({
     arcade: Object.freeze({
         winBonus: 5_000,
         maxPausedMs: 360_000
-    })
+    }),
+    // Pegar os 14 topázios que o golem derruba no TICEN (Sala V).
+    topazBonus: 2_000
 });
 
 export type GameMode = 'SINGLE_PLAYER' | 'MULTIPLAYER';

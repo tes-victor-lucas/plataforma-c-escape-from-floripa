@@ -107,6 +107,7 @@ import {
     saveCampaignProgress
 } from '../progress/CampaignProgress';
 import { runTracker } from '../scoring/RunTracker';
+import { SCORE_CONFIG } from '../config/score';
 import {
     createDungeonSessionState,
     DUNGEON_WAVE_ENEMY_COUNT,
@@ -448,7 +449,14 @@ export class World extends Scene {
                 this.getTicenBusTexture(),
                 () => this.time.delayedCall(TICEN_ESCAPE.doorCutscene.delay, () => this.playBusDoorCutscene()),
                 (caption) => this.playGolemCutscene(caption),
-                (collected, total) => this.showFloatingHint(`TOPAZIO ${collected}/${total}`)
+                (collected, total) => {
+                    // O último topázio vale o bônus da pontuação (fórmula v4).
+                    if (collected === total && runTracker.recordTopazCollection()) {
+                        this.showFloatingHint(`TODOS OS TOPAZIOS +${SCORE_CONFIG.topazBonus} PONTOS`);
+                        return;
+                    }
+                    this.showFloatingHint(`TOPAZIO ${collected}/${total}`);
+                }
             );
         }
         this.connectCombatToPartner();
