@@ -4335,3 +4335,17 @@ test('botas calçam as pernas do personagem: gaúcho tem pernas mais largas e af
     assert.equal(sole('padrao'), 36);
     assert.equal(sole('gaucho'), 37);
 });
+
+test('setas e controle andam pela mochila sem sair dos itens que existem', () => {
+    const { moveInventorySelection } = load('../src/game/ui/InventoryMenuView.ts');
+    assert.equal(moveInventorySelection(0, 4, -1, 0), 0, 'não passa do primeiro');
+    assert.equal(moveInventorySelection(2, 4, 1, 0), 3);
+    assert.equal(moveInventorySelection(3, 4, 1, 0), 3, 'não passa do último');
+    assert.equal(moveInventorySelection(2, 4, 0, 1), 2, 'sem segunda linha, descer não muda');
+    assert.equal(moveInventorySelection(11, 12, 1, 0), 11);
+    assert.equal(moveInventorySelection(11, 14, 1, 0), 12, 'do fim da linha passa para a de baixo');
+    assert.equal(moveInventorySelection(5, 14, 0, 1), 13, 'linha de baixo mais curta leva ao último item');
+    assert.equal(moveInventorySelection(13, 14, 0, -1), 1);
+    assert.equal(moveInventorySelection(1, 14, 0, -1), 1, 'não sobe da primeira linha');
+    assert.equal(moveInventorySelection(0, 0, 1, 0), 0, 'mochila vazia não quebra');
+});
