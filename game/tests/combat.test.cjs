@@ -2792,6 +2792,7 @@ function itemWorld() {
     const player = Object.create(Player.prototype);
     player.movementSpeedMultiplier = 1;
     player.temporaryMovementSpeedMultiplier = 1;
+    player.equipmentSpeedMultiplier = 1;
     player.sprite = {};
     world.player = player;
     const fireRateMultipliers = [];
@@ -3966,7 +3967,7 @@ test('chapéu cai uma vez só no esconderijo e equipa quem pega', () => {
     const world = new World();
     let equipped = 0;
     let overlap;
-    world.player = { sprite: { x: 100, y: 200 }, equipGauchoHat() { equipped += 1; } };
+    world.player = { sprite: { x: 100, y: 200 }, equipItem(id) { if (id === 'gaucho-hat') equipped += 1; }, unequipItem() {} };
     world.textures = { exists: () => true };
     const fakeImage = () => {
         const image = { destroy() {} };
@@ -3989,7 +3990,11 @@ test('inventário retira e reequipa o chapéu, e a escolha segue entre as salas'
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();
     const calls = [];
-    world.player = { equipGauchoHat() { calls.push('equip'); }, unequipGauchoHat() { calls.push('unequip'); } };
+    // Só o chapéu interessa aqui; o capacete e as galochas não estão no inventário.
+    world.player = {
+        equipItem(id) { if (id === 'gaucho-hat') calls.push('equip'); },
+        unequipItem(id) { if (id === 'gaucho-hat') calls.push('unequip'); }
+    };
     world.ownedItems = ['gaucho-hat'];
     world.equippedItems = ['gaucho-hat'];
 
