@@ -200,6 +200,7 @@ export class InventoryMenuView {
         const home = { x: icon.x, y: icon.y };
         icon.setInteractive({ useHandCursor: true, draggable: true })
             .on('pointerdown', () => this.selectItem(index))
+            .on('pointerover', () => this.selectItem(index))
             .on('dragstart', () => menu.root.bringToTop(icon))
             .on('drag', (_pointer: unknown, x: number, y: number) => icon.setPosition(x, y))
             .on('dragend', () => {
@@ -255,8 +256,8 @@ export class InventoryMenuView {
                 .setStrokeStyle(equipped ? 2 : 1, INV.band, equipped ? 1 : 0.6);
             // Clicar no encaixe seleciona o item para poder retirá-lo.
             if (equipped) {
-                slot.setInteractive({ useHandCursor: true })
-                    .on('pointerdown', () => this.selectItem(this.options.items.indexOf(equipped)));
+                const select = () => this.selectItem(this.options.items.indexOf(equipped));
+                slot.setInteractive({ useHandCursor: true }).on('pointerdown', select).on('pointerover', select);
             }
             menu.add(slot);
             // Vazio, o encaixe diz o que cabe nele; ocupado, o ícone fala por si.
@@ -351,7 +352,10 @@ export class InventoryMenuView {
             }
             const icon = this.scene.add.image(x, y, item.texture);
             icon.setScale((SLOT - 8) / Math.max(icon.width, icon.height));
-            slot.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.selectItem(index));
+            // Passar o mouse já mostra o balão do item; no toque, vale o clique.
+            slot.setInteractive({ useHandCursor: true })
+                .on('pointerdown', () => this.selectItem(index))
+                .on('pointerover', () => this.selectItem(index));
             menu.add(icon);
             // O equipado sai pelo encaixe do boneco; na grade só o guardado é arrastável.
             if (!item.equipped) this.makeDraggable(menu, icon, index);
