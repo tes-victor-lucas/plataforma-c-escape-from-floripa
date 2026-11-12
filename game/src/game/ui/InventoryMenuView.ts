@@ -126,6 +126,7 @@ export class InventoryMenuView {
     private tooltip?: Phaser.GameObjects.Container;
     private tooltipBox?: Phaser.GameObjects.Graphics;
     private isDragging = false;
+    private dropZone?: Phaser.GameObjects.Graphics;
     private toggleButton?: Phaser.GameObjects.Rectangle;
     private toggleLabel?: Phaser.GameObjects.Text;
 
@@ -207,14 +208,25 @@ export class InventoryMenuView {
                 // Durante o arrasto o balão sairia do lugar e taparia onde soltar.
                 this.isDragging = true;
                 this.tooltip?.setVisible(false);
+                this.showDropZone(menu, item.equipped ? STORAGE_ZONE : EQUIP_ZONE);
+                menu.root.bringToTop(icon);
             })
             .on('drag', (_pointer: unknown, x: number, y: number) => icon.setPosition(x, y))
             .on('dragend', () => {
                 this.isDragging = false;
+                this.dropZone?.setVisible(false);
                 if (shouldToggleOnDrop(!!item.equipped, icon.x, icon.y)) return this.options.onToggle?.(id, index);
                 icon.setPosition(home.x, home.y);
                 this.tooltip?.setVisible(true);
             });
+    }
+
+    /** Mancha clara sobre a área que aceita o item arrastado: mostra para onde levar sem escrever nada. */
+    private showDropZone(menu: CleanOverlayMenu, zone: CleanMenuBounds) {
+        this.dropZone ??= this.scene.add.graphics();
+        this.dropZone.clear().fillStyle(INV.shine, 0.2).fillRect(zone.x, zone.y, zone.width, zone.height).setVisible(true);
+        menu.add(this.dropZone);
+        menu.root.bringToTop(this.dropZone);
     }
 
     private toggleSelected() {
