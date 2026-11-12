@@ -45,6 +45,7 @@ export async function creditFair(token: string, fetcher: typeof fetch = fetch): 
 export class GoogleAuth {
     // Só na memória: os computadores da feira são compartilhados, e recarregar a página encerra a sessão.
     private current?: GoogleUser;
+    private pending?: Promise<GoogleUser | undefined>;
 
     constructor(private readonly now: () => number = Date.now) {}
 
@@ -77,7 +78,8 @@ export class GoogleAuth {
     signIn(): Promise<GoogleUser | undefined> {
         const api = getApi();
         if (!api || typeof document === 'undefined') return Promise.resolve(undefined);
-        return new Promise((resolve) => {
+        // O controle e outros atalhos ainda chegam ao menu por baixo: um pedido em aberto não abre outro painel.
+        this.pending ??= new Promise<GoogleUser | undefined>((resolve) => {
             const overlay = document.createElement('div');
             overlay.setAttribute('role', 'dialog');
             overlay.setAttribute('aria-modal', 'true');
@@ -96,6 +98,7 @@ export class GoogleAuth {
                 document.removeEventListener('keydown', onKey, true);
                 api.cancel();
                 overlay.remove();
+                this.pending = undefined;
                 resolve(user);
             };
             // Na captura e sem propagar: a tecla não pode também mexer no menu do jogo que está embaixo.
@@ -112,6 +115,7 @@ export class GoogleAuth {
             api.prompt();
             cancel.focus();
         });
+        return this.pending;
     }
 }
 
