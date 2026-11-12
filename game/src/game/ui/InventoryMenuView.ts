@@ -242,7 +242,7 @@ export class InventoryMenuView {
         const item = this.options.items[index];
         const id = item?.id;
         if (!id || !this.options.onToggle) return;
-        const home = { x: icon.x, y: icon.y };
+        const home = { x: icon.x, y: icon.y, scale: icon.scale };
         // Um toque com o dedo tremendo não pode virar arrasto: só arrasta depois de andar alguns pixels.
         this.scene.input.dragDistanceThreshold = DRAG_THRESHOLD;
         icon.setInteractive({ useHandCursor: true, draggable: true })
@@ -253,7 +253,8 @@ export class InventoryMenuView {
                 this.isDragging = true;
                 this.tooltip?.setVisible(false);
                 this.showDropZone(menu, item.equipped ? STORAGE_ZONE : EQUIP_ZONE);
-                menu.root.bringToTop(icon);
+                // Maior enquanto está na mão: dá para ver o item por baixo do dedo ou do cursor.
+                menu.root.bringToTop(icon.setScale(home.scale * 1.4));
             })
             // No toque o item sobe acima do dedo, senão quem arrasta não vê onde está soltando.
             .on('drag', (pointer: Phaser.Input.Pointer, x: number, y: number) => icon.setPosition(x, y - (pointer.wasTouch ? TOUCH_LIFT : 0)))
@@ -261,7 +262,7 @@ export class InventoryMenuView {
                 this.isDragging = false;
                 this.dropZone?.setVisible(false);
                 if (shouldToggleOnDrop(!!item.equipped, icon.x, icon.y)) return this.options.onToggle?.(id, index);
-                icon.setPosition(home.x, home.y);
+                icon.setPosition(home.x, home.y).setScale(home.scale);
                 this.tooltip?.setVisible(true);
             });
     }
