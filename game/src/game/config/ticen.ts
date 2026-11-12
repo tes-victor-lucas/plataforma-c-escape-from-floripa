@@ -200,9 +200,12 @@ export const TICEN_DUEL = {
         touchRadius: 16
     },
     // Um especial diferente por baú, na ordem em que aparecem; depois do sexto a lista recomeça.
+    // Capacete e galochas são itens de vestir: equipam sozinhos em quem abrir o baú.
     specials: [
         { id: 'heart', label: '+1 CORACAO' },
+        { id: 'helmet', label: 'CAPACETE' },
         { id: 'club', label: 'CACETE MELHORADO' },
+        { id: 'boots', label: 'GALOCHAS' },
         { id: 'speed', label: 'POCAO DE VELOCIDADE' },
         { id: 'shield', label: 'ESCUDO' },
         { id: 'lifesteal', label: 'ROUBO DE VIDA' },

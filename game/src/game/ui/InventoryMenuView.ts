@@ -1,7 +1,8 @@
 import type { Scene } from 'phaser';
 import { CHARACTERS, type CharacterId } from '../config/characters';
 import type { EquipmentSlot, ItemId } from '../config/items';
-import { getHatOffsetY } from '../entities/GauchoHat';
+import { ITEMS } from '../config/items';
+import { getItemOffsetY } from '../entities/WornItem';
 import { GAME_WIDTH } from '../config/display';
 import { WALK_FRAMES } from '../entities/PlayerAnimations';
 import type { UpgradeProgress } from '../upgrades/types';
@@ -110,10 +111,11 @@ export class InventoryMenuView {
         const doll = this.scene.add.image(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height / 2 + 6, character.texture, WALK_FRAMES.down[0])
             .setScale(4.5 * character.scaleMultiplier);
         menu.add([grid, doll, this.text(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height - 16, character.label, 12, CLEAN_MENU_COLORS.frameCss).setOrigin(0.5)]);
-        // O que vai na cabeça aparece no boneco, como no personagem pelo mapa.
-        const head = this.equippedItems.find(({ slot }) => slot === 'CABEÇA');
-        if (head) {
-            menu.add(this.scene.add.image(doll.x, doll.y + getHatOffsetY(doll.displayHeight), head.texture).setScale(doll.scale));
+        // O que vai na cabeça e nos pés aparece no boneco, como no personagem pelo mapa.
+        for (const equipped of this.equippedItems) {
+            const item = equipped.id ? ITEMS[equipped.id] : undefined;
+            if (!item) continue;
+            menu.add(this.scene.add.image(doll.x, doll.y + getItemOffsetY(item, doll.displayHeight), item.texture).setScale(doll.scale));
         }
     }
 

@@ -9,8 +9,8 @@ import { getGamepadInput } from '../input/GamepadInput';
 import { touchInput } from '../input/TouchInput';
 import { CHARACTERS, type CharacterId } from '../config/characters';
 import { createWalkAnimations, walkAnimationKey, WALK_FRAMES, type Direction } from './PlayerAnimations';
-import { GAUCHO_HAT } from '../config/items';
-import { attachGauchoHat } from './GauchoHat';
+import { ITEMS, type ItemId } from '../config/items';
+import { attachWornItem } from './WornItem';
 
 export type { Direction } from './PlayerAnimations';
 
@@ -40,7 +40,9 @@ export class Player {
     private invulnerableUntil = 0;
     /** Chance de um golpe não tirar vida (chapéu de gaúcho). */
     private blockChance = 0;
-    private detachHat?: () => void;
+    /** Itens vestidos: cada um sabe se desenhar no personagem e se tirar. */
+    private readonly wornItems = new Map<ItemId, () => void>();
+    private equipmentSpeedMultiplier = 1;
     private random: () => number = Math.random;
     private temporaryMovementSpeedMultiplier = 1;
     private controlsInverted = false;
@@ -191,7 +193,7 @@ export class Player {
     }
 
     getEffectiveMovementSpeedMultiplier() {
-        return this.movementSpeedMultiplier * this.temporaryMovementSpeedMultiplier;
+        return this.movementSpeedMultiplier * this.temporaryMovementSpeedMultiplier * this.equipmentSpeedMultiplier;
     }
 
     getDashCharge() {
@@ -218,17 +220,23 @@ export class Player {
         this.playWalkAnimation(walkAnimationKey(this.texture, 'up'));
     }
 
-    /** Equipa o chapéu de gaúcho: aparece na cabeça e bloqueia parte dos golpes. */
-    equipGauchoHat() {
-        if (this.detachHat) return;
-        this.blockChance = GAUCHO_HAT.blockChance;
-        this.detachHat = attachGauchoHat(this.scene, this.sprite);
+    /** Veste o item: aparece no personagem e passa a valer o efeito dele (bloqueio ou velocidade). */
+    equipItem(id: ItemId) {
+        if (this.wornItems.has(id)) return;
+        this.wornItems.set(id, attachWornItem(this.scene, this.sprite, ITEMS[id]));
+        this.refreshEquipment();
     }
 
-    unequipGauchoHat() {
-        this.detachHat?.();
-        this.detachHat = undefined;
-        this.blockChance = 0;
+    unequipItem(id: ItemId) {
+        this.wornItems.get(id)?.();
+        this.wornItems.delete(id);
+        this.refreshEquipment();
+    }
+
+    private refreshEquipment() {
+        const worn = [...this.wornItems.keys()].map((id) => ITEMS[id]);
+        this.blockChance = Math.max(0, ...worn.map(({ blockChance }) => blockChance));
+        this.equipmentSpeedMultiplier = worn.reduce((total, { speedMultiplier }) => total * speedMultiplier, 1);
     }
 
     takeDamage(amount: number) {

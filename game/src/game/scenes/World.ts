@@ -75,8 +75,8 @@ import { playExplosion } from '../effects/playAreaEffects';
 import { getBusFrame, TopazioGolem } from '../entities/TopazioGolem';
 import { BusEndingView } from '../ui/BusEndingView';
 import { CinematicBarsView } from '../ui/CinematicBarsView';
-import { GAUCHO_HAT, ITEMS, type ItemId } from '../config/items';
-import { createGauchoHatTexture } from '../entities/GauchoHat';
+import { GAUCHO_HAT, ITEM_IDS, ITEMS, type ItemId } from '../config/items';
+import { createItemTexture, createItemTextures } from '../entities/WornItem';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
 import { TchayQueue } from '../entities/TchayQueue';
 import { PAGODE, PAGODE_FRAMES, POPULAR_BARS, TCHAY } from '../config/tchay';
@@ -200,7 +200,13 @@ export class World extends Scene {
     private isDuelActive = false;
     private isDuelOver = false;
     private duelTimers: Phaser.Time.TimerEvent[] = [];
-    private readonly duelChests = new Map<number, { image: Phaser.GameObjects.Sprite; special: DuelSpecialId; opened: boolean; claimed: boolean }>();
+    private readonly duelChests = new Map<number, {
+        image: Phaser.GameObjects.Sprite;
+        glow: Phaser.GameObjects.Graphics;
+        special: DuelSpecialId;
+        opened: boolean;
+        claimed: boolean;
+    }>();
     private duelChestSequence = 0;
     private lifestealUntil = 0;
     private victorySubtitle?: string;
@@ -397,6 +403,7 @@ export class World extends Scene {
                 this.upgrades
             );
         }
+        createItemTextures(this);
         this.applyEquipment();
         this.unsubscribeRunTracker = runTracker.subscribe((snapshot) => {
             // Na derrota solo o checkpoint fica: TENTAR NOVAMENTE e CONTINUAR voltam ao início da sala.
@@ -948,7 +955,7 @@ export class World extends Scene {
     /** Todos os gaúchos do esconderijo caíram: o chapéu fica no chão, uma vez por partida. */
     private createGauchoHatPickup() {
         if (!this.player || this.ownedItems.includes('gaucho-hat')) return;
-        createGauchoHatTexture(this);
+        createItemTexture(this, GAUCHO_HAT);
         const feet = this.player.sprite.body?.center ?? this.player.sprite;
         const { x, y } = this.findOpenSpotNear(feet.x, feet.y);
         const item = this.physics.add.image(x, y, GAUCHO_HAT.texture).setScale(1.5).setDepth(9);
@@ -995,8 +1002,10 @@ export class World extends Scene {
     }
 
     private applyEquipment() {
-        if (this.equippedItems.includes('gaucho-hat')) this.player?.equipGauchoHat();
-        else this.player?.unequipGauchoHat();
+        for (const id of ITEM_IDS) {
+            if (this.equippedItems.includes(id)) this.player?.equipItem(id);
+            else this.player?.unequipItem(id);
+        }
     }
 
     private buildInventory(): InventoryData {
@@ -1511,8 +1520,11 @@ export class World extends Scene {
         for (let attempt = 0; attempt < 80; attempt += 1) {
             const tileX = 2 + Math.floor(Math.random() * (map.width - 4));
             const tileY = 7 + Math.floor(Math.random() * 27);
-            const point = { x: tileX * 16 + 8, y: tileY * 16 + 8 };
-            if (this.collisionLayers.some((layer) => layer.getTileAt(tileX, tileY)?.collides)) continue;
+            const point = { x: tileX * 16 + 8, y: tileY * 16 + 14 };
+            // O baú sobe um tile a partir do pé: o tile, os vizinhos e o de cima precisam estar livres.
+            const area = [[0, 0], [-1, 0], [1, 0], [0, -1], [-1, -1], [1, -1]];
+            if (area.some(([dx, dy]) => this.collisionLayers.some((layer) => layer.getTileAt(tileX + dx, tileY + dy)?.collides))) continue;
+            if (area.some(([dx, dy]) => map.hasTileAt(tileX + dx, tileY + dy, 'itens-topo'))) continue;
             if (point.x > left - 24 && point.x < right + 24 && point.y > top - 24 && point.y < bottom + 24) continue;
             if (people.some((person) => Math.hypot(person.x - point.x, person.y - point.y) < minDistance)) continue;
             return point;
@@ -1548,11 +1560,22 @@ export class World extends Scene {
 
     private placeDuelChest(id: number, x: number, y: number, special: DuelSpecialId) {
         const image = this.add.sprite(x, y, TICEN_DUEL.chest.texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(y));
-        // Brilho pulsando para os dois correrem até ele.
-        image.setTint(0xfff2b0);
+        // Brilho extra para achar o baú de longe: halo dourado no chão, um facho de luz subindo e faíscas.
+        const glow = this.add.graphics().setDepth(getActorDepth(y) - 0.001).setBlendMode(1);
+        for (const [radius, alpha] of [[26, 0.12], [17, 0.2], [9, 0.32]] as const) {
+            glow.fillStyle(0xffd75a, alpha).fillEllipse(x, y - 2, radius * 2, radius);
+        }
+        glow.fillStyle(0xfff2b0, 0.16).fillRect(x - 5, y - 70, 10, 66);
+        glow.fillStyle(0xfff2b0, 0.22).fillRect(x - 2, y - 70, 4, 66);
+        this.tweens.add({ targets: glow, alpha: { from: 1, to: 0.45 }, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
         this.tweens.add({ targets: image, scale: { from: 1, to: 1.15 }, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        this.time.addEvent({ delay: 220, loop: true, callback: () => {
+            if (!glow.active) return;
+            const spark = this.add.rectangle(x + (Math.random() - 0.5) * 18, y - 8, 2, 2, 0xfff2b0).setDepth(getActorDepth(y) + 0.01).setBlendMode(1);
+            this.tweens.add({ targets: spark, y: spark.y - 26, alpha: 0, duration: 800, onComplete: () => spark.destroy() });
+        } });
         playExplosion(this, x, y - 6, 14, 0xfff2b0);
-        this.duelChests.set(id, { image, special, opened: false, claimed: false });
+        this.duelChests.set(id, { image, glow, special, opened: false, claimed: false });
     }
 
     /** Basta encostar: o anfitrião abre na hora; o convidado pede, e o anfitrião diz quem chegou primeiro. */
@@ -1581,7 +1604,9 @@ export class World extends Scene {
         if (!chest || chest.opened) return;
         chest.opened = true;
         this.tweens.killTweensOf(chest.image);
-        chest.image.setFrame(1).setScale(1).clearTint();
+        chest.image.setFrame(1).setScale(1);
+        this.tweens.killTweensOf(chest.glow);
+        this.tweens.add({ targets: chest.glow, alpha: 0, duration: 400, onComplete: () => chest.glow.destroy() });
         const label = TICEN_DUEL.specials.find(({ id: special }) => special === chest.special)?.label ?? '';
         const hint = this.createWorldHint(label).setPosition(chest.image.x, chest.image.y - 22);
         this.tweens.add({ targets: hint, y: hint.y - 14, alpha: 0, delay: 900, duration: 600, onComplete: () => hint.destroy() });
@@ -1597,6 +1622,12 @@ export class World extends Scene {
         switch (special) {
             case 'heart':
                 player.health.increaseMax(COMBAT_CONFIG.player.healthPerHeart);
+                break;
+            case 'helmet':
+                this.equipFoundItem('helmet');
+                break;
+            case 'boots':
+                this.equipFoundItem('rubber-boots');
                 break;
             case 'club':
                 combat.swordDamageMultiplier *= clubMultiplier;
@@ -1622,6 +1653,13 @@ export class World extends Scene {
                 });
                 break;
         }
+    }
+
+    /** Item achado vai para o inventário e já entra no corpo, trocando o que estiver no mesmo lugar. */
+    private equipFoundItem(id: ItemId) {
+        if (!this.ownedItems.includes(id)) this.ownedItems.push(id);
+        this.equippedItems = [...this.equippedItems.filter((item) => ITEMS[item].slot !== ITEMS[id].slot), id];
+        this.applyEquipment();
     }
 
     /** Quem caiu avisa o parceiro: ele fica com a vaga. */
