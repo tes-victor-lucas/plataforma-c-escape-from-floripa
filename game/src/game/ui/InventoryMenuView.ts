@@ -6,7 +6,7 @@ import { getItemOffsetY } from '../entities/WornItem';
 import { GAME_WIDTH } from '../config/display';
 import { WALK_FRAMES } from '../entities/PlayerAnimations';
 import type { UpgradeProgress } from '../upgrades/types';
-import { CLEAN_MENU_COLORS, CleanOverlayMenu, drawCleanMenuBox } from './CleanOverlayMenu';
+import { CLEAN_MENU_COLORS, CleanOverlayMenu, drawCleanMenuBox, type CleanMenuBounds } from './CleanOverlayMenu';
 import { addUpgradePanel } from './PauseMenuView';
 
 /** Item guardado no inventário; cada item novo (chapéu, bota...) entra nesta lista quando for implementado. */
@@ -36,6 +36,8 @@ type InventoryMenuViewOptions = InventoryData & Readonly<{
 }>;
 
 const FONT = 'PixelGamer, monospace';
+// Moldura dupla do inventário: contorno escuro, faixa ciano com brilho e miolo um tom acima do painel.
+const FRAME = { outline: 0x000a0c, band: 0x0aa5b3, shine: 0x5ce5f1, fill: 0x0a2228 };
 const PANEL = { x: 16, y: 14, width: 857, height: 472 };
 const CARDS = { x: 36, y: 66, width: 174, height: 300 };
 const CHIMARRAO = { x: 36, y: 378, width: 174, height: 50 };
@@ -53,6 +55,14 @@ const STORAGE_ZONE = {
     width: GRID.columns * (SLOT + GRID.gap),
     height: GRID.rows * (SLOT + GRID.gap)
 };
+
+/** Caixa de moldura dupla: contorno, faixa colorida e outro contorno por dentro, com os cantos cortados. */
+function drawFramedBox(graphics: Phaser.GameObjects.Graphics, bounds: CleanMenuBounds, fill: number = FRAME.fill) {
+    const { x, y, width, height } = bounds;
+    drawCleanMenuBox(graphics, bounds, FRAME.band, FRAME.outline, 4, 2);
+    drawCleanMenuBox(graphics, { x: x + 5, y: y + 5, width: width - 10, height: height - 10 }, fill, FRAME.outline, 2, 2);
+    graphics.fillStyle(FRAME.shine, 1).fillRect(x + 4, y + 2, width - 8, 1);
+}
 
 /** Item guardado solto no boneco ou nos encaixes equipa; item equipado solto na grade volta a ser guardado. */
 export function shouldToggleOnDrop(equipped: boolean, x: number, y: number) {
@@ -236,7 +246,7 @@ export class InventoryMenuView {
 
     private box(bounds: Readonly<{ x: number; y: number; width: number; height: number }>) {
         const graphics = this.scene.add.graphics();
-        drawCleanMenuBox(graphics, bounds, CLEAN_MENU_COLORS.panel, CLEAN_MENU_COLORS.frame, 6, 2);
+        drawFramedBox(graphics, bounds);
         return graphics;
     }
 
