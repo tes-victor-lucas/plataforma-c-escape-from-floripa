@@ -129,6 +129,8 @@ export class Preloader extends Scene {
             AUDIO_CONFIG.effects.playerDeath.path
         );
 
+        this.load.audio(AUDIO_CONFIG.effects.golemRoar.key, AUDIO_CONFIG.effects.golemRoar.path);
+
         this.load.audio(
             AUDIO_CONFIG.effects.playerShot.key,
             AUDIO_CONFIG.effects.playerShot.path,

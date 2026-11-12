@@ -1,5 +1,6 @@
 import { Physics, type Scene } from 'phaser';
 import { Health } from '../combat/Health';
+import { AUDIO_CONFIG } from '../config/audio';
 import { countThresholdsCrossed, getGolemStage, TOPAZIO_BOSS } from '../config/ticen';
 import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import { playExplosion, playShockwave } from '../effects/playAreaEffects';
@@ -139,6 +140,8 @@ export class TopazioGolem implements CombatEnemy {
         const { x, y } = this.sprite;
         const raised = (this.stage * 3 + ROW_SLAM) * 4;
         this.sprite.setFrame(raised + 1);
+        const { key, volume } = AUDIO_CONFIG.effects.golemRoar;
+        this.scene.sound.play(key, { volume });
         this.scene.tweens.add({ targets: this.sprite, scaleX: 1.08, scaleY: 1.08, duration: duration * 0.35, yoyo: true, ease: 'Sine.easeInOut' });
         this.scene.time.delayedCall(duration * 0.45, () => {
             this.sprite.setFrame(raised + 2);
