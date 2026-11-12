@@ -5,6 +5,7 @@ import { ITEMS } from '../config/items';
 import { getItemOffsetY } from '../entities/WornItem';
 import { WALK_FRAMES } from '../entities/PlayerAnimations';
 import { bindGamepadActions } from '../input/GamepadInput';
+import { isTouchScreen } from '../input/TouchInput';
 import type { UpgradeProgress } from '../upgrades/types';
 import { CleanOverlayMenu, drawCleanMenuBox, type CleanMenuBounds } from './CleanOverlayMenu';
 import { addUpgradePanel } from './PauseMenuView';
@@ -168,6 +169,16 @@ export class InventoryMenuView {
         this.addItemGrid(menu);
         // O balão foi criado antes da grade (ela já seleciona um item) e precisa ficar por cima dela.
         if (this.tooltip) menu.root.bringToTop(this.tooltip);
+        // Rodapé com os atalhos; no celular não há teclas nem arrasto para explicar.
+        if (!isTouchScreen()) {
+            menu.add(this.text(
+                TRAY.x + TRAY.width / 2,
+                PANEL.y + PANEL.height - 30,
+                'ARRASTE O ITEM ATÉ O BONECO PARA EQUIPAR     E  EQUIPAR / RETIRAR     ESC  FECHAR',
+                10,
+                INV.muted
+            ).setOrigin(0.5));
+        }
         // Sem o botão VOLTAR: fecha no X, no ESC ou no botão de voltar do controle.
         // E equipa ou retira o item selecionado, sem precisar do mouse.
         const keyboard = this.scene.input.keyboard;
