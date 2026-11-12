@@ -3,6 +3,7 @@ import {
     BASIC_UPGRADE_IDS,
     EVERY_ROOM_UPGRADE_IDS,
     RETIRED_UPGRADE_IDS,
+    STRONGEST_UPGRADE_IDS,
     ROOM3_FINAL_UPGRADE_IDS,
     ROOM3_UPGRADE_IDS,
     UPGRADE_CARDS
@@ -70,9 +71,11 @@ export function drawUpgradeCardsFeaturing(
 }
 
 /** Mesas de cartas: cada sala oferece as suas; o fim da Sala III destaca as cartas finais. */
-export type CardTable = 'room1' | 'room2' | 'room3' | 'room3-final';
+export type CardTable = 'room1' | 'room2' | 'room3' | 'room3-final' | 'room4';
+/** Mesas que só sorteiam da sua lista; as outras duas montam a mesa de um jeito próprio. */
+export type RoomCardTable = Exclude<CardTable, 'room3-final' | 'room4'>;
 
-const TABLE_IDS: Record<Exclude<CardTable, 'room3-final'>, readonly UpgradeId[]> = {
+const TABLE_IDS: Record<RoomCardTable, readonly UpgradeId[]> = {
     room1: BASIC_UPGRADE_IDS,
     room2: AREA_UPGRADE_IDS,
     room3: ROOM3_UPGRADE_IDS
@@ -82,7 +85,7 @@ const TABLE_IDS: Record<Exclude<CardTable, 'room3-final'>, readonly UpgradeId[]>
  * Cartas da mesa ainda disponíveis, junto com as que valem em todas as salas. Se a mesa já não tem três
  * cartas com uma habilidade (tudo no nível máximo), completa com qualquer carta ainda disponível, menos as aposentadas.
  */
-export function getTableCards(table: Exclude<CardTable, 'room3-final'>, availableCards: readonly UpgradeCardDefinition[]) {
+export function getTableCards(table: RoomCardTable, availableCards: readonly UpgradeCardDefinition[]) {
     const ids = [...TABLE_IDS[table], ...EVERY_ROOM_UPGRADE_IDS];
     const cards = availableCards.filter((card) => ids.includes(card.id));
     if (cards.length >= 3 && cards.some((card) => card.kind === 'ability')) return cards;
@@ -111,7 +114,21 @@ export function drawTableCards(
     random: RandomSource = Math.random,
     availableCards: readonly UpgradeCardDefinition[] = UPGRADE_CARDS
 ) {
+    if (table === 'room4') return drawStrongestCards(random, availableCards);
     if (table !== 'room3-final') return drawUpgradeCards(random, getTableCards(table, availableCards));
     const finals = availableCards.filter((card) => ROOM3_FINAL_UPGRADE_IDS.includes(card.id));
     return drawUpgradeCardsFeaturing(ROOM3_FINAL_UPGRADE_IDS, random, [...finals, ...getTableCards('room3', availableCards)]);
+}
+
+/** Sala IV: as duas cartas mais fortes ainda disponíveis e uma aleatória entre as que não são básicas. */
+export function drawStrongestCards(random: RandomSource = Math.random, availableCards: readonly UpgradeCardDefinition[] = UPGRADE_CARDS) {
+    const strongest = STRONGEST_UPGRADE_IDS
+        .map((id) => availableCards.find((card) => card.id === id))
+        .filter((card): card is UpgradeCardDefinition => card !== undefined)
+        .slice(0, 2);
+    const others = availableCards.filter((card) => !strongest.includes(card)
+        && !BASIC_UPGRADE_IDS.includes(card.id) && !RETIRED_UPGRADE_IDS.includes(card.id));
+    const cards = [...strongest];
+    while (cards.length < 3 && others.length > 0) cards.push(takeRandom(others, random));
+    return cards;
 }

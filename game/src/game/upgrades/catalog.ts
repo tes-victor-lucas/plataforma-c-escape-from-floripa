@@ -226,6 +226,14 @@ export const BASIC_UPGRADE_IDS: readonly UpgradeId[] = [
 /** Cartas que entram na mesa de qualquer sala. */
 export const EVERY_ROOM_UPGRADE_IDS: readonly UpgradeId[] = ['ice-staff'];
 
+/**
+ * As cartas mais fortes do jogo, da mais forte para a menos, pelo dano contra a horda (múltiplos do tiro por segundo):
+ * Nova de choque, 250% a cada 0,85 s em todos num raio de 150 px (≈ 29× com 10 inimigos no raio);
+ * Tempestade elétrica, 125% em 12 saltos a cada 0,75 s (≈ 20×); Bombardeio, 300% em 4 alvos a cada 1,6 s (≈ 7,5×);
+ * Golpe giratório, 900% em 170 px a cada 7 s (≈ 1,3× por inimigo). A mesa da Sala IV oferece as duas primeiras ainda disponíveis.
+ */
+export const STRONGEST_UPGRADE_IDS: readonly UpgradeId[] = ['nova-pulse', 'thunder-storm', 'bombard', 'spin-slash'];
+
 /** Fora de todas as mesas, mas ainda no catálogo: um checkpoint salvo com ela continua carregando. */
 export const RETIRED_UPGRADE_IDS: readonly UpgradeId[] = ['overclock'];
 

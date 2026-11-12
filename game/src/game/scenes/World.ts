@@ -27,7 +27,7 @@ import {
 import { WaveThreatView } from '../ui/WaveThreatView';
 import { FlowField } from '../combat/FlowField';
 import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
-import { drawGolemCards, drawTableCards, type CardTable } from '../upgrades/drawUpgradeCards';
+import { drawGolemCards, drawTableCards, type RoomCardTable } from '../upgrades/drawUpgradeCards';
 import { ROOM3_UPGRADE_IDS } from '../upgrades/catalog';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
@@ -156,15 +156,18 @@ export function getIntermissionCardPicks(roomKey: RoomKey) {
 }
 
 /** Mesa de cartas de cada sala; o esconderijo usa a da sala por onde se entra nele. */
-export function getCardTable(roomKey: RoomKey): Exclude<CardTable, 'room3-final'> {
+export function getCardTable(roomKey: RoomKey): RoomCardTable {
     if (roomKey === 'room2' || roomKey === 'dungeon') return 'room2';
     if (roomKey === 'room3') return 'room3';
     return 'room1';
 }
 
-/** A Sala I dá uma carta básica no fim; a Sala III, depois da horda 2, as cartas de área mais fortes. */
+/**
+ * A Sala I dá uma carta básica no fim; a Sala III, depois da horda 2, as cartas de área mais fortes;
+ * a Sala IV, as duas cartas mais fortes do jogo e uma aleatória.
+ */
 export function shouldOfferRoomCompletionUpgrade(roomKey: RoomKey) {
-    return roomKey === 'room1' || roomKey === 'room3';
+    return roomKey === 'room1' || roomKey === 'room3' || roomKey === 'room4';
 }
 
 export function recordRoomCompletionScore(roomKey: RoomKey) {
@@ -2307,12 +2310,13 @@ export class World extends Scene {
         this.piranhasBarPrompt?.setVisible(false);
 
         const overlayScene = this.scene.get('CombatHud') as Scene;
-        const isRoom3 = this.activeRoomKey === 'room3';
+        const roomKey = this.activeRoomKey;
+        const table = roomKey === 'room3' ? 'room3-final' : roomKey === 'room4' ? 'room4' : getCardTable(roomKey);
         new UpgradeSelectionView(
             overlayScene,
-            drawTableCards(isRoom3 ? 'room3-final' : getCardTable(this.activeRoomKey), undefined, this.upgrades.availableCards()),
+            drawTableCards(table, undefined, this.upgrades.availableCards()),
             {
-                title: isRoom3 ? 'SALA III CONCLUÍDA' : 'SALA I CONCLUÍDA',
+                title: roomKey === 'room3' ? 'SALA III CONCLUÍDA' : roomKey === 'room4' ? 'SALA IV CONCLUÍDA' : 'SALA I CONCLUÍDA',
                 hint: 'Escolha uma recompensa'
             }
         ).play((selected) => {
