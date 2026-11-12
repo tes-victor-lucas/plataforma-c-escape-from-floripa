@@ -188,7 +188,7 @@ export class InventoryMenuView {
             menu.add(this.text(
                 TRAY.x + TRAY.width / 2,
                 PANEL.y + PANEL.height - 30,
-                'ARRASTE O ITEM ATÉ O BONECO PARA EQUIPAR     E  EQUIPAR / RETIRAR     ESC  FECHAR',
+                'SETAS  ESCOLHER     E  EQUIPAR / RETIRAR     ARRASTE ATÉ O BONECO PARA EQUIPAR     ESC  FECHAR',
                 10,
                 INV.muted
             ).setOrigin(0.5));
