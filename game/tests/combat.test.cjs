@@ -4537,3 +4537,18 @@ test('disputa do TICEN leva o anfitrião para a plataforma A e o convidado para 
     assert.ok(Math.abs(host.x - hostCorner.x) < 16 && Math.abs(host.y - hostCorner.y) < 16, 'anfitrião no canto A');
     assert.ok(Math.abs(guest.x - guestCorner.x) < 16 && Math.abs(guest.y - guestCorner.y) < 16, 'convidado no canto D');
 });
+
+test('disputa do TICEN: teletransporte, close de duelo e só depois a luta', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const steps = [];
+    let finishStandoff;
+    world.player = {};
+    world.teleportToDuelCorner = () => steps.push('teleporte');
+    world.playDuelStandoff = (onDone) => { steps.push('close'); finishStandoff = onDone; };
+    world.beginDuelFight = () => steps.push('luta');
+    world.startDuel();
+    assert.deepEqual(steps, ['teleporte', 'close'], 'a luta espera o close terminar');
+    finishStandoff();
+    assert.deepEqual(steps, ['teleporte', 'close', 'luta']);
+});
