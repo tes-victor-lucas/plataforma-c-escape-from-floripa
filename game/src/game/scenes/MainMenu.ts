@@ -12,6 +12,7 @@ import {
 } from '../progress/CampaignProgress';
 import { runTracker } from '../scoring/RunTracker';
 import { playIntroVideo } from '../ui/IntroVideo';
+import { googleAuth } from '../auth/GoogleAuth';
 
 const GAMEPLAY_SCENES = [
     'World',
@@ -49,6 +50,9 @@ export class MainMenu extends Scene {
                 ? void this.startMultiplayer()
                 : this.openMultiplayerMenu(),
             onLeaderboard: () => this.scene.launch('Leaderboard'),
+            // Jogar sem entrar continua valendo: só não salva no placar nem paga os tijolinhos da feira.
+            // O script do Google carrega à parte: se ainda não chegou ou foi bloqueado, o menu fica sem a conta.
+            account: () => googleAuth.isAvailable ? this.getAccountAction() : undefined,
             character: () => CHARACTERS[loadCharacterId()],
             onToggleCharacter: () => {
                 saveCharacterId(nextCharacterId(loadCharacterId()));
@@ -57,6 +61,25 @@ export class MainMenu extends Scene {
         });
         this.view.create();
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopWatchingRooms());
+    }
+
+    private getAccountAction() {
+        const user = googleAuth.user;
+        if (user) {
+            return {
+                label: `SAIR DA CONTA (${user.name.toUpperCase().slice(0, 14)})`,
+                onSelect: () => {
+                    googleAuth.signOut();
+                    this.view?.refreshMainMenu();
+                }
+            };
+        }
+        return {
+            label: 'ENTRAR COM GOOGLE',
+            onSelect: () => void googleAuth.signIn().then(() => {
+                if (this.scene.isActive()) this.view?.refreshMainMenu();
+            })
+        };
     }
 
     private async startNewGame() {

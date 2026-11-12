@@ -15,6 +15,8 @@ export type MainMenuViewOptions = {
     /** Rótulo do personagem atual e textura da prévia; sem isso o menu não oferece a troca. */
     character?: () => { label: string; texture: string; scaleMultiplier: number };
     onToggleCharacter?: () => void;
+    /** Login com Google: o rótulo muda entre entrar e sair. Sem isso o menu não mostra a conta. */
+    account?: () => { label: string; onSelect: () => void } | undefined;
 };
 
 const ACTION_FONT = 'PixelGamer, monospace';
@@ -43,10 +45,12 @@ function positionActions(actions: Omit<MenuAction, 'y'>[]): MenuAction[] {
 
 export function createMainMenuActions(
     onPlay: () => void,
-    onLeaderboard?: () => void
+    onLeaderboard?: () => void,
+    account?: { label: string; onSelect: () => void }
 ): MenuAction[] {
     const actions: Omit<MenuAction, 'y'>[] = [{ label: 'JOGAR', onSelect: onPlay }];
     if (onLeaderboard) actions.push({ label: 'PLACAR', onSelect: onLeaderboard });
+    if (account) actions.push(account);
     actions.push({ label: 'OPÇÕES' }, { label: 'SAIR' });
     return positionActions(actions);
 }
@@ -269,8 +273,17 @@ export class MainMenuView {
         this.onEscape = undefined;
         this.renderActions(createMainMenuActions(
             () => this.showPlayMenu(),
-            this.options.onLeaderboard
+            this.options.onLeaderboard,
+            this.options.account?.()
         ));
+    }
+
+    /** Depois de entrar ou sair da conta, o rótulo muda e o cursor continua na mesma opção. */
+    refreshMainMenu() {
+        const selected = this.selectedAction;
+        this.showMainMenu();
+        this.selectedAction = selected;
+        this.updateSelection();
     }
 
     showPlayMenu() {
