@@ -67,8 +67,9 @@ import type { ConfirmPromptData } from './ConfirmPrompt';
 import type { PauseMenuData } from './PauseMenu';
 import type { InventoryData } from '../ui/InventoryMenuView';
 import type { WalletMenuData } from './WalletMenu';
-import { formatBalance, TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_SITTERS, TOPAZIO_BOSS, WALLET_UI } from '../config/ticen';
-import { TopazioGolem } from '../entities/TopazioGolem';
+import { formatBalance, TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_ESCAPE, TICEN_SITTERS, TOPAZIO_BOSS, WALLET_UI } from '../config/ticen';
+import { getBusFrame, TopazioGolem } from '../entities/TopazioGolem';
+import { BusEndingView } from '../ui/BusEndingView';
 import { CinematicBarsView } from '../ui/CinematicBarsView';
 import { GAUCHO_HAT, ITEMS, type ItemId } from '../config/items';
 import { createGauchoHatTexture } from '../entities/GauchoHat';
@@ -186,7 +187,9 @@ export class World extends Scene {
     private ticenGateHint?: Phaser.GameObjects.Text;
     private golem?: TopazioGolem;
     private isGolemAwake = false;
-    private isGolemCutscene = false;
+    private isCutsceneActive = false;
+    private isBusDoorOpen = false;
+    private busDoorObjects: Phaser.GameObjects.GameObject[] = [];
     private isArcadeArmed = true;
     private isGatewayConfirmOpen = false;
     private isClimbingLadder = false;
@@ -260,7 +263,9 @@ export class World extends Scene {
         this.ticenGateHint = undefined;
         this.golem = undefined;
         this.isGolemAwake = false;
-        this.isGolemCutscene = false;
+        this.isCutsceneActive = false;
+        this.isBusDoorOpen = false;
+        this.busDoorObjects = [];
         this.isArcadeArmed = true;
         this.arcadePrompt = undefined;
         this.isGatewayConfirmOpen = false;
@@ -435,14 +440,13 @@ export class World extends Scene {
         this.combat.shotMultipliers = getPlayerShotMultipliers(roomKey);
         // shortcut: o chefe só existe na partida solo; no multiplayer o convidado não sabe criar o golem pelo snapshot.
         if (isTicenRoom(roomKey) && !this.isMultiplayerEnabled()) {
-            const busTexture = ROOM_DEFINITIONS[roomKey].tilesets.find(({ mapName }) => mapName === 'ticen_onibus')?.textureKey ?? 'ticen_onibus';
             this.golem = new TopazioGolem(
                 this,
                 this.player,
                 room.collisionLayers,
                 room.collisionLayers.find((layer) => layer.layer.name === TOPAZIO_BOSS.busLayer),
-                busTexture,
-                () => this.cameras.main.flash(500, 110, 226, 255),
+                this.getTicenBusTexture(),
+                () => this.time.delayedCall(TICEN_ESCAPE.doorCutscene.delay, () => this.playBusDoorCutscene()),
                 (caption) => this.playGolemCutscene(caption)
             );
         }
@@ -643,7 +647,7 @@ export class World extends Scene {
         this.updateNauseaEffect();
         if (
             this.isPiranhasMenuOpen || this.isWaveIntermissionOpen || this.isArcadeOpen
-            || this.isGatewayConfirmOpen || this.isWalletOpen || this.isClimbingLadder || this.isGolemCutscene
+            || this.isGatewayConfirmOpen || this.isWalletOpen || this.isClimbingLadder || this.isCutsceneActive
         ) return;
         this.player?.update(delta);
         this.updateRevive(delta);
@@ -1014,7 +1018,7 @@ export class World extends Scene {
             // Atalho de teste das salas da campanha e do esconderijo dos gaúchos; a dungeon da Sala II fica de fora.
             event.repeat || (isDungeonRoom(this.activeRoomKey) && this.activeRoomKey !== 'gaucho-dungeon')
             || this.isMultiplayerGuest()
-            || !this.isGameplayReady || this.isGameOver || this.isRoomCombatComplete || this.isGolemCutscene
+            || !this.isGameplayReady || this.isGameOver || this.isRoomCombatComplete || this.isCutsceneActive
         ) return;
         if (this.room3CardCode.push(event.key)) {
             if (this.activeRoomKey === 'room3') {
@@ -1175,19 +1179,60 @@ export class World extends Scene {
     /** Cutscenes dos 70% e dos 40%: congela a luta, a câmera vai até o golem, ele ruge e a câmera volta ao jogador. */
     private playGolemCutscene(caption: string) {
         const golem = this.golem;
+        if (!golem) return;
+        const { duration, zoom } = TOPAZIO_BOSS.roar;
+        this.playCutscene(golem.sprite, caption, duration, zoom, () => golem.playRoar(duration));
+    }
+
+    /** Textura dos ônibus do TICEN na sala atual: cores originais na Sala V, paleta cyberpunk na 51. */
+    private getTicenBusTexture() {
+        return ROOM_DEFINITIONS[this.activeRoomKey].tilesets.find(({ mapName }) => mapName === 'ticen_onibus')?.textureKey ?? 'ticen_onibus';
+    }
+
+    /** Depois do golem: a câmera vai até o 763.2, as portas abrem e um feixe de luz chama o jogador. */
+    private playBusDoorCutscene() {
+        const { door, doorCutscene } = TICEN_ESCAPE;
+        const focus = { x: door.x + door.width / 2, y: door.y + door.height };
+        this.playCutscene(focus, doorCutscene.caption, doorCutscene.hold, doorCutscene.zoom, () => this.openBusDoor());
+    }
+
+    private openBusDoor() {
+        const { x, y, width, height } = TICEN_ESCAPE.door;
+        // Depois do ônibus (camada de colisão) e antes dos personagens (10).
+        const light = this.add.rectangle(x, y, width, height, 0xfff2b0).setOrigin(0).setDepth(3);
+        const half = width / 2;
+        const left = this.add.rectangle(x, y, half, height, 0x283446).setOrigin(0).setDepth(3.1);
+        const right = this.add.rectangle(x + width, y, half, height, 0x283446).setOrigin(1, 0).setDepth(3.1);
+        this.tweens.add({ targets: [left, right], scaleX: 0, duration: 500, ease: 'Quad.easeInOut' });
+        // Feixe de luz saindo da porta até o chão da faixa: fica pulsando para guiar o jogador.
+        const beam = this.add.graphics().setDepth(9).setBlendMode(1).setAlpha(0);
+        const bottom = y + height;
+        for (const [spread, alpha] of [[16, 0.12], [9, 0.18], [3, 0.28]] as const) {
+            beam.fillStyle(0xfff2b0, alpha).beginPath().moveTo(x, y).lineTo(x + width, y)
+                .lineTo(x + width + spread, bottom + 30).lineTo(x - spread, bottom + 30).closePath().fillPath();
+        }
+        beam.fillStyle(0xfff2b0, 0.25).fillEllipse(x + width / 2, bottom + 30, width + 40, 14);
+        this.tweens.add({ targets: beam, alpha: 1, duration: 500, delay: 300 });
+        this.tweens.add({ targets: beam, alpha: 0.55, duration: 900, delay: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        this.busDoorObjects = [light, left, right, beam];
+        this.isBusDoorOpen = true;
+    }
+
+    /** Congela a luta, leva a câmera até `focus` com faixas de cinema, roda `onFocus` e volta ao jogador. */
+    private playCutscene(focus: Readonly<{ x: number; y: number }>, caption: string, duration: number, zoom: number, onFocus: () => void) {
         const player = this.player;
-        if (!golem || !player) return;
-        const { panTime, duration, zoom } = TOPAZIO_BOSS.roar;
+        if (!player) return;
+        const { panTime } = TOPAZIO_BOSS.roar;
         const camera = this.cameras.main;
         const bars = new CinematicBarsView(this.scene.get('CombatHud') as Scene, caption);
-        this.isGolemCutscene = true;
+        this.isCutsceneActive = true;
         player.stopMovement();
         this.physics.pause();
         bars.show(panTime);
         camera.stopFollow();
-        camera.pan(golem.sprite.x, golem.sprite.y, panTime, 'Sine.easeInOut');
+        camera.pan(focus.x, focus.y, panTime, 'Sine.easeInOut');
         camera.zoomTo(this.normalCameraZoom * zoom, panTime, 'Sine.easeInOut');
-        this.time.delayedCall(panTime, () => golem.playRoar(duration));
+        this.time.delayedCall(panTime, onFocus);
         this.time.delayedCall(panTime + duration, () => {
             bars.hide(panTime);
             camera.pan(player.sprite.x, player.sprite.y, panTime, 'Sine.easeInOut');
@@ -1195,7 +1240,7 @@ export class World extends Scene {
         });
         this.time.delayedCall(panTime * 2 + duration, () => {
             camera.startFollow(player.sprite, true, WORLD_CONFIG.camera.lerpX, WORLD_CONFIG.camera.lerpY);
-            this.isGolemCutscene = false;
+            this.isCutsceneActive = false;
             if (!this.isPauseMenuOpen && !this.isGameOver) this.physics.resume();
         });
     }
@@ -1203,14 +1248,56 @@ export class World extends Scene {
     /** Embarcar no 763.2 via Kobrasol encerra a partida com vitória, depois de derrubar o golem. */
     private updateTicenGoal() {
         if (!isTicenRoom(this.activeRoomKey) || !this.player || this.isGameOver) return;
-        if (this.golem?.health.isAlive) return;
+        // Com o golem na sala, o embarque só abre depois da cutscene das portas.
+        if (this.golem && (this.golem.health.isAlive || !this.isBusDoorOpen)) return;
         const { x, y } = this.player.sprite.body?.center ?? this.player.sprite;
         const { left, right, top, bottom } = TICEN_GOAL;
         if (x < left || x > right || y < top || y > bottom) return;
         this.isGameOver = true;
         this.combat?.clear();
         this.physics.pause();
+        if (this.golem) {
+            this.playBusEnding();
+            return;
+        }
         void runTracker.win(undefined, !this.isMultiplayerGuest());
+    }
+
+    /** Final solo: senta dentro do 763.2, a tela escurece e o ônibus sai do TICEN; depois vem a vitória. */
+    private playBusEnding() {
+        const player = this.player;
+        if (!player) return;
+        player.stopMovement();
+        const ending = new BusEndingView(this.scene.get('CombatHud') as Scene, player.sprite.texture.key);
+        ending.play(() => {
+            const { bus, departure } = TICEN_ESCAPE;
+            const { frameWidth, frameHeight, tilesWide, tilesHigh } = TOPAZIO_BOSS.bus;
+            const layer = this.collisionLayers.find((candidate) => candidate.layer.name === TOPAZIO_BOSS.busLayer);
+            for (let dy = 0; dy < tilesHigh; dy += 1) {
+                for (let dx = 0; dx < tilesWide; dx += 1) layer?.removeTileAt(bus.col + dx, bus.row + dy);
+            }
+            const texture = this.getTicenBusTexture();
+            const image = this.add.image(bus.col * 16 + frameWidth / 2, bus.row * 16 + frameHeight / 2, texture,
+                getBusFrame(this, texture, bus.route)).setDepth(3);
+            player.sprite.setVisible(false);
+            for (const object of this.busDoorObjects) object.destroy();
+            const camera = this.cameras.main;
+            camera.stopFollow();
+            camera.setZoom(this.normalCameraZoom).centerOn(image.x - 80, image.y);
+            ending.reveal();
+            // Fumaça do escapamento enquanto arranca para a direita, até sair do terminal.
+            this.time.addEvent({ delay: 140, repeat: 10, callback: () => {
+                const puff = this.add.circle(image.x - frameWidth / 2, image.y + 14, 4, 0x8a8f99, 0.7).setDepth(3.2);
+                this.tweens.add({ targets: puff, x: puff.x - 18, y: puff.y - 10, scale: 2.4, alpha: 0, duration: 700, onComplete: () => puff.destroy() });
+            } });
+            this.tweens.add({
+                targets: image,
+                x: image.x + departure.distance,
+                duration: departure.duration,
+                ease: 'Quad.easeIn',
+                onComplete: () => void runTracker.win(undefined, !this.isMultiplayerGuest())
+            });
+        });
     }
 
     /** Luz verde, braço girando e passagem livre: some o bloqueio invisível da catraca. */
@@ -1845,7 +1932,7 @@ export class World extends Scene {
         if (
             !this.isGameplayReady || this.isPauseMenuOpen || this.isPiranhasMenuOpen
             || this.isWaveIntermissionOpen || this.isArcadeOpen || this.isGatewayConfirmOpen || this.isWalletOpen
-            || this.isClimbingLadder || this.isGolemCutscene || !this.player?.health.isAlive
+            || this.isClimbingLadder || this.isCutsceneActive || !this.player?.health.isAlive
         ) return;
 
         this.isPauseMenuOpen = true;

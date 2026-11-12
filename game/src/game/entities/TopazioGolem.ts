@@ -21,6 +21,15 @@ const ROW_SPIN_FRONT = 14;
 const ROW_SPIN_BACK = 15;
 const ROAR_THRESHOLDS = TOPAZIO_BOSS.roar.cutscenes.map(({ at }) => at);
 
+/** Quadro de um ônibus inteiro (uma linha do ticen_onibus.png), criado na primeira vez que é pedido. */
+export function getBusFrame(scene: Scene, textureKey: string, route: number) {
+    const { frameWidth, frameHeight } = TOPAZIO_BOSS.bus;
+    const frame = `bus-${route}`;
+    const texture = scene.textures.get(textureKey);
+    if (!texture.has(frame)) texture.add(frame, 0, 0, route * frameHeight, frameWidth, frameHeight);
+    return frame;
+}
+
 /** Chefe final do TICEN: cadeia de topázios, giro com estilhaços e ônibus arremessados. */
 export class TopazioGolem implements CombatEnemy {
     readonly kind = 'golem' as const;
@@ -389,13 +398,11 @@ export class TopazioGolem implements CombatEnemy {
 
     /** Tira o ônibus da baia (e a colisão dele) e ergue acima da cabeça. */
     private liftBus(bus: TicenBus, center: Point) {
-        const { tilesWide, tilesHigh, frameWidth, frameHeight, liftTime } = TOPAZIO_BOSS.bus;
+        const { tilesWide, tilesHigh, liftTime } = TOPAZIO_BOSS.bus;
         for (let dy = 0; dy < tilesHigh; dy += 1) {
             for (let dx = 0; dx < tilesWide; dx += 1) this.busLayer?.removeTileAt(bus.col + dx, bus.row + dy);
         }
-        const frame = `golem-bus-${bus.route}`;
-        const texture = this.scene.textures.get(this.busTexture);
-        if (!texture.has(frame)) texture.add(frame, 0, 0, bus.route * frameHeight, frameWidth, frameHeight);
+        const frame = getBusFrame(this.scene, this.busTexture, bus.route);
         this.heldBus = this.scene.add.image(center.x, center.y, this.busTexture, frame).setDepth(21);
         this.busMarker = this.scene.add.graphics().setDepth(3);
         this.fetching = undefined;
@@ -510,6 +517,25 @@ export class TopazioGolem implements CombatEnemy {
                 if (this.sprite.active) this.sprite.setFrame(ROW_DEATH * 4 + column);
             });
         }
+        // Explode em pedaços e espalha topázios pelo chão, onde eles ficam.
+        const { x, y } = this.sprite;
+        this.scene.time.delayedCall(360, () => {
+            this.scene.cameras.main.flash(300, 255, 210, 140);
+            playExplosion(this.scene, x, y, 70, 0xf29b38);
+            playShockwave(this.scene, x, y + TOPAZIO_BOSS.feetOffset, 120, 0x6ee2ff);
+            for (let index = 0; index < TOPAZIO_BOSS.gemCount; index += 1) {
+                const angle = index / TOPAZIO_BOSS.gemCount * Math.PI * 2 + Math.random() * 0.4;
+                const reach = 30 + Math.random() * 60;
+                const landX = x + Math.cos(angle) * reach;
+                const landY = y + TOPAZIO_BOSS.feetOffset + Math.sin(angle) * reach * 0.55;
+                const gem = this.scene.add.image(x, y, TOPAZIO_BOSS.gemTexture).setDepth(getActorDepth(landY));
+                // Arco: sobe e cai quicando onde pousa.
+                this.scene.tweens.add({ targets: gem, x: landX, duration: 520, ease: 'Linear' });
+                this.scene.tweens.add({ targets: gem, y: landY - 26 - Math.random() * 20, duration: 220, ease: 'Quad.easeOut', onComplete: () => {
+                    this.scene.tweens.add({ targets: gem, y: landY, duration: 300, ease: 'Bounce.easeOut' });
+                } });
+            }
+        });
         this.scene.tweens.add({ targets: this.sprite, alpha: 0, delay: 800, duration: 400, onComplete: () => this.sprite.destroy() });
         this.onDefeated();
     }
