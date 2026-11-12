@@ -2550,6 +2550,14 @@ export class World extends Scene {
                 damage,
                 dx: direction.x,
                 dy: direction.y
+            }),
+            onEnemyFreeze: (enemy, duration) => multiplayerClient.sendEvent({
+                kind: 'enemy.hit',
+                index: this.drones.indexOf(enemy),
+                damage: 0,
+                dx: 0,
+                dy: 0,
+                freeze: duration
             })
         });
     }
@@ -2869,7 +2877,11 @@ export class World extends Scene {
 
     private applyPartnerHit(event: Extract<CoopEvent, { kind: 'enemy.hit' }>) {
         const enemy = this.drones[event.index];
-        if (!this.isMultiplayerHost() || !enemy?.health.isAlive) return;
+        // O gelo vale dos dois lados: no anfitrião o inimigo para de verdade; no convidado aparece congelado.
+        if (enemy && typeof event.freeze === 'number' && event.freeze > 0) {
+            this.combat?.freezeEnemy(enemy, Math.min(event.freeze, COMBAT_CONFIG.iceStaff.freezeDuration));
+        }
+        if (!this.isMultiplayerHost() || !enemy?.health.isAlive || event.damage <= 0) return;
         const center = { x: enemy.sprite.x, y: enemy.sprite.y };
         const damage = enemy.takeDamage(event.damage, { x: event.dx, y: event.dy });
         if (damage > 0) playDamageNumber(this, center.x, center.y, damage);

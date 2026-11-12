@@ -50,6 +50,8 @@ export type CombatNetwork = {
     onPlayerSwing(x: number, y: number, angle: number): void;
     onPlayerEffect(effect: PlayerEffect): void;
     onEnemyHit(enemy: CombatEnemy, damage: number, direction: { x: number; y: number }): void;
+    /** Congelamento do cajado: o anfitrião para o inimigo de verdade e o parceiro vê o gelo. */
+    onEnemyFreeze?(enemy: CombatEnemy, duration: number): void;
 };
 
 // Metade da largura do feixe de luz, em pixels do mundo.
@@ -621,10 +623,17 @@ export class CombatSystem {
         this.iceCooldown = interval;
         this.shareEffect({ effect: 'shockwave', ...origin, radius, color });
         for (const enemy of targets) {
-            this.frozen.set(enemy, freezeDuration);
-            enemy.sprite.setVelocity(0, 0);
-            enemy.sprite.anims?.pause();
+            this.freezeEnemy(enemy, freezeDuration);
+            this.network?.onEnemyFreeze?.(enemy, freezeDuration);
         }
+    }
+
+    /** Para o inimigo onde está; vale para o gelo deste jogador e para o do parceiro, vindo pela rede. */
+    freezeEnemy(enemy: CombatEnemy, duration: number) {
+        if (!enemy.health.isAlive) return;
+        this.frozen.set(enemy, Math.max(duration, this.frozen.get(enemy) ?? 0));
+        enemy.sprite.setVelocity(0, 0);
+        enemy.sprite.anims?.pause();
     }
 
     /** Segura parado e azulado quem está congelado; ao derreter, volta a cor e a animação. */

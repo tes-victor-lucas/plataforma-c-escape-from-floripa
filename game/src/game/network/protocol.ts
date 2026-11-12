@@ -57,7 +57,8 @@ export type CoopEvent =
     | { kind: 'enemy.spawn'; enemies: readonly EnemySpawnRow[] }
     | { kind: 'enemy.snapshot'; rows: readonly EnemySnapshotRow[] }
     | { kind: 'enemy.shot'; x: number; y: number; angle: number }
-    | { kind: 'enemy.hit'; index: number; damage: number; dx: number; dy: number }
+    // freeze: ms de congelamento do cajado de gelo; vai junto do acerto para não exigir um tipo novo no servidor.
+    | { kind: 'enemy.hit'; index: number; damage: number; dx: number; dy: number; freeze?: number }
     | { kind: 'enemy.killed'; index: number }
     | { kind: 'player.shot'; x: number; y: number; angle: number; speed: number; color: number; pierces?: number }
     | { kind: 'player.swing'; x: number; y: number; angle: number }
