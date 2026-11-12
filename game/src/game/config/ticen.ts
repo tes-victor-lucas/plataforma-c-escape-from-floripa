@@ -84,6 +84,8 @@ export const TOPAZIO_BOSS = {
     // Gigante: anda por cima de tudo, mas não sai do terminal nem desce até a catraca.
     bounds: { left: 56, right: 712, top: 8 * 16, bottom: 32 * 16 },
     maxHealth: 400,
+    // Gigante: anda por cima de toldos, pilares, placas e quiosques (camada itens-topo, profundidade 20).
+    depth: 20.5,
     speed: 34,
     contactDamage: 2,
     hitbox: { width: 52, height: 60, offsetX: 22, offsetY: 28 },
@@ -91,12 +93,15 @@ export const TOPAZIO_BOSS = {
     // Respiro entre ataques em cada estágio de rachadura: quanto mais rachado, mais rápido.
     rest: [1700, 1400, 1150, 900],
     firstRest: 1200,
-    // Bate no chão: topázios brotam em cadeia na direção do jogador (três cadeias da metade da vida em diante).
+    // Bate no chão: topázios brotam em três cadeias, em leque, na direção do jogador.
     slam: { windup: 700, recover: 700, spikeInterval: 55, spikeSpacing: 22, spikeCount: 15, spikeRadius: 13, damage: 2, spread: 0.42 },
     // Gira em pé no lugar, como um pião (turnSpeed em radianos por ms), cuspindo topázios em volta.
     spin: { duration: 2200, burstInterval: 280, shardsPerBurst: 10, shardSpeed: 125, shardLifetime: 3000, damage: 1, turnSpeed: 0.022 },
-    // Cutscene rápida aos 70%: a câmera vai até ele, ele ruge e a luta volta. calmBefore deixa ônibus e cadeias terminarem.
-    roar: { threshold: 0.7, calmBefore: 900, panTime: 380, duration: 1500, zoom: 1.45 },
+    // Cutscenes rápidas aos 70% e aos 40%: a câmera vai até ele, ele ruge e a luta volta. calmBefore deixa ônibus e cadeias terminarem.
+    roar: {
+        calmBefore: 900, panTime: 380, duration: 1500, zoom: 1.45,
+        cutscenes: [{ at: 0.7, caption: 'O TOPAZIO DESPERTA' }, { at: 0.4, caption: 'FURIA DO TOPAZIO' }]
+    },
     // Ônibus: vai até a baia, ergue acima da cabeça, mira no jogador e arremessa.
     bus: { fetchSpeed: 130, liftTime: 450, holdTime: 1000, flightTime: 700, radius: 44, damage: 4, frameWidth: 112, frameHeight: 48, tilesWide: 7, tilesHigh: 3 },
     busLayer: 'onibus',
@@ -118,8 +123,8 @@ export function getGolemStage(current: number, max: number) {
     return Math.min(3, Math.max(0, Math.floor((1 - ratio) * 4)));
 }
 
-/** Quantos ônibus a vida perdida já pede: um para cada limiar cruzado. */
-export function getBusThrowsDue(current: number, max: number, thresholds: readonly number[]) {
+/** Quantos limiares de vida já foram cruzados: um ônibus ou uma cutscene para cada. */
+export function countThresholdsCrossed(current: number, max: number, thresholds: readonly number[]) {
     return thresholds.filter((threshold) => current <= max * threshold).length;
 }
 
