@@ -107,6 +107,20 @@ export function getEquipmentStats(ids: readonly ItemId[]): EquipmentStat[] {
     ];
 }
 
+/**
+ * Próximo item ao andar pela mochila com as setas ou o controle. Para os lados segue a ordem dos itens;
+ * para cima e para baixo troca de linha, e uma linha de baixo mais curta leva ao último item dela.
+ */
+export function moveInventorySelection(index: number, count: number, dx: number, dy: number, columns: number = GRID.columns) {
+    if (count === 0) return index;
+    if (dx !== 0) return Math.max(0, Math.min(count - 1, index + dx));
+    const next = index + dy * columns;
+    if (next < 0) return index;
+    if (next < count) return next;
+    const lastRow = Math.floor((count - 1) / columns);
+    return Math.floor(index / columns) < lastRow ? count - 1 : index;
+}
+
 /** O balão nasce à direita e abaixo do meio do encaixe e é empurrado para dentro do painel quando não cabe. */
 export function getTooltipPosition(slotX: number, slotY: number, height: number) {
     return {
