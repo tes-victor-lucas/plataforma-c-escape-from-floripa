@@ -86,6 +86,10 @@ export class InventoryMenuView {
 
     create() {
         const menu = new CleanOverlayMenu(this.scene, { bounds: PANEL, dimAlpha: 0.78 });
+        // A moldura dupla cobre o painel padrão dos menus: o inventário tem cara própria.
+        const panel = this.scene.add.graphics();
+        drawFramedBox(panel, PANEL, CLEAN_MENU_COLORS.panel);
+        menu.add(panel);
         menu.add(this.text(GAME_WIDTH / 2, 40, 'INVENTÁRIO', 26, CLEAN_MENU_COLORS.text).setOrigin(0.5));
         addUpgradePanel(this.scene, menu, this.options.upgrades, CARDS);
         this.addChimarraos(menu);
