@@ -61,7 +61,7 @@ export type CoopEvent =
     | { kind: 'enemy.hit'; index: number; damage: number; dx: number; dy: number; freeze?: number }
     | { kind: 'enemy.killed'; index: number }
     | { kind: 'player.shot'; x: number; y: number; angle: number; speed: number; color: number; pierces?: number }
-    | { kind: 'player.swing'; x: number; y: number; angle: number }
+    | { kind: 'player.swing'; x: number; y: number; angle: number; flame?: boolean }
     | ({ kind: 'player.effect' } & PlayerEffect)
     | { kind: 'player.damage'; amount: number }
     /** `hitPeer` diz se o golpe do gaúcho acertou quem recebe o evento. */

@@ -47,7 +47,7 @@ export type CombatNetwork = {
     getEnemyTarget(origin: { x: number; y: number }): Fighter | undefined;
     onEnemyShot(x: number, y: number, angle: number): void;
     onPlayerShot(x: number, y: number, angle: number, speed: number, color: number, pierces: number): void;
-    onPlayerSwing(x: number, y: number, angle: number): void;
+    onPlayerSwing(x: number, y: number, angle: number, flame?: boolean): void;
     onPlayerEffect(effect: PlayerEffect): void;
     onEnemyHit(enemy: CombatEnemy, damage: number, direction: { x: number; y: number }): void;
     /** Congelamento do cajado: o anfitrião para o inimigo de verdade e o parceiro vê o gelo. */
@@ -729,7 +729,7 @@ export class CombatSystem {
         const hand = this.getHandPosition();
         this.heldSword.setVisible(false);
         this.playSwing(hand.x, hand.y, angle, () => this.heldSword?.setVisible(true), this.flameSword && !this.melee);
-        this.network?.onPlayerSwing(hand.x, hand.y, angle);
+        this.network?.onPlayerSwing(hand.x, hand.y, angle, this.flameSword && !this.melee);
 
         for (const enemy of this.enemies) {
             if (!enemy.health.isAlive) continue;
@@ -765,8 +765,9 @@ export class CombatSystem {
     }
 
     /** Golpe do parceiro: apenas visual, o dano é resolvido no cliente de quem golpeou. */
-    playPartnerSwing(x: number, y: number, angle: number) {
-        this.playSwing(x, y, angle);
+    playPartnerSwing(x: number, y: number, angle: number, flame = false) {
+        if (flame) createItemTexture(this.scene, FLAME_SWORD);
+        this.playSwing(x, y, angle, undefined, flame);
     }
 
     private playSwing(x: number, y: number, angle: number, onComplete?: () => void, flame = false) {
