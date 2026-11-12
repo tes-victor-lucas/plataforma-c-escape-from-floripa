@@ -1199,6 +1199,8 @@ export class World extends Scene {
             if (center.y < TICEN_GATE.y - TICEN_GATE.passedMargin) this.closeTicenGateBehind();
             return;
         }
+        // Quem já entrou no terminal não passa o cartão de novo.
+        if (this.hasPassedTicenGate) return;
         const { approach, triggerDistance, rearmDistance, hintDistance } = TICEN_GATE;
         const distance = Math.hypot(center.x - approach.x, center.y - approach.y);
         this.ticenGateHint?.setVisible(distance <= hintDistance);
@@ -1332,8 +1334,20 @@ export class World extends Scene {
         const { left, right, top, bottom } = TICEN_GOAL;
         const isAtDoor = x >= left && x <= right && y >= top && y <= bottom;
         // Em dupla, a porta pergunta se cada um quer fugir; só depois dos dois SIM vem a reviravolta.
-        if (this.golem && this.isMultiplayerEnabled()) {
-            this.updateEscapeVote(isAtDoor);
+        // Se o parceiro saiu da partida, vale o final solo.
+        const partner = [...this.remotePlayers.values()][0];
+        if (this.golem && partner) {
+            const isLocalOut = !this.player.health.isAlive && this.getRevivesLeft() === 0;
+            const isPartnerOut = !partner.isAlive && partner.revivesLeft === 0;
+            if (!isLocalOut && !isPartnerOut) {
+                this.updateEscapeVote(isAtDoor);
+                return;
+            }
+            // Quem caiu sem renascimentos não vota: o outro embarca sozinho e ele é deixado para trás.
+            const boarder = isPartnerOut ? { x, y } : partner.feet;
+            if (boarder.x < left || boarder.x > right || boarder.y < top || boarder.y > bottom) return;
+            this.isDuelOver = true;
+            this.playDuelEnding(isPartnerOut);
             return;
         }
         if (!isAtDoor) return;
@@ -1393,7 +1407,7 @@ export class World extends Scene {
 
     /** Na porta do 763.2 cada um decide se quer fugir; o SIM fica de pé até o parceiro decidir também. */
     private updateEscapeVote(isAtDoor: boolean) {
-        if (!this.player || this.isDuelActive || this.isDuelOver || this.hasVotedEscape) return;
+        if (!this.player?.health.isAlive || this.isDuelActive || this.isDuelOver || this.hasVotedEscape) return;
         if (!isAtDoor) {
             this.isEscapeVoteArmed = true;
             return;
@@ -1569,8 +1583,11 @@ export class World extends Scene {
         glow.fillStyle(0xfff2b0, 0.22).fillRect(x - 2, y - 70, 4, 66);
         this.tweens.add({ targets: glow, alpha: { from: 1, to: 0.45 }, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
         this.tweens.add({ targets: image, scale: { from: 1, to: 1.15 }, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-        this.time.addEvent({ delay: 220, loop: true, callback: () => {
-            if (!glow.active) return;
+        const sparks = this.time.addEvent({ delay: 220, loop: true, callback: () => {
+            if (!glow.active) {
+                sparks.remove();
+                return;
+            }
             const spark = this.add.rectangle(x + (Math.random() - 0.5) * 18, y - 8, 2, 2, 0xfff2b0).setDepth(getActorDepth(y) + 0.01).setBlendMode(1);
             this.tweens.add({ targets: spark, y: spark.y - 26, alpha: 0, duration: 800, onComplete: () => spark.destroy() });
         } });
@@ -1676,8 +1693,9 @@ export class World extends Scene {
      */
     private playDuelEnding(localWon: boolean) {
         const player = this.player;
+        // Sem parceiro (saiu no meio da disputa) só existe o vencedor na tela.
         const partner = [...this.remotePlayers.values()][0];
-        if (!player || !partner) return;
+        if (!player) return;
         for (const timer of this.duelTimers) timer.remove(false);
         this.duelTimers = [];
         this.isGameOver = true;
@@ -1689,9 +1707,9 @@ export class World extends Scene {
         }
         player.stopMovement();
         this.physics.pause();
-        const loser = localWon ? partner.sprite : player.sprite;
-        const winner = localWon ? player.sprite : partner.sprite;
-        this.playDeathAnimation(loser);
+        const loser = localWon ? partner?.sprite : player.sprite;
+        const winner = localWon ? player.sprite : partner?.sprite ?? player.sprite;
+        if (loser) this.playDeathAnimation(loser);
         const { deathTime, boardTime } = TICEN_DUEL;
         const { door } = TICEN_ESCAPE;
         const doorFeet = { x: door.x + door.width / 2, y: door.y + door.height + 12 };
@@ -1700,7 +1718,7 @@ export class World extends Scene {
             camera.stopFollow();
             camera.pan(doorFeet.x, doorFeet.y, 500, 'Sine.easeInOut');
             camera.zoomTo(this.normalCameraZoom * TICEN_ESCAPE.doorCutscene.zoom, 500, 'Sine.easeInOut');
-            this.openBusDoor();
+            if (!this.isBusDoorOpen) this.openBusDoor();
             // O vencedor anda até a porta na própria tela; o parceiro vê pelo estado dele.
             if (localWon) {
                 this.tweens.add({ targets: player.sprite, x: doorFeet.x, y: doorFeet.y, duration: boardTime * 0.7, ease: 'Sine.easeInOut' });
@@ -2587,6 +2605,13 @@ export class World extends Scene {
     }
 
     private handlePartnerLeft() {
+        this.hasVotedEscape = false;
+        // Quem abandona a disputa perde a vaga para quem ficou.
+        if (this.isDuelActive && !this.isDuelOver) {
+            this.isDuelOver = true;
+            this.playDuelEnding(true);
+            return;
+        }
         if (this.isMultiplayerGuest()) {
             // shortcut: sem migração de anfitrião a partida termina, trocar se quedas forem comuns.
             if (this.isGameOver) return;

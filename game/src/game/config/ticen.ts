@@ -199,7 +199,7 @@ export const TICEN_DUEL = {
         interval: 10_000,
         touchRadius: 16
     },
-    // Um especial diferente por baú, na ordem em que aparecem; depois do sexto a lista recomeça.
+    // Um especial diferente por baú, na ordem em que aparecem; depois do oitavo a lista recomeça.
     // Capacete e galochas são itens de vestir: equipam sozinhos em quem abrir o baú.
     specials: [
         { id: 'heart', label: '+1 CORACAO' },
