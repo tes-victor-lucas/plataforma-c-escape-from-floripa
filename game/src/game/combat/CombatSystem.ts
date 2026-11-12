@@ -16,6 +16,8 @@ import {
     SPIN_SLASH_START
 } from '../effects/playAreaEffects';
 import { WORLD_CONFIG } from '../config/world';
+import { FLAME_SWORD } from '../config/items';
+import { createItemTexture } from '../entities/WornItem';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import { runTracker, type RunTracker } from '../scoring/RunTracker';
 import type { PlayerEffect } from '../network/protocol';
@@ -82,6 +84,8 @@ export class CombatSystem {
     private isSwingQueued = false;
     /** Recarga do golpe, separada da do tiro: com a espada flamejante os dois andam juntos. */
     private swingCooldown = 0;
+    /** Espada flamejante vestida: golpe de dano médio nas salas com tiro. */
+    private flameSword = false;
     private pulseCooldown = 0;
     /** Crescimento do tiro normal pela sala atual (getPlayerShotMultipliers). */
     shotMultipliers = { damage: 1, speed: 1 };
@@ -255,6 +259,14 @@ export class CombatSystem {
             }
             this.updateHeldSword();
             return;
+        }
+        // Com a espada flamejante, o golpe guardado sai sem esperar o tiro.
+        if (this.flameSword) {
+            if (this.isSwingQueued && this.swingCooldown === 0) {
+                this.isSwingQueued = false;
+                this.swing();
+            }
+            this.updateHeldSword();
         }
         if (nearest && this.playerCooldown === 0) {
             this.firePlayer(nearest);
@@ -559,6 +571,18 @@ export class CombatSystem {
         this.equipSword();
     }
 
+    /** Espada flamejante vestida ou guardada no inventário; na sala corpo a corpo vale a espada da própria sala. */
+    setFlameSword(enabled: boolean) {
+        if (this.melee || this.flameSword === enabled) return;
+        this.flameSword = enabled;
+        this.heldSword?.destroy();
+        this.heldSword = undefined;
+        if (!enabled) return;
+        createItemTexture(this.scene, FLAME_SWORD);
+        this.heldSword = this.scene.add.image(0, 0, FLAME_SWORD.texture).setOrigin(0.15, 0.85);
+        this.updateHeldSword();
+    }
+
     /** A espada coletada fica na mão do personagem até o próximo golpe. */
     equipSword() {
         if (!this.melee || this.heldSword) return;
@@ -577,7 +601,7 @@ export class CombatSystem {
             this.isSwingQueued ||= this.swingCooldown <= COMBAT_CONFIG.melee.bufferWindow;
             return false;
         }
-        const { interval, damageMultiplier } = COMBAT_CONFIG.melee;
+        const { interval, damageMultiplier } = this.melee ? COMBAT_CONFIG.melee : COMBAT_CONFIG.flameSword;
         const range = COMBAT_CONFIG.melee.range * this.swordRangeMultiplier;
         const arc = this.swordFullCircle ? Math.PI * 2 : COMBAT_CONFIG.melee.arc;
         const swordDamage = this.playerStats.damage * damageMultiplier * this.swordDamageMultiplier;
