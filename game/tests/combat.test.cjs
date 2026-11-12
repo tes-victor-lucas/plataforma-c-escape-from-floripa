@@ -4071,6 +4071,7 @@ test('golem que levou o golpe final com ônibus pendente morre sozinho depois do
         action: 'walk',
         actionTime: 0,
         isDeathDeferred: false,
+        options: {},
         finishDeath() { died += 1; },
         flashHit() {},
         startFetch() { this.buses.length = 0; },
@@ -4112,4 +4113,11 @@ test('pegar os 14 topázios do golem vale 2K pontos uma vez e passa pelo checkpo
     assert.equal(restored.snapshot(start).score.topazPoints, 2_000);
     tracker.abandon();
     restored.abandon();
+});
+
+test('snapshot do golem leva a escala do giro e os outros inimigos não', () => {
+    const { createEnemySnapshotRow } = load('../src/game/network/coop.ts');
+    const enemy = (kind, scaleX) => ({ kind, health: { isAlive: true, current: 50 }, sprite: { x: 10, y: 20, scaleX, flipX: false, frame: { name: 3 } } });
+    assert.deepEqual(createEnemySnapshotRow(enemy('golem', 0.183)), [10, 20, 50, 3, 0, 0.18]);
+    assert.deepEqual(createEnemySnapshotRow(enemy('drone', 0.9)), [10, 20, 50, 3, 0]);
 });

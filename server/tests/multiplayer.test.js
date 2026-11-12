@@ -244,3 +244,15 @@ test('efeitos das cartas e faíscas orbitais chegam ao parceiro', () => {
     assert.equal(messagesFor(sent, 'p2', 'player.state').length, 1);
     assert.equal(messagesFor(sent, 'p1', 'error').at(-1).message.code, 'INVALID_PLAYER_STATE');
 });
+
+test('catraca do TICEN e ações do golem chegam ao parceiro', () => {
+    const { broker, sent } = startedRoom();
+    const events = [
+        { kind: 'ticen.gate' },
+        { kind: 'boss.wake' },
+        { kind: 'boss.action', action: { type: 'slam', ox: 1, oy: 2, tx: 3, ty: 4 } }
+    ];
+    for (const event of events) broker.publish('client.message', { clientId: 'p1', message: { type: 'match.event', event } });
+    assert.deepEqual(messagesFor(sent, 'p2', 'match.event').map(({ message }) => message.event), events);
+    assert.equal(messagesFor(sent, 'p1', 'error').length, 0);
+});
