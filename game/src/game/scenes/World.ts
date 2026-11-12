@@ -733,6 +733,8 @@ export class World extends Scene {
             if (this.isGolemAwake) this.golem?.update(this.player, delta);
         } else {
             for (const enemy of this.drones) {
+                // Congelado pelo cajado de gelo: nem anda nem persegue até derreter.
+                if (this.combat?.isFrozen(enemy)) continue;
                 enemy.update(this.getEnemyTarget(enemy.sprite) as Player | undefined, delta);
             }
         }
@@ -1022,6 +1024,7 @@ export class World extends Scene {
         }
         // O que vai na mão também muda o combate: golpe da espada flamejante e o gelo do cajado.
         this.combat?.setFlameSword(this.equippedItems.includes('flame-sword'));
+        this.combat?.setIceStaff(this.equippedItems.includes('ice-staff'));
     }
 
     private buildInventory(): InventoryData {
