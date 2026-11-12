@@ -4905,3 +4905,30 @@ test('direcional anda pelas cartas do inventário e sai pela direita de volta à
     assert.equal(moveCardFocus(5, 7, 3, 0, 1), 5, 'sem carta embaixo, fica');
     assert.equal(moveCardFocus(4, 7, 3, 0, -1), 1);
 });
+
+test('no convidado, os rugidos do golem e a queda chegam pelo anfitrião e tocam as cutscenes', () => {
+    const { TopazioGolem } = load('../src/game/entities/TopazioGolem.ts');
+    const { TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const roars = [];
+    let doors = 0;
+    const golem = Object.create(TopazioGolem.prototype);
+    Object.assign(golem, {
+        health: new Health(TOPAZIO_BOSS.maxHealth),
+        roarsDone: 0,
+        options: { mirror: true },
+        onRoar: (caption) => roars.push(caption),
+        onDefeated: () => { doors += 1; },
+        finishDeath() { this.onDefeated(); }
+    });
+    for (const { caption } of TOPAZIO_BOSS.roar.cutscenes) golem.applyRemoteAction({ type: 'roar', caption });
+    assert.deepEqual(roars, TOPAZIO_BOSS.roar.cutscenes.map(({ caption }) => caption), 'os dois rugidos (70% e 40%) tocam no convidado');
+    golem.isDeathDeferred = false;
+    golem.flashHit = () => undefined;
+    golem.stage = 3;
+    golem.scene = { cameras: { main: { shake() {} } } };
+    golem.takeDamage(TOPAZIO_BOSS.maxHealth * 10);
+    assert.equal(golem.health.current, 1, 'o espelho não morre sozinho: segura em 1 até o aviso');
+    golem.applyRemoteAction({ type: 'defeated' });
+    assert.equal(golem.health.current, 0);
+    assert.equal(doors, 1, 'a queda chega e a cena das portas do 763.2 toca no convidado');
+});
