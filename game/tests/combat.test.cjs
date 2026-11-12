@@ -4101,6 +4101,8 @@ test('golem que levou o golpe final com ônibus pendente morre sozinho depois do
         buses: [{ route: 4, col: 34, row: 20 }],
         busesThrown: 3,
         roarsDone: 2,
+        // Já passou dos 60% antes: o atordoamento aconteceu.
+        hasStunned: true,
         action: 'walk',
         actionTime: 0,
         isDeathDeferred: false,
@@ -4670,4 +4672,50 @@ test('carta Cajado de gelo congela como o item, com raio que cresce por nível',
     assert.equal(combat.isFrozen(drones[0]), true, 'congela sem o item, só com a carta');
     upgrades.acquire(getUpgradeCard('ice-staff'));
     assert.equal(upgrades.freezeRadius, 180, '+30 px no nível 2');
+});
+
+test('rodada do golem oferece cinco cartas novas das Salas II e III, sem básicas nem as já escolhidas', () => {
+    const { drawGolemCards } = load('../src/game/upgrades/drawUpgradeCards.ts');
+    const { BASIC_UPGRADE_IDS, UPGRADE_CARDS } = load('../src/game/upgrades/catalog.ts');
+    const acquired = ['shock-pulse', 'chain-lightning', 'spin-slash'];
+    for (const roll of [0, 0.3, 0.6, 0.99]) {
+        const cards = drawGolemCards(acquired, () => roll, UPGRADE_CARDS);
+        const ids = cards.map((card) => card.id);
+        assert.equal(cards.length, 5);
+        assert.equal(new Set(ids).size, 5, 'sem repetir');
+        assert.ok(!ids.some((id) => acquired.includes(id)), 'nenhuma já escolhida');
+        assert.ok(!ids.some((id) => BASIC_UPGRADE_IDS.includes(id) || id === 'overclock'), 'sem básicas nem a aposentada');
+    }
+    const everyOption = UPGRADE_CARDS.map((card) => card.id);
+    assert.deepEqual(drawGolemCards(everyOption, () => 0, UPGRADE_CARDS), [], 'quem já pegou tudo não recebe nada');
+});
+
+test('golem desaba atordoado em 60%, abre a rodada e levanta depois de 4 s sem machucar caído', () => {
+    const { TopazioGolem } = load('../src/game/entities/TopazioGolem.ts');
+    const { TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const golem = Object.create(TopazioGolem.prototype);
+    let stuns = 0;
+    const emitted = [];
+    Object.assign(golem, {
+        health: { current: TOPAZIO_BOSS.maxHealth * TOPAZIO_BOSS.stun.at, max: TOPAZIO_BOSS.maxHealth, isAlive: true },
+        hasStunned: false,
+        roarsDone: 2,
+        buses: [],
+        busesThrown: 4,
+        sinceLastBus: 0,
+        isDeathDeferred: false,
+        stage: 2,
+        options: { onStun: () => { stuns += 1; }, onAction: (action) => emitted.push(action.type) },
+        sprite: { setTint() { return this; }, clearTint() { return this; } },
+        scene: { tweens: { add() {} }, cameras: { main: { shake() {} } } }
+    });
+    golem.updateWalk({ setVelocity() {} }, undefined, 16);
+    assert.equal(golem.action, 'stun');
+    assert.equal(stuns, 1, 'a rodada de cartas abre');
+    assert.deepEqual(emitted, ['stun'], 'o convidado recebe o atordoamento');
+    golem.startStun();
+    assert.equal(stuns, 1, 'só uma vez por luta');
+    golem.actionTime = TOPAZIO_BOSS.stun.duration;
+    golem.endStun();
+    assert.equal(golem.action, 'walk', 'levanta e volta a andar');
 });
