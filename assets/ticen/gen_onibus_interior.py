@@ -279,6 +279,57 @@ def dog_man(d, ox):
     d.line((ox + 11, 96, ox + 13, 96), fill=(40, 20, 20, 255))
 
 
+def fisherman(d, ox):
+    """Seu Tainha, pescador manezinho: chapéu de palha de aba larga, barba branca, capa de chuva amarela,
+    galochas verdes e uma tainha no colo. Herói trabalhador e bonachão, nascido no Ribeirão da Ilha."""
+    raincoat, raincoat_d = (236, 196, 40, 255), (170, 130, 20, 255)
+    seated_body(d, ox, raincoat, raincoat_d, (70, 64, 60, 255), (44, 40, 38, 255), (40, 90, 50, 255),
+                skin=(214, 160, 120, 255), skin_d=(170, 116, 86, 255))
+    d.rectangle((ox + 15, 128, ox + 21, 141), fill=(40, 90, 50, 255), outline=(24, 56, 30, 255))   # galocha
+    d.rectangle((ox + 1, 112, ox + 19, 119), fill=(70, 64, 60, 255), outline=(44, 40, 38, 255))
+    # barba branca cheia, do queixo até o peito
+    beard, beard_d = (240, 236, 228, 255), (190, 186, 178, 255)
+    d.polygon([(ox + 5, 93), (ox + 12, 93), (ox + 12, 100), (ox + 7, 103), (ox + 4, 99)], fill=beard, outline=beard_d)
+    d.line((ox + 9, 94, ox + 11, 94), fill=beard_d)                                 # boca no meio da barba
+    d.point((ox + 9, 91), fill=EYE)
+    # tainha prateada no colo
+    fish, fish_d = (180, 190, 200, 255), (110, 120, 136, 255)
+    d.ellipse((ox + 7, 107, ox + 18, 111), fill=fish, outline=fish_d)
+    d.polygon([(ox + 18, 109), (ox + 21, 106), (ox + 21, 112)], fill=fish_d)
+    d.point((ox + 9, 108), fill=EYE)
+    # chapéu de palha de aba larga, com a fita escura
+    straw, straw_d = (226, 196, 128, 255), (170, 140, 80, 255)
+    d.rectangle((ox - 3, 87, ox + 15, 88), fill=straw, outline=straw_d)
+    d.rectangle((ox + 2, 82, ox + 11, 87), fill=straw, outline=straw_d)
+    d.line((ox + 2, 86, ox + 11, 86), fill=(90, 50, 30, 255))
+    for x in range(ox + 3, ox + 11, 2):
+        d.point((x, 84), fill=straw_d)                                              # trama da palha
+
+
+def validator_robot(d, ox):
+    """Catraquinha: robozinho da Floria com o corpo do validador do TICEN, rosto de tela com um olho verde só,
+    antena com LED vermelho e a fenda do cartão acesa. Fugiu no 763.2 junto com o jogador."""
+    casing, casing_d, teal = (120, 128, 140, 255), (70, 76, 88, 255), (40, 156, 146, 255)
+    # perninhas curtas penduradas e pés de borracha
+    for lx in (ox + 3, ox + 8):
+        d.rectangle((lx, 118, lx + 2, 128), fill=casing_d)
+        d.rectangle((lx - 1, 128, lx + 3, 130), fill=K0)
+    # corpo de caixa arredondada, com faixa verde-água
+    d.rounded_rectangle((ox, 99, ox + 12, 119), radius=3, fill=casing, outline=casing_d)
+    d.rectangle((ox, 112, ox + 12, 113), fill=teal)
+    # rosto de tela virado para a frente do ônibus, com um olho verde só
+    d.rectangle((ox + 5, 101, ox + 11, 108), fill=K0, outline=casing_d)
+    d.ellipse((ox + 7, 102, ox + 10, 106), fill=(90, 255, 140, 255))
+    d.point((ox + 8, 103), fill=(220, 255, 230, 255))
+    d.line((ox + 7, 107, ox + 9, 107), fill=(60, 180, 100, 255))                  # boquinha
+    # fenda do cartão acesa e bracinho
+    d.rectangle((ox + 2, 109, ox + 6, 110), fill=(90, 255, 140, 255))
+    d.rectangle((ox + 9, 110, ox + 13, 112), fill=casing_d)
+    # antena com o LED vermelho da Floria
+    d.line((ox + 3, 95, ox + 3, 99), fill=casing_d)
+    d.rectangle((ox + 2, 93, ox + 4, 95), fill=(255, 48, 72, 255))
+
+
 def cat(d, seat_x):
     """Gato preto e branco dormindo enrolado sozinho no assento, com a mancha preta de bigodinho no focinho."""
     white, white_d, black = (236, 236, 236, 255), (186, 186, 196, 255), (14, 12, 16, 255)
@@ -319,8 +370,9 @@ def grade(img):
     return img
 
 
-# Bancos ocupados: o gato no banco do fundo, o gaúcho atrás do jogador e o homem-cachorro mais à frente.
-PASSENGERS = ((66, gaucho), (222, dog_man))
+# Bancos ocupados: o gato no banco do fundo, o gaúcho atrás do jogador, o Seu Tainha na frente dele,
+# o homem-cachorro mais à frente e o Catraquinha no banco que só aparece pela metade.
+PASSENGERS = ((66, gaucho), (170, fisherman), (222, dog_man), (274, validator_robot))
 CAT_SEAT = 14
 
 
