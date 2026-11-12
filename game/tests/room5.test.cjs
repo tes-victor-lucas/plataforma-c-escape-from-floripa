@@ -130,15 +130,15 @@ test('salas III e IV abrem saída para a seguinte e a partida termina na porta d
 });
 
 test('golem racha em quatro estágios e pede um ônibus a cada limiar de vida', () => {
-    const { getGolemStage, getBusThrowsDue, TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const { getGolemStage, countThresholdsCrossed, TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
     const max = TOPAZIO_BOSS.maxHealth;
     assert.deepEqual([max, max * 0.76, max * 0.75, max * 0.5, max * 0.26, max * 0.25, 1, 0].map((hp) => getGolemStage(hp, max)),
         [0, 0, 1, 2, 2, 3, 3, 3]);
     const thresholds = TOPAZIO_BOSS.busThresholds;
-    assert.equal(getBusThrowsDue(max, max, thresholds), 0);
-    assert.equal(getBusThrowsDue(max * 0.8, max, thresholds), 1);
-    assert.equal(getBusThrowsDue(max * 0.39, max, thresholds), 3, 'um golpe forte pode pedir vários de uma vez');
-    assert.equal(getBusThrowsDue(1, max, thresholds), TOPAZIO_BOSS.buses.length, 'todos saem antes de ele morrer');
+    assert.equal(countThresholdsCrossed(max, max, thresholds), 0);
+    assert.equal(countThresholdsCrossed(max * 0.8, max, thresholds), 1);
+    assert.equal(countThresholdsCrossed(max * 0.39, max, thresholds), 3, 'um golpe forte pode pedir vários de uma vez');
+    assert.equal(countThresholdsCrossed(1, max, thresholds), TOPAZIO_BOSS.buses.length, 'todos saem antes de ele morrer');
 });
 
 test('golem arremessa os quatro ônibus das baias e deixa só o 763.2', () => {
@@ -180,4 +180,14 @@ test('folha do golem tem as 16 linhas que o chefe usa, com o giro de frente e de
     // Largura e altura ficam no cabeçalho IHDR do PNG.
     assert.equal(png.readUInt32BE(16), TOPAZIO_BOSS.frameSize * 4);
     assert.equal(png.readUInt32BE(20), TOPAZIO_BOSS.frameSize * 16);
+});
+
+test('golem tem cutscene aos 70% e aos 40% e fica na frente de pilares, placas e quiosques', () => {
+    const { TOPAZIO_BOSS, countThresholdsCrossed } = load('../src/game/config/ticen.ts');
+    const ats = TOPAZIO_BOSS.roar.cutscenes.map(({ at }) => at);
+    assert.deepEqual(ats, [0.7, 0.4]);
+    const max = TOPAZIO_BOSS.maxHealth;
+    assert.deepEqual([max * 0.71, max * 0.7, max * 0.41, max * 0.4].map((hp) => countThresholdsCrossed(hp, max, ats)), [0, 1, 1, 2]);
+    // itens-topo (toldos, pilares, placas, quiosques) fica na profundidade 20 (FOREGROUND_DEPTH de createRoom).
+    assert.ok(TOPAZIO_BOSS.depth > 20);
 });
