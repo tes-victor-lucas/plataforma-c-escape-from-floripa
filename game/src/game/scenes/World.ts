@@ -72,7 +72,7 @@ import {
     type DuelSpecialId
 } from '../config/ticen';
 import { playExplosion } from '../effects/playAreaEffects';
-import { getBusFrame, TopazioGolem } from '../entities/TopazioGolem';
+import { getBusFrame, TopazioGolem, type BusTarget } from '../entities/TopazioGolem';
 import { BusEndingView } from '../ui/BusEndingView';
 import { CinematicBarsView } from '../ui/CinematicBarsView';
 import { encodeWornItems, GAUCHO_HAT, getChestCandidates, ITEM_CHESTS, ITEM_IDS, ITEMS, type ItemId } from '../config/items';
@@ -509,7 +509,8 @@ export class World extends Scene {
                     mirror: this.isMultiplayerGuest(),
                     onAction: (action) => {
                         if (this.isMultiplayerHost()) multiplayerClient.sendEvent({ kind: 'boss.action', action });
-                    }
+                    },
+                    getBusTargets: () => this.getBusTargets()
                 }
             );
         }
@@ -2665,6 +2666,18 @@ export class World extends Scene {
             multiplayerClient.sendEvent({ kind: 'cards.released' });
             release();
         });
+    }
+
+    /** Jogadores vivos com o id da partida, igual nos dois clientes: o golem alterna os ônibus entre eles. */
+    private getBusTargets(): BusTarget[] {
+        const targets: BusTarget[] = [];
+        if (this.player?.health.isAlive) {
+            targets.push({ id: multiplayerClient.playerId ?? 'local', center: this.player.sprite.body?.center ?? this.player.sprite });
+        }
+        for (const [id, partner] of this.remotePlayers) {
+            if (partner.target.health.isAlive) targets.push({ id, center: partner.target.sprite.body.center });
+        }
+        return targets;
     }
 
     private getEnemyTarget(origin: { x: number; y: number }): CoopTarget | undefined {

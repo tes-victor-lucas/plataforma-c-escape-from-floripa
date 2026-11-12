@@ -15,16 +15,36 @@ type TicenBus = Readonly<{ route: number; col: number; row: number }>;
 export type GolemAction =
     | { type: 'slam'; ox: number; oy: number; tx: number; ty: number }
     | { type: 'spin' }
-    | { type: 'lift'; route: number }
+    | { type: 'lift'; route: number; target?: string }
     | { type: 'throw'; tx: number; ty: number }
     | { type: 'roar'; caption: string }
     | { type: 'defeated' };
+
+/** Jogador vivo que pode levar um ônibus: o id é o mesmo nos dois clientes do multiplayer. */
+export type BusTarget = Readonly<{ id: string; center: Point }>;
 
 type GolemOptions = Readonly<{
     /** Convidado do multiplayer: sem decisões nem movimento, só repete as ações do anfitrião. */
     mirror?: boolean;
     onAction?: (action: GolemAction) => void;
+    /** Todos os jogadores vivos; sem isso o golem mira só o jogador deste cliente. */
+    getBusTargets?: () => readonly BusTarget[];
 }>;
+
+/**
+ * Alvo do próximo ônibus: o primeiro vai no mais próximo; depois o golem alterna,
+ * mirando quem não levou o último. Sozinho na sala, o único vivo leva todos.
+ */
+export function pickBusTarget(origin: Point, targets: readonly BusTarget[], lastTargetId?: string) {
+    const others = targets.filter(({ id }) => id !== lastTargetId);
+    const candidates = others.length > 0 ? others : targets;
+    let nearest: BusTarget | undefined;
+    for (const target of candidates) {
+        const distance = Math.hypot(target.center.x - origin.x, target.center.y - origin.y);
+        if (!nearest || distance < Math.hypot(nearest.center.x - origin.x, nearest.center.y - origin.y)) nearest = target;
+    }
+    return nearest;
+}
 
 // Linhas da folha (assets/topazio/gen_golem.py): estágio * 3 + animação; 13 é a morte.
 const ROW_IDLE = 0;
@@ -74,6 +94,9 @@ export class TopazioGolem implements CombatEnemy {
     private fetching?: TicenBus;
     private heldBus?: Phaser.GameObjects.Image;
     private busMarker?: Phaser.GameObjects.Graphics;
+    /** Quem leva o ônibus erguido agora e quem levou o anterior, para alternar entre os dois jogadores. */
+    private busTargetId?: string;
+    private lastBusTargetId?: string;
     private hitFlashSequence = 0;
     private readonly shards: Physics.Arcade.Group;
 
@@ -136,6 +159,8 @@ export class TopazioGolem implements CombatEnemy {
                 const bus = this.buses.find(({ route }) => route === action.route);
                 if (!bus) break;
                 this.buses.splice(this.buses.indexOf(bus), 1);
+                // O anfitrião diz em quem mira: o alvo vermelho aparece no mesmo jogador nas duas telas.
+                this.busTargetId = action.target;
                 this.liftBus(bus, this.busCenter(bus));
                 break;
             }
@@ -174,7 +199,7 @@ export class TopazioGolem implements CombatEnemy {
             // Espelho: posição e quadro vêm do anfitrião; aqui só correm o giro e o ônibus erguido.
             if (this.action === 'spin') this.updateSpin(body, undefined);
             if (this.action === 'hold') {
-                this.updateHold(this.player.health.isAlive ? this.player.sprite.body?.center : undefined);
+                this.updateHold(this.getBusAim());
                 if (this.actionTime >= TOPAZIO_BOSS.bus.liftTime) this.heldBus?.setPosition(this.sprite.x, this.sprite.y - 64);
             }
             return;
@@ -184,7 +209,7 @@ export class TopazioGolem implements CombatEnemy {
             case 'slam': this.updateSlam(target); break;
             case 'spin': this.updateSpin(body, target); break;
             case 'fetch': this.updateFetch(body); break;
-            case 'hold': this.updateHold(target); break;
+            case 'hold': this.updateHold(this.getBusAim() ?? target); break;
         }
         const { left, right, top, bottom } = TOPAZIO_BOSS.bounds;
         this.sprite.setPosition(
@@ -461,6 +486,18 @@ export class TopazioGolem implements CombatEnemy {
         }
     }
 
+    /** Jogadores vivos que podem levar ônibus; sozinho, só o deste cliente. */
+    private getBusTargets(): readonly BusTarget[] {
+        if (this.options.getBusTargets) return this.options.getBusTargets();
+        const center = this.player.sprite.body?.center ?? this.player.sprite;
+        return this.player.health.isAlive ? [{ id: 'local', center }] : [];
+    }
+
+    /** Onde está quem o golem escolheu; caído ou fora da sala, o alvo no chão fica onde estava. */
+    private getBusAim() {
+        return this.getBusTargets().find(({ id }) => id === this.busTargetId)?.center;
+    }
+
     private busCenter(bus: TicenBus) {
         const { frameWidth, frameHeight } = TOPAZIO_BOSS.bus;
         return { x: bus.col * 16 + frameWidth / 2, y: bus.row * 16 + frameHeight / 2 };
@@ -502,7 +539,10 @@ export class TopazioGolem implements CombatEnemy {
         }
         const frame = getBusFrame(this.scene, this.busTexture, bus.route);
         this.heldBus = this.scene.add.image(center.x, center.y, this.busTexture, frame).setDepth(21);
-        this.emit({ type: 'lift', route: bus.route });
+        if (!this.isMirror) {
+            this.busTargetId = pickBusTarget(this.sprite, this.getBusTargets(), this.lastBusTargetId)?.id;
+        }
+        this.emit({ type: 'lift', route: bus.route, target: this.busTargetId });
         this.busMarker = this.scene.add.graphics().setDepth(3);
         this.fetching = undefined;
         this.startAction('hold');
@@ -537,6 +577,8 @@ export class TopazioGolem implements CombatEnemy {
         this.emit({ type: 'throw', tx: target.x, ty: target.y });
         this.heldBus = undefined;
         this.busMarker = undefined;
+        this.lastBusTargetId = this.busTargetId;
+        this.busTargetId = undefined;
         // Conta já no arremesso: durante o voo ele não pode sair atrás do próximo.
         this.busesThrown += 1;
         this.finishAttack();
