@@ -3948,6 +3948,14 @@ test('chapéu de gaúcho bloqueia parte dos golpes e dá o respiro de um acerto'
     assert.equal(player.health.current, 3, 'sem sorte no sorteio, o golpe passa');
 });
 
+test('itens vestidos vão ao parceiro como um bit por item', () => {
+    const { encodeWornItems, decodeWornItems, ITEM_IDS } = load('../src/game/config/items.ts');
+    assert.equal(encodeWornItems([]), 0);
+    assert.deepEqual(decodeWornItems(encodeWornItems(['rubber-boots', 'gaucho-hat'])), ['gaucho-hat', 'rubber-boots']);
+    assert.deepEqual(decodeWornItems(encodeWornItems(ITEM_IDS)), [...ITEM_IDS]);
+    assert.ok(encodeWornItems(ITEM_IDS) <= 255, 'cabe no limite que o servidor aceita');
+});
+
 test('checkpoint recusa itens que não existem no jogo', () => {
     const values = new Map();
     const storage = {

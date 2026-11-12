@@ -52,7 +52,7 @@ test('estado válido é enviado apenas ao companheiro da sala', () => {
     assert.deepEqual(messagesFor(sent, 'p2', 'player.state')[0].message, {
         type: 'player.state', playerId: 'p1', sequence: 4, x: 100, y: 200, facing: 'left',
         health: 3, maxHealth: 4, reviveProgress: 0, revivesLeft: 2, character: 'padrao',
-        orbitCount: 0, orbitRadius: 0, companion: false
+        orbitCount: 0, orbitRadius: 0, companion: false, worn: 0
     });
 });
 
@@ -237,10 +237,12 @@ test('efeitos das cartas e faíscas orbitais chegam ao parceiro', () => {
             health: 4, maxHealth: 4, reviveProgress: 0, revivesLeft: 2, ...extra
         }
     });
-    state({ orbitCount: 6, orbitRadius: 52, companion: true });
+    state({ orbitCount: 6, orbitRadius: 52, companion: true, worn: 5 });
     const relayed = messagesFor(sent, 'p2', 'player.state')[0].message;
-    assert.deepEqual([relayed.orbitCount, relayed.orbitRadius, relayed.companion], [6, 52, true]);
+    assert.deepEqual([relayed.orbitCount, relayed.orbitRadius, relayed.companion, relayed.worn], [6, 52, true, 5]);
     state({ orbitCount: -1 });
+    state({ worn: 256 });
+    state({ worn: 1.5 });
     assert.equal(messagesFor(sent, 'p2', 'player.state').length, 1);
     assert.equal(messagesFor(sent, 'p1', 'error').at(-1).message.code, 'INVALID_PLAYER_STATE');
 });
