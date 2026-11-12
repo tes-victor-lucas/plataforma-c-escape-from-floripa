@@ -38,6 +38,7 @@ export class TopazioGolem implements CombatEnemy {
     private spinBursts = 0;
     private busesThrown = 0;
     private roarsDone = 0;
+    private readonly activeSpikes = new Set<Point>();
     private sweepBack?: Phaser.GameObjects.Graphics;
     private sweepFront?: Phaser.GameObjects.Graphics;
     private lastGhostAt = -Infinity;
@@ -90,6 +91,7 @@ export class TopazioGolem implements CombatEnemy {
             player.takeDamage(TOPAZIO_BOSS.contactDamage);
         }
         body.setVelocity(0, 0);
+        this.hitBySpikes();
         switch (this.action) {
             case 'walk': this.updateWalk(body, target, delta); break;
             case 'slam': this.updateSlam(target); break;
@@ -227,7 +229,7 @@ export class TopazioGolem implements CombatEnemy {
     private eruptSpike(x: number, y: number) {
         if (!this.scene.physics.world.bounds.contains(x, y)) return;
         const { shardTexture } = TOPAZIO_BOSS;
-        const { spikeRadius, damage } = TOPAZIO_BOSS.slam;
+        const { spikeLifetime } = TOPAZIO_BOSS.slam;
         // Três estilhaços do projétil, de pé: um alto no meio e dois menores inclinados.
         const parts = [
             this.scene.add.image(x - 6, y, shardTexture, 1).setScale(1.4),
@@ -237,11 +239,26 @@ export class TopazioGolem implements CombatEnemy {
         for (const part of parts) {
             part.setOrigin(0.5, 0.85).setDepth(getActorDepth(y)).setScale(part.scaleX, 0);
             this.scene.tweens.add({ targets: part, scaleY: part.scaleX, duration: 90, ease: 'Back.easeOut' });
-            this.scene.tweens.add({ targets: part, alpha: 0, delay: 420, duration: 220, onComplete: () => part.destroy() });
         }
+        // Machuca enquanto estiver de pé; no fim volta para dentro do chão, sem esmaecer.
+        const spike = { x, y: y - 6 };
+        this.activeSpikes.add(spike);
+        this.hitBySpikes();
+        this.scene.time.delayedCall(spikeLifetime, () => {
+            this.activeSpikes.delete(spike);
+            this.scene.tweens.add({ targets: parts, scaleY: 0, duration: 90, ease: 'Quad.easeIn', onComplete: () => parts.forEach((part) => part.destroy()) });
+        });
+    }
+
+    private hitBySpikes() {
+        if (!this.player.health.isAlive) return;
+        const { spikeRadius, damage } = TOPAZIO_BOSS.slam;
         const center = this.player.sprite.body?.center ?? this.player.sprite;
-        if (this.player.health.isAlive && Math.hypot(center.x - x, center.y - (y - 6)) <= spikeRadius) {
-            this.player.takeDamage(damage);
+        for (const spike of this.activeSpikes) {
+            if (Math.hypot(center.x - spike.x, center.y - spike.y) <= spikeRadius) {
+                this.player.takeDamage(damage);
+                return;
+            }
         }
     }
 
