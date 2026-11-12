@@ -178,6 +178,14 @@ export function createUpgradeIcon(
             }
             icon.fillCircle(0, 0, 5);
             break;
+        case 'fire-staff':
+            // Cajado na diagonal com uma chama de três línguas na ponta.
+            drawLine(icon, -16, 20, 8, -6);
+            icon.fillCircle(11, -10, 7);
+            icon.fillTriangle(5, -12, 11, -28, 17, -12);
+            icon.fillTriangle(15, -10, 24, -20, 18, -4);
+            icon.fillTriangle(4, -8, -2, -18, 8, -14);
+            break;
         case 'spin-slash':
             // Meia-lua girando em volta de um ponto.
             icon.fillCircle(0, 0, 4);
