@@ -86,6 +86,10 @@ export class CombatSystem {
     private swingCooldown = 0;
     /** Espada flamejante vestida: golpe de dano médio nas salas com tiro. */
     private flameSword = false;
+    private iceStaff = false;
+    private iceCooldown = 0;
+    /** Inimigos congelados pelo cajado e quanto falta, em ms, para voltarem a andar. */
+    private readonly frozen = new Map<CombatEnemy, number>();
     private pulseCooldown = 0;
     /** Crescimento do tiro normal pela sala atual (getPlayerShotMultipliers). */
     shotMultipliers = { damage: 1, speed: 1 };
@@ -227,12 +231,14 @@ export class CombatSystem {
         let nearest: CombatEnemy | undefined;
         let nearestDistance = this.playerStats.range ** 2;
 
+        this.updateFrozen(delta);
         for (const enemy of this.enemies) {
             if (!enemy.health.isAlive) continue;
             const cooldown = Math.max(0, (this.enemyCooldowns.get(enemy) ?? 0) - delta);
-            this.enemyCooldowns.set(enemy, cooldown);
+            // Congelado não atira: a recarga fica parada até o gelo derreter.
+            if (!this.frozen.has(enemy)) this.enemyCooldowns.set(enemy, cooldown);
             const origin = this.getCenter(enemy);
-            if (this.network?.isHost) this.fireAtNearestPlayer(enemy, origin, cooldown);
+            if (this.network?.isHost && !this.frozen.has(enemy)) this.fireAtNearestPlayer(enemy, origin, cooldown);
             if (!isPlayerAlive) continue;
             const target = this.getCenter(this.player);
             const distance = (origin.x - target.x) ** 2 + (origin.y - target.y) ** 2;
@@ -245,12 +251,13 @@ export class CombatSystem {
                 nearestDistance = distance;
             }
             const isRanged = isRangedEnemy(enemy.kind);
-            if (!this.network && isRanged && distance <= COMBAT_CONFIG.drone.range ** 2 && cooldown === 0) {
+            if (!this.network && isRanged && !this.frozen.has(enemy) && distance <= COMBAT_CONFIG.drone.range ** 2 && cooldown === 0) {
                 this.fire(enemy, this.player, this.enemyShots, COMBAT_CONFIG.drone);
                 this.enemyCooldowns.set(enemy, COMBAT_CONFIG.drone.fireInterval);
             }
         }
         if (!isPlayerAlive) return;
+        this.updateIceStaff(delta);
         // Na sala corpo a corpo o jogador só ataca com a espada, sem tiro nem companheiro.
         if (this.melee) {
             if (this.isSwingQueued && this.swingCooldown === 0) {
@@ -581,6 +588,56 @@ export class CombatSystem {
         createItemTexture(this.scene, FLAME_SWORD);
         this.heldSword = this.scene.add.image(0, 0, FLAME_SWORD.texture).setOrigin(0.15, 0.85);
         this.updateHeldSword();
+    }
+
+    /** Cajado de gelo vestido: congela quem estiver em volta a cada recarga. */
+    setIceStaff(enabled: boolean) {
+        this.iceStaff = enabled;
+    }
+
+    /** Congelado pelo cajado: o mundo não move nem atualiza esse inimigo até o gelo derreter. */
+    isFrozen(enemy: CombatEnemy) {
+        return this.frozen.has(enemy);
+    }
+
+    /** Só lança quando há alguém no raio: sem inimigo perto, o cajado fica pronto esperando. */
+    private updateIceStaff(delta: number) {
+        if (!this.iceStaff) return;
+        this.iceCooldown = Math.max(0, this.iceCooldown - delta);
+        if (this.iceCooldown > 0) return;
+        const { radius, interval, freezeDuration, color } = COMBAT_CONFIG.iceStaff;
+        const origin = this.getCenter(this.player);
+        const targets = this.enemies.filter((enemy) => {
+            if (!enemy.health.isAlive) return false;
+            const center = this.getCenter(enemy);
+            return Math.hypot(center.x - origin.x, center.y - origin.y) <= radius;
+        });
+        if (targets.length === 0) return;
+        this.iceCooldown = interval;
+        this.shareEffect({ effect: 'shockwave', ...origin, radius, color });
+        for (const enemy of targets) {
+            this.frozen.set(enemy, freezeDuration);
+            enemy.sprite.setVelocity(0, 0);
+            enemy.sprite.anims?.pause();
+        }
+    }
+
+    /** Segura parado e azulado quem está congelado; ao derreter, volta a cor e a animação. */
+    private updateFrozen(delta: number) {
+        for (const [enemy, remaining] of this.frozen) {
+            const left = remaining - delta;
+            if (left <= 0 || !enemy.health.isAlive || !enemy.sprite.active) {
+                this.frozen.delete(enemy);
+                if (enemy.sprite.active) {
+                    enemy.sprite.clearTint();
+                    enemy.sprite.anims?.resume();
+                }
+                continue;
+            }
+            this.frozen.set(enemy, left);
+            // O piscar de dano troca a cor; reaplicar a cada quadro mantém o gelo visível.
+            enemy.sprite.setVelocity(0, 0).setTint(COMBAT_CONFIG.iceStaff.color);
+        }
     }
 
     /** A espada coletada fica na mão do personagem até o próximo golpe. */
