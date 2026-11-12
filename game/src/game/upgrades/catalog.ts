@@ -162,7 +162,7 @@ export const UPGRADE_CARDS = [
         id: 'spin-slash',
         kind: 'ability',
         title: 'Golpe giratório',
-        description: 'A cada 7 s, um corte gira à sua volta e causa 900% em 170 px. +35 px por nível.',
+        description: 'A cada 7 s, um corte sai de você em espiral e causa 900% até 170 px. +35 px por nível.',
         maxLevel: 2,
         effect: { type: 'spin-slash', radius: 170, radiusPerLevel: 35, interval: 7_000, damageRatio: 9 }
     },
@@ -181,12 +181,21 @@ export const UPGRADE_CARDS = [
         description: 'A cada 1,6 s, bombas de 300% caem em 4 inimigos. +2 alvos por nível.',
         maxLevel: 2,
         effect: { type: 'bombard', targets: 4, targetsPerLevel: 2, radius: 55, range: 220, interval: 1_600, damageRatio: 3 }
+    },
+    {
+        id: 'spiral-volley',
+        kind: 'ability',
+        title: 'Rajada espiral',
+        description: 'A cada 2 s, 12 fragmentos de 60% saem em espiral até 150 px. +4 por nível.',
+        maxLevel: 3,
+        effect: { type: 'spiral-volley', shards: 12, shardsPerLevel: 4, range: 150, interval: 2_000, damageRatio: 0.6 }
     }
 ] as const satisfies readonly UpgradeCardDefinition[];
 
 /** Cartas de dano em área, oferecidas antes da horda maior da Sala II. */
 export const AREA_UPGRADE_IDS: readonly UpgradeId[] = [
     'shock-pulse',
+    'spiral-volley',
     'blast-shot',
     'spark-orbit',
     'chain-lightning',

@@ -148,6 +148,11 @@ export function isRoom2WalkableLayer(layerName: string) {
     return ROOM2_WALKABLE_LAYERS.some((name) => name === localName);
 }
 
+/** Quantas cartas o jogador escolhe entre as hordas: a Sala II dá duas seguidas. */
+export function getIntermissionCardPicks(roomKey: RoomKey) {
+    return roomKey === 'room2' ? 2 : 1;
+}
+
 /** A Sala I dá uma carta básica no fim; a Sala III, depois da horda 2, as cartas de área mais fortes. */
 export function shouldOfferRoomCompletionUpgrade(roomKey: RoomKey) {
     return roomKey === 'room1' || roomKey === 'room3';
@@ -1038,11 +1043,16 @@ export class World extends Scene {
         if (!this.roomClearCode.push(event.key)) return;
 
         this.combat?.clear();
-        this.waves = undefined;
         for (const enemy of this.drones) {
             if (enemy.health.isAlive) enemy.takeDamage(enemy.health.current);
         }
-        // A vitória agora é no 763.2 (Sala V): o atalho conclui qualquer sala com combate.
+        // Elimina só a horda atual: o fluxo normal segue para as cartas e a próxima horda,
+        // e depois da última, para a conclusão da sala.
+        if (this.waves) {
+            this.waves.skipCurrentWave();
+            return;
+        }
+        // Sem hordas em andamento, o atalho conclui a sala como antes.
         this.completeRoomCombat?.();
     }
 
@@ -1609,22 +1619,32 @@ export class World extends Scene {
         this.piranhasBarPrompt?.setVisible(false);
         const overlayScene = this.scene.get('CombatHud') as Scene;
         // Antes das hordas maiores, as cartas fortes de cada sala ficam garantidas na mesa.
-        const availableCards = this.upgrades.availableCards();
-        const cards = this.activeRoomKey === 'room3'
-            ? drawUpgradeCardsFeaturing(ROOM3_UPGRADE_IDS, undefined, withoutRoom3FinalCards(availableCards))
-            : this.activeRoomKey === 'room2'
-                ? drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, undefined, withoutRoom3Cards(availableCards))
-                : drawUpgradeCards(undefined, basicUpgradeCards(availableCards));
-        new UpgradeSelectionView(overlayScene, cards).play((selected) => {
-            this.acquireUpgrade(selected);
-            this.waitForPartnerCard(() => {
-                new WaveThreatView(overlayScene, this.cameras.main).play(() => {
-                    this.isWaveIntermissionOpen = false;
-                    if (this.isGameplayReady && !this.isGameOver) this.physics.resume();
-                    resume();
-                });
+        const drawCards = () => {
+            const availableCards = this.upgrades.availableCards();
+            return this.activeRoomKey === 'room3'
+                ? drawUpgradeCardsFeaturing(ROOM3_UPGRADE_IDS, undefined, withoutRoom3FinalCards(availableCards))
+                : this.activeRoomKey === 'room2'
+                    ? drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, undefined, withoutRoom3Cards(availableCards))
+                    : drawUpgradeCards(undefined, basicUpgradeCards(availableCards));
+        };
+        const finish = () => this.waitForPartnerCard(() => {
+            new WaveThreatView(overlayScene, this.cameras.main).play(() => {
+                this.isWaveIntermissionOpen = false;
+                if (this.isGameplayReady && !this.isGameOver) this.physics.resume();
+                resume();
             });
         });
+        // Cada mesa é sorteada depois da escolha anterior, para não repetir a carta que subiu de nível.
+        const picks = getIntermissionCardPicks(this.activeRoomKey);
+        const choose = (pick: number) => {
+            const options = picks > 1 ? { hint: `Escolha ${pick} de ${picks}` } : {};
+            new UpgradeSelectionView(overlayScene, drawCards(), options).play((selected) => {
+                this.acquireUpgrade(selected);
+                if (pick < picks) choose(pick + 1);
+                else finish();
+            });
+        };
+        choose(1);
     }
 
     /** Oferece uma escolha depois da onda final e só então libera a saída da sala. */

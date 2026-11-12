@@ -13,7 +13,7 @@ import {
     playShockwave,
     playSlash,
     SPIN_SLASH_DURATION,
-    SPIN_SLASH_START
+    spinSlashReach
 } from '../effects/playAreaEffects';
 import { WORLD_CONFIG } from '../config/world';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
@@ -21,6 +21,9 @@ import { runTracker, type RunTracker } from '../scoring/RunTracker';
 import type { PlayerEffect } from '../network/protocol';
 
 type Fighter = Player | CombatEnemy;
+
+/** Ritmo da Rajada espiral: um fragmento a cada 45 ms, 30° depois do anterior, a 420 px/s. */
+const SPIRAL_VOLLEY = { launchGap: 45, angleStep: Math.PI / 6, speed: 420, hitRadius: 12 };
 type Weapon = {
     damage: number;
     range: number;
@@ -86,6 +89,20 @@ export class CombatSystem {
     private chainCooldown = 0;
     private beamCooldown = 0;
     private spinCooldown = 0;
+    private volleyCooldown = 0;
+    private volleyQueued = 0;
+    private volleyGap = 0;
+    private volleyAngle = 0;
+    /** Fragmentos da Rajada espiral em voo; cada um fere cada inimigo no máximo uma vez. */
+    private readonly volleyShards: {
+        origin: { x: number; y: number };
+        angle: number;
+        travelled: number;
+        hit: Set<CombatEnemy>;
+        attackId: string;
+        glow: Phaser.GameObjects.Arc;
+        core: Phaser.GameObjects.Arc;
+    }[] = [];
     private bombardCooldown = 0;
     /** Volta do Golpe giratório em andamento: quem já levou o corte nesta volta não leva de novo. */
     private spin?: { elapsed: number; hit: Set<CombatEnemy>; attackId: string };
@@ -264,9 +281,69 @@ export class CombatSystem {
         this.updateBeams(delta);
         this.updateSpinSlash(delta);
         this.updateBombard(delta);
+        this.updateSpiralVolley(delta);
     }
 
-    /** Golpe giratório: a lâmina dá uma volta e fere cada inimigo do raio quando passa por ele. */
+    /** Rajada espiral: um fragmento por vez sai do jogador, cada um 30° depois do anterior. */
+    private updateSpiralVolley(delta: number) {
+        const { volleyShards, volleyRange, volleyInterval, volleyDamageRatio, damage } = this.playerStats;
+        if (volleyShards > 0) {
+            if (this.volleyQueued === 0) {
+                this.volleyCooldown -= delta;
+                if (this.volleyCooldown <= 0) {
+                    this.volleyCooldown = volleyInterval;
+                    this.volleyQueued = volleyShards;
+                    this.volleyGap = 0;
+                }
+            }
+            this.volleyGap -= delta;
+            while (this.volleyQueued > 0 && this.volleyGap <= 0) {
+                this.launchVolleyShard();
+                this.volleyQueued -= 1;
+                this.volleyGap += SPIRAL_VOLLEY.launchGap;
+            }
+        }
+        for (let index = this.volleyShards.length - 1; index >= 0; index -= 1) {
+            const shard = this.volleyShards[index];
+            shard.travelled = Math.min(volleyRange, shard.travelled + SPIRAL_VOLLEY.speed * delta / 1000);
+            const x = shard.origin.x + Math.cos(shard.angle) * shard.travelled;
+            const y = shard.origin.y + Math.sin(shard.angle) * shard.travelled;
+            shard.glow.setPosition(x, y);
+            shard.core.setPosition(x, y);
+            for (const enemy of this.enemies) {
+                if (!enemy.health.isAlive || shard.hit.has(enemy)) continue;
+                const target = this.getCenter(enemy);
+                if (Math.hypot(target.x - x, target.y - y) > SPIRAL_VOLLEY.hitRadius) continue;
+                shard.hit.add(enemy);
+                this.hitEnemy(enemy, damage * volleyDamageRatio, { x: Math.cos(shard.angle), y: Math.sin(shard.angle) }, shard.attackId);
+            }
+            if (shard.travelled < volleyRange) continue;
+            this.tracker.finalizeProjectile(shard.attackId);
+            shard.glow.destroy();
+            shard.core.destroy();
+            this.volleyShards.splice(index, 1);
+        }
+    }
+
+    private launchVolleyShard() {
+        const origin = this.getCenter(this.player);
+        const attackId = createProjectileId(this.tracker.snapshot().runId);
+        this.tracker.registerProjectile(attackId);
+        const angle = this.volleyAngle;
+        this.volleyAngle += SPIRAL_VOLLEY.angleStep;
+        this.volleyShards.push({
+            origin: { x: origin.x, y: origin.y },
+            angle,
+            travelled: 0,
+            hit: new Set(),
+            attackId,
+            // Halo vermelho somado ao mapa e núcleo branco, como o Golpe giratório.
+            glow: this.scene.add.circle(origin.x, origin.y, 5, 0xe90931, 0.55).setDepth(14).setBlendMode(1),
+            core: this.scene.add.circle(origin.x, origin.y, 2, 0xffffff).setDepth(15)
+        });
+    }
+
+    /** Golpe giratório: a lâmina sai do jogador em espiral e fere cada inimigo do raio quando chega nele. */
     private updateSpinSlash(delta: number) {
         const { spinRadius, spinInterval, spinDamageRatio, damage } = this.playerStats;
         if (spinRadius <= 0) return;
@@ -282,16 +359,14 @@ export class CombatSystem {
         }
         const spin = this.spin;
         spin.elapsed = Math.min(SPIN_SLASH_DURATION, spin.elapsed + delta);
-        const swept = spin.elapsed / SPIN_SLASH_DURATION * Math.PI * 2;
+        const reach = spinSlashReach(spinRadius, spin.elapsed / SPIN_SLASH_DURATION);
         for (const enemy of this.enemies) {
             if (!enemy.health.isAlive || spin.hit.has(enemy)) continue;
             const target = this.getCenter(enemy);
             const dx = target.x - center.x;
             const dy = target.y - center.y;
             const distance = Math.hypot(dx, dy);
-            if (distance > spinRadius) continue;
-            const angle = ((Math.atan2(dy, dx) - SPIN_SLASH_START) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
-            if (angle > swept) continue;
+            if (distance > reach) continue;
             spin.hit.add(enemy);
             this.hitEnemy(enemy, damage * spinDamageRatio, distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 1 }, spin.attackId);
         }
