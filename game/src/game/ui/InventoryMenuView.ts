@@ -68,8 +68,9 @@ const TOGGLE = { x: 656, y: 210 };
 // Encaixes do boneco; cada item de equipar ocupa o seu.
 const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ['CABEÇA', 'CORPO', 'MÃOS', 'PÉS'];
 const SLOT = 44;
-// Bandeja dos itens guardados.
+// Bandeja dos itens guardados, com a etiqueta presa na borda de cima.
 const TRAY = { x: 232, y: 300, width: 621, height: 124 };
+const TRAY_LABEL = { x: 250, y: 282, width: 104, height: 30 };
 const GRID = { x: 246, y: 318, columns: 12, rows: 2, gap: 6 };
 // Onde soltar um item arrastado: boneco e encaixes equipam; a grade de baixo guarda.
 const EQUIP_ZONE = { x: DOLL.x, y: DOLL.y, width: DOLL.width + 12 + SLOT, height: 4 * (SLOT + 6) };
@@ -332,7 +333,12 @@ export class InventoryMenuView {
     private addItemGrid(menu: CleanOverlayMenu) {
         const { items } = this.options;
         this.itemSlots = [];
-        menu.add(this.box(TRAY));
+        // Etiqueta por cima da borda da bandeja: diz o que é sem gastar uma linha de título.
+        menu.add([
+            this.box(TRAY),
+            this.box(TRAY_LABEL),
+            this.text(TRAY_LABEL.x + TRAY_LABEL.width / 2, TRAY_LABEL.y + 15, 'MOCHILA', 13, INV.text).setOrigin(0.5)
+        ]);
         for (let index = 0; index < GRID.columns * GRID.rows; index += 1) {
             const x = GRID.x + (index % GRID.columns) * (SLOT + GRID.gap) + SLOT / 2;
             const y = GRID.y + Math.floor(index / GRID.columns) * (SLOT + GRID.gap) + SLOT / 2;
