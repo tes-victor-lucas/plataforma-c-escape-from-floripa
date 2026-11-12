@@ -194,14 +194,23 @@ export class InventoryMenuView {
             ).setOrigin(0.5));
         }
         // Sem o botão VOLTAR: fecha no X, no ESC ou no botão de voltar do controle.
-        // E equipa ou retira o item selecionado, sem precisar do mouse.
+        // E, ENTER ou espaço equipam ou retiram o item selecionado; setas ou WASD andam pela mochila.
         const keyboard = this.scene.input.keyboard;
         const toggle = () => this.toggleSelected();
-        keyboard?.on('keydown-E', toggle);
+        const left = () => this.moveSelection(-1, 0);
+        const right = () => this.moveSelection(1, 0);
+        const up = () => this.moveSelection(0, -1);
+        const down = () => this.moveSelection(0, 1);
+        const keys: Record<string, () => void> = {
+            E: toggle, ENTER: toggle, SPACE: toggle,
+            LEFT: left, A: left, RIGHT: right, D: right,
+            UP: up, W: up, DOWN: down, S: down
+        };
+        for (const [key, handler] of Object.entries(keys)) keyboard?.on(`keydown-${key}`, handler);
         keyboard?.once('keydown-ESC', this.options.onBack);
-        bindGamepadActions(this.scene, { cancel: this.options.onBack, confirm: toggle });
+        bindGamepadActions(this.scene, { cancel: this.options.onBack, confirm: toggle, left, right, up, down });
         this.scene.events.once('shutdown', () => {
-            keyboard?.off('keydown-E', toggle);
+            for (const [key, handler] of Object.entries(keys)) keyboard?.off(`keydown-${key}`, handler);
             keyboard?.off('keydown-ESC', this.options.onBack);
         });
         // Redesenho depois de equipar ou retirar: sem a animação de abertura, o menu não parece fechar e abrir.
@@ -258,6 +267,10 @@ export class InventoryMenuView {
         this.dropZone.clear().fillStyle(INV.shine, 0.2).fillRect(zone.x, zone.y, zone.width, zone.height).setVisible(true);
         menu.add(this.dropZone);
         menu.root.bringToTop(this.dropZone);
+    }
+
+    private moveSelection(dx: number, dy: number) {
+        this.selectItem(moveInventorySelection(this.selectedItem, this.options.items.length, dx, dy));
     }
 
     private toggleSelected() {
