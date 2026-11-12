@@ -95,7 +95,7 @@ export class TopazioGolem implements CombatEnemy {
         switch (this.action) {
             case 'walk': this.updateWalk(body, target, delta); break;
             case 'slam': this.updateSlam(target); break;
-            case 'spin': this.updateSpin(); break;
+            case 'spin': this.updateSpin(body, target); break;
             case 'fetch': this.updateFetch(body); break;
             case 'hold': this.updateHold(target); break;
         }
@@ -262,8 +262,15 @@ export class TopazioGolem implements CombatEnemy {
         }
     }
 
-    private updateSpin() {
-        const { duration, burstInterval } = TOPAZIO_BOSS.spin;
+    private updateSpin(body: Physics.Arcade.Body, target: Point | undefined) {
+        const { duration, burstInterval, chaseSpeed } = TOPAZIO_BOSS.spin;
+        // Gira perseguindo o jogador, como o Garen e o Balmond; os estilhaços saem de onde ele estiver.
+        if (target) {
+            const dx = target.x - this.sprite.x;
+            const dy = target.y - this.sprite.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance > 8) body.setVelocity(dx / distance * chaseSpeed, dy / distance * chaseSpeed);
+        }
         while (this.spinBursts * burstInterval <= this.actionTime && this.actionTime < duration) {
             this.releaseShards(this.spinBursts);
             // Poeira no chão a cada rajada, como o anel sob o Garen e o Balmond girando.

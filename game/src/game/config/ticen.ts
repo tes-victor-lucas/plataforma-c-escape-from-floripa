@@ -99,7 +99,9 @@ export const TOPAZIO_BOSS = {
     // A varredura dos punhos (sweepRadius) machuca quem chega perto, como o giro do Garen e do Balmond.
     spin: {
         duration: 2200, burstInterval: 280, shardsPerBurst: 10, shardSpeed: 125, shardLifetime: 3000, damage: 1, turnSpeed: 0.022,
-        sweepRadius: 58, sweepDamage: 1
+        sweepRadius: 58, sweepDamage: 1,
+        // Persegue o jogador enquanto gira, mais rápido que andando (34).
+        chaseSpeed: 52
     },
     // Cutscenes rápidas aos 70% e aos 40%: a câmera vai até ele, ele ruge e a luta volta. calmBefore deixa ônibus e cadeias terminarem.
     roar: {
