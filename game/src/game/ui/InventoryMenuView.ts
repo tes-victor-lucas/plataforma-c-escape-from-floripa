@@ -76,7 +76,8 @@ export class InventoryMenuView {
         const toggle = () => this.toggleSelected();
         keyboard?.on('keydown-E', toggle);
         this.scene.events.once('shutdown', () => keyboard?.off('keydown-E', toggle));
-        menu.fadeIn();
+        // Redesenho depois de equipar ou retirar: sem a animação de abertura, o menu não parece fechar e abrir.
+        if (this.options.selectedItem === undefined) menu.fadeIn();
     }
 
     private get equippedItems() {
