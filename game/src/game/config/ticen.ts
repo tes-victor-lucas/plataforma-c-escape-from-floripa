@@ -93,8 +93,10 @@ export const TOPAZIO_BOSS = {
     firstRest: 1200,
     // Bate no chão: topázios brotam em cadeia na direção do jogador (três cadeias da metade da vida em diante).
     slam: { windup: 700, recover: 700, spikeInterval: 55, spikeSpacing: 22, spikeCount: 15, spikeRadius: 13, damage: 2, spread: 0.42 },
-    // Gira no lugar cuspindo topázios em volta.
-    spin: { duration: 2200, burstInterval: 280, shardsPerBurst: 10, shardSpeed: 125, shardLifetime: 3000, damage: 1 },
+    // Gira em pé no lugar, como um pião (turnSpeed em radianos por ms), cuspindo topázios em volta.
+    spin: { duration: 2200, burstInterval: 280, shardsPerBurst: 10, shardSpeed: 125, shardLifetime: 3000, damage: 1, turnSpeed: 0.022 },
+    // Cutscene rápida aos 70%: a câmera vai até ele, ele ruge e a luta volta. calmBefore deixa ônibus e cadeias terminarem.
+    roar: { threshold: 0.7, calmBefore: 900, panTime: 380, duration: 1500, zoom: 1.45 },
     // Ônibus: vai até a baia, ergue acima da cabeça, mira no jogador e arremessa.
     bus: { fetchSpeed: 130, liftTime: 450, holdTime: 1000, flightTime: 700, radius: 44, damage: 4, frameWidth: 112, frameHeight: 48, tilesWide: 7, tilesHigh: 3 },
     busLayer: 'onibus',

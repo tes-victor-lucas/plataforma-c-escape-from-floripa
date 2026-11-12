@@ -69,6 +69,7 @@ import type { InventoryData } from '../ui/InventoryMenuView';
 import type { WalletMenuData } from './WalletMenu';
 import { formatBalance, TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_SITTERS, TOPAZIO_BOSS, WALLET_UI } from '../config/ticen';
 import { TopazioGolem } from '../entities/TopazioGolem';
+import { CinematicBarsView } from '../ui/CinematicBarsView';
 import { GAUCHO_HAT, ITEMS, type ItemId } from '../config/items';
 import { createGauchoHatTexture } from '../entities/GauchoHat';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
@@ -180,6 +181,7 @@ export class World extends Scene {
     private ticenGateHint?: Phaser.GameObjects.Text;
     private golem?: TopazioGolem;
     private isGolemAwake = false;
+    private isGolemCutscene = false;
     private isArcadeArmed = true;
     private isGatewayConfirmOpen = false;
     private isClimbingLadder = false;
@@ -253,6 +255,7 @@ export class World extends Scene {
         this.ticenGateHint = undefined;
         this.golem = undefined;
         this.isGolemAwake = false;
+        this.isGolemCutscene = false;
         this.isArcadeArmed = true;
         this.arcadePrompt = undefined;
         this.isGatewayConfirmOpen = false;
@@ -434,7 +437,8 @@ export class World extends Scene {
                 room.collisionLayers,
                 room.collisionLayers.find((layer) => layer.layer.name === TOPAZIO_BOSS.busLayer),
                 busTexture,
-                () => this.cameras.main.flash(500, 110, 226, 255)
+                () => this.cameras.main.flash(500, 110, 226, 255),
+                () => this.playGolemCutscene()
             );
         }
         this.connectCombatToPartner();
@@ -634,7 +638,7 @@ export class World extends Scene {
         this.updateNauseaEffect();
         if (
             this.isPiranhasMenuOpen || this.isWaveIntermissionOpen || this.isArcadeOpen
-            || this.isGatewayConfirmOpen || this.isWalletOpen || this.isClimbingLadder
+            || this.isGatewayConfirmOpen || this.isWalletOpen || this.isClimbingLadder || this.isGolemCutscene
         ) return;
         this.player?.update(delta);
         this.updateRevive(delta);
@@ -1149,6 +1153,34 @@ export class World extends Scene {
         this.drones.push(this.golem);
         this.combat?.registerEnemy(this.golem);
         this.cameras.main.shake(400, 0.008);
+    }
+
+    /** Cutscene dos 70%: congela a luta, a câmera vai até o golem, ele ruge e a câmera volta ao jogador. */
+    private playGolemCutscene() {
+        const golem = this.golem;
+        const player = this.player;
+        if (!golem || !player) return;
+        const { panTime, duration, zoom } = TOPAZIO_BOSS.roar;
+        const camera = this.cameras.main;
+        const bars = new CinematicBarsView(this.scene.get('CombatHud') as Scene, 'O TOPAZIO DESPERTA');
+        this.isGolemCutscene = true;
+        player.stopMovement();
+        this.physics.pause();
+        bars.show(panTime);
+        camera.stopFollow();
+        camera.pan(golem.sprite.x, golem.sprite.y, panTime, 'Sine.easeInOut');
+        camera.zoomTo(this.normalCameraZoom * zoom, panTime, 'Sine.easeInOut');
+        this.time.delayedCall(panTime, () => golem.playRoar(duration));
+        this.time.delayedCall(panTime + duration, () => {
+            bars.hide(panTime);
+            camera.pan(player.sprite.x, player.sprite.y, panTime, 'Sine.easeInOut');
+            camera.zoomTo(this.normalCameraZoom, panTime, 'Sine.easeInOut');
+        });
+        this.time.delayedCall(panTime * 2 + duration, () => {
+            camera.startFollow(player.sprite, true, WORLD_CONFIG.camera.lerpX, WORLD_CONFIG.camera.lerpY);
+            this.isGolemCutscene = false;
+            if (!this.isPauseMenuOpen && !this.isGameOver) this.physics.resume();
+        });
     }
 
     /** Embarcar no 763.2 via Kobrasol encerra a partida com vitória, depois de derrubar o golem. */
@@ -1786,7 +1818,7 @@ export class World extends Scene {
         if (
             !this.isGameplayReady || this.isPauseMenuOpen || this.isPiranhasMenuOpen
             || this.isWaveIntermissionOpen || this.isArcadeOpen || this.isGatewayConfirmOpen || this.isWalletOpen
-            || this.isClimbingLadder || !this.player?.health.isAlive
+            || this.isClimbingLadder || this.isGolemCutscene || !this.player?.health.isAlive
         ) return;
 
         this.isPauseMenuOpen = true;

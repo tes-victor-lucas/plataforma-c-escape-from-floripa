@@ -7,7 +7,7 @@ import type { CombatEnemy } from './CombatEnemy';
 import type { Player } from './Player';
 
 type Point = Readonly<{ x: number; y: number }>;
-type Action = 'walk' | 'slam' | 'spin' | 'fetch' | 'hold' | 'dead';
+type Action = 'walk' | 'slam' | 'spin' | 'fetch' | 'hold' | 'roar' | 'dead';
 type TicenBus = Readonly<{ route: number; col: number; row: number }>;
 
 // Linhas da folha (assets/topazio/gen_golem.py): estágio * 3 + animação; 13 é a morte.
@@ -15,6 +15,9 @@ const ROW_IDLE = 0;
 const ROW_WALK = 1;
 const ROW_SLAM = 2;
 const ROW_DEATH = 13;
+// Giro: uma coluna por estágio de rachadura.
+const ROW_SPIN_FRONT = 14;
+const ROW_SPIN_BACK = 15;
 
 /** Chefe final do TICEN: cadeia de topázios, giro com estilhaços e ônibus arremessados. */
 export class TopazioGolem implements CombatEnemy {
@@ -33,6 +36,7 @@ export class TopazioGolem implements CombatEnemy {
     private hasSlammed = false;
     private spinBursts = 0;
     private busesThrown = 0;
+    private hasRoared = false;
     private readonly buses: TicenBus[] = [...TOPAZIO_BOSS.buses];
     private fetching?: TicenBus;
     private heldBus?: Phaser.GameObjects.Image;
@@ -46,7 +50,8 @@ export class TopazioGolem implements CombatEnemy {
         walls: Phaser.Tilemaps.TilemapLayer[],
         private readonly busLayer: Phaser.Tilemaps.TilemapLayer | undefined,
         private readonly busTexture: string,
-        private readonly onDefeated: () => void
+        private readonly onDefeated: () => void,
+        private readonly onRoar: () => void
     ) {
         const { spawn, texture, hitbox } = TOPAZIO_BOSS;
         this.sprite = scene.physics.add.sprite(spawn.x, spawn.y, texture, 0);
@@ -84,7 +89,7 @@ export class TopazioGolem implements CombatEnemy {
         switch (this.action) {
             case 'walk': this.updateWalk(body, target, delta); break;
             case 'slam': this.updateSlam(target); break;
-            case 'spin': this.updateSpin(delta); break;
+            case 'spin': this.updateSpin(); break;
             case 'fetch': this.updateFetch(body); break;
             case 'hold': this.updateHold(target); break;
         }
@@ -119,6 +124,29 @@ export class TopazioGolem implements CombatEnemy {
     /** A vida do chefe aparece na barra do topo da tela. */
     drawHealthBar() {}
 
+    /**
+     * Rugido da cutscene dos 70%: ergue os braços, carrega o núcleo e bate no chão com uma onda dupla.
+     * Roda por tempo, porque o mundo fica parado enquanto a câmera mostra o golem.
+     */
+    playRoar(duration: number) {
+        const { x, y } = this.sprite;
+        const raised = (this.stage * 3 + ROW_SLAM) * 4;
+        this.sprite.setFrame(raised + 1);
+        this.scene.tweens.add({ targets: this.sprite, scaleX: 1.08, scaleY: 1.08, duration: duration * 0.35, yoyo: true, ease: 'Sine.easeInOut' });
+        this.scene.time.delayedCall(duration * 0.45, () => {
+            this.sprite.setFrame(raised + 2);
+            this.scene.cameras.main.shake(450, 0.014);
+            this.scene.cameras.main.flash(160, 110, 226, 255);
+            playShockwave(this.scene, x, y + 30, 90, 0x6ee2ff);
+            playShockwave(this.scene, x, y + 30, 140, 0xf29b38);
+        });
+        this.scene.time.delayedCall(duration * 0.6, () => this.sprite.setFrame(raised + 3));
+        this.scene.time.delayedCall(duration, () => {
+            this.sprite.setScale(1);
+            this.finishAttack();
+        });
+    }
+
     private startAction(action: Action) {
         this.action = action;
         this.actionTime = 0;
@@ -126,6 +154,14 @@ export class TopazioGolem implements CombatEnemy {
     }
 
     private updateWalk(body: Physics.Arcade.Body, target: Point | undefined, delta: number) {
+        // Espera o último ônibus ou a última cadeia terminar: a cutscene congela o jogador.
+        if (!this.hasRoared && this.health.current <= this.health.max * TOPAZIO_BOSS.roar.threshold
+            && this.actionTime >= TOPAZIO_BOSS.roar.calmBefore) {
+            this.hasRoared = true;
+            this.startAction('roar');
+            this.onRoar();
+            return;
+        }
         if (this.busesThrown + (this.fetching ? 1 : 0) < getBusThrowsDue(this.health.current, this.health.max, TOPAZIO_BOSS.busThresholds)
             && this.buses.length > 0) {
             this.startFetch();
@@ -200,15 +236,14 @@ export class TopazioGolem implements CombatEnemy {
         }
     }
 
-    private updateSpin(delta: number) {
+    private updateSpin() {
         const { duration, burstInterval } = TOPAZIO_BOSS.spin;
-        this.sprite.angle += delta * 1.5;
         while (this.spinBursts * burstInterval <= this.actionTime && this.actionTime < duration) {
             this.releaseShards(this.spinBursts);
             this.spinBursts += 1;
         }
         if (this.actionTime < duration) return;
-        this.sprite.setAngle(0);
+        this.sprite.setScale(1);
         this.finishAttack();
     }
 
@@ -343,6 +378,14 @@ export class TopazioGolem implements CombatEnemy {
         } else if (this.action === 'hold') {
             row = base + ROW_SLAM;
             frameColumn = 1;
+        } else if (this.action === 'spin') {
+            // Pião em pé: gira no eixo vertical alternando frente e costas e afinando de perfil.
+            const facing = Math.cos(this.actionTime * TOPAZIO_BOSS.spin.turnSpeed);
+            this.sprite.setScale(Math.max(0.18, Math.abs(facing)), 1);
+            row = facing >= 0 ? ROW_SPIN_FRONT : ROW_SPIN_BACK;
+            frameColumn = this.stage;
+        } else if (this.action === 'roar') {
+            return;
         }
         this.sprite.setFrame(row * 4 + frameColumn);
     }
@@ -358,7 +401,7 @@ export class TopazioGolem implements CombatEnemy {
 
     private finishDeath() {
         this.startAction('dead');
-        this.sprite.setAngle(0).clearTint();
+        this.sprite.setScale(1).clearTint();
         const body = this.sprite.body;
         if (body instanceof Physics.Arcade.Body) body.enable = false;
         this.scene.cameras.main.shake(600, 0.012);
