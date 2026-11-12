@@ -45,6 +45,20 @@ const DETAILS = { x: 610, y: 66, width: 243, height: 220 };
 const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ['CABEÇA', 'CORPO', 'MÃOS', 'PÉS'];
 const SLOT = 44;
 const GRID = { x: 232, y: 308, columns: 12, rows: 2, gap: 6 };
+// Onde soltar um item arrastado: boneco e encaixes equipam; a grade de baixo guarda.
+const EQUIP_ZONE = { x: DOLL.x, y: DOLL.y, width: DETAILS.x - DOLL.x, height: DOLL.height };
+const STORAGE_ZONE = {
+    x: GRID.x,
+    y: GRID.y,
+    width: GRID.columns * (SLOT + GRID.gap),
+    height: GRID.rows * (SLOT + GRID.gap)
+};
+
+/** Item guardado solto no boneco ou nos encaixes equipa; item equipado solto na grade volta a ser guardado. */
+export function shouldToggleOnDrop(equipped: boolean, x: number, y: number) {
+    const zone = equipped ? STORAGE_ZONE : EQUIP_ZONE;
+    return x >= zone.x && x <= zone.x + zone.width && y >= zone.y && y <= zone.y + zone.height;
+}
 
 /** Tela de inventário: cartas e chimarrões à esquerda, boneco com equipamentos e os itens guardados. */
 export class InventoryMenuView {
@@ -82,6 +96,22 @@ export class InventoryMenuView {
 
     private get equippedItems() {
         return this.options.items.filter(({ equipped }) => equipped);
+    }
+
+    /** Com o mouse, o ícone pode ser arrastado; solto no lugar certo troca o item, fora dele volta para o encaixe. */
+    private makeDraggable(menu: CleanOverlayMenu, icon: Phaser.GameObjects.Image, index: number) {
+        const item = this.options.items[index];
+        const id = item?.id;
+        if (!id || !this.options.onToggle) return;
+        const home = { x: icon.x, y: icon.y };
+        icon.setInteractive({ useHandCursor: true, draggable: true })
+            .on('pointerdown', () => this.selectItem(index))
+            .on('dragstart', () => menu.root.bringToTop(icon))
+            .on('drag', (_pointer: unknown, x: number, y: number) => icon.setPosition(x, y))
+            .on('dragend', () => {
+                if (shouldToggleOnDrop(!!item.equipped, icon.x, icon.y)) this.options.onToggle?.(id, index);
+                else icon.setPosition(home.x, home.y);
+            });
     }
 
     private toggleSelected() {
@@ -140,6 +170,7 @@ export class InventoryMenuView {
             if (equipped) {
                 const icon = this.scene.add.image(x + SLOT / 2, y + SLOT / 2, equipped.texture);
                 menu.add(icon.setScale((SLOT - 10) / Math.max(icon.width, icon.height)));
+                this.makeDraggable(menu, icon, this.options.items.indexOf(equipped));
             }
         });
     }
@@ -179,6 +210,8 @@ export class InventoryMenuView {
             icon.setScale((SLOT - 8) / Math.max(icon.width, icon.height));
             slot.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.selectItem(index));
             menu.add(icon);
+            // O equipado sai pelo encaixe do boneco; na grade só o guardado é arrastável.
+            if (!item.equipped) this.makeDraggable(menu, icon, index);
             if (item.equipped) menu.add(this.text(x + SLOT / 2 - 9, y - SLOT / 2 + 8, 'E', 9, CLEAN_MENU_COLORS.frameCss).setOrigin(0.5));
             this.itemSlots[index] = slot;
         }
