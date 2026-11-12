@@ -1195,6 +1195,7 @@ test('somente a Sala I oferece outra seleção de upgrade ao ser concluída', ()
     assert.equal(shouldOfferRoomCompletionUpgrade('room1'), true);
     assert.equal(shouldOfferRoomCompletionUpgrade('room2'), false);
     assert.equal(shouldOfferRoomCompletionUpgrade('room3'), true, 'depois da horda 2 da Sala III');
+    assert.equal(shouldOfferRoomCompletionUpgrade('room4'), true, 'as duas mais fortes ao vencer a horda da Sala IV');
     assert.equal(shouldOfferRoomCompletionUpgrade('dungeon'), false);
 });
 
@@ -4748,4 +4749,21 @@ test('golem desaba atordoado em 60%, abre a rodada e levanta depois de 4 s sem m
     golem.actionTime = TOPAZIO_BOSS.stun.duration;
     golem.endStun();
     assert.equal(golem.action, 'walk', 'levanta e volta a andar');
+});
+
+test('fim da Sala IV oferece as duas cartas mais fortes ainda disponíveis e uma aleatória', () => {
+    const { BASIC_UPGRADE_IDS, STRONGEST_UPGRADE_IDS } = load('../src/game/upgrades/catalog.ts');
+    const fresh = new PlayerUpgradeState();
+    for (const roll of [0, 0.5, 0.99]) {
+        const cards = drawTableCards('room4', () => roll, fresh.availableCards());
+        assert.deepEqual(cards.slice(0, 2).map((card) => card.id), STRONGEST_UPGRADE_IDS.slice(0, 2));
+        assert.equal(cards.length, 3);
+        assert.ok(!STRONGEST_UPGRADE_IDS.slice(0, 2).includes(cards[2].id), 'a aleatória não repete as fortes');
+        assert.ok(!BASIC_UPGRADE_IDS.includes(cards[2].id) && cards[2].id !== 'overclock', 'nem é básica ou aposentada');
+    }
+    const maxed = new PlayerUpgradeState();
+    const strongest = getUpgradeCard(STRONGEST_UPGRADE_IDS[0]);
+    for (let level = 0; level < strongest.maxLevel; level += 1) maxed.acquire(strongest);
+    const ids = drawTableCards('room4', () => 0, maxed.availableCards()).map((card) => card.id);
+    assert.deepEqual(ids.slice(0, 2), STRONGEST_UPGRADE_IDS.slice(1, 3), 'a mais forte no máximo dá lugar à seguinte');
 });
