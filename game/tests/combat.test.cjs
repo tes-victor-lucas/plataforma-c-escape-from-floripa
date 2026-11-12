@@ -4314,3 +4314,10 @@ test('atributos do inventário somam os itens vestidos em barrinhas e porcentage
     assert.equal(dash.pips, 0);
     assert.deepEqual(getEquipmentStats(['helmet', 'diamond-boots']).map(({ pips }) => pips), [3, 0, 4]);
 });
+
+test('balão do inventário acompanha o encaixe e não sai do painel', () => {
+    const { getTooltipPosition } = load('../src/game/ui/InventoryMenuView.ts');
+    assert.deepEqual(getTooltipPosition(268, 338, 90), { x: 282, y: 348 }, 'no meio do painel fica à direita e abaixo do encaixe');
+    const corner = getTooltipPosition(840, 440, 90);
+    assert.ok(corner.x + 232 <= 873 && corner.y + 90 <= 486, 'no canto é empurrado para dentro');
+});
