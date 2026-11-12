@@ -4056,3 +4056,38 @@ test('depois da Sala III os inimigos nascem com o dobro de vida, sem dobrar a vi
     const saved = spawnIn('room4');
     assert.deepEqual([saved.current, saved.max], [15, 20], 'quem volta ferido não ganha vida extra');
 });
+
+test('golem que levou o golpe final com ônibus pendente morre sozinho depois do último arremesso', () => {
+    const { TopazioGolem } = load('../src/game/entities/TopazioGolem.ts');
+    const { TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const golem = Object.create(TopazioGolem.prototype);
+    let died = 0;
+    Object.assign(golem, {
+        health: new Health(TOPAZIO_BOSS.maxHealth),
+        buses: [{ route: 4, col: 34, row: 20 }],
+        busesThrown: 3,
+        roarsDone: 2,
+        action: 'walk',
+        actionTime: 0,
+        isDeathDeferred: false,
+        finishDeath() { died += 1; },
+        flashHit() {},
+        startFetch() { this.buses.length = 0; },
+        scene: { cameras: { main: { shake() {} } } },
+        stage: 3
+    });
+    golem.takeDamage(10_000);
+    assert.equal(golem.health.current, 1, 'ainda falta um ônibus: segura com 1 de vida');
+    assert.equal(died, 0);
+    const body = { setVelocity() {} };
+    golem.updateWalk(body, undefined, 16);
+    assert.equal(golem.buses.length, 0, 'primeiro vai buscar o último ônibus');
+    golem.busesThrown = 4;
+    golem.actionTime = TOPAZIO_BOSS.roar.calmBefore - 1;
+    golem.updateWalk(body, undefined, 16);
+    assert.equal(died, 0, 'espera o ônibus cair');
+    golem.actionTime = TOPAZIO_BOSS.roar.calmBefore;
+    golem.updateWalk(body, undefined, 16);
+    assert.equal(died, 1);
+    assert.equal(golem.health.isAlive, false);
+});
