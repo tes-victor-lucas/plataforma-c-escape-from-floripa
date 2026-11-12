@@ -9,6 +9,8 @@ topazio-golem.png   quadros de 96x96, 4 colunas:
     linhas 3-5   estágio 1               linhas 6-8   estágio 2
     linhas 9-11  estágio 3 (quase morto)
     linha 12     dano: piscando (1)      linha 13     estilhaçando na morte (4)
+    linha 14     giro de frente, braços abertos (coluna = estágio)
+    linha 15     giro de costas (coluna = estágio)
     linha do quadro = estágio * 3 + animação
 
 uso: python3 assets/topazio/gen_golem.py
@@ -224,7 +226,8 @@ def mirror_crystal(c):
     return ((F - x, y), 180 - a, length, w)
 
 
-def golem(stage=0, bob=0, legs=(0, 0), arms=((0, 0), (0, 0)), raise_arms=0, glow=1, flash=False, glitch_seed=0):
+def golem(stage=0, bob=0, legs=(0, 0), arms=((0, 0), (0, 0)), raise_arms=0, glow=1, flash=False, glitch_seed=0, back=False):
+    """`back` desenha as costas, para o giro: sem rosto nem implantes, com os cristais das costas na frente."""
     c = Canvas()
     ub = bob  # tronco, cabeça e braços acompanham a respiração
     offset = {'chest': (0, ub), 'head': (0, ub + 1), 'pelvis': (0, ub // 2),
@@ -232,10 +235,14 @@ def golem(stage=0, bob=0, legs=(0, 0), arms=((0, 0), (0, 0)), raise_arms=0, glow
     c.chunk(move(LEG, 0, legs[0]), BODY, 1)
     c.chunk(move(mirror(LEG), 0, legs[1]), BODY, 2)
     c.chunk(move(PELVIS, 0, ub // 2), BODY, 3)
-    for i, ((x, y), a, length, w) in enumerate(BACK_CRYSTALS):
-        c.crystal((x, y + ub), math.radians(a), length, w, CRYSTAL, 40 + i)
+    if not back:
+        for i, ((x, y), a, length, w) in enumerate(BACK_CRYSTALS):
+            c.crystal((x, y + ub), math.radians(a), length, w, CRYSTAL, 40 + i)
     c.chunk(move(CHEST, 0, ub), BODY, 4)
     c.chunk(move(HEAD, 0, ub + 1), BODY, 5)
+    if back:
+        for i, ((x, y), a, length, w) in enumerate(BACK_CRYSTALS):
+            c.crystal((x, y + ub + 10), math.radians(a), length + 6, w, CRYSTAL, 40 + i)
     for side, mir in enumerate((lambda p: p, mirror)):
         sign = 1 if side == 0 else -1
         ax, ay = arms[side]
@@ -246,7 +253,7 @@ def golem(stage=0, bob=0, legs=(0, 0), arms=((0, 0), (0, 0)), raise_arms=0, glow
         offset[f'fist{side}'] = (round(ax + lx), round(ub + ay + ly))
         c.chunk(move(mir(SHOULDER), 0, ub), BODY, 10 + side)
         c.chunk(move(mir(UPPER_ARM), *offset[f'arm{side}']), BODY, 12 + side)
-        if side == 1:
+        if side == 1 and not back:
             c.chunk(move(BRACE, *offset['arm1']), METAL, 30, stripes=False)
             bx, by = offset['arm1']
             for k in range(3):
@@ -259,18 +266,19 @@ def golem(stage=0, bob=0, legs=(0, 0), arms=((0, 0), (0, 0)), raise_arms=0, glow
             (x, y), a, length, w = cr if side == 0 else mirror_crystal(cr)
             fx, fy = offset[f'fist{side}']
             c.crystal((x + fx, y + fy), math.radians(a), length, w, CRYSTAL, 70 + side * 10 + i)
-    # trilhas de circuito: linha escura com o fio aceso e nós nas pontas
-    for part, pts in TRACES:
-        dx, dy = offset[part]
-        for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
-            for k in range(max(abs(x1 - x0), abs(y1 - y0)) + 1):
-                x = x0 + dx + (k if x1 > x0 else -k if x1 < x0 else 0)
-                y = y0 + dy + (k if y1 > y0 else -k if y1 < y0 else 0)
-                c.put(x, y, GLOW if (k + glitch_seed) % 5 else CRACK)
-        for x, y in (pts[0], pts[-1]):
-            for ddx, ddy in ((0, 0), (1, 0), (0, 1), (1, 1)):
-                c.put(x + dx + ddx, y + dy + ddy, METAL[2])
-            c.put(x + dx, y + dy, GLOW)
+    if not back:
+        # trilhas de circuito: linha escura com o fio aceso e nós nas pontas
+        for part, pts in TRACES:
+            dx, dy = offset[part]
+            for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+                for k in range(max(abs(x1 - x0), abs(y1 - y0)) + 1):
+                    x = x0 + dx + (k if x1 > x0 else -k if x1 < x0 else 0)
+                    y = y0 + dy + (k if y1 > y0 else -k if y1 < y0 else 0)
+                    c.put(x, y, GLOW if (k + glitch_seed) % 5 else CRACK)
+            for x, y in (pts[0], pts[-1]):
+                for ddx, ddy in ((0, 0), (1, 0), (0, 1), (1, 1)):
+                    c.put(x + dx + ddx, y + dy + ddy, METAL[2])
+                c.put(x + dx, y + dy, GLOW)
     # rachaduras: fenda clara com borda ciano misturada ao topázio
     for part, pts in CRACK_POINTS[:CRACKS_PER_STAGE[stage]]:
         dx, dy = offset[part]
@@ -281,29 +289,30 @@ def golem(stage=0, bob=0, legs=(0, 0), arms=((0, 0), (0, 0)), raise_arms=0, glow
                     c.px[nx, ny] = mix(c.px[nx, ny], GLOW, 0.55)
         for x, y in cells:
             c.px[x, y] = rgba(CRACK)
-    # soquete de metal no peito com o núcleo da Floria dentro
-    cx, cy = CORE[0], CORE[1] + ub
-    core_r = 1.5 + glow * 0.5 + stage * 0.4
-    for y in range(cy - 6, cy + 7):
-        for x in range(cx - 6, cx + 7):
-            d = max(abs(x - cx), abs(y - cy)) * 0.75 + min(abs(x - cx), abs(y - cy)) * 0.45  # octógono
-            if d <= core_r:
-                c.put(x, y, (255, 255, 245) if d <= core_r - 1.5 else GLOW)
-            elif d <= core_r + 2.2:
-                c.put(x, y, METAL[4] if y < cy and x < cx else METAL[2])
-    for bx, by in ((-5, -5), (5, -5), (-5, 5), (5, 5)):
-        c.put(cx + bx, cy + by, METAL[5])
-    # viseira de metal com a fenda vermelha da Floria no lugar dos olhos
-    ey = 29 + ub
-    for x in range(39, 58):
-        c.put(x, ey - 2, METAL[4])
-        c.put(x, ey - 1, METAL[2])
-        c.put(x, ey, METAL[1])
-        c.put(x, ey + 1, METAL[2])
-    for x in range(42, 55):
-        c.put(x, ey, LED if x in (44, 45, 51, 52) else LED_DIM)
-    if stage:  # LED falhando conforme corrompe
-        c.put(42 + (glitch_seed * 5) % 13, ey, (255, 210, 220))
+    if not back:
+        # soquete de metal no peito com o núcleo da Floria dentro
+        cx, cy = CORE[0], CORE[1] + ub
+        core_r = 1.5 + glow * 0.5 + stage * 0.4
+        for y in range(cy - 6, cy + 7):
+            for x in range(cx - 6, cx + 7):
+                d = max(abs(x - cx), abs(y - cy)) * 0.75 + min(abs(x - cx), abs(y - cy)) * 0.45  # octógono
+                if d <= core_r:
+                    c.put(x, y, (255, 255, 245) if d <= core_r - 1.5 else GLOW)
+                elif d <= core_r + 2.2:
+                    c.put(x, y, METAL[4] if y < cy and x < cx else METAL[2])
+        for bx, by in ((-5, -5), (5, -5), (-5, 5), (5, 5)):
+            c.put(cx + bx, cy + by, METAL[5])
+        # viseira de metal com a fenda vermelha da Floria no lugar dos olhos
+        ey = 29 + ub
+        for x in range(39, 58):
+            c.put(x, ey - 2, METAL[4])
+            c.put(x, ey - 1, METAL[2])
+            c.put(x, ey, METAL[1])
+            c.put(x, ey + 1, METAL[2])
+        for x in range(42, 55):
+            c.put(x, ey, LED if x in (44, 45, 51, 52) else LED_DIM)
+        if stage:  # LED falhando conforme corrompe
+            c.put(42 + (glitch_seed * 5) % 13, ey, (255, 210, 220))
     if flash:
         for y in range(F):
             for x in range(F):
@@ -359,7 +368,7 @@ def shatter(base, step, steps):
 
 
 def build_sheet():
-    sheet = Image.new('RGBA', (F * 4, F * (STAGES * 3 + 2)), T)
+    sheet = Image.new('RGBA', (F * 4, F * (STAGES * 3 + 4)), T)
     put = lambda img, col, row: sheet.alpha_composite(img, (col * F, row * F))
     walk = [((0, -3), ((0, 2), (0, -2)), 0), ((0, 0), ((0, 0), (0, 0)), 1),
             ((-3, 0), ((0, -2), (0, 2)), 0), ((0, 0), ((0, 0), (0, 0)), 1)]
@@ -373,6 +382,11 @@ def build_sheet():
         for i, kw in enumerate(slam):
             put(golem(s, glitch_seed=i + 8, **kw), i, s * 3 + 2)
     put(golem(flash=True), 0, STAGES * 3)
+    # Giro: o jogo alterna frente e costas e achata na horizontal, como um pião.
+    spin_arms = ((1, -20), (-1, -20))
+    for s in range(STAGES):
+        put(golem(s, arms=spin_arms, glow=2, glitch_seed=12), s, STAGES * 3 + 2)
+        put(golem(s, arms=spin_arms, glow=2, glitch_seed=13, back=True), s, STAGES * 3 + 3)
     base = golem(STAGES - 1)
     for i in range(4):
         put(shatter(base, i + 1, 4), i, STAGES * 3 + 1)
