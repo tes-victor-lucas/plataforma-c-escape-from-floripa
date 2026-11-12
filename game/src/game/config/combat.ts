@@ -151,7 +151,9 @@ export const COMBAT_CONFIG = {
     flameSword: {
         damageMultiplier: 1.25,
         interval: 550,
-        trailColors: [0xff6a1f, 0xffb347, 0xffe27a]
+        trailColors: [0xff6a1f, 0xffb347, 0xffe27a],
+        // Labaredas espalhadas pelo arco de cada golpe.
+        trailFlames: 8
     },
     // Cajado de gelo dos baús: congela quem está em volta, sem dano, para atrasar a horda.
     iceStaff: {

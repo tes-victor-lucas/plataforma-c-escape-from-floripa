@@ -772,37 +772,44 @@ export class CombatSystem {
             rotation: angle + arc / 2 + Math.PI / 4,
             duration: swingDuration,
             ease: 'Quad.Out',
-            // A cada quadro do golpe, uma chama nasce na ponta da lâmina e sobe se apagando.
-            onUpdate: flame ? () => this.emitFlame(sword) : undefined,
             onComplete: () => {
                 sword.destroy();
                 onComplete?.();
             }
         });
+        if (flame) this.emitFlameTrail(x, y - 2, angle - arc / 2, angle + arc / 2, swingDuration, sword.displayWidth);
     }
 
-    /** Labareda na ponta da lâmina: sobe, encolhe e some, deixando o rastro do arco do golpe no ar. */
-    private emitFlame(sword: Phaser.GameObjects.Image) {
-        const { trailColors } = COMBAT_CONFIG.flameSword;
-        // A ponta fica a 3/4 da diagonal da textura, na direção da lâmina (rotação menos 45°).
-        const reach = sword.displayWidth * 0.95;
-        const blade = sword.rotation - Math.PI / 4;
-        const color = trailColors[Math.floor(Math.random() * trailColors.length)];
-        const flame = this.scene.add.circle(
-            sword.x + Math.cos(blade) * reach + (Math.random() - 0.5) * 4,
-            sword.y + Math.sin(blade) * reach + (Math.random() - 0.5) * 4,
-            2 + Math.random() * 2,
-            color
-        ).setDepth(15.1).setBlendMode(1);
-        this.scene.tweens.add({
-            targets: flame,
-            y: flame.y - 10 - Math.random() * 8,
-            scale: 0.2,
-            alpha: 0,
-            duration: 320 + Math.random() * 160,
-            ease: 'Sine.Out',
-            onComplete: () => flame.destroy()
-        });
+    /**
+     * Rastro de fogo do golpe: labaredas ao longo do arco, cada uma acesa quando a lâmina passa por ela.
+     * Não depende da taxa de quadros: o golpe dura só 140 ms, e a 15 fps seriam duas chamas.
+     */
+    private emitFlameTrail(x: number, y: number, from: number, to: number, duration: number, reach: number) {
+        const { trailColors, trailFlames } = COMBAT_CONFIG.flameSword;
+        for (let index = 0; index < trailFlames; index += 1) {
+            const progress = index / (trailFlames - 1);
+            const angle = from + (to - from) * progress;
+            // Duas por ponto: o miolo claro por cima de uma chama maior.
+            for (const [radius, color] of [[4 + Math.random() * 2, trailColors[index % 2]], [2, trailColors[2]]] as const) {
+                const flame = this.scene.add.circle(
+                    x + Math.cos(angle) * reach * 0.85 + (Math.random() - 0.5) * 3,
+                    y + Math.sin(angle) * reach * 0.85 + (Math.random() - 0.5) * 3,
+                    radius,
+                    color
+                ).setDepth(15.1).setBlendMode(1).setVisible(false);
+                this.scene.tweens.add({
+                    targets: flame,
+                    delay: progress * duration,
+                    y: flame.y - 14 - Math.random() * 10,
+                    scale: 0.2,
+                    alpha: { from: 1, to: 0 },
+                    duration: 480 + Math.random() * 200,
+                    ease: 'Sine.Out',
+                    onStart: () => flame.setVisible(true),
+                    onComplete: () => flame.destroy()
+                });
+            }
+        }
     }
 
     private getAimAngle() {
