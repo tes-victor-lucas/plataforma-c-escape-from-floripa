@@ -48,6 +48,7 @@ const INV = {
     shine: 0xf6c56c,
     bandCss: '#f2bb62',
     accent: 0xe90931,
+    ink: '#1b1307',
     text: '#f4efe6',
     muted: '#a8a296'
 } as const;
@@ -342,11 +343,15 @@ export class InventoryMenuView {
 
     /** Botão de equipar ou retirar o item selecionado, logo abaixo dos atributos que ele muda. */
     private addToggleButton(menu: CleanOverlayMenu) {
-        this.toggleButton = this.scene.add.rectangle(TOGGLE.x, TOGGLE.y, 170, 30, INV.well)
-            .setStrokeStyle(2, INV.band)
+        // Única peça preenchida de âmbar na tela: é a ação principal.
+        const button = this.scene.add.rectangle(TOGGLE.x, TOGGLE.y, 170, 30, INV.band)
+            .setStrokeStyle(2, INV.outline)
             .setInteractive({ useHandCursor: true })
-            .on('pointerdown', () => this.toggleSelected());
-        this.toggleLabel = this.text(TOGGLE.x, TOGGLE.y, '', 14, INV.text).setOrigin(0.5);
+            .on('pointerdown', () => this.toggleSelected())
+            .on('pointerover', () => button.setFillStyle(INV.shine))
+            .on('pointerout', () => button.setFillStyle(INV.band));
+        this.toggleButton = button;
+        this.toggleLabel = this.text(TOGGLE.x, TOGGLE.y, '', 14, INV.ink).setOrigin(0.5);
         menu.add([this.toggleButton, this.toggleLabel]);
     }
 
