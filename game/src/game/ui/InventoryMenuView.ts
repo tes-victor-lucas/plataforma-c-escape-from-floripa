@@ -378,7 +378,8 @@ export class InventoryMenuView {
             menu.add(icon);
             // O equipado sai pelo encaixe do boneco; na grade só o guardado é arrastável.
             if (!item.equipped) this.makeDraggable(menu, icon, index);
-            if (item.equipped) menu.add(this.text(x + SLOT / 2 - 9, y - SLOT / 2 + 8, 'E', 9, INV.bandCss).setOrigin(0.5));
+            // Item vestido: um canto âmbar no encaixe, da cor da moldura dos encaixes do boneco.
+            if (item.equipped) menu.add(this.scene.add.triangle(x + SLOT / 2 - 2, y - SLOT / 2 + 2, -12, 0, 0, 0, 0, 12, INV.band).setOrigin(0));
             this.itemSlots[index] = slot;
         }
         this.selectItem(this.options.selectedItem ?? 0);
