@@ -131,7 +131,7 @@ const {
 const { RunTracker, runTracker } = load('../src/game/scoring/RunTracker.ts');
 const { SCORE_CONFIG } = load('../src/game/config/score.ts');
 
-test('pontuação v3 aplica dungeon, tempo, dano, mortes, multi-kill e vitória', () => {
+test('pontuação v4 aplica dungeon, tempo, dano, mortes, multi-kill e vitória', () => {
     const score = calculateScore({
         won: true,
         dungeonsCompleted: 1,
@@ -148,6 +148,7 @@ test('pontuação v3 aplica dungeon, tempo, dano, mortes, multi-kill e vitória'
         multiKillPoints: 350,
         damagePoints: 2_000,
         arcadePoints: 0,
+        topazPoints: 0,
         total: 10_530
     });
     assert.equal(calculateTimePoints(900_000), 0);
@@ -4120,4 +4121,25 @@ test('golem que levou o golpe final com ônibus pendente morre sozinho depois do
     golem.updateWalk(body, undefined, 16);
     assert.equal(died, 1);
     assert.equal(golem.health.isAlive, false);
+});
+
+test('pegar os 14 topázios do golem vale 2K pontos uma vez e passa pelo checkpoint', () => {
+    const base = { won: true, elapsedTimeMs: 0, enemiesDefeated: 0, hitsTaken: 5, multiKillBonuses: [] };
+    assert.equal(calculateScore({ ...base, topazAllCollected: true }).topazPoints, SCORE_CONFIG.topazBonus);
+    assert.equal(calculateScore({ ...base, topazAllCollected: true }).total - calculateScore(base).total, 2_000);
+
+    const tracker = new RunTracker();
+    const start = Date.parse('2026-01-01T00:00:00.000Z');
+    tracker.startNew('SINGLE_PLAYER', new Date(start));
+    assert.equal(tracker.snapshot(start).score.topazPoints, 0);
+    assert.equal(tracker.recordTopazCollection(), true);
+    assert.equal(tracker.recordTopazCollection(), false, 'o bônus vale uma vez');
+    assert.equal(tracker.snapshot(start).score.topazPoints, 2_000);
+    const checkpoint = tracker.checkpoint();
+    assert.equal(checkpoint.topazAllCollected, true);
+    const restored = new RunTracker();
+    restored.restore(checkpoint);
+    assert.equal(restored.snapshot(start).score.topazPoints, 2_000);
+    tracker.abandon();
+    restored.abandon();
 });
