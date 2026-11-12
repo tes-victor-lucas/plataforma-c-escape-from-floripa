@@ -82,6 +82,25 @@ function drawFramedBox(graphics: Phaser.GameObjects.Graphics, bounds: CleanMenuB
     graphics.fillStyle(INV.shine, 1).fillRect(x + 4, y + 2, width - 8, 1);
 }
 
+export type EquipmentStat = Readonly<{ label: string; pips: number; value: string }>;
+const STAT_PIPS = 10;
+
+/** O que os itens vestidos fazem somados: barrinhas de 0 a 10 e o número exato ao lado. */
+export function getEquipmentStats(ids: readonly ItemId[]): EquipmentStat[] {
+    const worn = ids.map((id) => ITEMS[id]);
+    const block = Math.max(0, ...worn.map(({ blockChance }) => blockChance));
+    const speed = worn.reduce((total, { speedMultiplier }) => total * speedMultiplier, 1) - 1;
+    const dash = 1 - worn.reduce((total, { dashCooldownMultiplier }) => total * dashCooldownMultiplier, 1);
+    const pips = (value: number, perPip: number) => Math.min(STAT_PIPS, Math.round(value / perPip));
+    const percent = (value: number) => Math.round(value * 100);
+    return [
+        { label: 'BLOQUEIO', pips: pips(block, 0.1), value: `${percent(block)}%` },
+        // A velocidade sobe pouco por item: cada barrinha vale 5%.
+        { label: 'VELOCIDADE', pips: pips(speed, 0.05), value: `+${percent(speed)}%` },
+        { label: 'DASH', pips: pips(dash, 0.1), value: `-${percent(dash)}%` }
+    ];
+}
+
 /** Item guardado solto no boneco ou nos encaixes equipa; item equipado solto na grade volta a ser guardado. */
 export function shouldToggleOnDrop(equipped: boolean, x: number, y: number) {
     const zone = equipped ? STORAGE_ZONE : EQUIP_ZONE;
