@@ -181,6 +181,15 @@ export const UPGRADE_CARDS = [
         description: 'A cada 1,6 s, bombas de 300% caem em 4 inimigos. +2 alvos por nível.',
         maxLevel: 2,
         effect: { type: 'bombard', targets: 4, targetsPerLevel: 2, radius: 55, range: 220, interval: 1_600, damageRatio: 3 }
+    },
+    {
+        id: 'fire-staff',
+        kind: 'ability',
+        title: 'Cajado de fogo',
+        description: 'A cada 10 s, incendeia quem está a 160 px: queima aos poucos por 5 s. +30 px por nível.',
+        maxLevel: 2,
+        // 10% do tiro a cada 0,5 s de queimadura: em 5 s, um tiro inteiro por inimigo.
+        effect: { type: 'burn-pulse', radius: 160, radiusPerLevel: 30, interval: 10_000, duration: 5_000, damageRatio: 0.1 }
     }
 ] as const satisfies readonly UpgradeCardDefinition[];
 
@@ -191,7 +200,8 @@ export const AREA_UPGRADE_IDS: readonly UpgradeId[] = [
     'spark-orbit',
     'chain-lightning',
     'death-blast',
-    'light-beams'
+    'light-beams',
+    'fire-staff'
 ];
 
 /** Cartas fortes que só aparecem na Sala III. */

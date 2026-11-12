@@ -20,7 +20,8 @@ export type UpgradeId =
     | 'nova-pulse'
     | 'spin-slash'
     | 'saw-orbit'
-    | 'bombard';
+    | 'bombard'
+    | 'fire-staff';
 
 export type UpgradeKind = 'stat' | 'ability';
 
@@ -62,6 +63,15 @@ export type UpgradeEffect =
     | {
         type: 'heal-on-room-complete';
         amount: number;
+    }
+    | {
+        // Cajado de fogo: de tempos em tempos incendeia quem está em volta; o dano sai aos poucos enquanto queima.
+        type: 'burn-pulse';
+        radius: number;
+        radiusPerLevel: number;
+        interval: number;
+        duration: number;
+        damageRatio: number;
     }
     | {
         // Onda periódica em volta do jogador com o dano do tiro.
