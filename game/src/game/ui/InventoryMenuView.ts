@@ -68,6 +68,7 @@ const TOOLTIP_WIDTH = 232;
 const STATS = { x: 548, y: 84, rowGap: 34, pipWidth: 18 };
 const TOGGLE = { x: 656, y: 210 };
 const DRAG_THRESHOLD = 6;
+const TOUCH_LIFT = 30;
 // Encaixes do boneco; cada item de equipar ocupa o seu.
 const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ['CABEÇA', 'CORPO', 'MÃOS', 'PÉS'];
 const SLOT = 44;
@@ -254,7 +255,8 @@ export class InventoryMenuView {
                 this.showDropZone(menu, item.equipped ? STORAGE_ZONE : EQUIP_ZONE);
                 menu.root.bringToTop(icon);
             })
-            .on('drag', (_pointer: unknown, x: number, y: number) => icon.setPosition(x, y))
+            // No toque o item sobe acima do dedo, senão quem arrasta não vê onde está soltando.
+            .on('drag', (pointer: Phaser.Input.Pointer, x: number, y: number) => icon.setPosition(x, y - (pointer.wasTouch ? TOUCH_LIFT : 0)))
             .on('dragend', () => {
                 this.isDragging = false;
                 this.dropZone?.setVisible(false);
