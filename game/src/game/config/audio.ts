@@ -36,6 +36,12 @@ export const AUDIO_CONFIG = {
             key: 'wave-threat',
             path: 'assets/audio/horror-tension.wav',
             volume: 0.16
+        },
+        // Rugido das cutscenes do golem (assets/topazio/gen_rugido.py); a pancada cai junto com a dele.
+        golemRoar: {
+            key: 'golem-roar',
+            path: 'assets/audio/golem-roar.wav',
+            volume: 0.3
         }
     },
     music: {
