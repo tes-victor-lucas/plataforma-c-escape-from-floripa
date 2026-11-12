@@ -68,15 +68,12 @@ const TOGGLE = { x: 656, y: 210 };
 // Encaixes do boneco; cada item de equipar ocupa o seu.
 const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ['CABEÇA', 'CORPO', 'MÃOS', 'PÉS'];
 const SLOT = 44;
-const GRID = { x: 232, y: 308, columns: 12, rows: 2, gap: 6 };
+// Bandeja dos itens guardados.
+const TRAY = { x: 232, y: 300, width: 621, height: 124 };
+const GRID = { x: 246, y: 318, columns: 12, rows: 2, gap: 6 };
 // Onde soltar um item arrastado: boneco e encaixes equipam; a grade de baixo guarda.
 const EQUIP_ZONE = { x: DOLL.x, y: DOLL.y, width: DOLL.width + 12 + SLOT, height: 4 * (SLOT + 6) };
-const STORAGE_ZONE = {
-    x: GRID.x,
-    y: GRID.y,
-    width: GRID.columns * (SLOT + GRID.gap),
-    height: GRID.rows * (SLOT + GRID.gap)
-};
+const STORAGE_ZONE = TRAY;
 
 /** Caixa de moldura dupla: contorno, faixa colorida e outro contorno por dentro, com os cantos cortados. */
 function drawFramedBox(graphics: Phaser.GameObjects.Graphics, bounds: CleanMenuBounds, fill: number = INV.raised) {
@@ -335,6 +332,7 @@ export class InventoryMenuView {
     private addItemGrid(menu: CleanOverlayMenu) {
         const { items } = this.options;
         this.itemSlots = [];
+        menu.add(this.box(TRAY));
         for (let index = 0; index < GRID.columns * GRID.rows; index += 1) {
             const x = GRID.x + (index % GRID.columns) * (SLOT + GRID.gap) + SLOT / 2;
             const y = GRID.y + Math.floor(index / GRID.columns) * (SLOT + GRID.gap) + SLOT / 2;
