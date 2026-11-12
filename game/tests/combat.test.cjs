@@ -4227,7 +4227,7 @@ test('botas de prata aceleram o passo e as de diamante encurtam a recarga do das
     assert.equal(player.dash.cooldownMultiplier, DIAMOND_BOOTS.dashCooldownMultiplier);
     assert.ok(DIAMOND_BOOTS.dashCooldownMultiplier < 1);
     assert.equal(SILVER_BOOTS.slot, DIAMOND_BOOTS.slot, 'os dois pares disputam os pés');
-    for (const chest of Object.values(ITEM_CHESTS)) assert.ok(ITEMS[chest.item], 'todo baú guarda um item do catálogo');
+    for (const chest of Object.values(ITEM_CHESTS)) assert.ok(chest.items.every((id) => ITEMS[id]), 'todo baú guarda itens do catálogo');
 });
 
 test('baú da Sala I fica trancado com o aviso e só entrega as botas se a sala acabar no tempo', () => {
@@ -4348,4 +4348,29 @@ test('setas e controle andam pela mochila sem sair dos itens que existem', () =>
     assert.equal(moveInventorySelection(13, 14, 0, -1), 1);
     assert.equal(moveInventorySelection(1, 14, 0, -1), 1, 'não sobe da primeira linha');
     assert.equal(moveInventorySelection(0, 0, 1, 0), 0, 'mochila vazia não quebra');
+});
+
+test('baú sorteia ao destrancar só o que falta, guarda o sorteio e abre vazio para quem tem tudo', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { ITEM_CHESTS, getChestCandidates } = load('../src/game/config/items.ts');
+    assert.deepEqual(getChestCandidates(['flame-sword', 'ice-staff'], ['flame-sword']), ['ice-staff']);
+    const world = new World();
+    world.ownedItems = ['flame-sword'];
+    world.itemChestRuns.set('room3', { startedAt: 0, unlocked: false, claimed: false });
+    world.finishItemChestRun('room3', () => 0);
+    const run = world.itemChestRuns.get('room3');
+    assert.equal(run.unlocked, true);
+    assert.ok(ITEM_CHESTS.room3.items.includes(run.item));
+    assert.notEqual(run.item, 'flame-sword', 'nunca sorteia o que o jogador já tem');
+    const fakeSprite = () => {
+        const sprite = { frame: 0 };
+        for (const method of ['setOrigin', 'setDepth', 'setTint']) sprite[method] = () => sprite;
+        sprite.setFrame = (frame) => { sprite.frame = frame; return sprite; };
+        return sprite;
+    };
+    world.add = { sprite: fakeSprite };
+    world.ownedItems = ['flame-sword', 'ice-staff', 'diamond-boots'];
+    world.itemChestRuns.set('room3', { startedAt: 0, unlocked: false, claimed: false });
+    world.createItemChest('room3', false);
+    assert.equal(world.itemChest, undefined, 'quem já tem tudo da lista encontra o baú aberto');
 });
