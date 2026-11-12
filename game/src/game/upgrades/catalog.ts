@@ -190,6 +190,15 @@ export const UPGRADE_CARDS = [
         maxLevel: 2,
         // 10% do tiro a cada 0,5 s de queimadura: em 5 s, um tiro inteiro por inimigo.
         effect: { type: 'burn-pulse', radius: 160, radiusPerLevel: 30, interval: 10_000, duration: 5_000, damageRatio: 0.1 }
+    },
+    {
+        id: 'ice-staff',
+        kind: 'ability',
+        title: 'Cajado de gelo',
+        description: 'A cada 4 s, congela por 1 s quem está a 150 px, quase sem dano. +30 px por nível.',
+        maxLevel: 2,
+        // Ritmo e duração são os do item (COMBAT_CONFIG.iceStaff); a carta só define o raio.
+        effect: { type: 'freeze-pulse', radius: 150, radiusPerLevel: 30 }
     }
 ] as const satisfies readonly UpgradeCardDefinition[];
 

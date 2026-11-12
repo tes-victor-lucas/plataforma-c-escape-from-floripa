@@ -178,6 +178,15 @@ export function createUpgradeIcon(
             }
             icon.fillCircle(0, 0, 5);
             break;
+        case 'ice-staff':
+            // Floco de neve: três traços cruzados com pontas em V.
+            for (const angle of [0, Math.PI / 3, -Math.PI / 3]) {
+                const x = Math.cos(angle) * 24;
+                const y = Math.sin(angle) * 24;
+                drawLine(icon, -x, -y, x, y);
+            }
+            icon.fillCircle(0, 0, 5);
+            break;
         case 'fire-staff':
             // Cajado na diagonal com uma chama de três línguas na ponta.
             drawLine(icon, -16, 20, 8, -6);

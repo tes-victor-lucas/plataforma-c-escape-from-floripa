@@ -48,6 +48,7 @@ export class PlayerUpgradeState {
     burnInterval = 0;
     burnDuration = 0;
     burnDamageRatio = 0;
+    freezeRadius = 0;
 
     reset() {
         this.levels.clear();
@@ -93,6 +94,7 @@ export class PlayerUpgradeState {
         this.burnInterval = 0;
         this.burnDuration = 0;
         this.burnDamageRatio = 0;
+        this.freezeRadius = 0;
     }
 
     exportProgress(): UpgradeProgress {
@@ -203,6 +205,9 @@ export class PlayerUpgradeState {
                 this.spinRadius = this.spinRadius === 0 ? effect.radius : this.spinRadius + effect.radiusPerLevel;
                 this.spinInterval = effect.interval;
                 this.spinDamageRatio = effect.damageRatio;
+                break;
+            case 'freeze-pulse':
+                this.freezeRadius = this.freezeRadius === 0 ? effect.radius : this.freezeRadius + effect.radiusPerLevel;
                 break;
             case 'burn-pulse':
                 this.burnRadius = this.burnRadius === 0 ? effect.radius : this.burnRadius + effect.radiusPerLevel;

@@ -609,10 +609,13 @@ export class CombatSystem {
 
     /** Só lança quando há alguém no raio: sem inimigo perto, o cajado fica pronto esperando. */
     private updateIceStaff(delta: number) {
-        if (!this.iceStaff) return;
+        // O item dos baús e a carta usam o mesmo gelo; com os dois, vale o raio maior.
+        const cardRadius = this.playerStats.freezeRadius;
+        if (!this.iceStaff && cardRadius <= 0) return;
         this.iceCooldown = Math.max(0, this.iceCooldown - delta);
         if (this.iceCooldown > 0) return;
-        const { radius, interval, freezeDuration, color } = COMBAT_CONFIG.iceStaff;
+        const { interval, freezeDuration, color } = COMBAT_CONFIG.iceStaff;
+        const radius = Math.max(this.iceStaff ? COMBAT_CONFIG.iceStaff.radius : 0, cardRadius);
         const origin = this.getCenter(this.player);
         const targets = this.enemies.filter((enemy) => {
             if (!enemy.health.isAlive) return false;

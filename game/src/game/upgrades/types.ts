@@ -21,7 +21,8 @@ export type UpgradeId =
     | 'spin-slash'
     | 'saw-orbit'
     | 'bombard'
-    | 'fire-staff';
+    | 'fire-staff'
+    | 'ice-staff';
 
 export type UpgradeKind = 'stat' | 'ability';
 
@@ -63,6 +64,12 @@ export type UpgradeEffect =
     | {
         type: 'heal-on-room-complete';
         amount: number;
+    }
+    | {
+        // Cajado de gelo: o mesmo congelamento do item dos baús, com raio que cresce por nível.
+        type: 'freeze-pulse';
+        radius: number;
+        radiusPerLevel: number;
     }
     | {
         // Cajado de fogo: de tempos em tempos incendeia quem está em volta; o dano sai aos poucos enquanto queima.
