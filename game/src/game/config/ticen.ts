@@ -90,6 +90,8 @@ export const TOPAZIO_BOSS = {
     // Gigante: anda por cima de tudo, mas não sai do terminal nem desce até a catraca.
     bounds: { left: 56, right: 712, top: 8 * 16, bottom: 32 * 16 },
     maxHealth: 400,
+    // Em dupla, dois jogadores batendo derrubavam o golem rápido demais: três vezes a vida.
+    multiplayerHealthMultiplier: 3,
     // Gigante: anda por cima de toldos, pilares, placas e quiosques (camada itens-topo, profundidade 20).
     depth: 20.5,
     speed: 34,

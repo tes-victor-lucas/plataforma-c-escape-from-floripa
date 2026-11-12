@@ -545,6 +545,11 @@ export class World extends Scene {
                     onStun: () => this.playGolemCardRound()
                 }
             );
+            // As duas telas dão a mesma vida ao golem: o convidado mostra a barra com o máximo certo.
+            if (this.isMultiplayerEnabled()) {
+                const max = TOPAZIO_BOSS.maxHealth * TOPAZIO_BOSS.multiplayerHealthMultiplier;
+                this.golem.health.restore(max, max);
+            }
         }
         this.connectCombatToPartner();
         if (roomKey === 'gaucho-dungeon') {
