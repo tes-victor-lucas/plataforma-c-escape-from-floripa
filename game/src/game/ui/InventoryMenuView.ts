@@ -199,9 +199,12 @@ export class InventoryMenuView {
         const { x, y, width, height } = CLOSE_TAB;
         const tab = this.scene.add.graphics();
         drawFramedBox(tab, { x, y, width, height: height - 6 }, INV.accent);
-        const hitArea = this.scene.add.rectangle(x + width / 2, y + 15, width, height - 6, 0x000000, 0)
+        // Invisível em repouso; com o mouse em cima, clareia o X.
+        const hitArea = this.scene.add.rectangle(x + width / 2, y + 15, width - 10, height - 16, 0xffffff, 0)
             .setInteractive({ useHandCursor: true })
-            .on('pointerdown', this.options.onBack);
+            .on('pointerdown', this.options.onBack)
+            .on('pointerover', () => hitArea.setFillStyle(0xffffff, 0.25))
+            .on('pointerout', () => hitArea.setFillStyle(0xffffff, 0));
         menu.add([tab, this.text(x + width / 2, y + 15, 'X', 16, INV.text).setOrigin(0.5), hitArea]);
     }
 
