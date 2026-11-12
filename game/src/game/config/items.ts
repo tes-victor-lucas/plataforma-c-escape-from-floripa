@@ -2,11 +2,11 @@ import type { FeetFit } from './characters';
 import type { RoomKey } from './rooms';
 
 /** Itens de equipar guardados no inventário; cada um entra aqui quando for implementado. */
-export type ItemId = 'gaucho-hat' | 'helmet' | 'rubber-boots' | 'silver-boots' | 'diamond-boots';
+export type ItemId = 'gaucho-hat' | 'helmet' | 'rubber-boots' | 'silver-boots' | 'diamond-boots' | 'flame-sword' | 'ice-staff';
 export type EquipmentSlot = 'CABEÇA' | 'CORPO' | 'MÃOS' | 'PÉS';
 
 // Itens novos entram sempre no fim: a posição é o bit enviado ao parceiro.
-export const ITEM_IDS: readonly ItemId[] = ['gaucho-hat', 'helmet', 'rubber-boots', 'silver-boots', 'diamond-boots'];
+export const ITEM_IDS: readonly ItemId[] = ['gaucho-hat', 'helmet', 'rubber-boots', 'silver-boots', 'diamond-boots', 'flame-sword', 'ice-staff'];
 
 /** Pixel art do item: retângulos [x, y, largura, altura, cor] desenhados uma vez numa textura. */
 export type ItemPixels = readonly (readonly [number, number, number, number, number])[];
@@ -45,7 +45,9 @@ export type ItemDefinition = Readonly<{
     /** Multiplica a recarga do dash enquanto equipado: menor que 1 recarrega mais rápido. */
     dashCooldownMultiplier: number;
     /** Onde o item aparece no personagem pelo mapa. */
-    anchor: 'head' | 'feet';
+    anchor: 'head' | 'feet' | 'hand';
+    /** A espada flamejante é desenhada pelo combate, que a gira no golpe; o resto segue o personagem. */
+    heldByCombat?: boolean;
     width: number;
     height: number;
     pixels: ItemPixels;
@@ -157,12 +159,74 @@ export const DIAMOND_BOOTS: ItemDefinition = {
     fitFeet: (feet) => bootPixels(0x35c8e0, 0xc8f6ff, feet)
 };
 
+/** Lâmina na diagonal, do cabo embaixo à esquerda até a ponta em cima à direita, como o ícone da espada do jogo. */
+function swordPixels(edge: number, core: number): ItemPixels {
+    const blade: [number, number, number, number, number][] = [];
+    for (let step = 0; step < 10; step += 1) {
+        blade.push([5 + step, 9 - step, 2, 2, edge]);
+        blade.push([5 + step, 10 - step, 1, 1, core]);
+    }
+    return [
+        ...blade,
+        // Guarda atravessada e cabo escuro com o pomo.
+        [3, 9, 2, 1, 0x3a2a1e],
+        [5, 11, 1, 2, 0x3a2a1e],
+        [2, 12, 3, 2, 0x56402e],
+        [1, 14, 2, 2, 0xffd75a]
+    ];
+}
+
+/** Espada flamejante dos baús: golpe corpo a corpo de dano médio nas salas normais, sem largar o tiro. */
+export const FLAME_SWORD: ItemDefinition = {
+    id: 'flame-sword',
+    name: 'ESPADA FLAMEJANTE',
+    texture: 'item-espada-flamejante',
+    slot: 'MÃOS',
+    blockChance: 0,
+    speedMultiplier: 1,
+    dashCooldownMultiplier: 1,
+    anchor: 'hand',
+    heldByCombat: true,
+    description: 'ACHADA NUM BAÚ. GOLPEIE COM O BOTÃO DIREITO\nSEM PARAR DE ATIRAR; CADA GOLPE SOLTA FOGO.',
+    width: 16,
+    height: 16,
+    pixels: swordPixels(0xff6a1f, 0xffe27a)
+};
+
+/** Cajado de gelo dos baús: não bate, mas congela quem estiver em volta de tempos em tempos. */
+export const ICE_STAFF: ItemDefinition = {
+    id: 'ice-staff',
+    name: 'CAJADO DE GELO',
+    texture: 'item-cajado-gelo',
+    slot: 'MÃOS',
+    blockChance: 0,
+    speedMultiplier: 1,
+    dashCooldownMultiplier: 1,
+    anchor: 'hand',
+    description: 'ACHADO NUM BAÚ. A CADA 4 S CONGELA POR 1 S\nOS INIMIGOS EM VOLTA. QUASE NÃO FERE.',
+    // 6x18: cristal de gelo no alto de uma haste de madeira.
+    width: 6,
+    height: 18,
+    pixels: [
+        [2, 0, 2, 1, 0xe8fbff],
+        [1, 1, 4, 3, 0x7fd8f0],
+        [2, 1, 1, 2, 0xe8fbff],
+        [0, 2, 1, 1, 0x7fd8f0],
+        [5, 2, 1, 1, 0x7fd8f0],
+        [2, 4, 2, 1, 0x3a8fb0],
+        [2, 5, 2, 13, 0x6b4a2e],
+        [2, 5, 1, 13, 0x8a6440]
+    ]
+};
+
 export const ITEMS: Readonly<Record<ItemId, ItemDefinition>> = {
     'gaucho-hat': GAUCHO_HAT,
     helmet: HELMET,
     'rubber-boots': RUBBER_BOOTS,
     'silver-boots': SILVER_BOOTS,
-    'diamond-boots': DIAMOND_BOOTS
+    'diamond-boots': DIAMOND_BOOTS,
+    'flame-sword': FLAME_SWORD,
+    'ice-staff': ICE_STAFF
 };
 
 /**

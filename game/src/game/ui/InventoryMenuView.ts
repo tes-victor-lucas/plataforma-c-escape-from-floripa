@@ -2,7 +2,7 @@ import type { Scene } from 'phaser';
 import { CHARACTERS, type CharacterId } from '../config/characters';
 import type { EquipmentSlot, ItemId } from '../config/items';
 import { ITEMS } from '../config/items';
-import { getItemOffsetY, getWornTexture } from '../entities/WornItem';
+import { getItemOffsetX, getItemOffsetY, getWornTexture } from '../entities/WornItem';
 import { WALK_FRAMES } from '../entities/PlayerAnimations';
 import { bindGamepadActions } from '../input/GamepadInput';
 import { isTouchScreen } from '../input/TouchInput';
@@ -315,7 +315,8 @@ export class InventoryMenuView {
             const item = equipped.id ? ITEMS[equipped.id] : undefined;
             if (!item) continue;
             const offsetY = getItemOffsetY(item, doll.displayHeight, character.texture);
-            menu.add(this.scene.add.image(doll.x, doll.y + offsetY, getWornTexture(this.scene, item, character.texture)).setScale(doll.scale));
+            const offsetX = getItemOffsetX(item, doll.displayWidth);
+            menu.add(this.scene.add.image(doll.x + offsetX, doll.y + offsetY, getWornTexture(this.scene, item, character.texture)).setScale(doll.scale));
         }
     }
 

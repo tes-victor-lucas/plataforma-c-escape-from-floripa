@@ -51,11 +51,22 @@ export function getFeetOffsetY(displayHeight: number, item: ItemDefinition, char
 }
 
 export function getItemOffsetY(item: ItemDefinition, displayHeight: number, characterTexture: string) {
+    if (item.anchor === 'hand') return displayHeight * HAND.y;
     return item.anchor === 'feet' ? getFeetOffsetY(displayHeight, item, characterTexture) : getHatOffsetY(displayHeight);
+}
+
+// Mão direita do personagem de frente, em fração do frame a partir do centro.
+const HAND = { x: 0.2, y: 0.12 };
+
+/** Só o que vai na mão sai do meio do corpo: fica na mão direita. */
+export function getItemOffsetX(item: ItemDefinition, displayWidth: number) {
+    return item.anchor === 'hand' ? displayWidth * HAND.x : 0;
 }
 
 /** Item vestido que acompanha o personagem pelo mapa, inclusive subindo a escada; devolve como tirá-lo. */
 export function attachWornItem(scene: Scene, sprite: Phaser.GameObjects.Sprite, item: ItemDefinition) {
+    // A espada flamejante já aparece na mão pelo combate, que a gira a cada golpe.
+    if (item.heldByCombat) return () => undefined;
     const image = scene.add.image(sprite.x, sprite.y, getWornTexture(scene, item, sprite.texture.key));
     const detach = () => {
         scene.events.off('postupdate', follow);
@@ -69,7 +80,10 @@ export function attachWornItem(scene: Scene, sprite: Phaser.GameObjects.Sprite, 
         // O parceiro pode trocar de personagem no meio da partida: a bota acompanha as pernas novas.
         const texture = getWornTexture(scene, item, sprite.texture.key);
         if (image.texture.key !== texture) image.setTexture(texture);
-        image.setPosition(sprite.x, sprite.y + getItemOffsetY(item, sprite.displayHeight, sprite.texture.key))
+        image.setPosition(
+            sprite.x + getItemOffsetX(item, sprite.displayWidth),
+            sprite.y + getItemOffsetY(item, sprite.displayHeight, sprite.texture.key)
+        )
             .setScale(sprite.scaleX)
             .setAlpha(sprite.alpha)
             .setVisible(sprite.visible)
