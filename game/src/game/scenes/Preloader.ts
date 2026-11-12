@@ -99,6 +99,7 @@ export class Preloader extends Scene {
         this.load.image(interior.frontTexture, interior.frontPath);
         this.load.image(interior.viewTexture, interior.viewPath);
         this.load.image(interior.skyTexture, interior.skyPath);
+        this.load.image(interior.passengersTexture, interior.passengersPath);
         this.load.spritesheet(TCHAY.peopleTexture, TCHAY.peoplePath, { frameWidth: TCHAY.frameWidth, frameHeight: TCHAY.frameHeight });
         this.load.image(TCHAY.signTexture, TCHAY.signPath);
         this.load.spritesheet(POPULAR_BARS.texture, POPULAR_BARS.path, { frameWidth: POPULAR_BARS.frameWidth, frameHeight: POPULAR_BARS.frameHeight });

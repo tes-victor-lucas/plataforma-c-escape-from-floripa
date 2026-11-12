@@ -34,7 +34,9 @@ export class BusEndingView {
         const view = this.scene.add.tileSprite(0, 0, GAME_WIDTH / scale, GAME_HEIGHT / scale, interior.viewTexture)
             .setOrigin(0).setScale(scale).setDepth(DEPTH);
         const room = this.scene.add.image(0, 0, interior.texture).setOrigin(0).setScale(scale).setDepth(DEPTH + 0.1);
-        this.objects.push(sky, ...this.floatDust());
+        // Passageiros por cima dos bancos e abaixo do jogador, que passa na frente deles pelo corredor.
+        const passengers = this.scene.add.image(0, 0, interior.passengersTexture).setOrigin(0).setScale(scale).setDepth(DEPTH + 0.35);
+        this.objects.push(sky, passengers, ...this.floatDust());
         // Entra pela porta da frente (direita) andando para o fundo do ônibus.
         // No corredor ele passa na frente dos bancos; ao sentar, fica entre o encosto dele e o banco da frente.
         const player = this.scene.add.sprite(GAME_WIDTH + 60, interior.floorY * scale, this.playerTexture, WALK_FRAMES.left[0])
