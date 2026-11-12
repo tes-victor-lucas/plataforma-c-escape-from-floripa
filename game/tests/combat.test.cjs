@@ -4134,3 +4134,80 @@ test('snapshot do golem leva a escala do giro e os outros inimigos não', () => 
     assert.deepEqual(createEnemySnapshotRow(enemy('golem', 0.183)), [10, 20, 50, 3, 0, 0.18]);
     assert.deepEqual(createEnemySnapshotRow(enemy('drone', 0.9)), [10, 20, 50, 3, 0]);
 });
+
+function busDoorWorld({ partner } = {}) {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { multiplayerClient } = load('../src/game/network/MultiplayerClient.ts');
+    const { TICEN_GOAL } = load('../src/game/config/ticen.ts');
+    const door = { x: (TICEN_GOAL.left + TICEN_GOAL.right) / 2, y: (TICEN_GOAL.top + TICEN_GOAL.bottom) / 2 };
+    const world = new World();
+    world.registry = { get: (key) => key === 'multiplayerEnabled' };
+    world.activeRoomKey = 'room5';
+    world.golem = { health: { isAlive: false } };
+    world.isBusDoorOpen = true;
+    world.physics = { pause() {} };
+    world.player = { health: new Health(4), sprite: { body: { center: { ...door } } } };
+    if (partner) world.remotePlayers.set('parceiro', { feet: { ...door }, ...partner });
+    const calls = [];
+    world.updateEscapeVote = () => calls.push('voto');
+    world.playDuelEnding = (localWon) => calls.push(localWon ? 'embarca' : 'fica');
+    world.playBusEnding = () => calls.push('solo');
+    multiplayerClient.revivesUsed = COMBAT_CONFIG.multiplayer.maxRevives;
+    return { world, calls, multiplayerClient };
+}
+
+test('porta do 763.2 em dupla pede o voto enquanto os dois ainda podem jogar', () => {
+    const { world, calls, multiplayerClient } = busDoorWorld({ partner: { isAlive: false, revivesLeft: 1 } });
+    world.updateTicenGoal();
+    assert.deepEqual(calls, ['voto']);
+    multiplayerClient.disconnect();
+});
+
+test('parceiro caido sem renascimentos nao trava o voto: quem sobrou embarca e ele fica para tras', () => {
+    const survivor = busDoorWorld({ partner: { isAlive: false, revivesLeft: 0 } });
+    survivor.world.updateTicenGoal();
+    assert.deepEqual(survivor.calls, ['embarca']);
+    assert.equal(survivor.world.isDuelOver, true);
+
+    const fallen = busDoorWorld({ partner: { isAlive: true, revivesLeft: 2 } });
+    fallen.world.player.health.takeDamage(4);
+    fallen.world.updateTicenGoal();
+    assert.deepEqual(fallen.calls, ['fica'], 'o caido ve o parceiro embarcar quando ele chega na porta');
+
+    const waiting = busDoorWorld({ partner: { isAlive: true, revivesLeft: 2, feet: { x: 0, y: 0 } } });
+    waiting.world.player.health.takeDamage(4);
+    waiting.world.updateTicenGoal();
+    assert.deepEqual(waiting.calls, [], 'com o parceiro longe da porta nada acontece ainda');
+    survivor.multiplayerClient.disconnect();
+});
+
+test('sem parceiro na partida a porta do 763.2 leva ao final solo', () => {
+    const { world, calls, multiplayerClient } = busDoorWorld();
+    world.updateTicenGoal();
+    assert.deepEqual(calls, ['solo']);
+    multiplayerClient.disconnect();
+});
+
+test('quem abandona a disputa pela vaga entrega o 763.2 para quem ficou', () => {
+    const { world, calls, multiplayerClient } = busDoorWorld();
+    world.isDuelActive = true;
+    world.hasVotedEscape = true;
+    world.handlePartnerLeft();
+    assert.deepEqual(calls, ['embarca']);
+    assert.equal(world.isDuelOver, true);
+    assert.equal(world.hasVotedEscape, false);
+    world.handlePartnerLeft();
+    assert.deepEqual(calls, ['embarca'], 'o final so comeca uma vez');
+    multiplayerClient.disconnect();
+});
+
+test('catraca do TICEN nao pede o cartao de novo para quem ja entrou', () => {
+    const { world, multiplayerClient } = busDoorWorld();
+    const { TICEN_GATE } = load('../src/game/config/ticen.ts');
+    world.player.sprite.body.center = { ...TICEN_GATE.approach };
+    world.hasPassedTicenGate = true;
+    world.scene = { launch() { assert.fail('a carteira nao pode abrir'); } };
+    world.updateTicenGate();
+    assert.equal(world.isWalletOpen, false);
+    multiplayerClient.disconnect();
+});
