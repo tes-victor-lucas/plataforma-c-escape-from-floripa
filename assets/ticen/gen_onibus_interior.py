@@ -212,10 +212,127 @@ def front_layer():
     return img
 
 
+# ---------------------------------------------------------------- passageiros
+
+SKIN = (230, 180, 150, 255)
+SKIN_D = (196, 140, 112, 255)
+EYE = (20, 16, 20, 255)
+
+
+def seated_body(d, ox, shirt, shirt_d, pants, pants_d, shoes, skin=SKIN, skin_d=SKIN_D):
+    """Corpo sentado de perfil, virado para a frente do ônibus (direita). `ox` é onde as costas encostam."""
+    d.rectangle((ox + 16, 119, ox + 20, 139), fill=pants, outline=pants_d)          # canela
+    d.rectangle((ox + 15, 139, ox + 24, 141), fill=shoes)                           # pé
+    d.rectangle((ox + 1, 112, ox + 19, 119), fill=pants, outline=pants_d)           # coxa no assento
+    d.rectangle((ox + 1, 99, ox + 10, 117), fill=shirt, outline=shirt_d)            # tronco
+    d.rectangle((ox + 4, 101, ox + 7, 111), fill=shirt_d)                           # braço
+    d.rectangle((ox + 6, 109, ox + 15, 112), fill=shirt_d)                          # antebraço no colo
+    d.rectangle((ox + 15, 109, ox + 17, 112), fill=skin)                            # mão
+    d.rectangle((ox + 5, 96, ox + 8, 99), fill=skin_d)                              # pescoço
+    d.rectangle((ox + 2, 87, ox + 11, 97), fill=skin, outline=skin_d)               # cabeça
+    d.rectangle((ox + 12, 91, ox + 12, 93), fill=skin_d)                            # nariz
+    d.point((ox + 9, 91), fill=EYE)
+    d.line((ox + 9, 95, ox + 11, 95), fill=skin_d)                                  # boca
+
+
+def round_glasses(d, ox):
+    d.rectangle((ox + 8, 89, ox + 11, 92), outline=(210, 210, 220, 255))
+    d.line((ox + 4, 90, ox + 8, 90), fill=(150, 150, 160, 255))                     # haste até a orelha
+
+
+def gaucho(d, ox):
+    """Gaúcho de chapéu, bigode, poncho listrado, bombacha e uma cuia de chimarrão na mão."""
+    seated_body(d, ox, (180, 40, 36, 255), (120, 24, 24, 255), (120, 110, 96, 255), (84, 76, 66, 255), K0)
+    d.rectangle((ox + 15, 124, ox + 21, 141), fill=K0)                              # bota até a canela
+    d.rectangle((ox, 113, ox + 20, 121), fill=(120, 110, 96, 255), outline=(84, 76, 66, 255))  # bombacha larga
+    # poncho caindo dos ombros sobre o tronco e os braços, com listras amarelas
+    d.polygon([(ox, 98), (ox + 11, 98), (ox + 15, 114), (ox - 1, 114)], fill=(180, 40, 36, 255), outline=(110, 20, 22, 255))
+    for y in (103, 109):
+        d.line((ox, y, ox + 13, y), fill=(230, 180, 40, 255))
+    d.rectangle((ox + 15, 109, ox + 17, 112), fill=SKIN)
+    # cuia de chimarrão com a bomba de metal
+    d.rectangle((ox + 16, 104, ox + 19, 109), fill=(70, 100, 50, 255), outline=(40, 60, 30, 255))
+    d.line((ox + 18, 99, ox + 18, 104), fill=(200, 200, 210, 255))
+    d.rectangle((ox + 2, 88, ox + 4, 94), fill=(60, 40, 28, 255))                   # cabelo atrás
+    d.line((ox + 9, 94, ox + 12, 94), fill=(50, 32, 24, 255))                       # bigode
+    d.rectangle((ox - 2, 86, ox + 14, 87), fill=K0)                                 # aba larga
+    d.rectangle((ox + 2, 81, ox + 10, 85), fill=K0)                                 # copa
+    d.line((ox + 2, 85, ox + 10, 85), fill=R2)                                      # fita
+
+
+def angel(d, ox):
+    """Fantasia de anjo de Halloween: asas, auréola, cabelo preto médio, óculos redondos, vestido e saia brancos."""
+    white, white_d, feather = (236, 236, 240, 255), (180, 180, 196, 255), (210, 210, 222, 255)
+    # asas atrás das costas, por cima do encosto
+    for k, (dx, top) in enumerate(((-7, 84), (-5, 88), (-3, 92))):
+        d.polygon([(ox + 2, 100), (ox + dx, top), (ox + dx - 2, top + 10), (ox + dx + 1, 114 - k * 2)], fill=feather if k else white, outline=white_d)
+    seated_body(d, ox, white, white_d, SKIN, SKIN_D, K0)
+    # saia branca rodada sobre as coxas
+    d.polygon([(ox, 110), (ox + 17, 110), (ox + 21, 123), (ox - 1, 123)], fill=white, outline=white_d)
+    d.line((ox + 1, 118, ox + 19, 118), fill=white_d)
+    d.rectangle((ox + 6, 109, ox + 15, 112), fill=white_d)                          # manga no colo
+    # cabelo preto até os ombros, com franja
+    hair = (18, 16, 22, 255)
+    d.rectangle((ox + 1, 85, ox + 10, 88), fill=hair)
+    d.rectangle((ox + 1, 86, ox + 6, 101), fill=hair)
+    d.rectangle((ox + 9, 88, ox + 11, 89), fill=hair)
+    round_glasses(d, ox)
+    d.ellipse((ox + 2, 80, ox + 11, 83), outline=(250, 210, 80, 255))               # auréola
+
+
+def dog_man(d, ox):
+    """Meio homem, meio cachorro: cabelo loiro cacheado, orelhas caídas, óculos redondos e focinho de pug."""
+    seated_body(d, ox, (60, 110, 170, 255), (36, 70, 120, 255), (40, 52, 90, 255), (24, 32, 60, 255), (230, 230, 236, 255))
+    blond, blond_d = (236, 200, 96, 255), (180, 140, 50, 255)
+    # cachos: bolinhas por cima e atrás da cabeça
+    for cx, cy in ((3, 85), (6, 84), (9, 85), (12, 86), (2, 88), (4, 87), (8, 87), (2, 91)):
+        d.ellipse((ox + cx - 2, cy - 2, ox + cx + 1, cy + 1), fill=blond, outline=blond_d)
+    # orelha de cachorro caída
+    ear, ear_l = (70, 48, 36, 255), (110, 80, 60, 255)
+    d.polygon([(ox + 3, 88), (ox + 7, 88), (ox + 7, 97), (ox + 4, 98)], fill=ear, outline=(40, 26, 20, 255))
+    d.line((ox + 5, 90, ox + 5, 95), fill=ear_l)
+    round_glasses(d, ox)
+    # focinho de pug saindo do rosto, com o nariz preto
+    d.rectangle((ox + 10, 92, ox + 14, 97), fill=(66, 50, 44, 255), outline=(36, 26, 22, 255))
+    d.rectangle((ox + 13, 92, ox + 14, 93), fill=K0)
+    d.line((ox + 11, 96, ox + 13, 96), fill=(40, 20, 20, 255))
+
+
+def grade(img):
+    """Leva os passageiros para a luz do ônibus: mais escuros, puxados para o vermelho e com borda vermelha
+    do lado da janela (em cima e à direita)."""
+    px = img.load()
+    solid = {(x, y) for y in range(H) for x in range(W) if px[x, y][3]}
+    for x, y in solid:
+        r, g, b, a = px[x, y]
+        r, g, b = int(r * 0.62 + 18), int(g * 0.4), int(b * 0.48)
+        if (x + 1, y) not in solid or (x, y - 1) not in solid:
+            r, g, b = (r + R3[0]) // 2, (g + R3[1]) // 2, (b + R3[2]) // 2
+        px[x, y] = (r, g, b, a)
+    for x, y in solid:
+        for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if (nx, ny) not in solid and 0 <= nx < W and 0 <= ny < H and px[nx, ny][3] == 0:
+                px[nx, ny] = K0
+    return img
+
+
+# Bancos ocupados: o gaúcho atrás do jogador, o anjo no banco da frente e o homem-cachorro mais à frente.
+PASSENGERS = ((66, gaucho), (170, angel), (222, dog_man))
+
+
+def passengers():
+    img = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    for seat_x, draw in PASSENGERS:
+        draw(d, seat_x + 9)
+    return grade(img)
+
+
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
     sky().save(os.path.join(OUT, 'onibus-ceu.png'))
     view().save(os.path.join(OUT, 'onibus-vista.png'))
     interior().save(os.path.join(OUT, 'onibus-interior.png'))
     front_layer().save(os.path.join(OUT, 'onibus-interior-frente.png'))
+    passengers().save(os.path.join(OUT, 'onibus-passageiros.png'))
     print('ok')
