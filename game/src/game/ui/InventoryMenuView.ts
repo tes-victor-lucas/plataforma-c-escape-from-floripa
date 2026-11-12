@@ -225,12 +225,14 @@ export class InventoryMenuView {
         const tab = this.scene.add.graphics();
         drawFramedBox(tab, { x, y, width, height: height - 6 }, INV.accent);
         // Invisível em repouso; com o mouse em cima, clareia o X.
-        const hitArea = this.scene.add.rectangle(x + width / 2, y + 15, width - 10, height - 16, 0xffffff, 0)
+        const hitArea = this.scene.add.rectangle(x + width / 2, y + 15, width - 10, height - 16, 0xffffff, 0);
+        // A área de toque passa da aba: no celular, o dedo não precisa acertar os 30 px do X.
+        const touchArea = this.scene.add.rectangle(x + width / 2, y + 15, width + 24, height + 16, 0x000000, 0)
             .setInteractive({ useHandCursor: true })
             .on('pointerdown', this.options.onBack)
             .on('pointerover', () => hitArea.setFillStyle(0xffffff, 0.25))
             .on('pointerout', () => hitArea.setFillStyle(0xffffff, 0));
-        menu.add([tab, this.text(x + width / 2, y + 15, 'X', 16, INV.text).setOrigin(0.5), hitArea]);
+        menu.add([tab, this.text(x + width / 2, y + 15, 'X', 16, INV.text).setOrigin(0.5), hitArea, touchArea]);
     }
 
     private get equippedItems() {
