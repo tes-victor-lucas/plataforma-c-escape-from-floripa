@@ -78,6 +78,13 @@ export type UpgradePanelColors = Readonly<{
     mutedText: string;
 }>;
 
+/** Foco do painel de cartas pelo teclado ou controle: o mesmo destaque e a mesma descrição do mouse em cima. */
+export type UpgradePanelFocus = Readonly<{
+    count: number;
+    columns: number;
+    focus: (index: number | undefined) => void;
+}>;
+
 export function addUpgradePanel(
     scene: Scene,
     menu: CleanOverlayMenu,
@@ -117,8 +124,10 @@ export function addUpgradePanel(
             }
         ).setOrigin(0.5).setResolution(2);
         menu.add(empty);
-        return;
+        return { count: 0, columns: ICON_COLUMNS, focus: () => undefined } satisfies UpgradePanelFocus;
     }
+    const squares: Phaser.GameObjects.Rectangle[] = [];
+    let focused: number | undefined;
 
     // Medido do fundo: cabe o título e quatro linhas de descrição em qualquer altura de painel.
     const dividerY = bounds.y + bounds.height - 102;
@@ -174,13 +183,16 @@ export function addUpgradePanel(
         const icon = createUpgradeIcon(scene, card.id, color, colors.button)
             .setPosition(x, y)
             .setScale(0.42);
+        // Selo de nível a partir do 2: "NV2" em vermelho com borda escura, por cima do canto do ícone.
         const levelLabel = level > 1
-            ? scene.add.text(x + 13, y - 13, `${level}`, {
+            ? scene.add.text(x + 12, y - 14, `NV${level}`, {
                 fontFamily: 'PixelGamer, monospace',
-                fontSize: '9px',
+                fontSize: '10px',
                 color: '#ffffff',
                 backgroundColor: '#e90931',
-                padding: { x: 2, y: 1 }
+                stroke: '#120a05',
+                strokeThickness: 2,
+                padding: { x: 3, y: 1 }
             }).setOrigin(0.5).setResolution(2)
             : undefined;
 
@@ -198,5 +210,15 @@ export function addUpgradePanel(
             tooltipDescription.setVisible(false);
         });
         menu.add(levelLabel ? [square, icon, levelLabel] : [square, icon]);
+        squares.push(square);
     });
+    return {
+        count: squares.length,
+        columns: ICON_COLUMNS,
+        focus: (index) => {
+            if (focused !== undefined) squares[focused]?.emit('pointerout');
+            focused = index;
+            if (index !== undefined) squares[index]?.emit('pointerover');
+        }
+    } satisfies UpgradePanelFocus;
 }

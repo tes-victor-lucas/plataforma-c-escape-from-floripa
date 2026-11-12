@@ -8,7 +8,7 @@ import { bindGamepadActions } from '../input/GamepadInput';
 import { isTouchScreen } from '../input/TouchInput';
 import type { UpgradeProgress } from '../upgrades/types';
 import { CleanOverlayMenu, drawCleanMenuBox, type CleanMenuBounds } from './CleanOverlayMenu';
-import { addUpgradePanel } from './PauseMenuView';
+import { addUpgradePanel, type UpgradePanelFocus } from './PauseMenuView';
 
 /** Item guardado no inventário; cada item novo (chapéu, bota...) entra nesta lista quando for implementado. */
 export type InventoryItem = Readonly<{
@@ -123,6 +123,16 @@ export function moveInventorySelection(index: number, count: number, dx: number,
     return Math.floor(index / columns) < lastRow ? count - 1 : index;
 }
 
+/** Anda pelo painel de cartas; passar da última coluna para a direita sai do painel (devolve undefined). */
+export function moveCardFocus(index: number, count: number, columns: number, dx: number, dy: number) {
+    const column = index % columns;
+    if (dx > 0 && (column === columns - 1 || index + 1 >= count)) return undefined;
+    if (dx < 0) return column === 0 ? index : index - 1;
+    if (dx > 0) return index + 1;
+    const next = index + dy * columns;
+    return next >= 0 && next < count ? next : index;
+}
+
 /** O balão nasce à direita e abaixo do meio do encaixe e é empurrado para dentro do painel quando não cabe. */
 export function getTooltipPosition(slotX: number, slotY: number, height: number) {
     return {
@@ -147,6 +157,9 @@ export class InventoryMenuView {
     private tooltip?: Phaser.GameObjects.Container;
     private tooltipBox?: Phaser.GameObjects.Graphics;
     private isDragging = false;
+    private cardPanel?: UpgradePanelFocus;
+    /** Carta em foco no painel da esquerda, quando o teclado ou o controle entra nele. */
+    private cardFocus?: number;
     private dropZone?: Phaser.GameObjects.Graphics;
     private toggleButton?: Phaser.GameObjects.Rectangle;
     private toggleLabel?: Phaser.GameObjects.Text;
@@ -169,7 +182,7 @@ export class InventoryMenuView {
         this.addCloseTab(menu);
         // A moldura é a do inventário; o painel de upgrades vai por dentro, sem a borda própria.
         menu.add(this.box(CARDS));
-        addUpgradePanel(
+        this.cardPanel = addUpgradePanel(
             this.scene,
             menu,
             this.options.upgrades,
@@ -277,11 +290,33 @@ export class InventoryMenuView {
         menu.root.bringToTop(this.dropZone);
     }
 
+    /**
+     * Setas e direcional: da coluna mais à esquerda da mochila, para a esquerda entra nas cartas;
+     * da última coluna das cartas, para a direita volta à mochila. Assim o controle alcança a descrição das cartas.
+     */
     private moveSelection(dx: number, dy: number) {
+        const panel = this.cardPanel;
+        if (panel && this.cardFocus !== undefined) {
+            const next = moveCardFocus(this.cardFocus, panel.count, panel.columns, dx, dy);
+            if (next === undefined) this.selectItem(this.selectedItem);
+            else {
+                this.cardFocus = next;
+                panel.focus(next);
+            }
+            return;
+        }
+        if (panel && panel.count > 0 && dx < 0 && this.selectedItem % GRID.columns === 0) {
+            this.cardFocus = 0;
+            panel.focus(0);
+            this.tooltip?.setVisible(false);
+            return;
+        }
         this.selectItem(moveInventorySelection(this.selectedItem, this.options.items.length, dx, dy));
     }
 
     private toggleSelected() {
+        // Nas cartas não há o que equipar: o botão só vale na mochila.
+        if (this.cardFocus !== undefined) return;
         const item = this.options.items[this.selectedItem];
         if (item?.id) this.options.onToggle?.(item.id, this.selectedItem);
     }
@@ -449,6 +484,12 @@ export class InventoryMenuView {
     }
 
     private selectItem(index: number) {
+        // Voltar à mochila (pelo direcional ou passando o mouse num item) tira o foco das cartas.
+        if (this.cardFocus !== undefined) {
+            this.cardFocus = undefined;
+            this.cardPanel?.focus(undefined);
+            this.tooltip?.setVisible(true);
+        }
         // Arrastando, o ícone passa por cima de outros encaixes: a seleção não deve pular para eles.
         if (this.isDragging) return;
         const item = this.options.items[index];
