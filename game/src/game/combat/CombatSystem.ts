@@ -90,6 +90,9 @@ export class CombatSystem {
     private iceCooldown = 0;
     /** Inimigos congelados pelo cajado e quanto falta, em ms, para voltarem a andar. */
     private readonly frozen = new Map<CombatEnemy, number>();
+    private burnCooldown = 0;
+    /** Inimigos em chamas pela carta Cajado de fogo: quanto falta da queimadura e do próximo tick. */
+    private readonly burning = new Map<CombatEnemy, { remaining: number; tick: number }>();
     private pulseCooldown = 0;
     /** Crescimento do tiro normal pela sala atual (getPlayerShotMultipliers). */
     shotMultipliers = { damage: 1, speed: 1 };
@@ -256,8 +259,10 @@ export class CombatSystem {
                 this.enemyCooldowns.set(enemy, COMBAT_CONFIG.drone.fireInterval);
             }
         }
+        this.updateBurning(delta);
         if (!isPlayerAlive) return;
         this.updateIceStaff(delta);
+        this.updateBurnPulse(delta);
         // Na sala corpo a corpo o jogador só ataca com a espada, sem tiro nem companheiro.
         if (this.melee) {
             if (this.isSwingQueued && this.swingCooldown === 0) {
@@ -637,6 +642,49 @@ export class CombatSystem {
             this.frozen.set(enemy, left);
             // O piscar de dano troca a cor; reaplicar a cada quadro mantém o gelo visível.
             enemy.sprite.setVelocity(0, 0).setTint(COMBAT_CONFIG.iceStaff.color);
+        }
+    }
+
+    /** Carta Cajado de fogo: espera alguém no raio e então põe fogo em todos em volta. */
+    private updateBurnPulse(delta: number) {
+        const { burnRadius, burnInterval, burnDuration } = this.playerStats;
+        if (burnRadius <= 0) return;
+        this.burnCooldown = Math.max(0, this.burnCooldown - delta);
+        if (this.burnCooldown > 0) return;
+        const origin = this.getCenter(this.player);
+        const targets = this.enemies.filter((enemy) => {
+            if (!enemy.health.isAlive) return false;
+            const center = this.getCenter(enemy);
+            return Math.hypot(center.x - origin.x, center.y - origin.y) <= burnRadius;
+        });
+        if (targets.length === 0) return;
+        this.burnCooldown = burnInterval;
+        this.shareEffect({ effect: 'shockwave', ...origin, radius: burnRadius, color: COMBAT_CONFIG.burn.color });
+        const { tickInterval } = COMBAT_CONFIG.burn;
+        // Pegar fogo de novo recomeça a queimadura; o primeiro tick vem só depois de meio segundo.
+        for (const enemy of targets) this.burning.set(enemy, { remaining: burnDuration, tick: tickInterval });
+    }
+
+    /** Queimadura: um pedaço pequeno do dano a cada tick e uma brasa subindo do inimigo. */
+    private updateBurning(delta: number) {
+        const { tickInterval, color } = COMBAT_CONFIG.burn;
+        const damage = this.playerStats.damage * this.playerStats.burnDamageRatio;
+        for (const [enemy, burn] of this.burning) {
+            if (!enemy.health.isAlive || !enemy.sprite.active) {
+                this.burning.delete(enemy);
+                continue;
+            }
+            burn.remaining -= delta;
+            burn.tick -= delta;
+            while (burn.tick <= 0 && enemy.health.isAlive) {
+                burn.tick += tickInterval;
+                // Sem direção de impacto: a queimadura não empurra o inimigo.
+                this.withAttack((id) => this.hitEnemy(enemy, damage, { x: 0, y: 0 }, id));
+                const center = this.getCenter(enemy);
+                const ember = this.scene.add.circle(center.x + (Math.random() - 0.5) * 8, center.y - 4, 2, color).setDepth(15.1);
+                this.scene.tweens.add({ targets: ember, y: ember.y - 12, alpha: 0, duration: 420, onComplete: () => ember.destroy() });
+            }
+            if (burn.remaining <= 0) this.burning.delete(enemy);
         }
     }
 
