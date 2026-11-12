@@ -3263,7 +3263,7 @@ test('antes da horda maior as cartas de área vêm garantidas', () => {
     for (const roll of [0, 0.4, 0.99]) {
         const cards = drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, () => roll);
         assert.equal(cards.length, 3);
-        assert.ok(cards.every((card) => AREA_UPGRADE_IDS.includes(card.id)), `sorteio ${roll}`);
+        assert.ok(cards.filter((card) => AREA_UPGRADE_IDS.includes(card.id)).length >= 2, `sorteio ${roll}: duas de área garantidas`);
         assert.equal(new Set(cards.map((card) => card.id)).size, 3);
     }
 
@@ -3372,7 +3372,8 @@ test('cartas do fim da Sala III só aparecem depois da horda 2', () => {
     assert.ok(!withoutRoom3Cards(all).some((card) => finals.has(card.id)));
     assert.ok(!withoutRoom3FinalCards(all).some((card) => finals.has(card.id)));
     const table = drawUpgradeCardsFeaturing(ROOM3_FINAL_UPGRADE_IDS, () => 0, all);
-    assert.deepEqual(new Set(table.map((card) => card.id)), finals);
+    assert.equal(table.filter((card) => finals.has(card.id)).length, 2, 'duas finais garantidas');
+    assert.equal(new Set(table.map((card) => card.id)).size, 3, 'e um curinga de fora: a mesa não é sempre a mesma');
 });
 
 test('tiro explosivo fere os vizinhos do alvo sem acertar o alvo duas vezes', () => {
@@ -3739,7 +3740,7 @@ test('cartas exclusivas da room3 não aparecem nas salas anteriores', () => {
         const room2Cards = drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, () => (seed * 0.37) % 1, withoutRoom3Cards(UPGRADE_CARDS));
         assert.equal(room2Cards.some(exclusive), false);
         const room3Cards = drawUpgradeCardsFeaturing(ROOM3_UPGRADE_IDS, () => (seed * 0.37) % 1, UPGRADE_CARDS);
-        assert.ok(room3Cards.every((card) => ROOM3_UPGRADE_IDS.includes(card.id)));
+        assert.ok(room3Cards.filter((card) => ROOM3_UPGRADE_IDS.includes(card.id)).length >= 2);
     }
 });
 
@@ -4625,4 +4626,17 @@ test('golem busca um ônibus a cada 20 s mesmo sem passar dos limiares de vida',
     assert.equal(fetches, 1, 'passados 20 s, vai atrás de um ônibus');
     golem.updateWalk(body, undefined, 1);
     assert.equal(fetches, 1, 'e o tempo recomeça');
+});
+
+test('fim da Sala III não oferece sempre a mesma mesa', () => {
+    const { drawUpgradeCardsFeaturing } = load('../src/game/upgrades/drawUpgradeCards.ts');
+    const { ROOM3_FINAL_UPGRADE_IDS } = load('../src/game/upgrades/catalog.ts');
+    const all = new PlayerUpgradeState().availableCards();
+    const tables = new Set();
+    for (let seed = 1; seed <= 30; seed += 1) {
+        let state = seed;
+        const random = () => (state = (state * 9301 + 49297) % 233280) / 233280;
+        tables.add(drawUpgradeCardsFeaturing(ROOM3_FINAL_UPGRADE_IDS, random, all).map((card) => card.id).sort().join());
+    }
+    assert.ok(tables.size >= 5, `mesas diferentes em 30 partidas: ${tables.size}`);
 });
