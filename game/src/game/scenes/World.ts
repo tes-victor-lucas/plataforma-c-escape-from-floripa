@@ -1593,8 +1593,8 @@ export class World extends Scene {
 
     /** Começo da disputa: cada um vai para um extremo do terminal, o anfitrião num e o convidado no outro. */
     private teleportToDuelCorner() {
-        const body = this.player?.sprite.body;
-        if (!this.player || !(body instanceof Phaser.Physics.Arcade.Body)) return;
+        const body = this.player?.sprite.body as Phaser.Physics.Arcade.Body | null | undefined;
+        if (!this.player || !body) return;
         const corner = TICEN_DUEL.corners[this.isMultiplayerHost() ? 0 : 1];
         const feet = this.findTicenFloorNear(corner.x, corner.y);
         if (!feet) return;
