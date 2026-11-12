@@ -5,6 +5,8 @@ import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import type { RemotePlayerState } from '../network/protocol';
 import { CHARACTERS, isCharacterId, type CharacterId } from '../config/characters';
 import { createWalkAnimations, walkAnimationKey, type Direction } from './PlayerAnimations';
+import { decodeWornItems, ITEMS, type ItemId } from '../config/items';
+import { attachWornItem } from './WornItem';
 
 /** Barra sobre a cabeça, usada para a vida do parceiro e para a ajuda ao caído. */
 export function drawPlayerBar(
@@ -39,6 +41,9 @@ export class RemotePlayer {
     private readonly orbitSparks: Phaser.GameObjects.Arc[] = [];
     private hasCompanion = false;
     private companion?: Phaser.GameObjects.Sprite;
+    /** Itens que o parceiro está vestindo, desenhados aqui como no personagem dele. */
+    private wornMask = 0;
+    private readonly wornItems = new Map<ItemId, () => void>();
 
     constructor(scene: Scene, x: number, y: number, onDamage: (amount: number) => void) {
         const { player } = WORLD_CONFIG;
@@ -76,6 +81,7 @@ export class RemotePlayer {
         this.orbitCount = state.orbitCount ?? 0;
         this.orbitRadius = state.orbitRadius ?? 0;
         this.hasCompanion = state.companion ?? false;
+        this.applyWorn(state.worn ?? 0);
         // Cliente antigo não envia o personagem: o parceiro continua no padrão.
         if (isCharacterId(state.character) && state.character !== this.characterId) {
             this.characterId = state.character;
@@ -145,7 +151,24 @@ export class RemotePlayer {
         );
     }
 
+    /** Veste e tira só o que mudou; o estado chega 20 vezes por segundo. */
+    private applyWorn(mask: number) {
+        if (mask === this.wornMask) return;
+        this.wornMask = mask;
+        const wanted = decodeWornItems(mask);
+        for (const [id, detach] of this.wornItems) {
+            if (wanted.includes(id)) continue;
+            detach();
+            this.wornItems.delete(id);
+        }
+        for (const id of wanted) {
+            if (!this.wornItems.has(id)) this.wornItems.set(id, attachWornItem(this.sprite.scene, this.sprite, ITEMS[id]));
+        }
+    }
+
     destroy() {
+        for (const detach of this.wornItems.values()) detach();
+        this.wornItems.clear();
         for (const spark of this.orbitSparks) spark.destroy();
         this.companion?.destroy();
         this.bar.destroy();

@@ -105,6 +105,15 @@ export const ITEMS: Readonly<Record<ItemId, ItemDefinition>> = {
     'rubber-boots': RUBBER_BOOTS
 };
 
+/** Itens vestidos viram um número, um bit por item na ordem de ITEM_IDS: cabe no estado enviado 20 vezes por segundo. */
+export function encodeWornItems(ids: readonly ItemId[]) {
+    return ITEM_IDS.reduce((mask, id, bit) => (ids.includes(id) ? mask | (1 << bit) : mask), 0);
+}
+
+export function decodeWornItems(mask: number): ItemId[] {
+    return ITEM_IDS.filter((_id, bit) => (mask & (1 << bit)) !== 0);
+}
+
 export function isItemId(value: unknown): value is ItemId {
     return ITEM_IDS.includes(value as ItemId);
 }

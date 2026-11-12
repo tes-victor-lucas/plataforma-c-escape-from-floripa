@@ -158,6 +158,7 @@ export class MultiplayerClient {
         orbitCount: number;
         orbitRadius: number;
         companion: boolean;
+        worn: number;
     }) {
         if (this.socket?.readyState !== WebSocket.OPEN) return;
         this.socket.send(JSON.stringify({

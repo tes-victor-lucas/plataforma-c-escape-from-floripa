@@ -78,6 +78,8 @@ export class MatchAgent {
         const { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft, character = 'padrao' } = message;
         // Faíscas orbitais e drone companheiro vão no estado; sem eles o parceiro não vê essas cartas.
         const { orbitCount = 0, orbitRadius = 0, companion = false } = message;
+        // Itens vestidos (chapéu, capacete, galochas): um bit por item, para o parceiro ver no personagem.
+        const { worn = 0 } = message;
         if (
             !Number.isSafeInteger(sequence)
             || sequence < 0
@@ -104,8 +106,11 @@ export class MatchAgent {
             || orbitRadius < 0
             || orbitRadius > 1000
             || typeof companion !== 'boolean'
+            || !Number.isSafeInteger(worn)
+            || worn < 0
+            || worn > 255
         ) return undefined;
 
-        return { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft, character, orbitCount, orbitRadius, companion };
+        return { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft, character, orbitCount, orbitRadius, companion, worn };
     }
 }

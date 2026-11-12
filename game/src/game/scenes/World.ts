@@ -75,7 +75,7 @@ import { playExplosion } from '../effects/playAreaEffects';
 import { getBusFrame, TopazioGolem } from '../entities/TopazioGolem';
 import { BusEndingView } from '../ui/BusEndingView';
 import { CinematicBarsView } from '../ui/CinematicBarsView';
-import { GAUCHO_HAT, ITEM_IDS, ITEMS, type ItemId } from '../config/items';
+import { encodeWornItems, GAUCHO_HAT, ITEM_IDS, ITEMS, type ItemId } from '../config/items';
 import { createItemTexture, createItemTextures } from '../entities/WornItem';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
 import { TchayQueue } from '../entities/TchayQueue';
@@ -2458,7 +2458,8 @@ export class World extends Scene {
             character: this.characterId,
             orbitCount: cardsActive ? this.upgrades.orbitCount : 0,
             orbitRadius: this.upgrades.orbitRadius,
-            companion: cardsActive && this.upgrades.companionCount > 0
+            companion: cardsActive && this.upgrades.companionCount > 0,
+            worn: encodeWornItems(this.equippedItems)
         });
         if (this.isMultiplayerHost()) this.sendEnemySnapshot();
     }

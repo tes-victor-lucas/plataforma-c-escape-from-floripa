@@ -28,6 +28,8 @@ export type RemotePlayerState = {
     orbitCount?: number;
     orbitRadius?: number;
     companion?: boolean;
+    /** Itens vestidos (chapéu, capacete, galochas), um bit por item; cliente antigo não manda. */
+    worn?: number;
 };
 
 type Point = Readonly<{ x: number; y: number }>;
