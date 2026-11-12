@@ -4321,3 +4321,17 @@ test('balão do inventário acompanha o encaixe e não sai do painel', () => {
     const corner = getTooltipPosition(840, 440, 90);
     assert.ok(corner.x + 232 <= 873 && corner.y + 90 <= 486, 'no canto é empurrado para dentro');
 });
+
+test('botas calçam as pernas do personagem: gaúcho tem pernas mais largas e afastadas', () => {
+    const { SILVER_BOOTS, bootPixels } = load('../src/game/config/items.ts');
+    const { CHARACTERS } = load('../src/game/config/characters.ts');
+    const { getItemOffsetY } = load('../src/game/entities/WornItem.ts');
+    const width = (pixels) => Math.max(...pixels.map(([x, , w]) => x + w));
+    assert.deepEqual(SILVER_BOOTS.pixels, bootPixels(0x9aa4b4, 0xe6ecf4), 'o ícone segue na medida do padrão');
+    assert.equal(width(SILVER_BOOTS.fitFeet(CHARACTERS.padrao.feet)), 14);
+    assert.equal(width(SILVER_BOOTS.fitFeet(CHARACTERS.gaucho.feet)), 20);
+    // Sola na linha de baixo do pé: no frame de 38 px, 36 no padrão e 37 no gaúcho.
+    const sole = (character) => 19 + getItemOffsetY(SILVER_BOOTS, 38, CHARACTERS[character].texture) + SILVER_BOOTS.height / 2;
+    assert.equal(sole('padrao'), 36);
+    assert.equal(sole('gaucho'), 37);
+});
