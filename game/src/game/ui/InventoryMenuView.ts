@@ -185,16 +185,16 @@ export class InventoryMenuView {
         this.addItemGrid(menu);
         // O balão foi criado antes da grade (ela já seleciona um item) e precisa ficar por cima dela.
         if (this.tooltip) menu.root.bringToTop(this.tooltip);
-        // Rodapé com os atalhos; no celular não há teclas nem arrasto para explicar.
-        if (!isTouchScreen()) {
-            menu.add(this.text(
-                TRAY.x + TRAY.width / 2,
-                PANEL.y + PANEL.height - 30,
-                'SETAS  ESCOLHER     E  EQUIPAR / RETIRAR     ARRASTE ATÉ O BONECO PARA EQUIPAR     ESC  FECHAR',
-                10,
-                INV.muted
-            ).setOrigin(0.5));
-        }
+        // Rodapé com os atalhos; no celular, os gestos no lugar das teclas.
+        menu.add(this.text(
+            TRAY.x + TRAY.width / 2,
+            PANEL.y + PANEL.height - 30,
+            isTouchScreen()
+                ? 'TOQUE NO ITEM PARA VER     ARRASTE ATÉ O BONECO PARA EQUIPAR     DE VOLTA À MOCHILA PARA GUARDAR'
+                : 'SETAS  ESCOLHER     E  EQUIPAR / RETIRAR     ARRASTE ATÉ O BONECO PARA EQUIPAR     ESC  FECHAR',
+            10,
+            INV.muted
+        ).setOrigin(0.5));
         // Sem o botão VOLTAR: fecha no X, no ESC ou no botão de voltar do controle.
         // E, ENTER ou espaço equipam ou retiram o item selecionado; setas ou WASD andam pela mochila.
         const keyboard = this.scene.input.keyboard;
