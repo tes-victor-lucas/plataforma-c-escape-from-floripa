@@ -1522,6 +1522,7 @@ export class World extends Scene {
     private startDuel() {
         if (!this.player || this.isDuelOver) return;
         this.upgrades.reset();
+        this.teleportToDuelCorner();
         this.combat?.enterSwordDuel();
         const partner = [...this.remotePlayers.values()][0];
         partner?.holdSword();
@@ -1558,15 +1559,51 @@ export class World extends Scene {
             const tileX = 2 + Math.floor(Math.random() * (map.width - 4));
             const tileY = 7 + Math.floor(Math.random() * 27);
             const point = { x: tileX * 16 + 8, y: tileY * 16 + 14 };
-            // O baú sobe um tile a partir do pé: o tile, os vizinhos e o de cima precisam estar livres.
-            const area = [[0, 0], [-1, 0], [1, 0], [0, -1], [-1, -1], [1, -1]];
-            if (area.some(([dx, dy]) => this.collisionLayers.some((layer) => layer.getTileAt(tileX + dx, tileY + dy)?.collides))) continue;
-            if (area.some(([dx, dy]) => map.hasTileAt(tileX + dx, tileY + dy, 'itens-topo'))) continue;
+            if (!this.isTicenTileFree(map, tileX, tileY)) continue;
             if (point.x > left - 24 && point.x < right + 24 && point.y > top - 24 && point.y < bottom + 24) continue;
             if (people.some((person) => Math.hypot(person.x - point.x, person.y - point.y) < minDistance)) continue;
             return point;
         }
         return undefined;
+    }
+
+    /** O baú e quem pisa ali sobem um tile a partir do pé: o tile, os vizinhos e o de cima precisam estar livres. */
+    private isTicenTileFree(map: Phaser.Tilemaps.Tilemap, tileX: number, tileY: number) {
+        const area = [[0, 0], [-1, 0], [1, 0], [0, -1], [-1, -1], [1, -1]];
+        return !area.some(([dx, dy]) => this.collisionLayers.some((layer) => layer.getTileAt(tileX + dx, tileY + dy)?.collides))
+            && !area.some(([dx, dy]) => map.hasTileAt(tileX + dx, tileY + dy, 'itens-topo'));
+    }
+
+    /** Pé no chão livre mais perto do ponto, procurando em anéis cada vez maiores até 6 tiles. */
+    private findTicenFloorNear(x: number, y: number) {
+        const map = this.roomMap;
+        if (!map) return undefined;
+        const centerX = Math.floor(x / 16);
+        const centerY = Math.floor(y / 16);
+        for (let ring = 0; ring <= 6; ring += 1) {
+            for (let dy = -ring; dy <= ring; dy += 1) {
+                for (let dx = -ring; dx <= ring; dx += 1) {
+                    if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+                    if (this.isTicenTileFree(map, centerX + dx, centerY + dy)) return { x: (centerX + dx) * 16 + 8, y: (centerY + dy) * 16 + 14 };
+                }
+            }
+        }
+        return undefined;
+    }
+
+    /** Começo da disputa: cada um vai para um extremo do terminal, o anfitrião num e o convidado no outro. */
+    private teleportToDuelCorner() {
+        const body = this.player?.sprite.body;
+        if (!this.player || !(body instanceof Phaser.Physics.Arcade.Body)) return;
+        const corner = TICEN_DUEL.corners[this.isMultiplayerHost() ? 0 : 1];
+        const feet = this.findTicenFloorNear(corner.x, corner.y);
+        if (!feet) return;
+        // O ponto achado é o do pé; o sprite fica acima dele na mesma distância que o corpo tem do sprite agora.
+        const x = feet.x - (body.center.x - this.player.sprite.x);
+        const y = feet.y - (body.center.y - this.player.sprite.y);
+        this.player.sprite.setPosition(x, y);
+        body.reset(x, y);
+        this.cameras.main.flash(250, 255, 255, 255);
     }
 
     /** Roda no anfitrião: um gaúcho de espada entra na disputa e vai atrás de quem estiver mais perto. */

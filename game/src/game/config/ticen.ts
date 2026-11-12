@@ -189,6 +189,8 @@ export const TICEN_DUEL = {
         // Quanto a câmera fica no ônibus: o motorista desce, avisa e volta para dentro.
         cutscene: 4800
     },
+    // Cada um começa num extremo do terminal: o anfitrião na plataforma A, o convidado na D. Pixels do room5.json.
+    corners: [{ x: 64, y: 136 }, { x: 640, y: 552 }],
     // Gaúchos de espada entrando aos poucos para atrapalhar a disputa.
     enemies: { count: 10, interval: 2500 },
     chest: {
