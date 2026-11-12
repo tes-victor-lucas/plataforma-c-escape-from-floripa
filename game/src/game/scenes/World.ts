@@ -75,7 +75,7 @@ import { playExplosion } from '../effects/playAreaEffects';
 import { getBusFrame, TopazioGolem } from '../entities/TopazioGolem';
 import { BusEndingView } from '../ui/BusEndingView';
 import { CinematicBarsView } from '../ui/CinematicBarsView';
-import { encodeWornItems, GAUCHO_HAT, ITEM_CHESTS, ITEM_IDS, ITEMS, type ItemId } from '../config/items';
+import { encodeWornItems, GAUCHO_HAT, getChestCandidates, ITEM_CHESTS, ITEM_IDS, ITEMS, type ItemId } from '../config/items';
 import { createItemTexture, createItemTextures } from '../entities/WornItem';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
 import { TchayQueue } from '../entities/TchayQueue';
@@ -213,10 +213,10 @@ export class World extends Scene {
         image: Phaser.GameObjects.Sprite;
         hint: Phaser.GameObjects.Text;
         glow?: Phaser.GameObjects.Graphics;
-        item: ItemId;
+        roomKey: RoomKey;
     };
-    // Sobrevive à ida e volta dos esconderijos: quando a sala começou e se o baú dela foi destrancado.
-    private readonly itemChestRuns = new Map<RoomKey, { startedAt: number; unlocked: boolean }>();
+    // Sobrevive à ida e volta dos esconderijos: quando a sala começou, se o baú destrancou, o item sorteado e se já foi pego.
+    private readonly itemChestRuns = new Map<RoomKey, { startedAt: number; unlocked: boolean; item?: ItemId; claimed: boolean }>();
     private lifestealUntil = 0;
     private victorySubtitle?: string;
     private busDoorObjects: Phaser.GameObjects.GameObject[] = [];
@@ -1611,26 +1611,30 @@ export class World extends Scene {
         this.itemChest = undefined;
         const config = ITEM_CHESTS[roomKey];
         if (!config) return;
-        if (isFreshRoom) this.itemChestRuns.set(roomKey, { startedAt: runTracker.snapshot().elapsedTimeMs, unlocked: false });
-        const { x, y, item } = config;
+        if (isFreshRoom) this.itemChestRuns.set(roomKey, { startedAt: runTracker.snapshot().elapsedTimeMs, unlocked: false, claimed: false });
+        const { x, y } = config;
         const image = this.add.sprite(x, y, TICEN_DUEL.chest.texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(y));
-        if (this.ownedItems.includes(item)) {
+        // Já pego nesta partida, ou nada na lista que o jogador ainda não tenha: o baú fica aberto.
+        if (this.itemChestRuns.get(roomKey)?.claimed || getChestCandidates(config.items, this.ownedItems).length === 0) {
             image.setFrame(1);
             return;
         }
         const hint = this.createWorldHint(
             `COMPLETE A ${config.roomName} EM ${formatElapsedTime(config.timeLimitMs)}\nPARA DESBLOQUEAR UM ITEM`
         ).setAlign('center').setPosition(x, y - 32).setVisible(false);
-        this.itemChest = { image: image.setTint(0x7a7a8c), hint, item };
+        this.itemChest = { image: image.setTint(0x7a7a8c), hint, roomKey };
         if (this.itemChestRuns.get(roomKey)?.unlocked) this.unlockItemChest();
     }
 
     /** O combate da sala acabou: dentro do tempo, o baú destranca e passa a brilhar. */
-    private finishItemChestRun(roomKey: RoomKey) {
+    private finishItemChestRun(roomKey: RoomKey, random = Math.random) {
         const run = this.itemChestRuns.get(roomKey);
         const config = ITEM_CHESTS[roomKey];
         if (!run || !config) return;
         run.unlocked = runTracker.snapshot().elapsedTimeMs - run.startedAt <= config.timeLimitMs;
+        // O sorteio sai na hora de destrancar e fica guardado: voltar do esconderijo não troca o item.
+        const candidates = getChestCandidates(config.items, this.ownedItems);
+        if (run.unlocked) run.item = candidates[Math.floor(random() * candidates.length)];
         if (run.unlocked && this.itemChest) {
             this.unlockItemChest();
             this.showFloatingHint('BAÚ DESBLOQUEADO');
@@ -1662,8 +1666,12 @@ export class World extends Scene {
         chest.image.setFrame(1).setScale(1);
         chest.glow.destroy();
         chest.hint.destroy();
-        this.equipFoundItem(chest.item);
-        this.showFloatingHint(ITEMS[chest.item].name);
+        const run = this.itemChestRuns.get(chest.roomKey);
+        const item = run?.item;
+        if (run) run.claimed = true;
+        if (!item) return;
+        this.equipFoundItem(item);
+        this.showFloatingHint(ITEMS[item].name);
     }
 
     private placeDuelChest(id: number, x: number, y: number, special: DuelSpecialId) {

@@ -231,20 +231,28 @@ export const ITEMS: Readonly<Record<ItemId, ItemDefinition>> = {
 
 /**
  * Baús de item das salas: ficam trancados e só abrem se o combate da sala terminar dentro do tempo.
+ * Ao destrancar, o baú sorteia um item da lista que o jogador ainda não tem.
  * Posição em pixels do mapa (base do baú); tempo em milissegundos, contado da entrada na sala.
  */
 export const ITEM_CHESTS: Partial<Record<RoomKey, Readonly<{
     x: number;
     y: number;
-    item: ItemId;
+    items: readonly ItemId[];
     timeLimitMs: number;
     roomName: string;
 }>>> = {
     // À direita do balcão do TCHAY, fora da fila.
-    room1: { x: 640, y: 88, item: 'silver-boots', timeLimitMs: 90_000, roomName: 'SALA I' },
+    room1: { x: 640, y: 88, items: ['silver-boots'], timeLimitMs: 90_000, roomName: 'SALA I' },
     // No alto da escada do Centro Cultural da Marinha, logo abaixo da placa.
-    room2: { x: 216, y: 188, item: 'diamond-boots', timeLimitMs: 180_000, roomName: 'SALA II' }
+    room2: { x: 216, y: 188, items: ['diamond-boots', 'flame-sword', 'ice-staff'], timeLimitMs: 180_000, roomName: 'SALA II' },
+    // No caminho de tijolos diante do monumento da Praça XV.
+    room3: { x: 576, y: 270, items: ['flame-sword', 'ice-staff', 'diamond-boots'], timeLimitMs: 240_000, roomName: 'SALA III' }
 };
+
+/** Itens da lista do baú que o jogador ainda não tem; vazio, o baú já nasce aberto. */
+export function getChestCandidates(items: readonly ItemId[], owned: readonly ItemId[]) {
+    return items.filter((id) => !owned.includes(id));
+}
 
 /** Itens vestidos viram um número, um bit por item na ordem de ITEM_IDS: cabe no estado enviado 20 vezes por segundo. */
 export function encodeWornItems(ids: readonly ItemId[]) {
