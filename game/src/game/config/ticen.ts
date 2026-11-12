@@ -124,6 +124,8 @@ export const TOPAZIO_BOSS = {
     busThresholds: [0.8, 0.6, 0.4, 0.2],
     // Sem passar de limiar, ele busca um ônibus mesmo assim depois desse tempo: com pouco dano a luta não fica sem ônibus.
     busInterval: 20_000,
+    // Em 60% da vida ele desaba atordoado: a dupla escolhe uma carta e depois bate nele caído por 4 s.
+    stun: { at: 0.6, duration: 4_000 },
     // Baias do room5.json (assets/ticen/gen_room5_map.py); `route` é a linha do ticen_onibus.png.
     // O 763.2 via Kobrasol (Estrela, rota 3, coluna 38 da linha 29) fica de fora: é a fuga.
     buses: [

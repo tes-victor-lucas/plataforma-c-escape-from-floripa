@@ -8,7 +8,7 @@ import type { CombatEnemy } from './CombatEnemy';
 import type { Player } from './Player';
 
 type Point = Readonly<{ x: number; y: number }>;
-type Action = 'walk' | 'slam' | 'spin' | 'fetch' | 'hold' | 'roar' | 'dead';
+type Action = 'walk' | 'slam' | 'spin' | 'fetch' | 'hold' | 'roar' | 'stun' | 'dead';
 type TicenBus = Readonly<{ route: number; col: number; row: number }>;
 
 /** O que o golem do anfitrião faz e o espelho do convidado repete, com o que precisa para repetir igual. */
@@ -18,6 +18,7 @@ export type GolemAction =
     | { type: 'lift'; route: number; target?: string }
     | { type: 'throw'; tx: number; ty: number }
     | { type: 'roar'; caption: string }
+    | { type: 'stun' }
     | { type: 'defeated' };
 
 /** Jogador vivo que pode levar um ônibus: o id é o mesmo nos dois clientes do multiplayer. */
@@ -29,6 +30,8 @@ type GolemOptions = Readonly<{
     onAction?: (action: GolemAction) => void;
     /** Todos os jogadores vivos; sem isso o golem mira só o jogador deste cliente. */
     getBusTargets?: () => readonly BusTarget[];
+    /** O golem desabou atordoado em 60%: a sala oferece a rodada de cartas. Roda nos dois clientes. */
+    onStun?: () => void;
 }>;
 
 /**
@@ -82,6 +85,7 @@ export class TopazioGolem implements CombatEnemy {
     private hasSlammed = false;
     private spinBursts = 0;
     private busesThrown = 0;
+    private hasStunned = false;
     /** Tempo desde o último arremesso (ou desde que acordou): passou de busInterval, ele vai atrás de um ônibus. */
     private sinceLastBus = 0;
     private roarsDone = 0;
@@ -177,6 +181,9 @@ export class TopazioGolem implements CombatEnemy {
                 this.health.current = 0;
                 this.finishDeath();
                 break;
+            case 'stun':
+                this.startStun();
+                break;
         }
     }
 
@@ -192,11 +199,16 @@ export class TopazioGolem implements CombatEnemy {
         this.animTime += delta;
         const target = player?.health.isAlive ? player.sprite.body?.center ?? player.sprite : undefined;
         // O contato machuca só o jogador deste cliente: no anfitrião o alvo pode ser o parceiro, que não tem corpo aqui.
-        if (this.player.health.isAlive && this.scene.physics.overlap(this.sprite, this.player.sprite)) {
+        // Caído e atordoado, ele não machuca ninguém.
+        if (this.action !== 'stun' && this.player.health.isAlive && this.scene.physics.overlap(this.sprite, this.player.sprite)) {
             this.player.takeDamage(TOPAZIO_BOSS.contactDamage);
         }
         body.setVelocity(0, 0);
         this.hitBySpikes();
+        if (this.action === 'stun') {
+            if (this.actionTime >= TOPAZIO_BOSS.stun.duration) this.endStun();
+            return;
+        }
         if (this.isMirror) {
             // Espelho: posição e quadro vêm do anfitrião; aqui só correm o giro e o ônibus erguido.
             if (this.action === 'spin') this.updateSpin(body, undefined);
@@ -294,6 +306,11 @@ export class TopazioGolem implements CombatEnemy {
             this.emit({ type: 'roar', caption });
             return;
         }
+        if (!this.hasStunned && this.health.current <= this.health.max * TOPAZIO_BOSS.stun.at) {
+            this.startStun();
+            this.emit({ type: 'stun' });
+            return;
+        }
         this.sinceLastBus += delta;
         const isOwedBus = this.busesThrown + (this.fetching ? 1 : 0) < countThresholdsCrossed(this.health.current, this.health.max, TOPAZIO_BOSS.busThresholds);
         if ((isOwedBus || this.sinceLastBus >= TOPAZIO_BOSS.busInterval) && this.buses.length > 0) {
@@ -340,6 +357,23 @@ export class TopazioGolem implements CombatEnemy {
         this.scene.sound.play(key, { volume });
         this.scene.cameras.main.shake(140, 0.005);
         playShockwave(this.scene, feet.x, feet.y, 40, 0xffa040);
+    }
+
+    /** Desaba de lado, acinzentado; o tempo de 4 s só corre depois que a rodada de cartas fecha (o mundo fica parado). */
+    private startStun() {
+        if (this.hasStunned) return;
+        this.hasStunned = true;
+        this.startAction('stun');
+        this.sprite.setTint(0x9a9aa6);
+        this.scene.tweens.add({ targets: this.sprite, angle: 90, duration: 260, ease: 'Quad.easeOut' });
+        this.scene.cameras.main.shake(220, 0.008);
+        this.options.onStun?.();
+    }
+
+    private endStun() {
+        this.sprite.clearTint();
+        this.scene.tweens.add({ targets: this.sprite, angle: 0, duration: 260, ease: 'Quad.easeOut' });
+        this.finishAttack();
     }
 
     private finishAttack() {
