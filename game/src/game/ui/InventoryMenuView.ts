@@ -3,7 +3,6 @@ import { CHARACTERS, type CharacterId } from '../config/characters';
 import type { EquipmentSlot, ItemId } from '../config/items';
 import { ITEMS } from '../config/items';
 import { getItemOffsetY } from '../entities/WornItem';
-import { GAME_WIDTH } from '../config/display';
 import { WALK_FRAMES } from '../entities/PlayerAnimations';
 import type { UpgradeProgress } from '../upgrades/types';
 import { CLEAN_MENU_COLORS, CleanOverlayMenu, drawCleanMenuBox, type CleanMenuBounds } from './CleanOverlayMenu';
@@ -38,7 +37,9 @@ type InventoryMenuViewOptions = InventoryData & Readonly<{
 const FONT = 'PixelGamer, monospace';
 // Moldura dupla do inventário: contorno escuro, faixa ciano com brilho e miolo um tom acima do painel.
 const FRAME = { outline: 0x000a0c, band: 0x0aa5b3, shine: 0x5ce5f1, fill: 0x0a2228 };
-const PANEL = { x: 16, y: 14, width: 857, height: 472 };
+const PANEL = { x: 16, y: 34, width: 857, height: 452 };
+// Aba do título, presa por cima do painel como a orelha de uma pasta.
+const TITLE_TAB = { x: 36, y: 8, width: 190, height: 36 };
 const CARDS = { x: 36, y: 66, width: 174, height: 300 };
 const CHIMARRAO = { x: 36, y: 378, width: 174, height: 50 };
 const DOLL = { x: 232, y: 66, width: 200, height: 220 };
@@ -88,9 +89,12 @@ export class InventoryMenuView {
         const menu = new CleanOverlayMenu(this.scene, { bounds: PANEL, dimAlpha: 0.78 });
         // A moldura dupla cobre o painel padrão dos menus: o inventário tem cara própria.
         const panel = this.scene.add.graphics();
+        // A aba vem antes: o painel passa por cima da base dela e os dois viram uma peça só.
+        drawFramedBox(panel, TITLE_TAB, CLEAN_MENU_COLORS.panel);
         drawFramedBox(panel, PANEL, CLEAN_MENU_COLORS.panel);
+        panel.fillStyle(CLEAN_MENU_COLORS.panel, 1).fillRect(TITLE_TAB.x + 7, PANEL.y, TITLE_TAB.width - 14, 7);
         menu.add(panel);
-        menu.add(this.text(GAME_WIDTH / 2, 40, 'INVENTÁRIO', 26, CLEAN_MENU_COLORS.text).setOrigin(0.5));
+        menu.add(this.text(TITLE_TAB.x + TITLE_TAB.width / 2, TITLE_TAB.y + 17, 'INVENTÁRIO', 18, CLEAN_MENU_COLORS.text).setOrigin(0.5));
         addUpgradePanel(this.scene, menu, this.options.upgrades, CARDS);
         this.addChimarraos(menu);
         this.addDoll(menu);
