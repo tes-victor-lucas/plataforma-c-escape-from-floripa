@@ -156,8 +156,19 @@ export function createUpgradeIcon(
             icon.strokeCircle(0, 0, 20);
             icon.fillCircle(0, -20, 6).fillCircle(17, 10, 6).fillCircle(-17, 10, 6);
             break;
-        case 'chain-lightning':
         case 'thunder-storm':
+            // Nuvem carregada com dois raios caindo: a cadeia mais forte, com cara diferente do raio simples.
+            icon.fillCircle(-10, -14, 10).fillCircle(4, -18, 12).fillCircle(16, -12, 9).fillRect(-18, -14, 40, 10);
+            for (const offset of [-10, 10]) {
+                icon.beginPath();
+                icon.moveTo(offset + 4, -2);
+                icon.lineTo(offset - 4, 12);
+                icon.lineTo(offset + 2, 12);
+                icon.lineTo(offset - 4, 28);
+                icon.strokePath();
+            }
+            break;
+        case 'chain-lightning':
             icon.beginPath();
             icon.moveTo(6, -28);
             icon.lineTo(-10, 2);
