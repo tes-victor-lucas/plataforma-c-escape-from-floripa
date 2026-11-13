@@ -2995,17 +2995,18 @@ test('dica da espada aparece ao equipar e some no primeiro golpe que sai', () =>
 test('menu multiplayer lista as salas abertas com a opção de entrar', () => {
     const { createMultiplayerMenuActions } = load('../src/game/ui/MainMenuView.ts');
     const joined = [];
-    const handlers = { onCreate() {}, onJoin: (room) => joined.push(room), onBack() {} };
+    const handlers = { onCreate() {}, onCreateNumbered: () => joined.push('numerada'), onJoin: (room) => joined.push(room), onBack() {} };
 
     const empty = createMultiplayerMenuActions([], handlers);
-    assert.deepEqual(empty.map(({ label }) => label), ['CRIAR SALA', 'NENHUMA SALA ABERTA', 'VOLTAR']);
-    assert.equal(empty[1].enabled, false);
+    assert.deepEqual(empty.map(({ label }) => label), ['CRIAR SALA', 'GERAR NOME DA SALA', 'NENHUMA SALA ABERTA', 'VOLTAR']);
+    assert.equal(empty[2].enabled, false);
 
     const listed = createMultiplayerMenuActions(['sala-1', 'b', 'c', 'd', 'e'], handlers);
-    assert.equal(listed.length, 6);
-    assert.equal(listed[1].label, 'SALA-1   [ ENTRAR ]');
+    assert.equal(listed.length, 7);
+    assert.equal(listed[2].label, 'SALA-1   [ ENTRAR ]');
+    listed[2].onSelect();
     listed[1].onSelect();
-    assert.deepEqual(joined, ['sala-1']);
+    assert.deepEqual(joined, ['sala-1', 'numerada']);
 });
 
 test('carta com textura mostra a imagem, e as outras mantêm o ícone desenhado', () => {
@@ -4997,4 +4998,25 @@ test('solo, as cartas batem mais forte; a espada e a dupla ficam como estavam', 
 test('disputa da Sala V: o golpe no rival tira meio coração', () => {
     const { TICEN_DUEL } = load('../src/game/config/ticen.ts');
     assert.equal(TICEN_DUEL.rivalDamage, COMBAT_CONFIG.player.healthPerHeart / 2);
+});
+
+test('gerar nome da sala: pula as salas abertas e as que já estão em jogo', async () => {
+    const { MainMenu } = load('../src/game/scenes/MainMenu.ts');
+    const { multiplayerClient, ROOM_FULL_MESSAGE } = load('../src/game/network/MultiplayerClient.ts');
+    const originalConnect = multiplayerClient.connect;
+    const tried = [];
+    multiplayerClient.connect = async (_onStatus, roomName) => {
+        tried.push(roomName);
+        throw new Error(roomName === 'sala-2' ? ROOM_FULL_MESSAGE : 'fim do teste');
+    };
+    try {
+        const menu = new MainMenu();
+        menu.view = { showWaitingForPartner() {}, setStatus() {} };
+        menu.stopWatchingRooms = () => {};
+        menu.openMultiplayerMenu = () => {};
+        await menu.startMultiplayer(undefined, 1, ['sala-1']);
+        assert.deepEqual(tried, ['sala-2', 'sala-3']);
+    } finally {
+        multiplayerClient.connect = originalConnect;
+    }
 });
