@@ -3,7 +3,7 @@ import { MainMenuView } from '../ui/MainMenuView';
 import { CHARACTERS, loadCharacterId, nextCharacterId, saveCharacterId } from '../config/characters';
 import { musicDirector } from '../audio/MusicDirector';
 import { AUDIO_CONFIG } from '../config/audio';
-import { multiplayerClient } from '../network/MultiplayerClient';
+import { multiplayerClient, ROOM_FULL_MESSAGE } from '../network/MultiplayerClient';
 import { getMultiplayerStartRoom, replaceRequestedRoomKey } from '../config/rooms';
 import {
     COOP_CHECKPOINT_KEY,
@@ -113,6 +113,7 @@ export class MainMenu extends Scene {
                     () => this.openMultiplayerMenu()
                 );
             },
+            onCreateNumbered: () => void this.startMultiplayer(undefined, 1, rooms),
             onJoin: (roomId) => void this.startMultiplayer(roomId),
             onBack: () => {
                 this.stopWatchingRooms();
@@ -137,8 +138,13 @@ export class MainMenu extends Scene {
         this.openMultiplayerMenu();
     }
 
-    private async startMultiplayer(roomName?: string) {
+    /** Com `number`, o nome é SALA-N: pula as salas abertas da lista e, se a sala já estiver em jogo, tenta a próxima. */
+    private async startMultiplayer(roomName?: string, number?: number, openRooms: readonly string[] = []): Promise<void> {
         if (this.isStartingGame) return;
+        if (number !== undefined) {
+            while (openRooms.includes(`sala-${number}`)) number += 1;
+            roomName = `sala-${number}`;
+        }
         const view = this.view;
         if (!view) return;
         this.stopWatchingRooms();
@@ -163,6 +169,10 @@ export class MainMenu extends Scene {
             if (attempt !== this.joinAttempt) return;
             this.isStartingGame = false;
             multiplayerClient.disconnect();
+            // shortcut: para na SALA-99 para não tentar sem fim; trocar por contador no servidor se um dia houver tantas partidas.
+            if (number !== undefined && number < 99 && error instanceof Error && error.message === ROOM_FULL_MESSAGE) {
+                return this.startMultiplayer(undefined, number + 1, openRooms);
+            }
             this.openMultiplayerMenu();
             view.setStatus(error instanceof Error ? error.message.toUpperCase() : 'ERRO MULTIPLAYER');
         }
