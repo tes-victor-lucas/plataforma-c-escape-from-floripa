@@ -2748,6 +2748,8 @@ export class World extends Scene {
     private resetPauseMenuState() {
         this.isPauseMenuOpen = false;
         this.sendLocalPause(undefined);
+        // O parceiro pode ter pausado e voltado com este menu aberto: a física que ele parou volta aqui.
+        if (!this.partnerPause && !this.isGameOver) this.physics.resume();
     }
 
     /** Avisa o parceiro só quando o motivo muda: um evento ao abrir o menu e outro ao fechar. */
@@ -2990,6 +2992,8 @@ export class World extends Scene {
                 remotePlayer.destroy();
                 this.remotePlayers.delete(playerId);
             }
+            // Quem sai com um menu aberto não pode deixar o outro congelado.
+            if (this.partnerPause) this.applyPartnerPause(undefined);
             this.handlePartnerLeft();
         }
         if (message.type === 'match.event') this.handleCoopEvent(message.event);
