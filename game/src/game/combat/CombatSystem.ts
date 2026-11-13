@@ -101,6 +101,8 @@ export class CombatSystem {
     private pulseCooldown = 0;
     /** Crescimento do tiro normal pela sala atual (getPlayerShotMultipliers). */
     shotMultipliers = { damage: 1, speed: 1 };
+    /** Reforço do dano das cartas (tudo que não é tiro normal nem espada); só a partida solo usa. */
+    cardDamageMultiplier = 1;
     private chainCooldown = 0;
     private beamCooldown = 0;
     private spinCooldown = 0;
@@ -647,8 +649,10 @@ export class CombatSystem {
         damage: number,
         direction: { x: number; y: number },
         attackId: string,
-        canDetonate = true
+        canDetonate = true,
+        multiplier = this.cardDamageMultiplier
     ) {
+        damage *= multiplier;
         if (this.network && !this.network.isHost) {
             this.network.onEnemyHit(enemy, damage, direction);
             return;
@@ -853,7 +857,7 @@ export class CombatSystem {
             // Acerto da espada flamejante explode numa labareda pequena em cima do inimigo.
             if (this.flameSword && !this.melee) playExplosion(this.scene, target.x, target.y, 10, COMBAT_CONFIG.burn.color);
             const direction = distance > 0 ? { x: dx / distance, y: dy / distance } : { x: Math.cos(angle), y: Math.sin(angle) };
-            this.hitEnemy(enemy, swordDamage, direction, id);
+            this.hitEnemy(enemy, swordDamage, direction, id, true, 1);
         }
         const rival = this.duelTarget;
         if (rival?.isAlive()) {

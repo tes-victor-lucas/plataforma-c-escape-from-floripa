@@ -219,6 +219,8 @@ export const COMBAT_CONFIG = {
     enemyHealthMultiplierByRoom: { room4: 2, room5: 2 } as Partial<Record<RoomKey, number>>,
     // O tiro normal do jogador cresce a cada sala depois da Sala I: +10% de dano e +5% de velocidade.
     playerShotGrowthPerRoom: { damage: 0.1, speed: 0.05 },
+    // Solo, as hordas têm o mesmo número de inimigos da dupla para um jogador só: todas as cartas batem 30% mais forte.
+    soloCardDamageMultiplier: 1.3,
     multiplayer: {
         // Dois jogadores causam o dobro de dano nos mesmos inimigos; acima de 2 fica mais difícil.
         enemyHealthMultiplier: 2.5,

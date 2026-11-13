@@ -521,6 +521,7 @@ export class World extends Scene {
             roomKey === 'gaucho-dungeon'
         );
         this.combat.shotMultipliers = getPlayerShotMultipliers(roomKey);
+        this.combat.cardDamageMultiplier = this.isMultiplayerEnabled() ? 1 : COMBAT_CONFIG.soloCardDamageMultiplier;
         // Os itens já foram vestidos antes do combate existir: a mão precisa ser aplicada de novo.
         this.applyEquipment();
         // No multiplayer o anfitrião decide o golem e o convidado tem um espelho que repete as ações dele.
