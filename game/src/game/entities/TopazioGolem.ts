@@ -39,6 +39,27 @@ type GolemOptions = Readonly<{
  * Alvo do próximo ônibus: o primeiro vai no mais próximo; depois o golem alterna,
  * mirando quem não levou o último. Sozinho na sala, o único vivo leva todos.
  */
+/** Tira os pés do golem de cima dos quiosques: sai pela borda mais próxima e desliza por ela. */
+export function pushFeetOffKiosks(feet: Point): Point {
+    const { x: marginX, top: marginTop, bottom: marginBottom } = TOPAZIO_BOSS.kioskMargin;
+    for (const kiosk of TOPAZIO_BOSS.kiosks) {
+        const left = kiosk.left - marginX;
+        const right = kiosk.right + marginX;
+        const top = kiosk.top - marginTop;
+        const bottom = kiosk.bottom + marginBottom;
+        if (feet.x <= left || feet.x >= right || feet.y <= top || feet.y >= bottom) continue;
+        const exits = [
+            { x: left, y: feet.y, distance: feet.x - left },
+            { x: right, y: feet.y, distance: right - feet.x },
+            { x: feet.x, y: top, distance: feet.y - top },
+            { x: feet.x, y: bottom, distance: bottom - feet.y }
+        ];
+        const nearest = exits.reduce((best, exit) => (exit.distance < best.distance ? exit : best));
+        return { x: nearest.x, y: nearest.y };
+    }
+    return feet;
+}
+
 export function pickBusTarget(origin: Point, targets: readonly BusTarget[], lastTargetId?: string) {
     const others = targets.filter(({ id }) => id !== lastTargetId);
     const candidates = others.length > 0 ? others : targets;
@@ -238,6 +259,11 @@ export class TopazioGolem implements CombatEnemy {
             Math.min(right, Math.max(left, this.sprite.x)),
             Math.min(bottom, Math.max(top, this.sprite.y))
         );
+        // Buscando ônibus ele só atravessa correndo; nas outras ações não fica em cima dos quiosques.
+        if (this.action !== 'fetch') {
+            const feet = pushFeetOffKiosks({ x: this.sprite.x, y: this.sprite.y + TOPAZIO_BOSS.feetOffset });
+            this.sprite.setPosition(feet.x, feet.y - TOPAZIO_BOSS.feetOffset);
+        }
         // Enquanto sobe da baia, o ônibus segue o tween; depois acompanha o golem.
         if (this.action === 'hold' && this.actionTime >= TOPAZIO_BOSS.bus.liftTime) this.heldBus?.setPosition(this.sprite.x, this.sprite.y - 64);
         this.updateFrame();

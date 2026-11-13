@@ -89,6 +89,13 @@ export const TOPAZIO_BOSS = {
     wakeY: 35 * 16,
     // Gigante: anda por cima de tudo, mas não sai do terminal nem desce até a catraca.
     bounds: { left: 56, right: 712, top: 8 * 16, bottom: 32 * 16 },
+    // Os dois quiosques do room5.json (tiles do ticen_quiosques), em pixels: ele não para com os pés em cima deles.
+    kiosks: [
+        { left: 208, top: 368, right: 272, bottom: 432 },
+        { left: 528, top: 224, right: 592, bottom: 288 }
+    ],
+    // Folga em volta do quiosque, do tamanho da base do golem.
+    kioskMargin: { x: 26, top: 4, bottom: 8 },
     maxHealth: 400,
     // Em dupla, dois jogadores batendo derrubavam o golem rápido demais: três vezes a vida.
     multiplayerHealthMultiplier: 3,
