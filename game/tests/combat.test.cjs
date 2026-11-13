@@ -1059,7 +1059,7 @@ test('menu principal abre opções de jogo e desabilita continuar sem checkpoint
         () => { selected = 'leaderboard'; }
     );
     assert.deepEqual(mainMenu.map(({ label }) => label), [
-        'JOGAR', 'PLACAR', 'OPÇÕES', 'SAIR'
+        'JOGAR', 'PLACAR', 'SAIR'
     ]);
     mainMenu[0].onSelect();
     assert.equal(selected, 'play');
@@ -2454,6 +2454,7 @@ test('multiplayer: corpo caído perde a física e volta ao reviver', () => {
     assert.equal(body.enable, false);
     world.updateRevive(COMBAT_CONFIG.multiplayer.reviveDuration);
     assert.equal(health.isAlive, true);
+    assert.equal(health.current, Math.min(health.max, COMBAT_CONFIG.multiplayer.reviveMinHealth), 'levanta com pelo menos 2 corações');
     assert.equal(body.enable, true);
     assert.equal(multiplayerClient.revivesUsed, 1);
     multiplayerClient.disconnect();
@@ -4814,6 +4815,15 @@ test('pausa da dupla: avisa só quando o motivo muda e o parceiro congela até o
         world.isPauseMenuOpen = true;
         world.applyPartnerPause(undefined);
         assert.equal(resumed, 1, 'com o próprio menu aberto, continua parado');
+        // Os dois pausam, o parceiro volta primeiro: ao fechar o próprio menu, a física tem de voltar.
+        world.applyPartnerPause('pause');
+        world.applyPartnerPause(undefined);
+        world.resetPauseMenuState();
+        assert.equal(resumed, 2, 'quem fecha a pausa por último não fica travado');
+        world.applyPartnerPause('pause');
+        world.isPauseMenuOpen = true;
+        world.resetPauseMenuState();
+        assert.equal(resumed, 2, 'com o parceiro ainda pausado, segue parado');
     } finally {
         multiplayerClient.sendEvent = originalSend;
     }
@@ -4931,4 +4941,60 @@ test('no convidado, os rugidos do golem e a queda chegam pelo anfitrião e tocam
     golem.applyRemoteAction({ type: 'defeated' });
     assert.equal(golem.health.current, 0);
     assert.equal(doors, 1, 'a queda chega e a cena das portas do 763.2 toca no convidado');
+});
+
+test('catraca, fliperama e perguntas não pausam o parceiro: só a pausa e o Piranhas', () => {
+    const source = readFileSync(path.resolve(__dirname, '../src/game/network/protocol.ts'), 'utf8');
+    assert.match(source, /PartnerPauseReason = 'pause' \| 'piranhas';/);
+});
+
+test('recomeço da sala em dupla devolve pelo menos 2 corações', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const progress = { currentHealth: 1, maxHealth: 8, movementSpeedMultiplier: 1, upgrades: [] };
+    let restarted;
+    world.registry = { get: () => ({ roomKey: 'room3', playerProgress: progress }) };
+    world.stopGameplayOverlays = () => {};
+    world.scene = { restart: (data) => { restarted = data; } };
+    world.restartCoopRoom('room3');
+    assert.equal(restarted.playerProgress.currentHealth, COMBAT_CONFIG.multiplayer.reviveMinHealth);
+    assert.equal(COMBAT_CONFIG.multiplayer.reviveMinHealth, 2 * COMBAT_CONFIG.player.healthPerHeart);
+});
+
+test('golem não para com os pés em cima dos quiosques do TICEN', () => {
+    const { TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const { pushFeetOffKiosks } = load('../src/game/entities/TopazioGolem.ts');
+    const map = JSON.parse(readFileSync(path.resolve(__dirname, '../public/assets/maps/room5.json'), 'utf8'));
+    const tileset = map.tilesets.find(({ name }) => name === 'ticen_quiosques');
+    const isKioskTile = (gid) => gid >= tileset.firstgid && gid < tileset.firstgid + tileset.tilecount;
+    for (const layer of map.layers) {
+        (layer.data ?? []).forEach((gid, index) => {
+            if (!isKioskTile(gid)) return;
+            const x = (index % map.width) * 16 + 8;
+            const y = Math.floor(index / map.width) * 16 + 8;
+            assert.ok(TOPAZIO_BOSS.kiosks.some((kiosk) => x > kiosk.left && x < kiosk.right && y > kiosk.top && y < kiosk.bottom),
+                `tile de quiosque em ${x},${y} fora da configuração`);
+            const feet = pushFeetOffKiosks({ x, y });
+            assert.ok(feet.x !== x || feet.y !== y, 'pés em cima do quiosque são empurrados para fora');
+            assert.deepEqual(pushFeetOffKiosks(feet), feet, 'e fora dele ficam onde estão');
+        });
+    }
+    const spawnFeet = { x: TOPAZIO_BOSS.spawn.x, y: TOPAZIO_BOSS.spawn.y + TOPAZIO_BOSS.feetOffset };
+    assert.deepEqual(pushFeetOffKiosks(spawnFeet), spawnFeet);
+});
+
+test('solo, as cartas batem mais forte; a espada e a dupla ficam como estavam', () => {
+    const { combat } = setup();
+    const hits = [];
+    combat.network = { isHost: false, onEnemyHit: (_enemy, damage) => hits.push(damage) };
+    combat.cardDamageMultiplier = COMBAT_CONFIG.soloCardDamageMultiplier;
+    combat.hitEnemy({}, 10, { x: 0, y: 0 }, 'a');
+    combat.hitEnemy({}, 10, { x: 0, y: 0 }, 'a', true, 1);
+    assert.deepEqual(hits, [10 * COMBAT_CONFIG.soloCardDamageMultiplier, 10]);
+    assert.ok(COMBAT_CONFIG.soloCardDamageMultiplier > 1);
+});
+
+test('disputa da Sala V: o golpe no rival tira meio coração', () => {
+    const { TICEN_DUEL } = load('../src/game/config/ticen.ts');
+    assert.equal(TICEN_DUEL.rivalDamage, COMBAT_CONFIG.player.healthPerHeart / 2);
 });
