@@ -36,6 +36,13 @@ class ScoreTests(unittest.TestCase):
         self.assertEqual(result.arcadePoints, 5_000)
         self.assertEqual(result.total - calculate_score(**base).total, 5_000)
 
+    def test_all_topazes_add_two_thousand(self):
+        base = dict(won=True, elapsed_time_ms=0, enemies_defeated=0, hits_taken=5, dungeons_completed=0, multi_kills=[])
+        self.assertEqual(calculate_score(**base).topazPoints, 0)
+        result = calculate_score(**base, topaz_all_collected=True)
+        self.assertEqual(result.topazPoints, 2_000)
+        self.assertEqual(result.total - calculate_score(**base).total, 2_000)
+
     def test_multi_kill_starts_at_two(self):
         self.assertEqual(multi_kill_bonus(1), 0)
         self.assertEqual(multi_kill_bonus(2), 250)

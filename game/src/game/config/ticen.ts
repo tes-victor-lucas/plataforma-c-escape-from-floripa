@@ -64,6 +64,121 @@ export const WALLET_UI = {
     cardInWallet: { x: 116, y: 22, width: 64, height: 40 }
 } as const;
 
+/**
+ * Chefe final: o Golem de Topázio espera na faixa entre as Plataformas B e C e acorda quando o
+ * jogador passa a catraca e sobe para a Plataforma D. Distâncias em pixels, tempos em milissegundos.
+ */
+export const TOPAZIO_BOSS = {
+    title: 'GOLEM DE TOPAZIO',
+    texture: 'topazio-golem',
+    path: 'assets/enemies/topazio/topazio-golem.png',
+    frameSize: 96,
+    shardTexture: 'topazio-projeteis',
+    shardPath: 'assets/enemies/topazio/topazio-projeteis.png',
+    shardFrameSize: 16,
+    // Topázios que ficam no chão quando ele explode.
+    gemTexture: 'topazio-gema',
+    gemPath: 'assets/enemies/topazio/topazio-gema.png',
+    gemCount: 14,
+    // Centro do corpo; os pés ficam uns 44 px abaixo.
+    spawn: { x: 384, y: 21 * 16 },
+    feetOffset: 44,
+    // Linha 35 é a Plataforma D, logo acima da catraca (linha 36).
+    wakeY: 35 * 16,
+    // Gigante: anda por cima de tudo, mas não sai do terminal nem desce até a catraca.
+    bounds: { left: 56, right: 712, top: 8 * 16, bottom: 32 * 16 },
+    maxHealth: 400,
+    // Gigante: anda por cima de toldos, pilares, placas e quiosques (camada itens-topo, profundidade 20).
+    depth: 20.5,
+    speed: 34,
+    contactDamage: 2,
+    hitbox: { width: 52, height: 60, offsetX: 22, offsetY: 28 },
+    frameDuration: 150,
+    // Respiro entre ataques em cada estágio de rachadura: quanto mais rachado, mais rápido.
+    rest: [1700, 1400, 1150, 900],
+    firstRest: 1200,
+    // Bate no chão: topázios brotam em três cadeias, em leque, na direção do jogador.
+    slam: { windup: 700, recover: 700, spikeInterval: 55, spikeSpacing: 22, spikeCount: 15, spikeRadius: 13, spikeLifetime: 640, damage: 2, spread: 0.42 },
+    // Gira em pé no lugar, como um pião (turnSpeed em radianos por ms), cuspindo topázios em volta.
+    // A varredura dos punhos (sweepRadius) machuca quem chega perto, como o giro do Garen e do Balmond.
+    spin: {
+        duration: 2200, burstInterval: 280, shardsPerBurst: 10, shardSpeed: 125, shardLifetime: 3000, damage: 1, turnSpeed: 0.022,
+        sweepRadius: 58, sweepDamage: 1,
+        // Persegue o jogador enquanto gira, mais rápido que andando (34).
+        chaseSpeed: 52
+    },
+    // Cutscenes rápidas aos 70% e aos 40%: a câmera vai até ele, ele ruge e a luta volta. calmBefore deixa ônibus e cadeias terminarem.
+    roar: {
+        calmBefore: 900, panTime: 380, duration: 1500, zoom: 1.45,
+        cutscenes: [{ at: 0.7, caption: 'O TOPAZIO DESPERTA' }, { at: 0.4, caption: 'FURIA DO TOPAZIO' }]
+    },
+    // Ônibus: vai até a baia, ergue acima da cabeça, mira no jogador e arremessa.
+    bus: { fetchSpeed: 130, liftTime: 450, holdTime: 1000, flightTime: 700, radius: 44, damage: 4, frameWidth: 112, frameHeight: 48, tilesWide: 7, tilesHigh: 3 },
+    busLayer: 'onibus',
+    // Um ônibus a cada limiar de vida. O golem não morre enquanto sobrar ônibus para arremessar.
+    busThresholds: [0.8, 0.6, 0.4, 0.2],
+    // Baias do room5.json (assets/ticen/gen_room5_map.py); `route` é a linha do ticen_onibus.png.
+    // O 763.2 via Kobrasol (Estrela, rota 3, coluna 38 da linha 29) fica de fora: é a fuga.
+    buses: [
+        { route: 0, col: 3, row: 11 },
+        { route: 1, col: 25, row: 11 },
+        { route: 2, col: 12, row: 20 },
+        { route: 4, col: 34, row: 20 }
+    ]
+} as const;
+
+/**
+ * Depois do golem: o 763.2 abre as portas com um feixe de luz e, na partida solo, o final dentro do ônibus.
+ * Tempos em milissegundos.
+ */
+export const TICEN_ESCAPE = {
+    // Porta da frente do 763.2: x 82-92, y 12-40 do ônibus no ticen_onibus.png, na baia da coluna 38, linha 29.
+    door: { x: 690, y: 476, width: 11, height: 29 },
+    bus: { route: 3, col: 38, row: 29 },
+    // Espera o golem estilhaçar antes de a câmera ir até o ônibus.
+    doorCutscene: { delay: 1700, hold: 1800, zoom: 1.6, caption: 'O 763.2 ABRIU AS PORTAS' },
+    interior: {
+        texture: 'onibus-interior',
+        path: 'assets/ui/onibus-interior.png',
+        frontTexture: 'onibus-interior-frente',
+        frontPath: 'assets/ui/onibus-interior-frente.png',
+        viewTexture: 'onibus-vista',
+        viewPath: 'assets/ui/onibus-vista.png',
+        // Gaúcho e homem-cachorro sentados nos outros bancos.
+        passengersTexture: 'onibus-passageiros',
+        passengersPath: 'assets/ui/onibus-passageiros.png',
+        // Céu com o sol vermelho e o mar: fica parado enquanto a ponte corre pela janela.
+        skyTexture: 'onibus-ceu',
+        skyPath: 'assets/ui/onibus-ceu.png',
+        // As imagens são 1/3 da tela (assets/ticen/gen_onibus_interior.py).
+        scale: 3,
+        // Escala do jogador na tela: maior que no mapa, na proporção dos bancos.
+        playerScale: 4.2,
+        // Em pixels da imagem: centro do assento, pés andando no corredor e pés sentado, escondidos atrás do
+        // assento e do banco da frente (o assento começa na linha 120).
+        seatX: 136,
+        floorY: 160,
+        seatedFeetY: 134,
+        // Linhas do quadro de lado (38x38) dos personagens: o quadril, a calça e o sapato.
+        seatedLegs: { hipRow: 29, pantsRows: [29, 31], shoeRows: [33, 35] },
+        walkTime: 1400,
+        seatedPause: 700,
+        departTime: 2400
+    },
+    departure: { distance: 460, duration: 2400 }
+} as const;
+
+/** Estágio de rachadura do golem (0 a 3): cada quarto de vida perdido racha mais o corpo. */
+export function getGolemStage(current: number, max: number) {
+    const ratio = max > 0 ? current / max : 0;
+    return Math.min(3, Math.max(0, Math.floor((1 - ratio) * 4)));
+}
+
+/** Quantos limiares de vida já foram cruzados: um ônibus ou uma cutscene para cada. */
+export function countThresholdsCrossed(current: number, max: number, thresholds: readonly number[]) {
+    return thresholds.filter((threshold) => current <= max * threshold).length;
+}
+
 /** O saldo do cartão é a pontuação da partida até aqui, escrito como dinheiro. */
 export function formatBalance(points: number) {
     return `R$ ${Math.max(0, Math.round(points)).toLocaleString('pt-BR')},00`;

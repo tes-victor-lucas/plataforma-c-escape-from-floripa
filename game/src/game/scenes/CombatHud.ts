@@ -8,6 +8,7 @@ import { RunResultView } from '../ui/RunResultView';
 import { runTracker } from '../scoring/RunTracker';
 import { DashCooldownView } from '../ui/DashCooldownView';
 import { TouchControlsView, type UseAction } from '../ui/TouchControlsView';
+import { BossHealthView, type BossHealth } from '../ui/BossHealthView';
 
 type HudData = {
     player: Player;
@@ -19,6 +20,8 @@ type HudData = {
     /** Só existe no multiplayer. */
     getDefeatTitle?: () => string | undefined;
     getCoopStatus?: () => { partnerHealth?: { current: number; max: number }; message: string };
+    /** Vida do chefe acordado; sem chefe, a barra do topo some. */
+    getBossHealth?: () => BossHealth | undefined;
 };
 
 /** Interface em uma câmera própria, independente do zoom e da posição do mapa. */
@@ -29,6 +32,7 @@ export class CombatHud extends Scene {
     private runStats: RunStatsHudView;
     private dashCooldown: DashCooldownView;
     private touchControls: TouchControlsView;
+    private bossHealth: BossHealthView;
     private partnerHearts?: HeartHealthView;
     private partnerLabel?: Phaser.GameObjects.Text;
     private coopMessage?: Phaser.GameObjects.Text;
@@ -45,6 +49,7 @@ export class CombatHud extends Scene {
         this.hearts = new HeartHealthView(this, 20, 32);
         this.runStats = new RunStatsHudView(this);
         this.dashCooldown = new DashCooldownView(this, 20, 84);
+        this.bossHealth = new BossHealthView(this);
         new PauseButtonView(this, data.onPause).create();
         this.touchControls = new TouchControlsView(this);
         this.touchControls.create();
@@ -80,6 +85,7 @@ export class CombatHud extends Scene {
         this.hearts.update(player.health.current, player.health.max);
         this.runStats.update();
         this.dashCooldown.update(player.getDashCharge());
+        this.bossHealth.update(this.dataSource.getBossHealth?.());
         this.touchControls.showUse(this.dataSource.getUseAction?.());
         const coop = this.dataSource.getCoopStatus?.();
         if (coop) {

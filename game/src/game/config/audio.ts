@@ -36,6 +36,24 @@ export const AUDIO_CONFIG = {
             key: 'wave-threat',
             path: 'assets/audio/horror-tension.wav',
             volume: 0.16
+        },
+        // Sons do golem (assets/topazio/gen_sons.py). A pancada do rugido cai junto com a da cutscene.
+        golemRoar: {
+            key: 'golem-roar',
+            path: 'assets/audio/golem-roar.wav',
+            volume: 0.3
+        },
+        // Baque no chão e um estalo de cristal para cada topázio da cadeia.
+        golemSlam: {
+            key: 'golem-slam',
+            path: 'assets/audio/golem-slam.wav',
+            volume: 0.28
+        },
+        // Dura o giro inteiro (2,2 s), com um sopro a cada punho que passa.
+        golemSpin: {
+            key: 'golem-spin',
+            path: 'assets/audio/golem-spin.wav',
+            volume: 0.22
         }
     },
     music: {

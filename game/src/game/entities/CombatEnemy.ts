@@ -13,7 +13,8 @@ export type EnemySpawn = Readonly<{
 /** Interface comum usada por ondas, projéteis e persistência de sala. */
 export interface CombatEnemy {
     readonly id: string;
-    readonly kind: EnemyKind;
+    /** `golem` é o chefe do TICEN: não nasce em horda, então fica fora de EnemyKind. */
+    readonly kind: EnemyKind | 'golem';
     readonly sprite: Phaser.Physics.Arcade.Sprite;
     readonly health: Health;
     /** Na horda o inimigo persegue de qualquer distância, mesmo sem ver o jogador. */

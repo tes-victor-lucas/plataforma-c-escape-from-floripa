@@ -131,7 +131,7 @@ const {
 const { RunTracker, runTracker } = load('../src/game/scoring/RunTracker.ts');
 const { SCORE_CONFIG } = load('../src/game/config/score.ts');
 
-test('pontuação v3 aplica dungeon, tempo, dano, mortes, multi-kill e vitória', () => {
+test('pontuação v4 aplica dungeon, tempo, dano, mortes, multi-kill e vitória', () => {
     const score = calculateScore({
         won: true,
         dungeonsCompleted: 1,
@@ -148,6 +148,7 @@ test('pontuação v3 aplica dungeon, tempo, dano, mortes, multi-kill e vitória'
         multiKillPoints: 350,
         damagePoints: 2_000,
         arcadePoints: 0,
+        topazPoints: 0,
         total: 10_530
     });
     assert.equal(calculateTimePoints(900_000), 0);
@@ -795,6 +796,17 @@ test('parede entre os personagens impede disparos dos dois lados', () => {
     combat.update(COMBAT_CONFIG.drone.fireInterval);
     assert.equal(groups[0].shots.length, 0);
     assert.equal(groups[1].shots.length, 0);
+});
+
+test('jogador atira no golem mesmo com quiosque ou pilar no meio, e o tiro atravessa até ele', () => {
+    const { combat, groups, drones } = setup([[150, 100]], [
+        { getLeft: () => 120, getTop: () => 90, width: 16, height: 32 }
+    ]);
+    drones[0].kind = 'golem';
+    combat.update(COMBAT_CONFIG.player.fireInterval);
+    assert.equal(groups[0].shots.length, 1, 'o golem fica por cima dos obstáculos e continua na mira');
+    assert.equal(combat.projectiles.get(groups[0].shots[0]).passesWalls, true);
+    assert.equal(groups[1].shots.length, 0, 'o golem não atira como drone');
 });
 
 test('tiro normal ganha 10% de dano e 5% de velocidade a cada sala', () => {
@@ -3802,6 +3814,18 @@ test('8080 dá uma carta forte aleatória só na room3', () => {
     assert.equal(hints[1], 'CARTAS FORTES NO MÁXIMO');
 });
 
+test('8080 na room5 tira 10% da vida máxima do golem a cada vez', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const hits = [];
+    world.isGameplayReady = true;
+    world.activeRoomKey = 'room5';
+    world.golem = { health: { isAlive: true, max: 400 }, takeDamage: (amount) => hits.push(amount) };
+    for (const key of '80808080') world.handleSecretCodeKey({ key, repeat: false });
+    assert.deepEqual(hits, [40, 40]);
+    assert.deepEqual(world.upgrades.exportProgress(), [], 'fora da room3 não dá carta');
+});
+
 test('drone forte aparece a partir da horda 2 da room2 e ganha +5 a cada horda', () => {
     const heavyIn = (room, wave) => getWaveEnemyKinds(room, wave, COMBAT_CONFIG.wavesByRoom[room][wave])
         .filter((kind) => kind === 'heavy-drone').length;
@@ -4062,4 +4086,60 @@ test('depois da Sala III os inimigos nascem com o dobro de vida, sem dobrar a vi
     world.savedEnemies = [{ x: 2000, y: 2000, health: 15, kind: 'drone' }];
     const saved = spawnIn('room4');
     assert.deepEqual([saved.current, saved.max], [15, 20], 'quem volta ferido não ganha vida extra');
+});
+
+test('golem que levou o golpe final com ônibus pendente morre sozinho depois do último arremesso', () => {
+    const { TopazioGolem } = load('../src/game/entities/TopazioGolem.ts');
+    const { TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const golem = Object.create(TopazioGolem.prototype);
+    let died = 0;
+    Object.assign(golem, {
+        health: new Health(TOPAZIO_BOSS.maxHealth),
+        buses: [{ route: 4, col: 34, row: 20 }],
+        busesThrown: 3,
+        roarsDone: 2,
+        action: 'walk',
+        actionTime: 0,
+        isDeathDeferred: false,
+        finishDeath() { died += 1; },
+        flashHit() {},
+        startFetch() { this.buses.length = 0; },
+        scene: { cameras: { main: { shake() {} } } },
+        stage: 3
+    });
+    golem.takeDamage(10_000);
+    assert.equal(golem.health.current, 1, 'ainda falta um ônibus: segura com 1 de vida');
+    assert.equal(died, 0);
+    const body = { setVelocity() {} };
+    golem.updateWalk(body, undefined, 16);
+    assert.equal(golem.buses.length, 0, 'primeiro vai buscar o último ônibus');
+    golem.busesThrown = 4;
+    golem.actionTime = TOPAZIO_BOSS.roar.calmBefore - 1;
+    golem.updateWalk(body, undefined, 16);
+    assert.equal(died, 0, 'espera o ônibus cair');
+    golem.actionTime = TOPAZIO_BOSS.roar.calmBefore;
+    golem.updateWalk(body, undefined, 16);
+    assert.equal(died, 1);
+    assert.equal(golem.health.isAlive, false);
+});
+
+test('pegar os 14 topázios do golem vale 2K pontos uma vez e passa pelo checkpoint', () => {
+    const base = { won: true, elapsedTimeMs: 0, enemiesDefeated: 0, hitsTaken: 5, multiKillBonuses: [] };
+    assert.equal(calculateScore({ ...base, topazAllCollected: true }).topazPoints, SCORE_CONFIG.topazBonus);
+    assert.equal(calculateScore({ ...base, topazAllCollected: true }).total - calculateScore(base).total, 2_000);
+
+    const tracker = new RunTracker();
+    const start = Date.parse('2026-01-01T00:00:00.000Z');
+    tracker.startNew('SINGLE_PLAYER', new Date(start));
+    assert.equal(tracker.snapshot(start).score.topazPoints, 0);
+    assert.equal(tracker.recordTopazCollection(), true);
+    assert.equal(tracker.recordTopazCollection(), false, 'o bônus vale uma vez');
+    assert.equal(tracker.snapshot(start).score.topazPoints, 2_000);
+    const checkpoint = tracker.checkpoint();
+    assert.equal(checkpoint.topazAllCollected, true);
+    const restored = new RunTracker();
+    restored.restore(checkpoint);
+    assert.equal(restored.snapshot(start).score.topazPoints, 2_000);
+    tracker.abandon();
+    restored.abandon();
 });
