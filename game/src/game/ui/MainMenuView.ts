@@ -47,7 +47,7 @@ export function createMainMenuActions(
 ): MenuAction[] {
     const actions: Omit<MenuAction, 'y'>[] = [{ label: 'JOGAR', onSelect: onPlay }];
     if (onLeaderboard) actions.push({ label: 'PLACAR', onSelect: onLeaderboard });
-    actions.push({ label: 'OPÇÕES' }, { label: 'SAIR' });
+    actions.push({ label: 'SAIR' });
     return positionActions(actions);
 }
 
