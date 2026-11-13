@@ -226,6 +226,8 @@ export const COMBAT_CONFIG = {
         reviveDuration: 3_000,
         reviveRadius: 28,
         reviveHealthRatio: 0.5,
+        // Piso de 2 corações ao levantar e ao recomeçar a sala em dupla.
+        reviveMinHealth: 4,
         maxRevives: 2
     },
     spawnDistanceFromPlayer: 180,

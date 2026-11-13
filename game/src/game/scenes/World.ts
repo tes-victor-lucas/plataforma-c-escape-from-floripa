@@ -124,6 +124,12 @@ import { isTouchScreen, touchInput } from '../input/TouchInput';
 
 type CoopCheckpoint = Readonly<{ roomKey: RoomKey; playerProgress: PlayerProgress; run?: RunCheckpoint }>;
 
+/** Quem recomeça a sala em dupla volta com pelo menos o piso de vida do reviver. */
+function withMinimumHealth(progress: PlayerProgress): PlayerProgress {
+    const floor = Math.min(progress.maxHealth, COMBAT_CONFIG.multiplayer.reviveMinHealth);
+    return { ...progress, currentHealth: Math.max(progress.currentHealth, floor) };
+}
+
 const PARTNER_PAUSE_TEXT: Record<PartnerPauseReason, string> = {
     pause: 'PARCEIRO PAUSOU',
     piranhas: 'PARCEIRO NO PIRANHAS'
@@ -704,7 +710,7 @@ export class World extends Scene {
             waitForReveal: false,
             roomKey,
             spawn: ROOM_DEFINITIONS[roomKey].spawn,
-            ...(checkpoint?.roomKey === roomKey ? { playerProgress: checkpoint.playerProgress } : {})
+            ...(checkpoint?.roomKey === roomKey ? { playerProgress: withMinimumHealth(checkpoint.playerProgress) } : {})
         });
     }
 
@@ -2903,7 +2909,8 @@ export class World extends Scene {
         if (!this.player || this.getRevivesLeft() === 0) return;
         multiplayerClient.revivesUsed += 1;
         const { max } = this.player.health;
-        this.player.revive(Math.ceil(max * COMBAT_CONFIG.multiplayer.reviveHealthRatio));
+        const { reviveHealthRatio, reviveMinHealth } = COMBAT_CONFIG.multiplayer;
+        this.player.revive(Math.min(max, Math.max(reviveMinHealth, Math.ceil(max * reviveHealthRatio))));
         this.reviveElapsed = 0;
         this.reviveBar?.clear();
     }
