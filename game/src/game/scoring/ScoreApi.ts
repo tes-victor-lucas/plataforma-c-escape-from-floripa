@@ -20,6 +20,8 @@ type VictoryPayload = Readonly<{
     hitsTaken: number;
     dungeonsCompleted: number;
     multiKills: readonly number[];
+    arcadeWon: boolean;
+    pausedMs: number;
 }>;
 
 const getBaseUrl = () => {

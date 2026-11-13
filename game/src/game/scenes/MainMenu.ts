@@ -11,11 +11,15 @@ import {
     type CampaignProgress
 } from '../progress/CampaignProgress';
 import { runTracker } from '../scoring/RunTracker';
+import { playIntroVideo } from '../ui/IntroVideo';
 
 const GAMEPLAY_SCENES = [
     'World',
     'CombatHud',
     'PauseMenu',
+    'ArcadeMinigame',
+    'ConfirmPrompt',
+    'WalletMenu',
     'RoomTransition'
 ] as const;
 
@@ -55,10 +59,17 @@ export class MainMenu extends Scene {
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopWatchingRooms());
     }
 
-    private startNewGame() {
+    private async startNewGame() {
         if (this.isStartingGame) return;
 
         this.isStartingGame = true;
+        // A abertura tem a própria trilha; o tempo da partida só começa depois dela.
+        musicDirector.stop(this, 300);
+        // A tecla que pula o vídeo não pode também mexer no menu que está embaixo.
+        if (this.input.keyboard) this.input.keyboard.enabled = false;
+        await playIntroVideo();
+        if (this.input.keyboard) this.input.keyboard.enabled = true;
+        if (!this.scene.isActive()) return;
         this.registry.set('multiplayerEnabled', false);
         clearCampaignProgress();
         runTracker.startNew('SINGLE_PLAYER');

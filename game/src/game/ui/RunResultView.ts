@@ -9,6 +9,8 @@ type RunResultOptions = Readonly<{
     onPrimary: () => void;
     /** No multiplayer uma nova partida começa pelo menu, com o parceiro. */
     retryLabel?: string;
+    /** Substitui o título padrão da derrota (pode ter quebra de linha). */
+    defeatTitle?: string;
     onQuit: () => void;
 }>;
 
@@ -42,10 +44,11 @@ export class RunResultView {
             ['TEMPO', score.timePoints],
             ['INIMIGOS', score.enemyPoints],
             ['MULTI-KILLS', score.multiKillPoints],
-            ['BONUS DE DANO', score.damagePoints]
+            ['BONUS DE DANO', score.damagePoints],
+            ['FLIPERAMA', score.arcadePoints]
         ];
         parts.forEach(([label, value], index) =>
-            this.addResultRow(menu, VICTORY_PANEL, label, formatPoints(value), 168 + index * 19));
+            this.addResultRow(menu, VICTORY_PANEL, label, formatPoints(value), 168 + index * 16));
 
         menu.addDivider(278, 42);
         this.addResultRow(
@@ -72,7 +75,10 @@ export class RunResultView {
             bounds: DEFEAT_PANEL,
             dimAlpha: 0.72
         });
-        menu.addTitle('VOCE FOI DERROTADO', 156, 'defeat', 'danger');
+        const { defeatTitle } = this.options;
+        const title = menu.addTitle(defeatTitle ?? 'VOCE FOI DERROTADO', 156, 'defeat', 'danger');
+        // Título longo em duas linhas: menor e um pouco abaixo, longe do ícone.
+        if (defeatTitle) title.setFontSize('22px').setY(160);
         const result = this.options.result;
         this.addCenteredInfo(
             menu,

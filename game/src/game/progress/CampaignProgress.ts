@@ -1,6 +1,7 @@
 import type { RoomKey } from '../config/rooms';
 import type { PlayerProgress } from './PlayerProgress';
 import { SCORE_VERSION } from '../config/score';
+import { isItemId } from '../config/items';
 import type { RunCheckpoint } from '../scoring/RunTracker';
 
 const STORAGE_KEY = 'escape-from-floripa:campaign-progress:v1';
@@ -28,7 +29,10 @@ function isPlayerProgress(value: unknown): value is PlayerProgress {
     return typeof progress.currentHealth === 'number'
         && typeof progress.maxHealth === 'number'
         && typeof progress.movementSpeedMultiplier === 'number'
-        && Array.isArray(progress.upgrades);
+        && Array.isArray(progress.upgrades)
+        // O localStorage pode ter sido editado: só aceita itens que existem no jogo.
+        && (progress.items === undefined || (Array.isArray(progress.items) && progress.items.every(isItemId)))
+        && (progress.equipped === undefined || (Array.isArray(progress.equipped) && progress.equipped.every(isItemId)));
 }
 
 function isRunCheckpoint(value: unknown): value is RunCheckpoint {
@@ -41,6 +45,8 @@ function isRunCheckpoint(value: unknown): value is RunCheckpoint {
         && Array.isArray(run.multiKills)
         && Array.isArray(run.defeatedEnemyIds)
         && Array.isArray(run.completedDungeonIds)
+        && typeof run.pausedMs === 'number'
+        && typeof run.arcadeWon === 'boolean'
         && run.scoreVersion === SCORE_VERSION
         && (run.mode === 'SINGLE_PLAYER' || run.mode === 'MULTIPLAYER')
         && run.status === 'RUNNING';
@@ -55,7 +61,8 @@ export function loadCampaignProgress(
         const serialized = storage.getItem(STORAGE_KEY);
         if (!serialized) return undefined;
         const progress = JSON.parse(serialized) as Partial<CampaignProgress>;
-        if ((progress.roomKey !== 'room2' && progress.roomKey !== 'room3') || !isPlayerProgress(progress.playerProgress)) {
+        const resumable = ['room1', 'room2', 'room3', 'room4', 'room5'];
+        if (!resumable.includes(progress.roomKey ?? '') || !isPlayerProgress(progress.playerProgress)) {
             return undefined;
         }
         if (progress.run !== undefined && !isRunCheckpoint(progress.run)) return undefined;
@@ -69,7 +76,7 @@ export function saveCampaignProgress(
     progress: CampaignProgress,
     storage: ProgressStorage | undefined = getBrowserStorage()
 ) {
-    if (!storage || progress.roomKey === 'room1') return;
+    if (!storage) return;
     storage.setItem(STORAGE_KEY, JSON.stringify(progress));
 }
 

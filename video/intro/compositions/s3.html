@@ -1,0 +1,29 @@
+<template>
+  <style>
+      #root { position: absolute; inset: 0; overflow: hidden; background: #04050a; font-family: 'PixelGamer', monospace; }
+      @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/PixelGamer-Regular.otf'); }
+      /* Como no jogo (src/main.ts): na PixelGamer, números e pontuação são desenhos; vêm da Pixeboy. */
+      @font-face { font-family: 'PixelGamer'; src: url('assets/fonts/Pixeboy.ttf');
+        unicode-range: U+24-26, U+2C, U+2E, U+30-3A; size-adjust: 140%; }
+      .full { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+      .art { position: absolute; left: -8px; top: 0; width: 1936px; height: 1080px; image-rendering: pixelated; }
+      .spr { position: absolute; overflow: hidden; }
+      .spr img { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
+      .cap { position: absolute; color: #ffffff; line-height: 1; letter-spacing: 3px; text-shadow: 5px 5px 0 #000000; z-index: 12;
+        white-space: nowrap; }
+      .red { color: #e90931; }
+      .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; perspective: 520px;
+        perspective-origin: 50% 12%; overflow: hidden; background: #04050a; }
+      .plane { position: absolute; overflow: hidden; transform-origin: 50% 100%; }
+      .plane img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+  </style>
+  <div id="root" data-composition-id="s3" data-width="1920" data-height="1080">
+      <div id="s3-l0" class="clip cap" data-start="0.15" data-duration="1.65" style="left:0;width:1920px;text-align:center;top:430px;font-size:72px;">QUEM SAI DA ROTA</div>
+      <div id="s3-l1" class="clip cap" data-start="0.85" data-duration="0.95" style="left:0;width:1920px;text-align:center;top:540px;font-size:72px;"><span class="red">VIRA AMEAÇA</span></div>
+  </div>
+  <script>
+      const tl = gsap.timeline({ paused: true });
+      
+      window.__timelines["s3"] = tl;
+  </script>
+</template>

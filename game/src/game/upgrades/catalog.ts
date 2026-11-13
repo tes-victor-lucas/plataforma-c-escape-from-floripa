@@ -82,9 +82,9 @@ export const UPGRADE_CARDS = [
         id: 'shock-pulse',
         kind: 'ability',
         title: 'Pulso de choque',
-        description: 'A cada 0,8 s, uma onda atinge todos à sua volta. +25 px de raio por nível.',
+        description: 'A cada 1,1 s, uma onda atinge todos à sua volta. +25 px de raio por nível.',
         maxLevel: 3,
-        effect: { type: 'shock-pulse', radius: 100, radiusPerLevel: 25, interval: 800, damageRatio: 1.5 }
+        effect: { type: 'shock-pulse', radius: 100, radiusPerLevel: 25, interval: 1_100, damageRatio: 1.25 }
     },
     {
         id: 'blast-shot',
@@ -100,31 +100,31 @@ export const UPGRADE_CARDS = [
         title: 'Faíscas orbitais',
         description: '4 faíscas giram em volta de você e ferem quem encostar. +2 por nível.',
         maxLevel: 3,
-        effect: { type: 'spark-orbit', count: 4, countPerLevel: 2, radius: 52, damageRatio: 1.5, hitInterval: 300 }
+        effect: { type: 'spark-orbit', count: 4, countPerLevel: 2, radius: 52, damageRatio: 1.25, hitInterval: 420 }
     },
     {
         id: 'chain-lightning',
         kind: 'ability',
         title: 'Raio em cadeia',
-        description: 'A cada 0,8 s, um raio salta entre até 8 inimigos. +4 saltos por nível.',
+        description: 'A cada 1,1 s, um raio salta entre até 8 inimigos. +4 saltos por nível.',
         maxLevel: 3,
-        effect: { type: 'chain-lightning', interval: 800, jumps: 8, jumpsPerLevel: 4, jumpRange: 90, damageRatio: 1 }
+        effect: { type: 'chain-lightning', interval: 1_100, jumps: 8, jumpsPerLevel: 4, jumpRange: 90, damageRatio: 0.85 }
     },
     {
         id: 'death-blast',
         kind: 'ability',
         title: 'Detonação',
-        description: 'Inimigos abatidos explodem com 150% do dano em volta. +15 px por nível.',
+        description: 'Inimigos abatidos explodem com 75% do dano em volta, sem reação em cadeia. +15 px por nível.',
         maxLevel: 2,
-        effect: { type: 'death-blast', radius: 55, radiusPerLevel: 15, damageRatio: 1.5 }
+        effect: { type: 'death-blast', radius: 55, radiusPerLevel: 15, damageRatio: 0.75 }
     },
     {
         id: 'light-beams',
         kind: 'ability',
         title: 'Feixes de luz',
-        description: 'A cada 1 s, 6 feixes cruzam a tela e ferem tudo na linha. +2 por nível.',
+        description: 'A cada 1,3 s, 6 feixes cruzam a tela e ferem tudo na linha. +2 por nível.',
         maxLevel: 3,
-        effect: { type: 'light-beams', beams: 6, beamsPerLevel: 2, length: 300, interval: 1_000, damageRatio: 2 }
+        effect: { type: 'light-beams', beams: 6, beamsPerLevel: 2, length: 300, interval: 1_300, damageRatio: 1.7 }
     },
     {
         id: 'heavy-rounds',
@@ -146,23 +146,56 @@ export const UPGRADE_CARDS = [
         id: 'thunder-storm',
         kind: 'ability',
         title: 'Tempestade elétrica',
-        description: 'A cada 0,5 s, um raio de 150% salta entre 12 inimigos. +6 por nível.',
+        description: 'A cada 0,75 s, um raio de 125% salta entre 12 inimigos. +6 por nível.',
         maxLevel: 2,
-        effect: { type: 'chain-lightning', interval: 500, jumps: 12, jumpsPerLevel: 6, jumpRange: 130, damageRatio: 1.5 }
+        effect: { type: 'chain-lightning', interval: 750, jumps: 12, jumpsPerLevel: 6, jumpRange: 130, damageRatio: 1.25 }
     },
     {
         id: 'nova-pulse',
         kind: 'ability',
         title: 'Nova de choque',
-        description: 'A cada 0,6 s, uma onda de 300% atinge 150 px em volta. +40 px por nível.',
+        description: 'A cada 0,85 s, uma onda de 250% atinge 150 px em volta. +40 px por nível.',
         maxLevel: 2,
-        effect: { type: 'shock-pulse', radius: 150, radiusPerLevel: 40, interval: 600, damageRatio: 3 }
+        effect: { type: 'shock-pulse', radius: 150, radiusPerLevel: 40, interval: 850, damageRatio: 2.5 }
+    },
+    {
+        id: 'spin-slash',
+        kind: 'ability',
+        title: 'Golpe giratório',
+        description: 'A cada 7 s, um corte sai de você em espiral e causa 900% até 170 px. +35 px por nível.',
+        maxLevel: 2,
+        effect: { type: 'spin-slash', radius: 170, radiusPerLevel: 35, interval: 7_000, damageRatio: 9 }
+    },
+    {
+        id: 'saw-orbit',
+        kind: 'ability',
+        title: 'Serras orbitais',
+        description: '3 serras de 250% giram mais longe à sua volta. +1 serra por nível.',
+        maxLevel: 3,
+        effect: { type: 'spark-orbit', count: 3, countPerLevel: 1, radius: 72, damageRatio: 2.5, hitInterval: 350 }
+    },
+    {
+        id: 'bombard',
+        kind: 'ability',
+        title: 'Bombardeio',
+        description: 'A cada 1,6 s, bombas de 300% caem em 4 inimigos. +2 alvos por nível.',
+        maxLevel: 2,
+        effect: { type: 'bombard', targets: 4, targetsPerLevel: 2, radius: 55, range: 220, interval: 1_600, damageRatio: 3 }
+    },
+    {
+        id: 'spiral-volley',
+        kind: 'ability',
+        title: 'Rajada espiral',
+        description: 'A cada 2 s, 12 fragmentos de 60% saem em espiral até 150 px. +4 por nível.',
+        maxLevel: 3,
+        effect: { type: 'spiral-volley', shards: 12, shardsPerLevel: 4, range: 150, interval: 2_000, damageRatio: 0.6 }
     }
 ] as const satisfies readonly UpgradeCardDefinition[];
 
 /** Cartas de dano em área, oferecidas antes da horda maior da Sala II. */
 export const AREA_UPGRADE_IDS: readonly UpgradeId[] = [
     'shock-pulse',
+    'spiral-volley',
     'blast-shot',
     'spark-orbit',
     'chain-lightning',
@@ -176,6 +209,13 @@ export const ROOM3_EXCLUSIVE_UPGRADE_IDS: readonly UpgradeId[] = [
     'overclock',
     'thunder-storm',
     'nova-pulse'
+];
+
+/** Cartas de área ainda mais fortes, oferecidas só ao vencer a horda 2 da Sala III. */
+export const ROOM3_FINAL_UPGRADE_IDS: readonly UpgradeId[] = [
+    'spin-slash',
+    'saw-orbit',
+    'bombard'
 ];
 
 /** Mesa da Sala III: as exclusivas embaralhadas com as cartas de área mais fortes da Sala II. */

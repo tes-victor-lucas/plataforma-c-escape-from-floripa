@@ -17,6 +17,7 @@ type HudData = {
     /** O que o botão USAR de toque faz agora; sem ação, o botão some. */
     getUseAction?: () => UseAction | undefined;
     /** Só existe no multiplayer. */
+    getDefeatTitle?: () => string | undefined;
     getCoopStatus?: () => { partnerHealth?: { current: number; max: number }; message: string };
 };
 
@@ -90,11 +91,13 @@ export class CombatHud extends Scene {
         const result = runTracker.snapshot();
         if (!this.resultShown && (result.status === 'WON' || result.status === 'LOST')) {
             this.resultShown = true;
+            const defeatTitle = result.status === 'LOST' ? this.dataSource.getDefeatTitle?.() : undefined;
             new RunResultView(this, {
                 result,
                 onPrimary: result.status === 'WON' ? this.dataSource.onQuit : this.dataSource.onRestart,
                 onQuit: this.dataSource.onQuit,
-                ...(this.dataSource.getCoopStatus ? { retryLabel: 'NOVA PARTIDA' } : {})
+                ...(this.dataSource.getCoopStatus ? { retryLabel: 'NOVA PARTIDA' } : {}),
+                ...(defeatTitle ? { defeatTitle } : {})
             }).create();
         }
     }

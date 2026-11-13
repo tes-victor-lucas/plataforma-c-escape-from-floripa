@@ -1,4 +1,4 @@
-export const SCORE_VERSION = 2;
+export const SCORE_VERSION = 3;
 
 export const SCORE_CONFIG = Object.freeze({
     victory: 1_000,
@@ -17,6 +17,11 @@ export const SCORE_CONFIG = Object.freeze({
     multiKill: Object.freeze({
         twoKills: 250,
         eachKillAfterSecond: 100
+    }),
+    // Fliperama do Mercado Público: o relógio para enquanto se joga, com teto igual ao do servidor.
+    arcade: Object.freeze({
+        winBonus: 5_000,
+        maxPausedMs: 360_000
     })
 });
 

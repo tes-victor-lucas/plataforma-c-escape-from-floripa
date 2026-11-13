@@ -1,18 +1,29 @@
 import { Math as PhaserMath, type Physics, type Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
-import { COMBAT_CONFIG } from '../config/combat';
+import { COMBAT_CONFIG, type EnemyKind } from '../config/combat';
 import type { CombatEnemy } from '../entities/CombatEnemy';
 import type { Player } from '../entities/Player';
 import { hasLineOfSight } from '../map/hasLineOfSight';
 import { playDamageNumber } from '../effects/playDamageNumber';
 import { playSwordHit } from '../effects/playSwordHit';
-import { playBeams, playExplosion, playLightning, playShockwave } from '../effects/playAreaEffects';
+import {
+    playBeams,
+    playExplosion,
+    playLightning,
+    playShockwave,
+    playSlash,
+    SPIN_SLASH_DURATION,
+    spinSlashReach
+} from '../effects/playAreaEffects';
 import { WORLD_CONFIG } from '../config/world';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import { runTracker, type RunTracker } from '../scoring/RunTracker';
 import type { PlayerEffect } from '../network/protocol';
 
 type Fighter = Player | CombatEnemy;
+
+/** Ritmo da Rajada espiral: um fragmento a cada 45 ms, 30° depois do anterior, a 420 px/s. */
+const SPIRAL_VOLLEY = { launchGap: 45, angleStep: Math.PI / 6, speed: 420, hitRadius: 12 };
 type Weapon = {
     damage: number;
     range: number;
@@ -54,6 +65,11 @@ export function createProjectileId(runId = 'untracked') {
 }
 
 /** Disparos automáticos, colisões e duração dos projéteis da sala. */
+/** Quem atira: drones comuns e fortes. Inimigos sem `kind` são dublês de testes antigos e contam como drone. */
+function isRangedEnemy(kind: EnemyKind | undefined) {
+    return kind === undefined || kind === 'drone' || kind === 'heavy-drone';
+}
+
 export class CombatSystem {
     private readonly playerShots: Physics.Arcade.Group;
     private readonly enemyShots: Physics.Arcade.Group;
@@ -66,8 +82,28 @@ export class CombatSystem {
     private heldSword?: Phaser.GameObjects.Image;
     private isSwingQueued = false;
     private pulseCooldown = 0;
+    /** Crescimento do tiro normal pela sala atual (getPlayerShotMultipliers). */
+    shotMultipliers = { damage: 1, speed: 1 };
     private chainCooldown = 0;
     private beamCooldown = 0;
+    private spinCooldown = 0;
+    private volleyCooldown = 0;
+    private volleyQueued = 0;
+    private volleyGap = 0;
+    private volleyAngle = 0;
+    /** Fragmentos da Rajada espiral em voo; cada um fere cada inimigo no máximo uma vez. */
+    private readonly volleyShards: {
+        origin: { x: number; y: number };
+        angle: number;
+        travelled: number;
+        hit: Set<CombatEnemy>;
+        attackId: string;
+        glow: Phaser.GameObjects.Arc;
+        core: Phaser.GameObjects.Arc;
+    }[] = [];
+    private bombardCooldown = 0;
+    /** Volta do Golpe giratório em andamento: quem já levou o corte nesta volta não leva de novo. */
+    private spin?: { elapsed: number; hit: Set<CombatEnemy>; attackId: string };
     private beamAngle = 0;
     private orbitAngle = 0;
     private readonly orbitSparks: { core: Phaser.GameObjects.Arc; glow: Phaser.GameObjects.Arc }[] = [];
@@ -114,8 +150,7 @@ export class CombatSystem {
 
     registerEnemy(enemy: CombatEnemy) {
         if (this.enemyCooldowns.has(enemy)) return;
-        // Inimigos sem `kind` são dublês de testes antigos e continuam como drones.
-        const isRanged = enemy.kind === 'drone' || enemy.kind === undefined;
+        const isRanged = isRangedEnemy(enemy.kind);
         this.enemyCooldowns.set(enemy, isRanged ? COMBAT_CONFIG.drone.fireInterval : 0);
         if (this.partnerShots) {
             this.scene.physics.add.overlap(enemy.sprite, this.partnerShots, (_target, shot) => {
@@ -211,7 +246,7 @@ export class CombatSystem {
                 nearest = enemy;
                 nearestDistance = distance;
             }
-            const isRanged = enemy.kind === 'drone' || enemy.kind === undefined;
+            const isRanged = isRangedEnemy(enemy.kind);
             if (!this.network && isRanged && distance <= COMBAT_CONFIG.drone.range ** 2 && cooldown === 0) {
                 this.fire(enemy, this.player, this.enemyShots, COMBAT_CONFIG.drone);
                 this.enemyCooldowns.set(enemy, COMBAT_CONFIG.drone.fireInterval);
@@ -236,6 +271,123 @@ export class CombatSystem {
         this.updateOrbit(delta);
         this.updateChainLightning(delta);
         this.updateBeams(delta);
+        this.updateSpinSlash(delta);
+        this.updateBombard(delta);
+        this.updateSpiralVolley(delta);
+    }
+
+    /** Rajada espiral: um fragmento por vez sai do jogador, cada um 30° depois do anterior. */
+    private updateSpiralVolley(delta: number) {
+        const { volleyShards, volleyRange, volleyInterval, volleyDamageRatio, damage } = this.playerStats;
+        if (volleyShards > 0) {
+            if (this.volleyQueued === 0) {
+                this.volleyCooldown -= delta;
+                if (this.volleyCooldown <= 0) {
+                    this.volleyCooldown = volleyInterval;
+                    this.volleyQueued = volleyShards;
+                    this.volleyGap = 0;
+                }
+            }
+            this.volleyGap -= delta;
+            while (this.volleyQueued > 0 && this.volleyGap <= 0) {
+                this.launchVolleyShard();
+                this.volleyQueued -= 1;
+                this.volleyGap += SPIRAL_VOLLEY.launchGap;
+            }
+        }
+        for (let index = this.volleyShards.length - 1; index >= 0; index -= 1) {
+            const shard = this.volleyShards[index];
+            shard.travelled = Math.min(volleyRange, shard.travelled + SPIRAL_VOLLEY.speed * delta / 1000);
+            const x = shard.origin.x + Math.cos(shard.angle) * shard.travelled;
+            const y = shard.origin.y + Math.sin(shard.angle) * shard.travelled;
+            shard.glow.setPosition(x, y);
+            shard.core.setPosition(x, y);
+            for (const enemy of this.enemies) {
+                if (!enemy.health.isAlive || shard.hit.has(enemy)) continue;
+                const target = this.getCenter(enemy);
+                if (Math.hypot(target.x - x, target.y - y) > SPIRAL_VOLLEY.hitRadius) continue;
+                shard.hit.add(enemy);
+                this.hitEnemy(enemy, damage * volleyDamageRatio, { x: Math.cos(shard.angle), y: Math.sin(shard.angle) }, shard.attackId);
+            }
+            if (shard.travelled < volleyRange) continue;
+            this.tracker.finalizeProjectile(shard.attackId);
+            shard.glow.destroy();
+            shard.core.destroy();
+            this.volleyShards.splice(index, 1);
+        }
+    }
+
+    private launchVolleyShard() {
+        const origin = this.getCenter(this.player);
+        const attackId = createProjectileId(this.tracker.snapshot().runId);
+        this.tracker.registerProjectile(attackId);
+        const angle = this.volleyAngle;
+        this.volleyAngle += SPIRAL_VOLLEY.angleStep;
+        this.volleyShards.push({
+            origin: { x: origin.x, y: origin.y },
+            angle,
+            travelled: 0,
+            hit: new Set(),
+            attackId,
+            // Halo vermelho somado ao mapa e núcleo branco, como o Golpe giratório.
+            glow: this.scene.add.circle(origin.x, origin.y, 5, 0xe90931, 0.55).setDepth(14).setBlendMode(1),
+            core: this.scene.add.circle(origin.x, origin.y, 2, 0xffffff).setDepth(15)
+        });
+    }
+
+    /** Golpe giratório: a lâmina sai do jogador em espiral e fere cada inimigo do raio quando chega nele. */
+    private updateSpinSlash(delta: number) {
+        const { spinRadius, spinInterval, spinDamageRatio, damage } = this.playerStats;
+        if (spinRadius <= 0) return;
+        const center = this.getCenter(this.player);
+        if (!this.spin) {
+            this.spinCooldown -= delta;
+            if (this.spinCooldown > 0) return;
+            this.spinCooldown = spinInterval;
+            const attackId = createProjectileId(this.tracker.snapshot().runId);
+            this.tracker.registerProjectile(attackId);
+            this.spin = { elapsed: 0, hit: new Set(), attackId };
+            this.shareEffect({ effect: 'slash', ...center, radius: spinRadius, color: 0xdff6ff });
+        }
+        const spin = this.spin;
+        spin.elapsed = Math.min(SPIN_SLASH_DURATION, spin.elapsed + delta);
+        const reach = spinSlashReach(spinRadius, spin.elapsed / SPIN_SLASH_DURATION);
+        for (const enemy of this.enemies) {
+            if (!enemy.health.isAlive || spin.hit.has(enemy)) continue;
+            const target = this.getCenter(enemy);
+            const dx = target.x - center.x;
+            const dy = target.y - center.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance > reach) continue;
+            spin.hit.add(enemy);
+            this.hitEnemy(enemy, damage * spinDamageRatio, distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 1 }, spin.attackId);
+        }
+        if (spin.elapsed < SPIN_SLASH_DURATION) return;
+        this.tracker.finalizeProjectile(spin.attackId);
+        this.spin = undefined;
+    }
+
+    /** Bombardeio: explosões caem do alto sobre os inimigos mais perto, mesmo atrás de paredes. */
+    private updateBombard(delta: number) {
+        const { bombardTargets, bombardRadius, bombardRange, bombardInterval, bombardDamageRatio, damage } = this.playerStats;
+        if (bombardTargets <= 0) return;
+        this.bombardCooldown -= delta;
+        if (this.bombardCooldown > 0) return;
+        const origin = this.getCenter(this.player);
+        const targets = this.enemies
+            .filter((enemy) => enemy.health.isAlive)
+            .map((enemy) => ({ center: this.getCenter(enemy), enemy }))
+            .map((entry) => ({ ...entry, distance: Math.hypot(entry.center.x - origin.x, entry.center.y - origin.y) }))
+            .filter(({ distance }) => distance <= bombardRange)
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, bombardTargets);
+        // Sem alvo, tenta de novo no próximo quadro em vez de gastar a recarga.
+        if (targets.length === 0) return;
+        this.bombardCooldown = bombardInterval;
+        for (const { center } of targets) {
+            this.shareEffect({ effect: 'explosion', ...center, radius: bombardRadius, color: 0xffb347 });
+            this.damageArea(center, bombardRadius, damage * bombardDamageRatio, undefined, undefined, true, false);
+        }
     }
 
     /** Faíscas orbitais: cada inimigo leva no máximo um toque por intervalo. */
@@ -256,16 +408,18 @@ export class CombatSystem {
             else this.orbitHits.set(enemy, cooldown - delta);
         }
         const center = this.getCenter(this.player);
+        // Com as Serras orbitais, cada faísca vira uma serra maior.
+        const size = orbitDamageRatio >= 2 ? 1.6 : 1;
         this.orbitSparks.forEach((spark, index) => {
             const angle = this.orbitAngle + index * Math.PI * 2 / orbitCount;
             const x = center.x + Math.cos(angle) * orbitRadius;
             const y = center.y + Math.sin(angle) * orbitRadius;
-            spark.glow.setPosition(x, y);
-            spark.core.setPosition(x, y);
+            spark.glow.setPosition(x, y).setScale(size);
+            spark.core.setPosition(x, y).setScale(size);
             for (const enemy of this.enemies) {
                 if (!enemy.health.isAlive || this.orbitHits.has(enemy)) continue;
                 const target = this.getCenter(enemy);
-                if (Math.hypot(target.x - x, target.y - y) > 12) continue;
+                if (Math.hypot(target.x - x, target.y - y) > 12 * size) continue;
                 this.orbitHits.set(enemy, orbitHitInterval);
                 this.withAttack((id) => this.hitEnemy(enemy, damage * orbitDamageRatio, {
                     x: Math.cos(angle + Math.PI / 2),
@@ -340,7 +494,6 @@ export class CombatSystem {
         this.scene.sound.play(sound.key, { volume: sound.volume });
     }
 
-    /** Detonação: o abatido explode; outra morte na explosão continua a cadeia. */
     /** No convidado, o abate chega confirmado pelo anfitrião; a detonação sai das cartas de quem matou. */
     detonateConfirmedKill(enemy: CombatEnemy, attackId: string) {
         this.detonate(enemy, attackId);
@@ -351,7 +504,8 @@ export class CombatSystem {
         if (deathBlastRadius <= 0) return;
         const center = this.getCenter(enemy);
         this.shareEffect({ effect: 'explosion', ...center, radius: deathBlastRadius, color: 0xff4f6d });
-        this.damageArea(center, deathBlastRadius, damage * deathBlastDamageRatio, enemy, attackId);
+        // Quem morre na explosão não explode de novo: sem cadeia, a carta não limpa a horda inteira.
+        this.damageArea(center, deathBlastRadius, damage * deathBlastDamageRatio, enemy, attackId, false);
     }
 
     private shareEffect(effect: PlayerEffect) {
@@ -365,6 +519,7 @@ export class CombatSystem {
             case 'explosion': return playExplosion(this.scene, effect.x, effect.y, effect.radius, effect.color);
             case 'lightning': return playLightning(this.scene, effect.points, effect.color);
             case 'beams': return playBeams(this.scene, effect.origin, effect.angles, effect.length, effect.color);
+            case 'slash': return playSlash(this.scene, effect.x, effect.y, effect.radius, effect.color);
         }
     }
 
@@ -385,7 +540,8 @@ export class CombatSystem {
         this.pulseCooldown = pulseInterval;
         const origin = this.getCenter(this.player);
         this.shareEffect({ effect: 'shockwave', ...origin, radius: pulseRadius, color: COMBAT_CONFIG.player.color });
-        this.damageArea(origin, pulseRadius, damage * pulseDamageRatio);
+        // A onda sai do jogador e atravessa obstáculos: pega quem está atrás de árvore, banco ou poste.
+        this.damageArea(origin, pulseRadius, damage * pulseDamageRatio, undefined, undefined, true, false);
     }
 
     /** Tiro explosivo: o inimigo atingido já levou o dano cheio, os vizinhos levam uma parte. */
@@ -402,7 +558,9 @@ export class CombatSystem {
         radius: number,
         damage: number,
         except?: CombatEnemy,
-        attackId?: string
+        attackId?: string,
+        canDetonate = true,
+        needsLineOfSight = true
     ) {
         const strike = (id: string) => {
             for (const enemy of this.enemies) {
@@ -411,8 +569,8 @@ export class CombatSystem {
                 const dx = target.x - origin.x;
                 const dy = target.y - origin.y;
                 const distance = Math.hypot(dx, dy);
-                if (distance > radius || !hasLineOfSight(this.walls, origin, target)) continue;
-                this.hitEnemy(enemy, damage, distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 1 }, id);
+                if (distance > radius || (needsLineOfSight && !hasLineOfSight(this.walls, origin, target))) continue;
+                this.hitEnemy(enemy, damage, distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 1 }, id, canDetonate);
             }
         };
         if (attackId) strike(attackId);
@@ -420,7 +578,13 @@ export class CombatSystem {
     }
 
     /** Dano fora do projétil (espada e área); no convidado, quem decide é o anfitrião. */
-    private hitEnemy(enemy: CombatEnemy, damage: number, direction: { x: number; y: number }, attackId: string) {
+    private hitEnemy(
+        enemy: CombatEnemy,
+        damage: number,
+        direction: { x: number; y: number },
+        attackId: string,
+        canDetonate = true
+    ) {
         if (this.network && !this.network.isHost) {
             this.network.onEnemyHit(enemy, damage, direction);
             return;
@@ -435,7 +599,7 @@ export class CombatSystem {
         if (!enemy.health.isAlive) {
             this.tracker.recordEnemyDeath(enemy.id, attackId);
             this.onEnemyKilled();
-            this.detonate(enemy, attackId);
+            if (canDetonate) this.detonate(enemy, attackId);
         }
     }
 
@@ -577,7 +741,7 @@ export class CombatSystem {
     }
 
     private fireAtNearestPlayer(enemy: CombatEnemy, origin: { x: number; y: number }, cooldown: number) {
-        const isRanged = enemy.kind === 'drone' || enemy.kind === undefined;
+        const isRanged = isRangedEnemy(enemy.kind);
         if (!isRanged || cooldown > 0) return;
         const target = this.network?.getEnemyTarget(origin);
         const center = target?.sprite.body?.center;
@@ -614,8 +778,8 @@ export class CombatSystem {
         const angle = Math.atan2(destination.y - origin.y, destination.x - origin.x);
         const weapon: Weapon = {
             range: this.playerStats.range,
-            damage: this.playerStats.damage,
-            projectileSpeed: this.playerStats.projectileSpeed,
+            damage: this.playerStats.damage * this.shotMultipliers.damage,
+            projectileSpeed: this.playerStats.projectileSpeed * this.shotMultipliers.speed,
             fireInterval: this.playerStats.fireInterval,
             color: COMBAT_CONFIG.player.color
         };

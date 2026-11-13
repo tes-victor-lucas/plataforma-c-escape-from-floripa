@@ -7,6 +7,8 @@ export type RoomGatewayDefinition = {
     portal: Readonly<{ x: number; y: number }>;
     /** Parede onde o halo da saída se apoia; sem ela o halo é um círculo inteiro. */
     portalWall?: 'right';
+    /** Escala do halo; menor quando a saída é só o fim da rua, sem parede desenhada. */
+    portalScale?: number;
 };
 
 /** Passagem liberada no topo da Room 1 depois da última onda. */
@@ -31,12 +33,35 @@ export const ROOM2_TO_ROOM3_GATEWAY: RoomGatewayDefinition = {
 };
 
 /** Saídas que abrem ao vencer a sala; no máximo uma por sala. */
-export const ROOM_EXIT_GATEWAYS = [ROOM1_TO_ROOM2_GATEWAY, ROOM2_TO_ROOM3_GATEWAY];
+/** Fim da rua na borda direita da Sala III: segue para o Mercado Público. Mesma parede da Sala II. */
+export const ROOM3_TO_ROOM4_GATEWAY: RoomGatewayDefinition = {
+    from: 'room3',
+    to: 'room4',
+    area: { left: 43 * 16, right: 46 * 16, top: 18 * 16, bottom: 22 * 16 },
+    portal: { x: 46 * 16 - 2, y: 20 * 16 },
+    portalWall: 'right'
+};
+
+/** Fim da rua na borda direita da Sala IV: segue pela Paulo Fontes até o TICEN. */
+export const ROOM4_TO_ROOM5_GATEWAY: RoomGatewayDefinition = {
+    from: 'room4',
+    to: 'room5',
+    // Sem parede nessa borda: o limite do mundo (x 768) para o jogador.
+    area: { left: 45 * 16, right: 48 * 16, top: 18 * 16, bottom: 23 * 16 },
+    portal: { x: 48 * 16 - 2, y: 20.5 * 16 },
+    portalWall: 'right',
+    // Sem parede nessa borda: um halo do tamanho da rua, para não parecer um sol solto.
+    portalScale: 0.55
+};
+
+export const ROOM_EXIT_GATEWAYS = [ROOM1_TO_ROOM2_GATEWAY, ROOM2_TO_ROOM3_GATEWAY, ROOM3_TO_ROOM4_GATEWAY, ROOM4_TO_ROOM5_GATEWAY];
 
 /** Passagem para uma dungeon: sem parede, basta pisar na área (bueiro); com parede, é preciso encostar nela. */
 export type SecretDungeonGateway = RoomGatewayDefinition & {
-    wall?: 'left' | 'right';
+    wall?: 'left' | 'right' | 'up';
     returnSpawn: Readonly<{ x: number; y: number }>;
+    /** Perguntas antes de entrar e de sair; sem elas, a passagem é imediata. */
+    confirm?: Readonly<{ enter: string; exit: string }>;
 };
 
 /** Fresta escondida na última parede, e não em toda a lateral do Terminal Velho. */
@@ -54,11 +79,23 @@ export const ROOM2_TO_DUNGEON_GATEWAY: SecretDungeonGateway = {
     portal: { x: 45 * 16 - 2, y: 28 * 16 }
 };
 
+/**
+ * Setas pintadas nas placas azuis da passarela do Terminal Velho, apontando para a fresta secreta.
+ * Sem brilho: o explorador atento percebe, mas a passagem continua escondida.
+ */
+export const ROOM2_DUNGEON_SIGNS = [
+    { x: 33 * 16, y: 26.5 * 16, text: '>' },
+    { x: 39 * 16, y: 26.5 * 16, text: '>>' },
+    { x: 44 * 16, y: 26.5 * 16, text: '>>>' }
+] as const;
+
 /** Bueiro de 2×2 blocos no chão da Room 1; pisar na tampa (sem o aro) leva ao esconderijo. */
 export const ROOM1_TO_GAUCHO_DUNGEON_GATEWAY: SecretDungeonGateway = {
     from: 'room1',
     to: 'gaucho-dungeon',
     returnSpawn: { x: 9 * 16, y: 26.5 * 16 },
+    // Na briga é fácil pisar no bueiro ou na saída sem querer.
+    confirm: { enter: 'ENTRAR NO ESCONDERIJO?', exit: 'SAIR DO ESCONDERIJO?' },
     // A área é testada contra os pés do jogador, que ficam numa hitbox de poucos pixels.
     area: {
         left: 7 * 16 - 12,
@@ -69,7 +106,18 @@ export const ROOM1_TO_GAUCHO_DUNGEON_GATEWAY: SecretDungeonGateway = {
     portal: { x: 7 * 16, y: 26.5 * 16 }
 };
 
-export const SECRET_DUNGEON_GATEWAYS = [ROOM2_TO_DUNGEON_GATEWAY, ROOM1_TO_GAUCHO_DUNGEON_GATEWAY];
+/** Portal central do Mercado Público na Sala IV: encostar nele vindo da calçada leva para dentro. */
+export const ROOM4_TO_MERCADO_GATEWAY: SecretDungeonGateway = {
+    from: 'room4',
+    to: 'mercado-interior',
+    wall: 'up',
+    returnSpawn: { x: 384, y: 252 },
+    // Vão do portal (x 358-410 no mapa); o corpo do jogador encosta na fachada logo abaixo da linha 14.
+    area: { left: 364, right: 404, top: 220, bottom: 238 },
+    portal: { x: 384, y: 224 }
+};
+
+export const SECRET_DUNGEON_GATEWAYS = [ROOM2_TO_DUNGEON_GATEWAY, ROOM1_TO_GAUCHO_DUNGEON_GATEWAY, ROOM4_TO_MERCADO_GATEWAY];
 
 export function isInsideRoomGateway(
     x: number,

@@ -4,7 +4,7 @@ const EVENT_KINDS = new Set([
     'enemy.spawn', 'enemy.snapshot', 'enemy.shot', 'enemy.hit', 'enemy.killed',
     'player.shot', 'player.damage', 'world.ready', 'wave.intermission', 'combat.complete',
     'cards.chosen', 'cards.released', 'room.request', 'room.transition',
-    'player.swing', 'enemy.strike', 'item.drop', 'item.collected'
+    'player.swing', 'enemy.strike', 'item.drop', 'item.collected', 'player.effect'
 ]);
 const MAX_EVENT_BYTES = 16_384;
 
@@ -72,6 +72,8 @@ export class MatchAgent {
 
     sanitizeState(message) {
         const { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft, character = 'padrao' } = message;
+        // Faíscas orbitais e drone companheiro vão no estado; sem eles o parceiro não vê essas cartas.
+        const { orbitCount = 0, orbitRadius = 0, companion = false } = message;
         if (
             !Number.isSafeInteger(sequence)
             || sequence < 0
@@ -91,8 +93,15 @@ export class MatchAgent {
             || !Number.isSafeInteger(revivesLeft)
             || revivesLeft < 0
             || !CHARACTERS.has(character)
+            || !Number.isSafeInteger(orbitCount)
+            || orbitCount < 0
+            || orbitCount > 32
+            || !Number.isFinite(orbitRadius)
+            || orbitRadius < 0
+            || orbitRadius > 1000
+            || typeof companion !== 'boolean'
         ) return undefined;
 
-        return { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft, character };
+        return { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft, character, orbitCount, orbitRadius, companion };
     }
 }

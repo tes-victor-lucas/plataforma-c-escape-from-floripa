@@ -31,7 +31,7 @@ export const PIRANHAS_BAR_ITEMS = [
         kind: 'stat',
         theme: 'yellow',
         label: 'BEBIDA',
-        title: 'Gin de 10 Tropical',
+        title: 'Copão de 10 Tropical',
         description: 'Aumenta a velocidade de movimento em 25%.',
         texture: 'piranhas-gin-tropical'
     },
@@ -40,7 +40,7 @@ export const PIRANHAS_BAR_ITEMS = [
         kind: 'stat',
         theme: 'red',
         label: 'BEBIDA',
-        title: 'Gin de 10 Melancia',
+        title: 'Copão de 10 Melancia',
         description: 'Adiciona um coração e recupera essa vida.',
         texture: 'piranhas-gin-melancia'
     },

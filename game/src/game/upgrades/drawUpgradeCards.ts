@@ -1,4 +1,4 @@
-import { AREA_UPGRADE_IDS, ROOM3_EXCLUSIVE_UPGRADE_IDS, UPGRADE_CARDS } from './catalog';
+import { AREA_UPGRADE_IDS, ROOM3_EXCLUSIVE_UPGRADE_IDS, ROOM3_FINAL_UPGRADE_IDS, UPGRADE_CARDS } from './catalog';
 import type { UpgradeCardDefinition, UpgradeId } from './types';
 
 type RandomSource = () => number;
@@ -63,5 +63,10 @@ export function basicUpgradeCards(availableCards: readonly UpgradeCardDefinition
 
 /** As cartas exclusivas da Sala III não vazam para as salas anteriores. */
 export function withoutRoom3Cards(availableCards: readonly UpgradeCardDefinition[]) {
-    return availableCards.filter((card) => !ROOM3_EXCLUSIVE_UPGRADE_IDS.includes(card.id));
+    return withoutRoom3FinalCards(availableCards).filter((card) => !ROOM3_EXCLUSIVE_UPGRADE_IDS.includes(card.id));
+}
+
+/** As cartas do fim da Sala III só aparecem depois da horda 2 dela. */
+export function withoutRoom3FinalCards(availableCards: readonly UpgradeCardDefinition[]) {
+    return availableCards.filter((card) => !ROOM3_FINAL_UPGRADE_IDS.includes(card.id));
 }

@@ -18,9 +18,9 @@ export class RoomExitPortal {
     private readonly objects: Phaser.GameObjects.GameObject[];
     private readonly pulses: Phaser.Tweens.Tween[];
 
-    constructor(scene: Scene, x: number, y: number, wall?: 'right') {
+    constructor(scene: Scene, x: number, y: number, wall?: 'right', size = 1) {
         const style = ROOM_EXIT_LIGHT_STYLE;
-        const scale = wall ? style.wallScale : 1;
+        const scale = (wall ? style.wallScale : 1) * size;
         const spill = createLampLight(scene, x, y, PORTAL_DEPTH, style.spillAlpha)
             .setScale(style.spillScale * scale);
         const light = createLampLight(scene, x, y, PORTAL_DEPTH + 1, style.mainAlpha)

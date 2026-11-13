@@ -13,7 +13,7 @@ from typing import Any
 import boto3
 from botocore.exceptions import ClientError
 
-from score import SCORE_VERSION, calculate_score
+from score import MAX_ARCADE_PAUSE_MS, SCORE_VERSION, calculate_score
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
@@ -131,9 +131,14 @@ def _finish_victory(event: dict[str, Any], run_id: str) -> dict[str, Any]:
     multi_kills = [_bounded_integer(value, 2, 100_000) for value in raw_multi_kills]
     if sum(multi_kills) > enemies:
         raise ValueError("Multi-kills incompatíveis com as mortes")
+    arcade_won = body.get("arcadeWon")
+    if not isinstance(arcade_won, bool):
+        raise ValueError("Resultado do fliperama inválido")
+    paused_ms = _bounded_integer(body.get("pausedMs"), 0, MAX_ARCADE_PAUSE_MS)
 
     completed_at, completed_epoch_ms = _now()
-    elapsed_ms = max(0, completed_epoch_ms - int(run["startedAtEpochMs"]))
+    # shortcut: pausedMs vem do cliente, só limitado pelo teto; se virar abuso, marcar a pausa no servidor.
+    elapsed_ms = max(0, completed_epoch_ms - int(run["startedAtEpochMs"]) - paused_ms)
     breakdown = calculate_score(
         won=True,
         elapsed_time_ms=elapsed_ms,
@@ -141,6 +146,7 @@ def _finish_victory(event: dict[str, Any], run_id: str) -> dict[str, Any]:
         hits_taken=hits,
         dungeons_completed=dungeons,
         multi_kills=multi_kills,
+        arcade_won=arcade_won,
     )
     try:
         TABLE.update_item(

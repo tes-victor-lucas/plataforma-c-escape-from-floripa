@@ -178,6 +178,41 @@ export function createUpgradeIcon(
             }
             icon.fillCircle(0, 0, 5);
             break;
+        case 'spin-slash':
+            // Meia-lua girando em volta de um ponto.
+            icon.fillCircle(0, 0, 4);
+            icon.beginPath().arc(0, 0, 24, -Math.PI * 0.95, Math.PI * 0.1).strokePath();
+            icon.beginPath().arc(0, 0, 17, -Math.PI * 0.6, Math.PI * 0.1).strokePath();
+            drawLine(icon, 24 * Math.cos(Math.PI * 0.1), 24 * Math.sin(Math.PI * 0.1), 17 * Math.cos(Math.PI * 0.1), 17 * Math.sin(Math.PI * 0.1));
+            break;
+        case 'saw-orbit':
+            icon.strokeCircle(0, 0, 21);
+            for (const angle of [-Math.PI / 2, Math.PI / 6, Math.PI * 5 / 6]) {
+                const x = Math.cos(angle) * 21;
+                const y = Math.sin(angle) * 21;
+                icon.fillCircle(x, y, 6);
+                for (let tooth = 0; tooth < 6; tooth += 1) {
+                    const toothAngle = tooth * Math.PI / 3;
+                    drawLine(icon, x + Math.cos(toothAngle) * 6, y + Math.sin(toothAngle) * 6, x + Math.cos(toothAngle) * 10, y + Math.sin(toothAngle) * 10);
+                }
+            }
+            break;
+        case 'spiral-volley':
+            // Pontos que se afastam do centro girando: a espiral de fragmentos.
+            icon.fillCircle(0, 0, 3);
+            for (let index = 1; index <= 7; index += 1) {
+                const angle = -Math.PI / 2 + index * Math.PI / 3.2;
+                const reach = 6 + index * 3.3;
+                icon.fillCircle(Math.cos(angle) * reach, Math.sin(angle) * reach, 1.5 + index * 0.45);
+            }
+            break;
+        case 'bombard':
+            // Bombas caindo sobre dois alvos.
+            icon.strokeCircle(-12, 14, 9).strokeCircle(14, 10, 9);
+            icon.fillCircle(-12, -14, 5).fillCircle(14, -18, 5);
+            drawLine(icon, -12, -8, -12, 2);
+            drawLine(icon, 14, -12, 14, -2);
+            break;
         case 'gin-tropical':
             drawDrink(icon, true);
             break;

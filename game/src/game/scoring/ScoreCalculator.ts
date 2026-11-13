@@ -7,6 +7,7 @@ export type ScoreBreakdown = Readonly<{
     enemyPoints: number;
     multiKillPoints: number;
     damagePoints: number;
+    arcadePoints: number;
     total: number;
 }>;
 
@@ -18,6 +19,7 @@ export type ScoreInput = Readonly<{
     enemiesDefeated: number;
     hitsTaken: number;
     multiKillBonuses: readonly number[];
+    arcadeWon?: boolean;
 }>;
 
 export function calculateTimePoints(elapsedTimeMs: number) {
@@ -55,9 +57,10 @@ export function calculateScore(input: ScoreInput): ScoreBreakdown {
         0
     );
     const damagePoints = completed ? calculateDamagePoints(input.hitsTaken) : 0;
+    const arcadePoints = input.arcadeWon ? SCORE_CONFIG.arcade.winBonus : 0;
     const total = Math.max(
         0,
-        victoryPoints + dungeonPoints + timePoints + enemyPoints + multiKillPoints + damagePoints
+        victoryPoints + dungeonPoints + timePoints + enemyPoints + multiKillPoints + damagePoints + arcadePoints
     );
     return {
         victoryPoints,
@@ -66,6 +69,7 @@ export function calculateScore(input: ScoreInput): ScoreBreakdown {
         enemyPoints,
         multiKillPoints,
         damagePoints,
+        arcadePoints,
         total
     };
 }

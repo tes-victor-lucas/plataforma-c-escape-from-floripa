@@ -5,7 +5,7 @@ export const ROOM2_STAIR_GUARD_SPAWNS = [
     { x: 240, y: 352, patrolLeft: 232, patrolRight: 248 }
 ] as const;
 
-export type EnemyKind = 'drone' | 'scooter' | 'bike' | 'guard' | 'gaucho';
+export type EnemyKind = 'drone' | 'heavy-drone' | 'scooter' | 'bike' | 'guard' | 'gaucho';
 
 /** Primeira horda da Sala II: quantos de cada tipo, além dos dois guardas da escada. */
 export const ROOM2_FIRST_HORDE: Readonly<Partial<Record<EnemyKind, number>>> = {
@@ -18,6 +18,8 @@ export const ROOM2_FIRST_HORDE: Readonly<Partial<Record<EnemyKind, number>>> = {
 
 /** Horda da Sala II depois da carta: quantos de cada tipo. */
 export const ROOM2_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
+    // Drone forte: estreia aqui com 5 e ganha +5 a cada horda seguinte.
+    'heavy-drone': 5,
     gaucho: 46,
     guard: 22,
     scooter: 22,
@@ -25,13 +27,30 @@ export const ROOM2_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
     bike: 20
 };
 
+/** Primeira horda da Sala III: a última da Sala II com mais drones fortes. */
+export const ROOM3_FIRST_HORDE: Readonly<Record<EnemyKind, number>> = {
+    ...ROOM2_SECOND_HORDE,
+    'heavy-drone': 10
+};
+
 /** Horda da Sala III depois da carta: metade maior que a última da Sala II. */
 export const ROOM3_SECOND_HORDE: Readonly<Record<EnemyKind, number>> = {
+    'heavy-drone': 15,
     gaucho: 69,
     guard: 33,
     scooter: 33,
     drone: 33,
     bike: 30
+};
+
+/** Horda da Sala IV, depois dos skatistas: a maior do jogo, metade maior que a última da Sala III. */
+export const ROOM4_HORDE: Readonly<Record<EnemyKind, number>> = {
+    'heavy-drone': 20,
+    gaucho: 104,
+    guard: 50,
+    scooter: 50,
+    drone: 50,
+    bike: 45
 };
 
 /** Espalha os tipos ao longo da onda, para não chegarem todos os drones juntos no fim. */
@@ -54,7 +73,9 @@ export function interleaveEnemyCounts(counts: Readonly<Partial<Record<EnemyKind,
 // Os dois primeiros nascem nos pontos fixos da escada e precisam ser guardas.
 const ROOM2_FIRST_HORDE_KINDS: readonly EnemyKind[] = ['guard', 'guard', ...interleaveEnemyCounts(ROOM2_FIRST_HORDE)];
 const ROOM2_SECOND_HORDE_KINDS = interleaveEnemyCounts(ROOM2_SECOND_HORDE);
+const ROOM3_FIRST_HORDE_KINDS = interleaveEnemyCounts(ROOM3_FIRST_HORDE);
 const ROOM3_SECOND_HORDE_KINDS = interleaveEnemyCounts(ROOM3_SECOND_HORDE);
+const ROOM4_HORDE_KINDS = interleaveEnemyCounts(ROOM4_HORDE);
 
 /** Distâncias em pixels do mundo; intervalos e duração em milissegundos. */
 const PLAYER_COMBAT_STATS = {
@@ -73,6 +94,8 @@ export const COMBAT_CONFIG = {
         color: 0xff3030,
         deathShake: { duration: 100, intensity: 0.003 }
     },
+    // Drone forte: atira igual ao comum, mas aguenta três vezes mais.
+    heavyDrone: { maxHealth: PLAYER_COMBAT_STATS.maxHealth * 3 },
     scooter: {
         maxHealth: 3,
         contactDamage: 1,
@@ -137,8 +160,15 @@ export const COMBAT_CONFIG = {
         room1: [10, 8],
         // A segunda onda vem depois da carta e é bem maior: a horda cresce.
         room2: [ROOM2_FIRST_HORDE_KINDS.length, ROOM2_SECOND_HORDE_KINDS.length],
-        // A Sala III já abre com a horda final da Sala II.
-        room3: [ROOM2_SECOND_HORDE_KINDS.length, ROOM3_SECOND_HORDE_KINDS.length],
+        // A Sala III já abre com a horda final da Sala II, com mais drones fortes.
+        room3: [ROOM3_FIRST_HORDE_KINDS.length, ROOM3_SECOND_HORDE_KINDS.length],
+        // Uma onda só: a horda gigante que entra quando os skatistas somem.
+        room4: [ROOM4_HORDE_KINDS.length],
+        // shortcut: Sala V sem combate na primeira versão do mapa; definir as hordas e o chefe depois.
+        room5: [],
+        room51: [],
+        // Sem combate: só o corredor até o fliperama.
+        'mercado-interior': [],
         dungeon: [10],
         'gaucho-dungeon': [10]
     },
@@ -154,7 +184,8 @@ export const COMBAT_CONFIG = {
         room3: [
             { maxAlive: 28, batchSize: 6, interval: 800 },
             { maxAlive: 36, batchSize: 8, interval: 700 }
-        ]
+        ],
+        room4: [{ maxAlive: 44, batchSize: 10, interval: 600 }]
     } as Partial<Record<RoomKey, readonly { maxAlive: number; batchSize: number; interval: number }[]>>,
     // A câmera mostra ~508×286 px do mapa (zoom 1,75): a horda nasce logo depois da borda
     // da tela, e os inimigos dela perseguem de qualquer distância.
@@ -163,6 +194,10 @@ export const COMBAT_CONFIG = {
     // Quem ficou bem para trás, ou parado preso em algum canto, volta para fora da tela à frente.
     // `nearDistance` passa da distância em que o drone para e atira (64), para ele não contar como preso.
     hordeRecall: { interval: 2_000, distance: 480, stuckDistance: 12, nearDistance: 96 },
+    // A partir da Sala IV o jogador já tem muitas cartas: os inimigos nascem com o dobro de vida.
+    enemyHealthMultiplierByRoom: { room4: 2, room5: 2 } as Partial<Record<RoomKey, number>>,
+    // O tiro normal do jogador cresce a cada sala depois da Sala I: +10% de dano e +5% de velocidade.
+    playerShotGrowthPerRoom: { damage: 0.1, speed: 0.05 },
     multiplayer: {
         // Dois jogadores causam o dobro de dano nos mesmos inimigos; acima de 2 fica mais difícil.
         enemyHealthMultiplier: 2.5,
@@ -192,7 +227,11 @@ const WAVE_PATTERNS: Record<RoomKey, readonly (readonly EnemyKind[])[]> = {
         // Horda: a composição exata vem de ROOM2_SECOND_HORDE.
         ROOM2_SECOND_HORDE_KINDS
     ],
-    room3: [ROOM2_SECOND_HORDE_KINDS, ROOM3_SECOND_HORDE_KINDS],
+    room3: [ROOM3_FIRST_HORDE_KINDS, ROOM3_SECOND_HORDE_KINDS],
+    room4: [ROOM4_HORDE_KINDS],
+    room5: [],
+    room51: [],
+    'mercado-interior': [],
     dungeon: [
         ['scooter', 'drone', 'guard', 'drone', 'scooter']
     ],
@@ -212,4 +251,20 @@ export function getWaveEnemyKinds(
     const roomPatterns = WAVE_PATTERNS[roomKey];
     const pattern = roomPatterns[Math.min(Math.max(0, waveIndex), roomPatterns.length - 1)];
     return Array.from({ length: count }, (_, index) => pattern[(offset + index) % pattern.length]);
+}
+
+/** Salas passadas desde a Sala I; as áreas internas contam como a sala de onde se entra nelas. */
+const ROOM_STAGE: Record<RoomKey, number> = {
+    room1: 0, 'gaucho-dungeon': 0,
+    room2: 1, dungeon: 1,
+    room3: 2,
+    room4: 3, 'mercado-interior': 3,
+    room5: 4, room51: 4
+};
+
+/** Multiplicadores do tiro normal do jogador na sala. */
+export function getPlayerShotMultipliers(roomKey: RoomKey) {
+    const stage = ROOM_STAGE[roomKey];
+    const { damage, speed } = COMBAT_CONFIG.playerShotGrowthPerRoom;
+    return { damage: 1 + damage * stage, speed: 1 + speed * stage };
 }

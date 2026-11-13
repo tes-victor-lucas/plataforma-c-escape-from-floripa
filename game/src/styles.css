@@ -378,6 +378,9 @@ kbd {
     .player-action { width: 40px; min-height: 36px; padding: 0; }
 }
 
+/* Sem tela cheia (Safari do iPhone) o botão não serve: a barra some e o jogo usa a altura toda. */
+.game-player:has(#fullscreen-button:disabled) .player-bar { display: none; }
+
 /* No celular em pé, o jogo 16:9 fica minúsculo: pede para girar. */
 @media (pointer: coarse) and (orientation: portrait) {
     #app::after {

@@ -40,6 +40,7 @@ const { Health } = load('../src/game/combat/Health.ts');
 const { CombatSystem, createProjectileId } = load('../src/game/combat/CombatSystem.ts');
 const {
     COMBAT_CONFIG,
+    getPlayerShotMultipliers,
     getWaveEnemyKinds,
     ROOM2_STAIR_GUARD_SPAWNS
 } = load('../src/game/config/combat.ts');
@@ -128,8 +129,9 @@ const {
     calculateTimePoints
 } = load('../src/game/scoring/ScoreCalculator.ts');
 const { RunTracker, runTracker } = load('../src/game/scoring/RunTracker.ts');
+const { SCORE_CONFIG } = load('../src/game/config/score.ts');
 
-test('pontuação v2 aplica dungeon, tempo, dano, mortes, multi-kill e vitória', () => {
+test('pontuação v3 aplica dungeon, tempo, dano, mortes, multi-kill e vitória', () => {
     const score = calculateScore({
         won: true,
         dungeonsCompleted: 1,
@@ -145,6 +147,7 @@ test('pontuação v2 aplica dungeon, tempo, dano, mortes, multi-kill e vitória'
         enemyPoints: 300,
         multiKillPoints: 350,
         damagePoints: 2_000,
+        arcadePoints: 0,
         total: 10_530
     });
     assert.equal(calculateTimePoints(900_000), 0);
@@ -236,7 +239,7 @@ test('código secreto reconhece 9090 mesmo após teclas anteriores', () => {
 
 test('room2 possui entrada oficial no centro da via vertical', () => {
     assert.deepEqual(ROOM_DEFINITIONS.room2.spawn, { x: 184, y: 536 });
-    assert.equal(ROOM_DEFINITIONS.room2.title, 'Sala II');
+    assert.equal(ROOM_DEFINITIONS.room2.title, 'Sala II:\nO Antigo Terminal');
 });
 
 test('rota direta preserva parametros e aponta para a room2', () => {
@@ -564,7 +567,7 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
             graphics() {
                 // Registra o que os efeitos em área desenham, sem renderizar nada.
                 const layer = { circles: [], lines: 0 };
-                for (const method of ['setDepth', 'setBlendMode', 'setPosition', 'setScale', 'fillStyle', 'lineStyle', 'fillCircle', 'fillRect', 'destroy']) {
+                for (const method of ['setDepth', 'setBlendMode', 'setPosition', 'setScale', 'setRotation', 'fillStyle', 'lineStyle', 'fillCircle', 'fillRect', 'beginPath', 'moveTo', 'lineTo', 'closePath', 'fillPath', 'clear', 'lineBetween', 'destroy']) {
                     layer[method] = function () { return this; };
                 }
                 layer.strokeCircle = function (_x, _y, radius) { this.circles.push(radius); return this; };
@@ -794,6 +797,25 @@ test('parede entre os personagens impede disparos dos dois lados', () => {
     assert.equal(groups[1].shots.length, 0);
 });
 
+test('tiro normal ganha 10% de dano e 5% de velocidade a cada sala', () => {
+    const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
+    near(getPlayerShotMultipliers('room1').damage, 1);
+    near(getPlayerShotMultipliers('room2').damage, 1.1);
+    near(getPlayerShotMultipliers('room5').damage, 1.4);
+    near(getPlayerShotMultipliers('room5').speed, 1.2);
+    near(getPlayerShotMultipliers('mercado-interior').damage, getPlayerShotMultipliers('room4').damage);
+
+    const base = setup();
+    base.combat.update(COMBAT_CONFIG.player.fireInterval);
+    const baseSpeed = base.groups[0].shots[0].velocity.x;
+    const { combat, groups, overlaps, drones } = setup();
+    combat.shotMultipliers = getPlayerShotMultipliers('room3');
+    combat.update(COMBAT_CONFIG.player.fireInterval);
+    near(groups[0].shots[0].velocity.x, baseSpeed * 1.1);
+    overlaps[0].hit(groups[0].shots[0]);
+    near(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth - COMBAT_CONFIG.player.damage * 1.2);
+});
+
 test('cada projétil causa dano uma vez e dois acertos derrotam o drone', () => {
     const { combat, groups, overlaps, drones } = setup();
     combat.update(COMBAT_CONFIG.player.fireInterval);
@@ -907,7 +929,7 @@ test('progresso entre salas preserva vida, habilidades e bônus permanentes', ()
     const progress = capturePlayerProgress({
         health: sourceHealth,
         getMovementSpeedMultiplier: () => 1.2
-    }, upgrades);
+    }, upgrades, 3, ['gaucho-hat']);
 
     const restoredUpgrades = new PlayerUpgradeState();
     const restoredHealth = new Health(4);
@@ -924,8 +946,13 @@ test('progresso entre salas preserva vida, habilidades e bônus permanentes', ()
     assert.equal(restoredSpeed, 1.2);
     assert.equal(restoredUpgrades.projectileCount, 2);
     assert.equal(restoredUpgrades.damage, COMBAT_CONFIG.player.damage + 1);
+    assert.equal(progress.chimarraos, 3, 'chimarrões pegos seguem para a próxima sala');
+    assert.deepEqual(progress.items, ['gaucho-hat'], 'o chapéu segue para a próxima sala');
     assert.deepEqual(Object.keys(progress).sort(), [
+        'chimarraos',
         'currentHealth',
+        'equipped',
+        'items',
         'maxHealth',
         'movementSpeedMultiplier',
         'upgrades'
@@ -971,15 +998,22 @@ test('mundo envia os upgrades atuais ao abrir o menu de pausa', () => {
         pause() {}
     };
 
-    world.openPauseMenu();
+    world.chimarraosCollected = 4;
 
-    assert.deepEqual(launches, [{
-        key: 'PauseMenu',
-        data: { upgrades: [['projectile-damage', 2]] }
-    }]);
+    world.openPauseMenu();
+    world.isPauseMenuOpen = false;
+    world.openInventory();
+
+    assert.deepEqual(launches.map(({ key, data }) => [key, data.view]), [['PauseMenu', 'pause'], ['PauseMenu', 'inventory']]);
+    const { data } = launches[0];
+    assert.deepEqual(data.upgrades, [['projectile-damage', 2]]);
+    assert.equal(data.inventory.chimarraos, 4, 'o inventário mostra os chimarrões pegos');
+    assert.equal(data.inventory.characterId, 'padrao');
+    assert.deepEqual(data.inventory.items.map(({ name }) => name), ['CARTEIRA'], 'a carteira já vem guardada');
+    assert.match(data.inventory.items[0].description, /SALDO: R\$ /);
 });
 
-test('continuar só é liberado por checkpoint conquistado depois da room1', () => {
+test('todo início de sala é checkpoint, inclusive a room1', () => {
     const values = new Map();
     const storage = {
         getItem(key) { return values.get(key) ?? null; },
@@ -995,7 +1029,7 @@ test('continuar só é liberado por checkpoint conquistado depois da room1', () 
 
     assert.equal(loadCampaignProgress(storage), undefined);
     saveCampaignProgress({ roomKey: 'room1', playerProgress }, storage);
-    assert.equal(loadCampaignProgress(storage), undefined, 'entrar na room1 não desbloqueia continuar');
+    assert.deepEqual(loadCampaignProgress(storage), { roomKey: 'room1', playerProgress }, 'a room1 já é checkpoint');
 
     saveCampaignProgress({ roomKey: 'room2', playerProgress }, storage);
     assert.deepEqual(loadCampaignProgress(storage), { roomKey: 'room2', playerProgress });
@@ -1135,7 +1169,7 @@ test('segunda onda aguarda o fim da vinheta sem dispará-la mais de uma vez', ()
 
 test('Sala I tem duas ondas e a horda da Sala II cresce depois da carta', () => {
     assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room1], [10, 8]);
-    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room2], [17, 132]);
+    assert.deepEqual([...COMBAT_CONFIG.wavesByRoom.room2], [17, 137]);
     const [first, second] = COMBAT_CONFIG.hordeByRoom.room2;
     assert.ok(second.maxAlive > first.maxAlive * 2, 'a segunda horda precisa ser bem maior');
     assert.ok(second.interval < first.interval);
@@ -1146,6 +1180,7 @@ test('somente a Sala I oferece outra seleção de upgrade ao ser concluída', ()
     const { shouldOfferRoomCompletionUpgrade } = load('../src/game/scenes/World.ts');
     assert.equal(shouldOfferRoomCompletionUpgrade('room1'), true);
     assert.equal(shouldOfferRoomCompletionUpgrade('room2'), false);
+    assert.equal(shouldOfferRoomCompletionUpgrade('room3'), true, 'depois da horda 2 da Sala III');
     assert.equal(shouldOfferRoomCompletionUpgrade('dungeon'), false);
 });
 
@@ -1178,7 +1213,7 @@ test('recompensa final da Sala I aplica a carta antes de liberar a saída', () =
         selectionOptions = this.options;
     };
     try {
-        world.playRoom1CompletionReward(() => { completions++; });
+        world.playRoomCompletionReward(() => { completions++; });
     } finally {
         UpgradeSelectionView.prototype.play = originalPlay;
     }
@@ -1747,7 +1782,10 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
                 currentHealth: 4,
                 maxHealth: 4,
                 movementSpeedMultiplier: 1,
-                upgrades: []
+                upgrades: [],
+                chimarraos: 0,
+                items: [],
+                equipped: []
             }
         }
     });
@@ -1756,11 +1794,13 @@ test('mundo somente atravessa o portal depois de liberar a saida', () => {
     assert.equal(clears, 1);
 });
 
-test('9090 conclui as salas I e II, só limpa a horda na III e não age nas dungeons', () => {
+test('9090 elimina só a horda atual: as cartas e a próxima horda seguem; na última, a sala conclui', () => {
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();
     let clears = 0;
     let completions = 0;
+    let intermissions = 0;
+    let resumeIntermission;
     const createDrone = (health) => ({
         health: { current: health, isAlive: true },
         takeDamage(amount) {
@@ -1768,47 +1808,52 @@ test('9090 conclui as salas I e II, só limpa a horda na III e não age nas dung
             this.health.isAlive = this.health.current > 0;
         }
     });
-    const drones = [createDrone(60), createDrone(40)];
-    world.activeRoomKey = 'room1';
+    world.activeRoomKey = 'room3';
     world.isGameplayReady = true;
-    world.drones = drones;
-    world.waves = {};
+    world.drones = [];
     world.combat = { clear() { clears++; } };
-    world.completeRoomCombat = () => {
-        completions++;
-        world.isRoomCombatComplete = true;
-        world.waves = undefined;
-    };
+    // Duas hordas de 5 que nascem de 2 em 2: a primeira ainda tem gente para nascer quando o atalho entra.
+    const hordes = [{ batchSize: 2, maxAlive: 2, interval: 1_000 }, { batchSize: 2, maxAlive: 2, interval: 1_000 }];
+    world.waves = new DroneWaves(
+        (count) => { for (let index = 0; index < count; index++) world.drones.push(createDrone(30)); return count; },
+        () => { completions++; },
+        (resume) => { intermissions++; resumeIntermission = resume; },
+        [5, 5],
+        hordes
+    );
+    world.completeRoomCombat = () => { completions++; };
+    world.waves.update(world.drones, 16);
+    assert.equal(world.drones.length, 2, 'a horda 1 começou');
 
     for (const key of '909') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(drones.every((drone) => drone.health.isAlive), true);
+    assert.ok(world.drones.every((drone) => drone.health.isAlive));
     world.handleSecretCodeKey({ key: '0', repeat: false });
-
-    assert.equal(drones.every((drone) => !drone.health.isAlive), true);
+    assert.ok(world.drones.every((drone) => !drone.health.isAlive), 'a horda atual morre');
     assert.equal(clears, 1);
-    assert.equal(completions, 1);
-    assert.equal(world.waves, undefined);
+    assert.equal(completions, 0, 'a sala não conclui no meio');
+    world.waves.update(world.drones, 16);
+    assert.equal(world.drones.length, 2, 'quem faltava nascer na horda 1 não nasce');
+    assert.equal(intermissions, 1, 'as cartas abrem antes da horda 2');
 
-    world.activeRoomKey = 'room2';
-    world.isRoomCombatComplete = false;
+    resumeIntermission();
+    assert.equal(world.drones.length, 4, 'a horda 2 começa depois das cartas');
     for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(completions, 2);
+    world.waves.update(world.drones, 16);
+    assert.equal(completions, 1, 'na última horda o atalho leva à conclusão da sala');
 
-    // Na room3 o atalho mata a horda, mas não conclui o combate (que daria a vitória).
-    const room3Drones = [createDrone(30)];
-    world.activeRoomKey = 'room3';
+    // Sem hordas em andamento, o atalho conclui a sala como antes.
+    world.activeRoomKey = 'gaucho-dungeon';
     world.isRoomCombatComplete = false;
-    world.drones = room3Drones;
-    world.waves = {};
+    world.waves = undefined;
+    world.drones = [createDrone(20)];
     for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(room3Drones[0].health.isAlive, false);
-    assert.equal(world.waves, undefined);
-    assert.equal(completions, 2, 'o segredo não deve dar vitória na room3');
+    assert.equal(world.drones[0].health.isAlive, false);
+    assert.equal(completions, 2, 'o segredo conclui o esconderijo dos gaúchos');
 
     world.activeRoomKey = 'dungeon';
-    world.isRoomCombatComplete = false;
+    world.drones = [createDrone(20)];
     for (const key of '9090') world.handleSecretCodeKey({ key, repeat: false });
-    assert.equal(completions, 2, 'o segredo não deve concluir a dungeon');
+    assert.equal(world.drones[0].health.isAlive, true, 'o segredo não vale na dungeon da Sala II');
 });
 
 test('mundo bloqueia combate e HUD até a revelação; reinício não espera outra transição', () => {
@@ -1860,6 +1905,9 @@ test('mundo bloqueia combate e HUD até a revelação; reinício não espera out
     launches[0].data.onRestart();
     assert.deepEqual(stoppedScenes, [
         'PauseMenu',
+        'ArcadeMinigame',
+        'ConfirmPrompt',
+        'WalletMenu',
         'RoomTransition',
         'ReturnToMenuTransition',
         'CombatHud'
@@ -1888,6 +1936,9 @@ test('voltar ao menu após derrota usa a transição suave de saída', () => {
 
     assert.deepEqual(stopped, [
         'PauseMenu',
+        'ArcadeMinigame',
+        'ConfirmPrompt',
+        'WalletMenu',
         'RoomTransition',
         'ReturnToMenuTransition',
         'CombatHud'
@@ -1963,6 +2014,9 @@ test('menu principal remove qualquer cena restante da partida anterior', () => {
         'World',
         'CombatHud',
         'PauseMenu',
+        'ArcadeMinigame',
+        'ConfirmPrompt',
+        'WalletMenu',
         'RoomTransition'
     ]);
 });
@@ -2103,7 +2157,7 @@ test('abertura da room2 escreve Sala II antes de revelar o mapa', () => {
     view.typeTitle(() => { completed = true; });
     while (timers.length) timers.shift()();
 
-    assert.equal(writtenTitles.at(-1), 'Sala II');
+    assert.equal(writtenTitles.at(-1), 'Sala II:\nO Antigo Terminal');
     assert.equal(completed, true);
 });
 
@@ -2618,7 +2672,7 @@ test('multiplayer: detonação do convidado sai quando o anfitrião confirma o a
     combat.detonateConfirmedKill(drones[0], 'abate');
 
     assert.deepEqual(record.hits.map((hit) => hit.enemy), [drones[1]], 'só o vizinho no raio, sem o abatido');
-    assert.equal(record.hits[0].damage, upgrades.damage * 1.5);
+    assert.equal(record.hits[0].damage, upgrades.damage * getUpgradeCard('death-blast').effect.damageRatio);
     assert.equal(drones[1].health.current, COMBAT_CONFIG.drone.maxHealth, 'quem aplica o dano é o anfitrião');
     assert.deepEqual(sent.map((e) => e.effect), ['explosion']);
     assert.equal(effects.length, 1, 'a explosão aparece também para o convidado');
@@ -2996,6 +3050,64 @@ test('na dupla só o anfitrião envia a vitória ao placar', async () => {
     }
 });
 
+test('derrota solo mantém a partida aberta para recomeçar do checkpoint da sala', async () => {
+    const { scoreApi } = load('../src/game/scoring/ScoreApi.ts');
+    const original = { ...scoreApi };
+    const calls = [];
+    scoreApi.startRun = async () => ({});
+    scoreApi.discardRun = async (runId) => { calls.push(runId); };
+    try {
+        const solo = new RunTracker();
+        solo.startNew('SINGLE_PLAYER');
+        const checkpoint = solo.checkpoint();
+        assert.equal(solo.lose(undefined, false).status, 'LOST');
+        solo.restore(checkpoint);
+        assert.equal(solo.snapshot().status, 'RUNNING', 'tentar de novo segue a mesma partida');
+        const duo = new RunTracker();
+        duo.startNew('MULTIPLAYER');
+        duo.lose();
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(calls.length, 1, 'só a derrota da dupla descarta a partida no placar');
+    } finally {
+        Object.assign(scoreApi, original);
+    }
+});
+
+test('tentar novamente recomeça no início da sala do checkpoint, com o progresso daquele momento', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const values = new Map();
+    const playerProgress = { currentHealth: 4, maxHealth: 4, movementSpeedMultiplier: 1, upgrades: [] };
+    runTracker.startNew('SINGLE_PLAYER');
+    const run = runTracker.checkpoint();
+    const urls = [];
+    globalThis.window = {
+        localStorage: {
+            getItem(key) { return values.get(key) ?? null; },
+            setItem(key, value) { values.set(key, value); },
+            removeItem(key) { values.delete(key); }
+        },
+        location: { search: '', pathname: '/', hash: '' },
+        history: { replaceState(_state, _title, url) { urls.push(url); } }
+    };
+    try {
+        saveCampaignProgress({ roomKey: 'room3', playerProgress, run });
+        runTracker.lose(undefined, false);
+        const world = new World();
+        let restartData;
+        world.scene = { stop() {}, restart(data) { restartData = data; } };
+        world.restartFromDefeatMenu();
+        assert.equal(restartData.roomKey, 'room3');
+        assert.deepEqual(restartData.spawn, ROOM_DEFINITIONS.room3.spawn);
+        assert.deepEqual(restartData.playerProgress, playerProgress);
+        assert.equal(runTracker.snapshot().status, 'RUNNING');
+        assert.equal(runTracker.checkpoint().runId, run.runId, 'segue a mesma partida do placar');
+        assert.equal(loadCampaignProgress()?.roomKey, 'room3', 'o checkpoint continua salvo');
+    } finally {
+        delete globalThis.window;
+        runTracker.abandon();
+    }
+});
+
 test('personagem escolhido fica salvo e alterna entre as opções', () => {
     const { loadCharacterId, saveCharacterId, nextCharacterId, CHARACTERS } = load('../src/game/config/characters.ts');
     const values = new Map();
@@ -3114,7 +3226,7 @@ test('cartas de área crescem de raio por nível e respeitam o máximo', () => {
     const upgrades = new PlayerUpgradeState();
     for (let level = 0; level < 4; level++) upgrades.acquire(getUpgradeCard('shock-pulse'));
     assert.equal(upgrades.pulseRadius, 100 + 25 * 2);
-    assert.equal(upgrades.pulseInterval, 800);
+    assert.equal(upgrades.pulseInterval, 1_100);
     for (let level = 0; level < 3; level++) upgrades.acquire(getUpgradeCard('blast-shot'));
     assert.equal(upgrades.blastRadius, 50 + 15);
     assert.equal(upgrades.blastDamageRatio, 1.5);
@@ -3141,13 +3253,40 @@ test('antes da horda maior as cartas de área vêm garantidas', () => {
     }
 
     const upgrades = new PlayerUpgradeState();
-    for (const id of AREA_UPGRADE_IDS.slice(0, 5)) {
+    for (const id of AREA_UPGRADE_IDS.slice(0, -1)) {
         for (let level = 0; level < 3; level++) upgrades.acquire(getUpgradeCard(id));
     }
     const lastArea = drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, () => 0.4, upgrades.availableCards());
     assert.equal(lastArea.length, 3);
     assert.deepEqual(lastArea.filter((card) => AREA_UPGRADE_IDS.includes(card.id)).map((card) => card.id), ['light-beams'],
         'só a carta de área que sobrou, completada com as comuns');
+});
+
+test('rajada espiral solta um fragmento por vez, girando, e cada um fere uma vez até o alcance', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('spiral-volley'));
+    upgrades.range = 1;
+    // O 1º fragmento sai para a direita (0°) e o 4º para baixo (90°).
+    const { combat, drones, rings } = setup([[160, 100], [100, 170], [400, 100]], [], upgrades);
+    for (const drone of drones) {
+        drone.health = new Health(1000);
+        drone.takeDamage = (amount) => drone.health.takeDamage(amount);
+    }
+    const shard = upgrades.damage * 0.6;
+    combat.update(0);
+    assert.equal(rings.length, 2, 'só o primeiro fragmento saiu (halo e núcleo)');
+    for (let step = 0; step < 30; step++) combat.update(20);
+    assert.equal(drones[0].health.current, 1000 - shard, 'o fragmento da direita passou pelo inimigo uma vez');
+    assert.equal(drones[1].health.current, 1000 - shard, 'o de 90° acertou o de baixo');
+    assert.equal(drones[2].health.current, 1000, 'fora do alcance de 150 px');
+    assert.equal(rings.length, 24, '12 fragmentos, um após o outro');
+});
+
+test('a Sala II dá duas escolhas de carta seguidas entre as hordas', () => {
+    const { getIntermissionCardPicks } = load('../src/game/scenes/World.ts');
+    assert.equal(getIntermissionCardPicks('room2'), 2);
+    assert.equal(getIntermissionCardPicks('room1'), 1);
+    assert.equal(getIntermissionCardPicks('room3'), 1);
 });
 
 test('pulso de choque atinge todos dentro do raio no ritmo da carta', () => {
@@ -3157,16 +3296,98 @@ test('pulso de choque atinge todos dentro do raio no ritmo da carta', () => {
     upgrades.range = 1;
     const { combat, drones, effects } = setup([[140, 100], [100, 150], [300, 100]], [], upgrades);
     const full = COMBAT_CONFIG.drone.maxHealth;
-    const pulse = upgrades.damage * 1.5;
+    const pulse = upgrades.damage * 1.25;
     combat.update(0);
     assert.equal(drones[0].health.current, full - pulse);
     assert.equal(drones[1].health.current, full - pulse);
     assert.equal(drones[2].health.current, full, 'fora do raio');
     assert.ok(effects.some((layer) => layer.circles.includes(100)), 'a onda mostra o raio real');
-    combat.update(799);
+    combat.update(1_099);
     assert.equal(drones[0].health.current, full - pulse, 'espera o intervalo');
     combat.update(1);
     assert.equal(drones[1].health.current, 0);
+});
+
+test('pulso de choque atravessa obstáculos, como o tronco da figueira', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('shock-pulse'));
+    upgrades.range = 1;
+    // Um obstáculo entre o jogador (100, 100) e o inimigo logo acima.
+    const { combat, drones } = setup([[100, 40]], [
+        { getLeft: () => 90, getTop: () => 60, width: 20, height: 16 }
+    ], upgrades);
+    combat.update(0);
+    assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth - upgrades.damage * 1.25);
+});
+
+test('golpe giratório sai do jogador em espiral e corta cada inimigo do raio uma vez, a cada 7 s', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('spin-slash'));
+    upgrades.range = 1;
+    // Jogador em (100, 100): um inimigo perto, um no meio do raio e um fora dele.
+    const { combat, drones, effects } = setup([[100, 60], [0, 100], [400, 100]], [], upgrades);
+    for (const drone of drones) {
+        drone.health = new Health(1000);
+        drone.takeDamage = (amount) => drone.health.takeDamage(amount);
+    }
+    const cut = upgrades.damage * 9;
+    combat.update(0);
+    assert.equal(drones[0].health.current, 1000, 'a espiral nasce no jogador');
+    combat.update(120);
+    assert.equal(drones[0].health.current, 1000 - cut, 'a lâmina já passou dos 40 px');
+    assert.equal(drones[1].health.current, 1000, 'ainda não chegou aos 100 px');
+    combat.update(330);
+    assert.equal(drones[1].health.current, 1000 - cut, 'no fim da espiral todo o raio foi cortado');
+    assert.equal(drones[0].health.current, 1000 - cut, 'um corte por golpe');
+    assert.equal(drones[2].health.current, 1000, 'fora do raio');
+    combat.update(6_000);
+    assert.equal(drones[0].health.current, 1000 - cut, 'espera a recarga');
+    combat.update(1_000);
+    combat.update(450);
+    assert.equal(drones[0].health.current, 1000 - cut * 2);
+    assert.ok(effects.length > 0);
+});
+
+test('bombardeio explode sobre os inimigos mais perto, mesmo atrás de obstáculo', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('bombard'));
+    upgrades.range = 1;
+    const { combat, drones } = setup([[100, 40], [180, 100], [300, 100], [100, 500]], [
+        { getLeft: () => 90, getTop: () => 60, width: 20, height: 16 }
+    ], upgrades);
+    for (const drone of drones) {
+        drone.health = new Health(1000);
+        drone.takeDamage = (amount) => drone.health.takeDamage(amount);
+    }
+    combat.update(0);
+    const blast = upgrades.damage * 3;
+    assert.equal(drones[0].health.current, 1000 - blast, 'a bomba cai de cima, sem linha de visão');
+    assert.equal(drones[1].health.current, 1000 - blast);
+    assert.equal(drones[2].health.current, 1000 - blast);
+    assert.equal(drones[3].health.current, 1000, 'longe demais');
+    combat.update(1_599);
+    assert.equal(drones[0].health.current, 1000 - blast, 'espera a recarga');
+});
+
+test('serras orbitais e faíscas dividem o efeito e o mais forte prevalece', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('spark-orbit'));
+    upgrades.acquire(getUpgradeCard('saw-orbit'));
+    assert.equal(upgrades.orbitCount, 5);
+    assert.equal(upgrades.orbitRadius, 72);
+    assert.equal(upgrades.orbitDamageRatio, 2.5);
+    assert.equal(upgrades.orbitHitInterval, 350);
+});
+
+test('cartas do fim da Sala III só aparecem depois da horda 2', () => {
+    const { withoutRoom3Cards, withoutRoom3FinalCards, drawUpgradeCardsFeaturing } = load('../src/game/upgrades/drawUpgradeCards.ts');
+    const { ROOM3_FINAL_UPGRADE_IDS } = load('../src/game/upgrades/catalog.ts');
+    const finals = new Set(ROOM3_FINAL_UPGRADE_IDS);
+    const all = new PlayerUpgradeState().availableCards();
+    assert.ok(!withoutRoom3Cards(all).some((card) => finals.has(card.id)));
+    assert.ok(!withoutRoom3FinalCards(all).some((card) => finals.has(card.id)));
+    const table = drawUpgradeCardsFeaturing(ROOM3_FINAL_UPGRADE_IDS, () => 0, all);
+    assert.deepEqual(new Set(table.map((card) => card.id)), finals);
 });
 
 test('tiro explosivo fere os vizinhos do alvo sem acertar o alvo duas vezes', () => {
@@ -3189,20 +3410,20 @@ test('faíscas orbitais ferem quem encostar, uma vez por intervalo', () => {
     const { combat, drones } = setup([[152, 100], [100, 300]], [], upgrades);
     const full = COMBAT_CONFIG.drone.maxHealth;
     combat.update(0);
-    assert.equal(drones[0].health.current, full - upgrades.damage * 1.5);
+    assert.equal(drones[0].health.current, full - upgrades.damage * 1.25);
     assert.equal(drones[1].health.current, full, 'longe das faíscas');
     combat.update(1);
-    assert.equal(drones[0].health.current, full - upgrades.damage * 1.5, 'não acerta de novo antes do intervalo');
+    assert.equal(drones[0].health.current, full - upgrades.damage * 1.25, 'não acerta de novo antes do intervalo');
 });
 
-test('tempestade elétrica causa 150% do dano por salto', () => {
+test('tempestade elétrica causa 125% do dano por salto', () => {
     const upgrades = new PlayerUpgradeState();
     upgrades.acquire(getUpgradeCard('thunder-storm'));
     upgrades.range = 100;
     const { combat, drones } = setup([[150, 100], [200, 100]], [], upgrades);
     combat.playerCooldown = 99_999;
     combat.update(0);
-    assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth - upgrades.damage * 1.5);
+    assert.equal(drones[0].health.current, COMBAT_CONFIG.drone.maxHealth - upgrades.damage * 1.25);
 });
 
 test('raio em cadeia salta entre vizinhos sem repetir alvo', () => {
@@ -3217,21 +3438,23 @@ test('raio em cadeia salta entre vizinhos sem repetir alvo', () => {
     combat.update(0);
     const hit = drones.filter((drone) => drone.health.current < full).length;
     assert.equal(hit, 8, 'nível 1 salta por 8 inimigos');
-    assert.equal(drones[0].health.current, full - upgrades.damage, 'cada salto causa 100% do dano');
+    assert.equal(drones[0].health.current, full - upgrades.damage * 0.85, 'cada salto causa 85% do dano');
     assert.equal(effects.length, 1, 'um raio desenhado para a cadeia inteira');
     assert.equal(drones[9].health.current, full);
 });
 
-test('detonação faz o abatido explodir e pode seguir em cadeia', () => {
+test('detonação faz o abatido explodir, mas quem morre na explosão não explode de novo', () => {
     const upgrades = new PlayerUpgradeState();
     upgrades.acquire(getUpgradeCard('death-blast'));
     upgrades.acquire(getUpgradeCard('shock-pulse'));
-    upgrades.damage = COMBAT_CONFIG.drone.maxHealth;
+    upgrades.damage = COMBAT_CONFIG.drone.maxHealth * 2;
     upgrades.range = 1;
-    // O pulso derruba o primeiro; a explosão dele derruba o segundo, que derruba o terceiro.
+    // O pulso derruba o primeiro; a explosão dele (75% de dano dobrado) derruba o segundo, que não detona.
     const { combat, drones } = setup([[150, 100], [205, 100], [258, 100], [400, 100]], [], upgrades);
     combat.update(0);
-    assert.deepEqual(drones.map((drone) => drone.health.isAlive), [false, false, false, true]);
+    assert.deepEqual(drones.map((drone) => drone.health.isAlive), [false, false, true, true]);
+    assert.equal(drones[2].health.current, COMBAT_CONFIG.drone.maxHealth, 'sem cadeia, o terceiro nem é atingido');
+    assert.equal(getUpgradeCard('death-blast').effect.damageRatio, 0.75);
 });
 
 test('feixes de luz cruzam a tela e ferem quem está na linha', () => {
@@ -3245,9 +3468,9 @@ test('feixes de luz cruzam a tela e ferem quem está na linha', () => {
     // Três camadas (halo, cor e núcleo) por feixe.
     assert.equal(effects.length, 1);
     assert.equal(effects[0].lines, 6 * 3);
-    assert.equal(drones[0].health.isAlive, false, 'na linha de 90°, a 200 px');
+    assert.equal(drones[0].health.current, full - upgrades.damage * 1.7, 'na linha de 90°, a 200 px');
     assert.equal(drones[1].health.current, full, 'entre dois feixes');
-    combat.update(999);
+    combat.update(1_299);
     assert.equal(effects.length, 1, 'espera o intervalo');
     combat.update(1);
     assert.equal(effects.length, 2, 'o leque gira e dispara de novo');
@@ -3322,7 +3545,7 @@ test('horda depois da carta tem a quantidade de cada tipo e mistura os tipos ao 
     const kinds = getWaveEnemyKinds('room2', 1, COMBAT_CONFIG.wavesByRoom.room2[1]);
     const counts = {};
     for (const kind of kinds) counts[kind] = (counts[kind] ?? 0) + 1;
-    assert.deepEqual(counts, { gaucho: 46, guard: 22, scooter: 22, drone: 22, bike: 20 });
+    assert.deepEqual(counts, { 'heavy-drone': 5, gaucho: 46, guard: 22, scooter: 22, drone: 22, bike: 20 });
     // Cada lote de 6 já traz pelo menos três tipos diferentes.
     for (let start = 0; start < kinds.length; start += 6) {
         assert.ok(new Set(kinds.slice(start, start + 6)).size >= 3, `lote ${start}`);
@@ -3488,7 +3711,7 @@ test('fora da horda da Sala II os sorteios só trazem as cartas básicas', () =>
 });
 
 test('room3 abre pela rota direta e recebe a saída da room2', () => {
-    assert.equal(ROOM_DEFINITIONS.room3.title, 'Sala III');
+    assert.equal(ROOM_DEFINITIONS.room3.title, 'Sala III:\nA Praça XV');
     assert.equal(getRequestedRoomKey('?room=3'), 'room3');
     assert.equal(getRoomSearch('room3', '?debug=1'), '?debug=1&room=3');
     assert.deepEqual(getInitialSceneRoute('?room=3'), { key: 'RoomTransition', data: { roomKey: 'room3' } });
@@ -3505,7 +3728,8 @@ test('room3 abre pela rota direta e recebe a saída da room2', () => {
 
 test('room3 abre com a horda final da room2 e termina numa horda maior', () => {
     const [first, second] = COMBAT_CONFIG.wavesByRoom.room3;
-    assert.equal(first, COMBAT_CONFIG.wavesByRoom.room2[1]);
+    // Mesma horda final da room2, com 5 drones fortes a mais.
+    assert.equal(first, COMBAT_CONFIG.wavesByRoom.room2[1] + 5);
     assert.ok(second > first);
     assert.equal(COMBAT_CONFIG.hordeByRoom.room3.length, 2);
 });
@@ -3538,15 +3762,15 @@ test('carta comum pega depois da forte não enfraquece o efeito', () => {
     const upgrades = new PlayerUpgradeState();
     upgrades.acquire(getUpgradeCard('thunder-storm'));
     upgrades.acquire(getUpgradeCard('chain-lightning'));
-    assert.equal(upgrades.chainInterval, 500);
-    assert.equal(upgrades.chainDamageRatio, 1.5);
+    assert.equal(upgrades.chainInterval, 750);
+    assert.equal(upgrades.chainDamageRatio, 1.25);
     assert.equal(upgrades.chainRange, 130);
     assert.equal(upgrades.chainJumps, 16);
 
     upgrades.acquire(getUpgradeCard('shock-pulse'));
     upgrades.acquire(getUpgradeCard('nova-pulse'));
-    assert.equal(upgrades.pulseInterval, 600);
-    assert.equal(upgrades.pulseDamageRatio, 3);
+    assert.equal(upgrades.pulseInterval, 850);
+    assert.equal(upgrades.pulseDamageRatio, 2.5);
     assert.equal(upgrades.pulseRadius, 150);
 
     upgrades.acquire(getUpgradeCard('heavy-rounds'));
@@ -3576,4 +3800,266 @@ test('8080 dá uma carta forte aleatória só na room3', () => {
     }
     for (const key of '8080') world.handleSecretCodeKey({ key, repeat: false });
     assert.equal(hints[1], 'CARTAS FORTES NO MÁXIMO');
+});
+
+test('drone forte aparece a partir da horda 2 da room2 e ganha +5 a cada horda', () => {
+    const heavyIn = (room, wave) => getWaveEnemyKinds(room, wave, COMBAT_CONFIG.wavesByRoom[room][wave])
+        .filter((kind) => kind === 'heavy-drone').length;
+    assert.equal(heavyIn('room1', 1), 0);
+    assert.equal(heavyIn('room2', 0), 0);
+    assert.deepEqual([heavyIn('room2', 1), heavyIn('room3', 0), heavyIn('room3', 1), heavyIn('room4', 0)], [5, 10, 15, 20]);
+});
+
+test('drone forte tem o triplo da vida e atira como o comum', () => {
+    assert.equal(COMBAT_CONFIG.heavyDrone.maxHealth, COMBAT_CONFIG.drone.maxHealth * 3);
+    const { combat, drones, groups } = setup([[150, 100]]);
+    drones[0].kind = 'heavy-drone';
+    combat.enemyCooldowns.set(drones[0], 0);
+    combat.update(0);
+    assert.ok(groups[1].shots.length > 0, 'drone forte também dispara');
+});
+
+test('esconderijo dos gaúchos pergunta antes de entrar e só pergunta de novo depois de sair do bueiro', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const launches = [];
+    const center = { ...ROOM1_TO_GAUCHO_DUNGEON_GATEWAY.portal };
+    world.activeRoomKey = 'room1';
+    world.player = {
+        health: new Health(4),
+        sprite: { body: { center } },
+        getMovementSpeedMultiplier() { return 1; },
+        stopMovement() {}
+    };
+    world.combat = { clear() {} };
+    world.physics = { pause() {}, resume() {} };
+    world.scene = {
+        launch(key, data) { launches.push({ key, data }); },
+        bringToTop() {}
+    };
+    const keys = () => launches.map(({ key }) => key);
+
+    world.updateRoomGateway();
+    assert.deepEqual(keys(), ['ConfirmPrompt']);
+    assert.equal(launches[0].data.title, ROOM1_TO_GAUCHO_DUNGEON_GATEWAY.confirm.enter);
+
+    launches[0].data.onChoice(false);
+    world.updateRoomGateway();
+    assert.deepEqual(keys(), ['ConfirmPrompt'], 'parado no bueiro depois do NÃO não pergunta de novo');
+
+    center.x += 100;
+    world.updateRoomGateway();
+    center.x -= 100;
+    world.updateRoomGateway();
+    assert.deepEqual(keys(), ['ConfirmPrompt', 'ConfirmPrompt'], 'saiu e voltou: pergunta de novo');
+
+    launches[1].data.onChoice(true);
+    assert.equal(launches[2].key, 'RoomTransition');
+    assert.equal(launches[2].data.roomKey, 'gaucho-dungeon');
+});
+
+test('fliperama espera o iniciar e sair na tela de como jogar devolve a tentativa', () => {
+    const { ArcadeMinigame } = load('../src/game/scenes/ArcadeMinigame.ts');
+    const arcade = new ArcadeMinigame();
+    const finishes = [];
+    let moves = 0;
+    let stopped = 0;
+    arcade.scene = { stop() { stopped += 1; } };
+    arcade.onFinish = (won, played) => finishes.push([won, played]);
+    arcade.puzzle = { move() { moves += 1; } };
+
+    arcade.act(() => arcade.puzzle.move(1));
+    assert.equal(moves, 0, 'a peça não deve se mexer antes de iniciar');
+
+    arcade.leaveIntro();
+    assert.equal(stopped, 1);
+    assert.deepEqual(finishes, [[false, false]]);
+});
+
+test('sair do esconderijo dos gaúchos sobe a escada antes de trocar de sala e trava o jogador', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const calls = [];
+    world.player = {
+        sprite: { setDepth() { return this; }, setPosition() { return this; }, body: { enable: true }, displayHeight: 24, scaleX: 1, scaleY: 1 },
+        climbInPlace() { calls.push('climb'); }
+    };
+    world.dungeonReturnArea = { left: 16, right: 32, top: 100, bottom: 180 };
+    world.combat = { clear() { calls.push('clear'); } };
+    world.tweens = { add(config) { config.onComplete(); } };
+
+    world.climbSewerLadder(() => calls.push('leave'));
+    world.climbSewerLadder(() => calls.push('leave'));
+
+    assert.deepEqual(calls, ['clear', 'climb', 'leave'], 'sobe uma vez só e sai depois da subida');
+    assert.equal(world.isClimbingLadder, true, 'segue travado até a próxima sala recriar a cena');
+});
+
+test('vencer o fliperama vale 5K pontos na pontuação', () => {
+    const base = { won: true, elapsedTimeMs: 0, enemiesDefeated: 0, hitsTaken: 5, multiKillBonuses: [] };
+    assert.equal(calculateScore({ ...base, arcadeWon: true }).arcadePoints, 5_000);
+    assert.equal(calculateScore({ ...base, arcadeWon: true }).total - calculateScore(base).total, 5_000);
+});
+
+test('relógio para no fliperama, conta o bônus e respeita o teto do servidor', () => {
+    const tracker = new RunTracker();
+    const start = Date.parse('2026-01-01T00:00:00.000Z');
+    tracker.startNew('SINGLE_PLAYER', new Date(start));
+    tracker.pauseClock(start + 10_000);
+    tracker.pauseClock(start + 20_000);
+    assert.equal(tracker.snapshot(start + 70_000).elapsedTimeMs, 10_000, 'parado enquanto joga');
+    tracker.resumeClock(start + 70_000);
+    assert.equal(tracker.snapshot(start + 75_000).elapsedTimeMs, 15_000, 'volta a contar ao sair');
+    assert.equal(tracker.recordArcadeWin(), true);
+    assert.equal(tracker.recordArcadeWin(), false, 'o bônus vale uma vez');
+    assert.equal(tracker.snapshot(start + 75_000).score.arcadePoints, 5_000);
+
+    const checkpoint = tracker.checkpoint();
+    assert.equal(checkpoint.pausedMs, 60_000);
+    assert.equal(checkpoint.arcadeWon, true);
+    const restored = new RunTracker();
+    restored.restore(checkpoint);
+    assert.equal(restored.snapshot(start + 75_000).elapsedTimeMs, 15_000, 'o Continuar guarda a pausa');
+
+    // Uma pausa longa demais desconta só até o teto que o servidor aceita.
+    tracker.pauseClock(start + 75_000);
+    tracker.resumeClock(start + 75_000 + 3_600_000);
+    assert.equal(tracker.checkpoint().pausedMs, SCORE_CONFIG.arcade.maxPausedMs);
+    tracker.abandon();
+    restored.abandon();
+});
+
+test('chapéu de gaúcho bloqueia parte dos golpes e dá o respiro de um acerto', () => {
+    const { Player } = load('../src/game/entities/Player.ts');
+    const { GAUCHO_HAT } = load('../src/game/config/items.ts');
+    const player = Object.create(Player.prototype);
+    const time = { now: 1_000, delayedCall() {} };
+    const tints = [];
+    player.scene = { time, sound: { play() {} } };
+    player.health = new Health(4);
+    player.sprite = { active: true, setTint(color) { tints.push(color); }, clearTint() {} };
+    player.invulnerableUntil = 0;
+    player.blockChance = GAUCHO_HAT.blockChance;
+    const rolls = [GAUCHO_HAT.blockChance - 0.01, GAUCHO_HAT.blockChance + 0.01];
+    player.random = () => rolls.shift();
+
+    player.takeDamage(1);
+    assert.equal(player.health.current, 4, 'golpe bloqueado não tira vida');
+    assert.equal(tints[0], 0x8fd8ff, 'pisca a cor de escudo');
+    player.takeDamage(1);
+    assert.equal(player.health.current, 4, 'o contato logo depois cai no respiro, sem sortear de novo');
+    time.now += WORLD_CONFIG.player.hurtInvulnerability;
+    player.takeDamage(1);
+    assert.equal(player.health.current, 3, 'sem sorte no sorteio, o golpe passa');
+});
+
+test('checkpoint recusa itens que não existem no jogo', () => {
+    const values = new Map();
+    const storage = {
+        getItem(key) { return values.get(key) ?? null; },
+        setItem(key, value) { values.set(key, value); },
+        removeItem(key) { values.delete(key); }
+    };
+    const playerProgress = { currentHealth: 3, maxHealth: 4, movementSpeedMultiplier: 1, upgrades: [], items: ['gaucho-hat'] };
+    saveCampaignProgress({ roomKey: 'room2', playerProgress }, storage);
+    assert.deepEqual(loadCampaignProgress(storage).playerProgress.items, ['gaucho-hat']);
+    saveCampaignProgress({ roomKey: 'room2', playerProgress: { ...playerProgress, items: ['coroa-de-ouro'] } }, storage);
+    assert.equal(loadCampaignProgress(storage), undefined);
+});
+
+test('chapéu cai uma vez só no esconderijo e equipa quem pega', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    let equipped = 0;
+    let overlap;
+    world.player = { sprite: { x: 100, y: 200 }, equipGauchoHat() { equipped += 1; } };
+    world.textures = { exists: () => true };
+    const fakeImage = () => {
+        const image = { destroy() {} };
+        for (const method of ['setScale', 'setDepth', 'setOrigin', 'setPosition']) image[method] = () => image;
+        return image;
+    };
+    world.physics = { add: { image: fakeImage, overlap(_a, _b, callback) { overlap = callback; return { destroy() {} }; } } };
+    world.createWorldHint = fakeImage;
+
+    world.createGauchoHatPickup();
+    overlap();
+    assert.equal(equipped, 1);
+    assert.deepEqual(world.ownedItems, ['gaucho-hat']);
+    overlap = undefined;
+    world.createGauchoHatPickup();
+    assert.equal(overlap, undefined, 'quem já tem o chapéu não vê outro no chão');
+});
+
+test('inventário retira e reequipa o chapéu, e a escolha segue entre as salas', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const calls = [];
+    world.player = { equipGauchoHat() { calls.push('equip'); }, unequipGauchoHat() { calls.push('unequip'); } };
+    world.ownedItems = ['gaucho-hat'];
+    world.equippedItems = ['gaucho-hat'];
+
+    const hat = () => world.buildInventory().items.find(({ id }) => id === 'gaucho-hat');
+    assert.equal(hat().equipped, true);
+    const afterRemoving = world.buildInventory().onToggleItem('gaucho-hat');
+    assert.equal(afterRemoving.items.find(({ id }) => id === 'gaucho-hat').equipped, false, 'o inventário redesenha com o chapéu guardado');
+    assert.deepEqual(calls, ['unequip']);
+    assert.deepEqual(world.equippedItems, []);
+    assert.deepEqual(world.ownedItems, ['gaucho-hat'], 'retirar não joga o item fora');
+    world.toggleItem('gaucho-hat');
+    assert.deepEqual(calls, ['unequip', 'equip']);
+    assert.equal(hat().equipped, true);
+
+    const progress = capturePlayerProgress(
+        { health: new Health(4), getMovementSpeedMultiplier: () => 1 }, new PlayerUpgradeState(), 0, ['gaucho-hat'], []
+    );
+    assert.deepEqual(progress.equipped, [], 'guardado continua guardado na próxima sala');
+});
+
+test('chapéu cai em chão livre, longe de parede e do vazio fora da sala', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    // Chão só na faixa y entre 96 e 160; parede na linha logo acima do jogador.
+    const floor = { getTileAtWorldXY: (x, y) => (y >= 96 && y < 160 ? { collides: false } : null) };
+    const walls = { getTileAtWorldXY: (x, y) => (y >= 80 && y < 96 ? { collides: true } : null) };
+    world.collisionLayers = [walls];
+    world.roomMap = { layers: [{ tilemapLayer: floor }, { tilemapLayer: walls }] };
+
+    const spot = world.findOpenSpotNear(100, 104);
+    assert.ok(spot.y >= 96 && spot.y < 160, 'no chão, não na parede de cima');
+    assert.notDeepEqual(spot, { x: 100, y: 104 + 32 }, 'não em cima da espada, logo abaixo do jogador');
+});
+
+test('depois da Sala III os inimigos nascem com o dobro de vida, sem dobrar a vida salva', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const made = [];
+    world.player = { sprite: { x: 0, y: 0 } };
+    world.combat = { clear() {} };
+    world.droneSpawnPoints = [{ x: 2000, y: 2000, patrolLeft: 1990, patrolRight: 2010 }];
+    world.collisionLayers = [];
+    world.isHordeSpawnPoint = () => true;
+    world.physics = { add: { collider() {} } };
+    world.addEnemyToCombat = () => {};
+    world.createEnemy = (kind, spawn) => {
+        const health = new Health(10);
+        if (spawn.health !== undefined) health.takeDamage(health.max - spawn.health);
+        const enemy = { health, sprite: {}, drawHealthBar() {} };
+        made.push(enemy);
+        return enemy;
+    };
+    const spawnIn = (room) => {
+        world.activeRoomKey = room;
+        world.isRoomCombatComplete = false;
+        world.spawnDrones(1);
+        return made[made.length - 1].health;
+    };
+
+    const room3 = spawnIn('room3');
+    assert.deepEqual([room3.current, room3.max], [10, 10], 'até a Sala III, vida normal');
+    const room4 = spawnIn('room4');
+    assert.deepEqual([room4.current, room4.max], [20, 20], 'na Sala IV, o dobro');
+    world.savedEnemies = [{ x: 2000, y: 2000, health: 15, kind: 'drone' }];
+    const saved = spawnIn('room4');
+    assert.deepEqual([saved.current, saved.max], [15, 20], 'quem volta ferido não ganha vida extra');
 });

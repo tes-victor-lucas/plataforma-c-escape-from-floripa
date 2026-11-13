@@ -29,6 +29,13 @@ class ScoreTests(unittest.TestCase):
         self.assertEqual(damage_points(2), 600)
         self.assertEqual(damage_points(3), 0)
 
+    def test_arcade_win_adds_five_thousand(self):
+        base = dict(won=True, elapsed_time_ms=0, enemies_defeated=0, hits_taken=5, dungeons_completed=0, multi_kills=[])
+        self.assertEqual(calculate_score(**base).arcadePoints, 0)
+        result = calculate_score(**base, arcade_won=True)
+        self.assertEqual(result.arcadePoints, 5_000)
+        self.assertEqual(result.total - calculate_score(**base).total, 5_000)
+
     def test_multi_kill_starts_at_two(self):
         self.assertEqual(multi_kill_bonus(1), 0)
         self.assertEqual(multi_kill_bonus(2), 250)
