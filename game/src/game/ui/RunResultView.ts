@@ -11,6 +11,8 @@ type RunResultOptions = Readonly<{
     retryLabel?: string;
     /** Substitui o título padrão da derrota (pode ter quebra de linha). */
     defeatTitle?: string;
+    /** Linha em vermelho abaixo do título da vitória: quem perdeu a disputa pela vaga no TICEN. */
+    victorySubtitle?: string;
     onQuit: () => void;
 }>;
 
@@ -36,6 +38,7 @@ export class RunResultView {
             dimAlpha: 0.72
         });
         menu.addTitle('ESCAPE CONCLUIDO', 140, 'victory', 'success');
+        if (this.options.victorySubtitle) this.addSplash(this.options.victorySubtitle);
 
         const { score } = this.options.result;
         const parts: readonly [string, number][] = [
@@ -48,8 +51,14 @@ export class RunResultView {
             ['FLIPERAMA', score.arcadePoints],
             ['TOPAZIOS', score.topazPoints]
         ];
-        parts.forEach(([label, value], index) =>
-            this.addResultRow(menu, VICTORY_PANEL, label, formatPoints(value), 168 + index * 14));
+        // Fontes do tamanho da linha e uma faixa clara a cada duas: nome e valor ficam alinhados.
+        const stripes = this.scene.add.graphics();
+        parts.forEach(([label, value], index) => {
+            const y = 168 + index * 14;
+            if (index % 2 === 0) stripes.fillStyle(0xb9dce1, 0.06).fillRect(VICTORY_PANEL.x + 48, y - 7, VICTORY_PANEL.width - 96, 14);
+            this.addResultRow(menu, VICTORY_PANEL, label, formatPoints(value), y, { labelSize: '13px', valueSize: '17px' });
+        });
+        menu.add(stripes);
 
         menu.addDivider(278, 42);
         this.addResultRow(
@@ -105,6 +114,20 @@ export class RunResultView {
         ], 365);
         menu.enableKeyboardNavigation({ onCancel: this.options.onQuit });
         menu.fadeIn();
+    }
+
+    /** Frase amarela inclinada no canto do painel, pulsando, no estilo das frases de tela de título. */
+    private addSplash(text: string) {
+        // Em cima do canto direito, saindo da moldura, para não cobrir o título largo.
+        const splash = this.scene.add.text(VICTORY_PANEL.x + VICTORY_PANEL.width - 52, VICTORY_PANEL.y - 10, text, {
+            fontFamily: 'PixelGamer, monospace',
+            fontSize: '15px',
+            color: '#ffff55',
+            stroke: '#3a3a00',
+            strokeThickness: 3
+        }).setOrigin(0.5).setRotation(-0.32).setDepth(260).setResolution(2);
+        splash.setShadow(2, 2, '#1a1a00', 0, true, true);
+        this.scene.tweens.add({ targets: splash, scale: 1.1, duration: 320, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
 
     private addResultRow(

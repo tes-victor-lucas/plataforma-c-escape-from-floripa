@@ -20,6 +20,8 @@ type HudData = {
     /** Só existe no multiplayer. */
     getDefeatTitle?: () => string | undefined;
     getCoopStatus?: () => { partnerHealth?: { current: number; max: number }; message: string };
+    /** Na disputa pela vaga do TICEN, quem perdeu também escapa, mas foi deixado para trás. */
+    getVictorySubtitle?: () => string | undefined;
     /** Vida do chefe acordado; sem chefe, a barra do topo some. */
     getBossHealth?: () => BossHealth | undefined;
 };
@@ -103,7 +105,8 @@ export class CombatHud extends Scene {
                 onPrimary: result.status === 'WON' ? this.dataSource.onQuit : this.dataSource.onRestart,
                 onQuit: this.dataSource.onQuit,
                 ...(this.dataSource.getCoopStatus ? { retryLabel: 'NOVA PARTIDA' } : {}),
-                ...(defeatTitle ? { defeatTitle } : {})
+                ...(defeatTitle ? { defeatTitle } : {}),
+                ...(this.dataSource.getVictorySubtitle?.() ? { victorySubtitle: this.dataSource.getVictorySubtitle() } : {})
             }).create();
         }
     }

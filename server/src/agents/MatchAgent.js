@@ -4,7 +4,13 @@ const EVENT_KINDS = new Set([
     'enemy.spawn', 'enemy.snapshot', 'enemy.shot', 'enemy.hit', 'enemy.killed',
     'player.shot', 'player.damage', 'world.ready', 'wave.intermission', 'combat.complete',
     'cards.chosen', 'cards.released', 'room.request', 'room.transition',
-    'player.swing', 'enemy.strike', 'item.drop', 'item.collected', 'player.effect'
+    'player.swing', 'enemy.strike', 'item.drop', 'item.collected', 'player.effect',
+    // Sala V: catraca de um em um e o golem decidido pelo anfitrião.
+    'ticen.gate', 'boss.wake', 'boss.action',
+    // Disputa pela última vaga do 763.2.
+    'escape.vote', 'escape.duel', 'chest.spawn', 'chest.claim', 'chest.opened', 'duel.lost',
+    // Menus que congelam a dupla e a pergunta dos esconderijos, respondida pelos dois.
+    'game.pause', 'gateway.vote'
 ]);
 const MAX_EVENT_BYTES = 16_384;
 
@@ -74,6 +80,8 @@ export class MatchAgent {
         const { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft, character = 'padrao' } = message;
         // Faíscas orbitais e drone companheiro vão no estado; sem eles o parceiro não vê essas cartas.
         const { orbitCount = 0, orbitRadius = 0, companion = false } = message;
+        // Itens vestidos (chapéu, capacete, galochas): um bit por item, para o parceiro ver no personagem.
+        const { worn = 0 } = message;
         if (
             !Number.isSafeInteger(sequence)
             || sequence < 0
@@ -100,8 +108,11 @@ export class MatchAgent {
             || orbitRadius < 0
             || orbitRadius > 1000
             || typeof companion !== 'boolean'
+            || !Number.isSafeInteger(worn)
+            || worn < 0
+            || worn > 255
         ) return undefined;
 
-        return { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft, character, orbitCount, orbitRadius, companion };
+        return { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft, character, orbitCount, orbitRadius, companion, worn };
     }
 }

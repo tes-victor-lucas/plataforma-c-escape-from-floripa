@@ -54,10 +54,10 @@ const {
     selectDroneSpawnsWithPriority
 } = load('../src/game/combat/DroneWaves.ts');
 const {
-    basicUpgradeCards,
+    drawTableCards,
     drawUpgradeCards,
     drawUpgradeCardsFeaturing,
-    withoutRoom3Cards
+    getTableCards
 } = load('../src/game/upgrades/drawUpgradeCards.ts');
 const {
     getUpgradeCard,
@@ -538,7 +538,8 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
                     setRotation() { return this; },
                     setScale() { return this; },
                     setPosition() { return this; },
-                    setVisible() { return this; }
+                    setVisible() { return this; },
+                    destroy() {}
                 };
             },
             sprite(x, y, texture, frame) {
@@ -560,6 +561,7 @@ function setup(positions = [[150, 100]], wallTiles = [], upgrades = new PlayerUp
                     setScale() { return this; },
                     setPosition(nextX, nextY) { this.x = nextX; this.y = nextY; return this; },
                     setBlendMode() { return this; },
+                    setVisible() { return this; },
                     destroy() {}
                 };
                 rings.push(circle);
@@ -1057,7 +1059,7 @@ test('menu principal abre opções de jogo e desabilita continuar sem checkpoint
         () => { selected = 'leaderboard'; }
     );
     assert.deepEqual(mainMenu.map(({ label }) => label), [
-        'JOGAR', 'PLACAR', 'OPÇÕES', 'SAIR'
+        'JOGAR', 'PLACAR', 'SAIR'
     ]);
     mainMenu[0].onSelect();
     assert.equal(selected, 'play');
@@ -1193,6 +1195,7 @@ test('somente a Sala I oferece outra seleção de upgrade ao ser concluída', ()
     assert.equal(shouldOfferRoomCompletionUpgrade('room1'), true);
     assert.equal(shouldOfferRoomCompletionUpgrade('room2'), false);
     assert.equal(shouldOfferRoomCompletionUpgrade('room3'), true, 'depois da horda 2 da Sala III');
+    assert.equal(shouldOfferRoomCompletionUpgrade('room4'), true, 'as duas mais fortes ao vencer a horda da Sala IV');
     assert.equal(shouldOfferRoomCompletionUpgrade('dungeon'), false);
 });
 
@@ -2343,7 +2346,7 @@ test('multiplayer: reviver exige o parceiro por perto e recomeça ao sair', () =
     const { advanceRevive, isWithinReviveRadius } = load('../src/game/network/coop.ts');
     const { multiplayer } = COMBAT_CONFIG;
 
-    assert.equal(multiplayer.reviveDuration, 5000);
+    assert.equal(multiplayer.reviveDuration, 3000);
     assert.equal(advanceRevive(4000, 16, true), 4016);
     assert.equal(advanceRevive(4000, 16, false), 0);
     assert.equal(isWithinReviveRadius({ x: 0, y: 0 }, { x: multiplayer.reviveRadius, y: 0 }), true);
@@ -2451,6 +2454,7 @@ test('multiplayer: corpo caído perde a física e volta ao reviver', () => {
     assert.equal(body.enable, false);
     world.updateRevive(COMBAT_CONFIG.multiplayer.reviveDuration);
     assert.equal(health.isAlive, true);
+    assert.equal(health.current, Math.min(health.max, COMBAT_CONFIG.multiplayer.reviveMinHealth), 'levanta com pelo menos 2 corações');
     assert.equal(body.enable, true);
     assert.equal(multiplayerClient.revivesUsed, 1);
     multiplayerClient.disconnect();
@@ -2792,6 +2796,7 @@ function itemWorld() {
     const player = Object.create(Player.prototype);
     player.movementSpeedMultiplier = 1;
     player.temporaryMovementSpeedMultiplier = 1;
+    player.equipmentSpeedMultiplier = 1;
     player.sprite = {};
     world.player = player;
     const fireRateMultipliers = [];
@@ -2990,17 +2995,18 @@ test('dica da espada aparece ao equipar e some no primeiro golpe que sai', () =>
 test('menu multiplayer lista as salas abertas com a opção de entrar', () => {
     const { createMultiplayerMenuActions } = load('../src/game/ui/MainMenuView.ts');
     const joined = [];
-    const handlers = { onCreate() {}, onJoin: (room) => joined.push(room), onBack() {} };
+    const handlers = { onCreate() {}, onCreateNumbered: () => joined.push('numerada'), onJoin: (room) => joined.push(room), onBack() {} };
 
     const empty = createMultiplayerMenuActions([], handlers);
-    assert.deepEqual(empty.map(({ label }) => label), ['CRIAR SALA', 'NENHUMA SALA ABERTA', 'VOLTAR']);
-    assert.equal(empty[1].enabled, false);
+    assert.deepEqual(empty.map(({ label }) => label), ['CRIAR SALA', 'GERAR NOME DA SALA', 'NENHUMA SALA ABERTA', 'VOLTAR']);
+    assert.equal(empty[2].enabled, false);
 
     const listed = createMultiplayerMenuActions(['sala-1', 'b', 'c', 'd', 'e'], handlers);
-    assert.equal(listed.length, 6);
-    assert.equal(listed[1].label, 'SALA-1   [ ENTRAR ]');
+    assert.equal(listed.length, 7);
+    assert.equal(listed[2].label, 'SALA-1   [ ENTRAR ]');
+    listed[2].onSelect();
     listed[1].onSelect();
-    assert.deepEqual(joined, ['sala-1']);
+    assert.deepEqual(joined, ['sala-1', 'numerada']);
 });
 
 test('carta com textura mostra a imagem, e as outras mantêm o ícone desenhado', () => {
@@ -3260,7 +3266,7 @@ test('antes da horda maior as cartas de área vêm garantidas', () => {
     for (const roll of [0, 0.4, 0.99]) {
         const cards = drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, () => roll);
         assert.equal(cards.length, 3);
-        assert.ok(cards.every((card) => AREA_UPGRADE_IDS.includes(card.id)), `sorteio ${roll}`);
+        assert.ok(cards.filter((card) => AREA_UPGRADE_IDS.includes(card.id)).length >= 2, `sorteio ${roll}: duas de área garantidas`);
         assert.equal(new Set(cards.map((card) => card.id)).size, 3);
     }
 
@@ -3270,7 +3276,7 @@ test('antes da horda maior as cartas de área vêm garantidas', () => {
     }
     const lastArea = drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, () => 0.4, upgrades.availableCards());
     assert.equal(lastArea.length, 3);
-    assert.deepEqual(lastArea.filter((card) => AREA_UPGRADE_IDS.includes(card.id)).map((card) => card.id), ['light-beams'],
+    assert.deepEqual(lastArea.filter((card) => AREA_UPGRADE_IDS.includes(card.id)).map((card) => card.id), [AREA_UPGRADE_IDS.at(-1)],
         'só a carta de área que sobrou, completada com as comuns');
 });
 
@@ -3392,14 +3398,13 @@ test('serras orbitais e faíscas dividem o efeito e o mais forte prevalece', () 
 });
 
 test('cartas do fim da Sala III só aparecem depois da horda 2', () => {
-    const { withoutRoom3Cards, withoutRoom3FinalCards, drawUpgradeCardsFeaturing } = load('../src/game/upgrades/drawUpgradeCards.ts');
     const { ROOM3_FINAL_UPGRADE_IDS } = load('../src/game/upgrades/catalog.ts');
     const finals = new Set(ROOM3_FINAL_UPGRADE_IDS);
     const all = new PlayerUpgradeState().availableCards();
-    assert.ok(!withoutRoom3Cards(all).some((card) => finals.has(card.id)));
-    assert.ok(!withoutRoom3FinalCards(all).some((card) => finals.has(card.id)));
-    const table = drawUpgradeCardsFeaturing(ROOM3_FINAL_UPGRADE_IDS, () => 0, all);
-    assert.deepEqual(new Set(table.map((card) => card.id)), finals);
+    for (const table of ['room1', 'room2', 'room3']) assert.ok(!getTableCards(table, all).some((card) => finals.has(card.id)), table);
+    const table = drawTableCards('room3-final', () => 0, all);
+    assert.equal(table.filter((card) => finals.has(card.id)).length, 2, 'duas finais garantidas');
+    assert.equal(new Set(table.map((card) => card.id)).size, 3, 'e um curinga de fora: a mesa não é sempre a mesma');
 });
 
 test('tiro explosivo fere os vizinhos do alvo sem acertar o alvo duas vezes', () => {
@@ -3710,16 +3715,35 @@ test('patinete continua parando para se recuperar depois da investida', () => {
     assert.equal(charger.state, 'recover');
 });
 
-test('fora da horda da Sala II os sorteios só trazem as cartas básicas', () => {
-    const { basicUpgradeCards } = load('../src/game/upgrades/drawUpgradeCards.ts');
-    const { UPGRADE_CARDS } = load('../src/game/upgrades/catalog.ts');
-    const basic = basicUpgradeCards(UPGRADE_CARDS);
-    assert.ok(basic.length >= 3 && basic.some((card) => card.kind === 'ability'), 'ainda dá para sortear três com uma habilidade');
-    assert.ok(basic.every((card) => !AREA_UPGRADE_IDS.includes(card.id)));
-    for (const roll of [0, 0.25, 0.5, 0.75, 0.99]) {
-        const cards = drawUpgradeCards(() => roll, basic);
-        assert.ok(cards.every((card) => !AREA_UPGRADE_IDS.includes(card.id)), `sorteio ${roll}`);
+test('cartas básicas só na Sala I, Cajado de gelo em todas as mesas e Overclock em nenhuma', () => {
+    const { BASIC_UPGRADE_IDS, UPGRADE_CARDS } = load('../src/game/upgrades/catalog.ts');
+    const room1 = getTableCards('room1', UPGRADE_CARDS);
+    assert.ok(room1.length >= 3 && room1.some((card) => card.kind === 'ability'), 'ainda dá para sortear três com uma habilidade');
+    assert.ok(room1.every((card) => BASIC_UPGRADE_IDS.includes(card.id) || card.id === 'ice-staff'));
+    for (const table of ['room1', 'room2', 'room3']) {
+        const ids = getTableCards(table, UPGRADE_CARDS).map((card) => card.id);
+        assert.ok(ids.includes('ice-staff'), `${table} oferece o Cajado de gelo`);
+        assert.ok(!ids.includes('overclock'), `${table} não oferece o Overclock`);
+        if (table !== 'room1') assert.ok(!ids.some((id) => BASIC_UPGRADE_IDS.includes(id)), `${table} sem cartas básicas`);
     }
+    const room3 = getTableCards('room3', UPGRADE_CARDS).map((card) => card.id);
+    assert.ok(room3.includes('fire-staff') && !getTableCards('room2', UPGRADE_CARDS).some((card) => card.id === 'fire-staff'), 'o fogo saiu da Sala II para a III');
+    for (const roll of [0, 0.25, 0.5, 0.75, 0.99]) {
+        const cards = drawTableCards('room2', () => roll, UPGRADE_CARDS);
+        assert.ok(cards.every((card) => !BASIC_UPGRADE_IDS.includes(card.id)), `sorteio ${roll}`);
+    }
+});
+
+test('esconderijo usa a mesa da sala por onde se entra e a mesa sem cartas completa com as outras', () => {
+    const { getCardTable } = load('../src/game/scenes/World.ts');
+    assert.equal(getCardTable('gaucho-dungeon'), 'room1');
+    assert.equal(getCardTable('dungeon'), 'room2');
+    assert.equal(getCardTable('room3'), 'room3');
+    const { UPGRADE_CARDS } = load('../src/game/upgrades/catalog.ts');
+    const onlyArea = UPGRADE_CARDS.filter((card) => AREA_UPGRADE_IDS.slice(0, 2).includes(card.id) || card.id === 'overclock' || card.id === 'max-health');
+    const fallback = getTableCards('room2', onlyArea).map((card) => card.id);
+    assert.ok(fallback.includes('max-health'), 'com a mesa no fim, completa com o que ainda dá para pegar');
+    assert.ok(!fallback.includes('overclock'), 'mas nunca com a carta aposentada');
 });
 
 test('room3 abre pela rota direta e recebe a saída da room2', () => {
@@ -3760,13 +3784,13 @@ test('checkpoint da room3 libera o continuar', () => {
 
 test('cartas exclusivas da room3 não aparecem nas salas anteriores', () => {
     const exclusive = (card) => ROOM3_EXCLUSIVE_UPGRADE_IDS.includes(card.id);
-    assert.equal(basicUpgradeCards(UPGRADE_CARDS).some(exclusive), false);
-    assert.equal(withoutRoom3Cards(UPGRADE_CARDS).some(exclusive), false);
+    assert.equal(getTableCards('room1', UPGRADE_CARDS).some(exclusive), false);
+    assert.equal(getTableCards('room2', UPGRADE_CARDS).some(exclusive), false);
     for (let seed = 0; seed < 20; seed += 1) {
-        const room2Cards = drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, () => (seed * 0.37) % 1, withoutRoom3Cards(UPGRADE_CARDS));
+        const room2Cards = drawTableCards('room2', () => (seed * 0.37) % 1, UPGRADE_CARDS);
         assert.equal(room2Cards.some(exclusive), false);
-        const room3Cards = drawUpgradeCardsFeaturing(ROOM3_UPGRADE_IDS, () => (seed * 0.37) % 1, UPGRADE_CARDS);
-        assert.ok(room3Cards.every((card) => ROOM3_UPGRADE_IDS.includes(card.id)));
+        const room3Cards = drawTableCards('room3', () => (seed * 0.37) % 1, UPGRADE_CARDS);
+        assert.ok(room3Cards.every((card) => ROOM3_UPGRADE_IDS.includes(card.id) || card.id === 'ice-staff'));
     }
 });
 
@@ -3977,6 +4001,14 @@ test('chapéu de gaúcho bloqueia parte dos golpes e dá o respiro de um acerto'
     assert.equal(player.health.current, 3, 'sem sorte no sorteio, o golpe passa');
 });
 
+test('itens vestidos vão ao parceiro como um bit por item', () => {
+    const { encodeWornItems, decodeWornItems, ITEM_IDS } = load('../src/game/config/items.ts');
+    assert.equal(encodeWornItems([]), 0);
+    assert.deepEqual(decodeWornItems(encodeWornItems(['rubber-boots', 'gaucho-hat'])), ['gaucho-hat', 'rubber-boots']);
+    assert.deepEqual(decodeWornItems(encodeWornItems(ITEM_IDS)), [...ITEM_IDS]);
+    assert.ok(encodeWornItems(ITEM_IDS) <= 255, 'cabe no limite que o servidor aceita');
+});
+
 test('checkpoint recusa itens que não existem no jogo', () => {
     const values = new Map();
     const storage = {
@@ -3996,7 +4028,7 @@ test('chapéu cai uma vez só no esconderijo e equipa quem pega', () => {
     const world = new World();
     let equipped = 0;
     let overlap;
-    world.player = { sprite: { x: 100, y: 200 }, equipGauchoHat() { equipped += 1; } };
+    world.player = { sprite: { x: 100, y: 200 }, equipItem(id) { if (id === 'gaucho-hat') equipped += 1; }, unequipItem() {} };
     world.textures = { exists: () => true };
     const fakeImage = () => {
         const image = { destroy() {} };
@@ -4019,7 +4051,11 @@ test('inventário retira e reequipa o chapéu, e a escolha segue entre as salas'
     const { World } = load('../src/game/scenes/World.ts');
     const world = new World();
     const calls = [];
-    world.player = { equipGauchoHat() { calls.push('equip'); }, unequipGauchoHat() { calls.push('unequip'); } };
+    // Só o chapéu interessa aqui; o capacete e as galochas não estão no inventário.
+    world.player = {
+        equipItem(id) { if (id === 'gaucho-hat') calls.push('equip'); },
+        unequipItem(id) { if (id === 'gaucho-hat') calls.push('unequip'); }
+    };
     world.ownedItems = ['gaucho-hat'];
     world.equippedItems = ['gaucho-hat'];
 
@@ -4098,9 +4134,12 @@ test('golem que levou o golpe final com ônibus pendente morre sozinho depois do
         buses: [{ route: 4, col: 34, row: 20 }],
         busesThrown: 3,
         roarsDone: 2,
+        // Já passou dos 60% antes: o atordoamento aconteceu.
+        hasStunned: true,
         action: 'walk',
         actionTime: 0,
         isDeathDeferred: false,
+        options: {},
         finishDeath() { died += 1; },
         flashHit() {},
         startFetch() { this.buses.length = 0; },
@@ -4142,4 +4181,842 @@ test('pegar os 14 topázios do golem vale 2K pontos uma vez e passa pelo checkpo
     assert.equal(restored.snapshot(start).score.topazPoints, 2_000);
     tracker.abandon();
     restored.abandon();
+});
+
+test('snapshot do golem leva a escala do giro e os outros inimigos não', () => {
+    const { createEnemySnapshotRow } = load('../src/game/network/coop.ts');
+    const enemy = (kind, scaleX) => ({ kind, health: { isAlive: true, current: 50 }, sprite: { x: 10, y: 20, scaleX, flipX: false, frame: { name: 3 } } });
+    assert.deepEqual(createEnemySnapshotRow(enemy('golem', 0.183)), [10, 20, 50, 3, 0, 0.18]);
+    assert.deepEqual(createEnemySnapshotRow(enemy('drone', 0.9)), [10, 20, 50, 3, 0]);
+});
+
+function busDoorWorld({ partner } = {}) {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { multiplayerClient } = load('../src/game/network/MultiplayerClient.ts');
+    const { TICEN_GOAL } = load('../src/game/config/ticen.ts');
+    const door = { x: (TICEN_GOAL.left + TICEN_GOAL.right) / 2, y: (TICEN_GOAL.top + TICEN_GOAL.bottom) / 2 };
+    const world = new World();
+    world.registry = { get: (key) => key === 'multiplayerEnabled' };
+    world.activeRoomKey = 'room5';
+    world.golem = { health: { isAlive: false } };
+    world.isBusDoorOpen = true;
+    world.physics = { pause() {} };
+    world.player = { health: new Health(4), sprite: { body: { center: { ...door } } } };
+    if (partner) world.remotePlayers.set('parceiro', { feet: { ...door }, ...partner });
+    const calls = [];
+    world.updateEscapeVote = () => calls.push('voto');
+    world.playDuelEnding = (localWon) => calls.push(localWon ? 'embarca' : 'fica');
+    world.playBusEnding = () => calls.push('solo');
+    multiplayerClient.revivesUsed = COMBAT_CONFIG.multiplayer.maxRevives;
+    return { world, calls, multiplayerClient };
+}
+
+test('porta do 763.2 em dupla pede o voto enquanto os dois ainda podem jogar', () => {
+    const { world, calls, multiplayerClient } = busDoorWorld({ partner: { isAlive: false, revivesLeft: 1 } });
+    world.updateTicenGoal();
+    assert.deepEqual(calls, ['voto']);
+    multiplayerClient.disconnect();
+});
+
+test('parceiro caido sem renascimentos nao trava o voto: quem sobrou embarca e ele fica para tras', () => {
+    const survivor = busDoorWorld({ partner: { isAlive: false, revivesLeft: 0 } });
+    survivor.world.updateTicenGoal();
+    assert.deepEqual(survivor.calls, ['embarca']);
+    assert.equal(survivor.world.isDuelOver, true);
+
+    const fallen = busDoorWorld({ partner: { isAlive: true, revivesLeft: 2 } });
+    fallen.world.player.health.takeDamage(4);
+    fallen.world.updateTicenGoal();
+    assert.deepEqual(fallen.calls, ['fica'], 'o caido ve o parceiro embarcar quando ele chega na porta');
+
+    const waiting = busDoorWorld({ partner: { isAlive: true, revivesLeft: 2, feet: { x: 0, y: 0 } } });
+    waiting.world.player.health.takeDamage(4);
+    waiting.world.updateTicenGoal();
+    assert.deepEqual(waiting.calls, [], 'com o parceiro longe da porta nada acontece ainda');
+    survivor.multiplayerClient.disconnect();
+});
+
+test('sem parceiro na partida a porta do 763.2 leva ao final solo', () => {
+    const { world, calls, multiplayerClient } = busDoorWorld();
+    world.updateTicenGoal();
+    assert.deepEqual(calls, ['solo']);
+    multiplayerClient.disconnect();
+});
+
+test('quem abandona a disputa pela vaga entrega o 763.2 para quem ficou', () => {
+    const { world, calls, multiplayerClient } = busDoorWorld();
+    world.isDuelActive = true;
+    world.hasVotedEscape = true;
+    world.handlePartnerLeft();
+    assert.deepEqual(calls, ['embarca']);
+    assert.equal(world.isDuelOver, true);
+    assert.equal(world.hasVotedEscape, false);
+    world.handlePartnerLeft();
+    assert.deepEqual(calls, ['embarca'], 'o final so comeca uma vez');
+    multiplayerClient.disconnect();
+});
+
+test('catraca do TICEN nao pede o cartao de novo para quem ja entrou', () => {
+    const { world, multiplayerClient } = busDoorWorld();
+    const { TICEN_GATE } = load('../src/game/config/ticen.ts');
+    world.player.sprite.body.center = { ...TICEN_GATE.approach };
+    world.hasPassedTicenGate = true;
+    world.scene = { launch() { assert.fail('a carteira nao pode abrir'); } };
+    world.updateTicenGate();
+    assert.equal(world.isWalletOpen, false);
+    multiplayerClient.disconnect();
+});
+
+test('botas de prata aceleram o passo e as de diamante encurtam a recarga do dash', () => {
+    const { Player } = load('../src/game/entities/Player.ts');
+    const { SILVER_BOOTS, DIAMOND_BOOTS, ITEM_CHESTS, ITEMS } = load('../src/game/config/items.ts');
+    const player = Object.create(Player.prototype);
+    player.dash = { cooldownMultiplier: 1 };
+    player.wornItems = new Map([['silver-boots', () => {}]]);
+    player.refreshEquipment();
+    assert.equal(player.equipmentSpeedMultiplier, SILVER_BOOTS.speedMultiplier);
+    assert.equal(player.dash.cooldownMultiplier, 1);
+    player.wornItems = new Map([['diamond-boots', () => {}]]);
+    player.refreshEquipment();
+    assert.equal(player.equipmentSpeedMultiplier, 1);
+    assert.equal(player.dash.cooldownMultiplier, DIAMOND_BOOTS.dashCooldownMultiplier);
+    assert.ok(DIAMOND_BOOTS.dashCooldownMultiplier < 1);
+    assert.equal(SILVER_BOOTS.slot, DIAMOND_BOOTS.slot, 'os dois pares disputam os pés');
+    for (const chest of Object.values(ITEM_CHESTS)) assert.ok(chest.items.every((id) => ITEMS[id]), 'todo baú guarda itens do catálogo');
+});
+
+test('baú da Sala I fica trancado com o aviso e só entrega as botas se a sala acabar no tempo', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { ITEM_CHESTS } = load('../src/game/config/items.ts');
+    const { x, y, timeLimitMs } = ITEM_CHESTS.room1;
+    const fakeObject = () => {
+        const object = { visible: true, tinted: false, frame: 0, destroy() {} };
+        for (const method of ['setOrigin', 'setDepth', 'setAlign', 'setPosition', 'setScale']) object[method] = () => object;
+        object.setVisible = (visible) => { object.visible = visible; return object; };
+        object.setTint = () => { object.tinted = true; return object; };
+        object.clearTint = () => { object.tinted = false; return object; };
+        object.setFrame = (frame) => { object.frame = frame; return object; };
+        return object;
+    };
+    const createWorld = () => {
+        const world = new World();
+        const hints = [];
+        world.hints = hints;
+        world.equipped = [];
+        world.add = { sprite: (sx, sy) => Object.assign(fakeObject(), { x: sx, y: sy }) };
+        world.tweens = { add() {}, killTweensOf() {} };
+        world.createWorldHint = (text) => { const hint = Object.assign(fakeObject(), { text, x: 0, y: 0 }); hints.push(hint); return hint; };
+        world.addChestGlow = fakeObject;
+        world.player = { sprite: { x: x + 200, y }, equipItem(id) { world.equipped.push(id); }, unequipItem() {} };
+        return world;
+    };
+
+    const late = createWorld();
+    late.createItemChest('room1', true);
+    assert.equal(late.itemChest.image.tinted, true, 'o baú nasce apagado');
+    assert.match(late.hints[0].text, /COMPLETE A SALA I EM 01:30\nPARA DESBLOQUEAR UM ITEM/);
+    late.updateItemChest();
+    assert.equal(late.hints[0].visible, false, 'de longe não há aviso');
+    late.player.sprite.x = x;
+    late.updateItemChest();
+    assert.equal(late.hints[0].visible, true, 'perto do baú trancado aparece o desafio');
+    late.itemChestRuns.get('room1').startedAt = -timeLimitMs - 1;
+    late.finishItemChestRun('room1');
+    late.updateItemChest();
+    assert.deepEqual(late.ownedItems, [], 'fora do tempo o baú continua trancado');
+    assert.equal(late.hints[0].visible, true);
+
+    const fast = createWorld();
+    fast.createItemChest('room1', true);
+    fast.finishItemChestRun('room1');
+    assert.equal(fast.itemChest.image.tinted, false, 'no tempo, o baú acende');
+    const chest = fast.itemChest.image;
+    // Volta do esconderijo: a sala é recriada e o baú segue destrancado.
+    fast.createItemChest('room1', false);
+    assert.ok(fast.itemChest.glow, 'o destrancado sobrevive à ida ao esconderijo');
+    fast.player.sprite.x = x;
+    fast.updateItemChest();
+    assert.equal(chest.frame, 0);
+    assert.equal(fast.itemChest, undefined);
+    assert.deepEqual(fast.ownedItems, ['silver-boots']);
+    assert.deepEqual(fast.equippedItems, ['silver-boots']);
+    assert.ok(fast.equipped.includes('silver-boots'), 'as botas já entram nos pés');
+    fast.createItemChest('room1', false);
+    assert.equal(fast.itemChest, undefined, 'quem já tem as botas encontra o baú aberto');
+});
+
+test('arrastar no inventário equipa ao soltar no boneco e guarda ao soltar na grade', () => {
+    const { shouldToggleOnDrop } = load('../src/game/ui/InventoryMenuView.ts');
+    const doll = [330, 170];
+    const grid = [260, 330];
+    assert.equal(shouldToggleOnDrop(false, ...doll), true, 'guardado solto no boneco equipa');
+    assert.equal(shouldToggleOnDrop(false, ...grid), false, 'guardado solto na própria grade volta ao lugar');
+    assert.equal(shouldToggleOnDrop(true, ...grid), true, 'equipado solto na grade é retirado');
+    assert.equal(shouldToggleOnDrop(true, ...doll), false, 'equipado solto no boneco continua vestido');
+    assert.equal(shouldToggleOnDrop(false, 700, 170), false, 'fora das áreas nada muda');
+});
+
+test('atributos do inventário somam os itens vestidos em barrinhas e porcentagem', () => {
+    const { getEquipmentStats } = load('../src/game/ui/InventoryMenuView.ts');
+    assert.deepEqual(getEquipmentStats([]), [
+        { label: 'BLOQUEIO', pips: 0, value: '0%' },
+        { label: 'VELOCIDADE', pips: 0, value: '0%' },
+        { label: 'DASH', pips: 0, value: '0%' }
+    ]);
+    const [block, speed, dash] = getEquipmentStats(['gaucho-hat', 'silver-boots']);
+    assert.deepEqual([block.pips, block.value], [2, '20%']);
+    assert.deepEqual([speed.pips, speed.value], [2, '+10%']);
+    assert.equal(dash.pips, 0);
+    assert.deepEqual(getEquipmentStats(['helmet', 'diamond-boots']).map(({ pips }) => pips), [3, 0, 4]);
+});
+
+test('balão do inventário acompanha o encaixe e não sai do painel', () => {
+    const { getTooltipPosition } = load('../src/game/ui/InventoryMenuView.ts');
+    assert.deepEqual(getTooltipPosition(268, 338, 90), { x: 282, y: 348 }, 'no meio do painel fica à direita e abaixo do encaixe');
+    const corner = getTooltipPosition(840, 440, 90);
+    assert.ok(corner.x + 232 <= 873 && corner.y + 90 <= 486, 'no canto é empurrado para dentro');
+});
+
+test('botas calçam as pernas do personagem: gaúcho tem pernas mais largas e afastadas', () => {
+    const { SILVER_BOOTS, bootPixels } = load('../src/game/config/items.ts');
+    const { CHARACTERS } = load('../src/game/config/characters.ts');
+    const { getItemOffsetY } = load('../src/game/entities/WornItem.ts');
+    const width = (pixels) => Math.max(...pixels.map(([x, , w]) => x + w));
+    assert.deepEqual(SILVER_BOOTS.pixels, bootPixels(0x9aa4b4, 0xe6ecf4), 'o ícone segue na medida do padrão');
+    assert.equal(width(SILVER_BOOTS.fitFeet(CHARACTERS.padrao.feet)), 14);
+    assert.equal(width(SILVER_BOOTS.fitFeet(CHARACTERS.gaucho.feet)), 20);
+    // Sola na linha de baixo do pé: no frame de 38 px, 36 no padrão e 37 no gaúcho.
+    const sole = (character) => 19 + getItemOffsetY(SILVER_BOOTS, 38, CHARACTERS[character].texture) + SILVER_BOOTS.height / 2;
+    assert.equal(sole('padrao'), 36);
+    assert.equal(sole('gaucho'), 37);
+});
+
+test('setas e controle andam pela mochila sem sair dos itens que existem', () => {
+    const { moveInventorySelection } = load('../src/game/ui/InventoryMenuView.ts');
+    assert.equal(moveInventorySelection(0, 4, -1, 0), 0, 'não passa do primeiro');
+    assert.equal(moveInventorySelection(2, 4, 1, 0), 3);
+    assert.equal(moveInventorySelection(3, 4, 1, 0), 3, 'não passa do último');
+    assert.equal(moveInventorySelection(2, 4, 0, 1), 2, 'sem segunda linha, descer não muda');
+    assert.equal(moveInventorySelection(11, 12, 1, 0), 11);
+    assert.equal(moveInventorySelection(11, 14, 1, 0), 12, 'do fim da linha passa para a de baixo');
+    assert.equal(moveInventorySelection(5, 14, 0, 1), 13, 'linha de baixo mais curta leva ao último item');
+    assert.equal(moveInventorySelection(13, 14, 0, -1), 1);
+    assert.equal(moveInventorySelection(1, 14, 0, -1), 1, 'não sobe da primeira linha');
+    assert.equal(moveInventorySelection(0, 0, 1, 0), 0, 'mochila vazia não quebra');
+});
+
+test('baú sorteia ao destrancar só o que falta, guarda o sorteio e abre vazio para quem tem tudo', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { ITEM_CHESTS, getChestCandidates } = load('../src/game/config/items.ts');
+    assert.deepEqual(getChestCandidates(['flame-sword', 'ice-staff'], ['flame-sword']), ['ice-staff']);
+    const world = new World();
+    world.ownedItems = ['flame-sword'];
+    world.itemChestRuns.set('room3', { startedAt: 0, unlocked: false, claimed: false });
+    world.finishItemChestRun('room3', () => 0);
+    const run = world.itemChestRuns.get('room3');
+    assert.equal(run.unlocked, true);
+    assert.ok(ITEM_CHESTS.room3.items.includes(run.item));
+    assert.notEqual(run.item, 'flame-sword', 'nunca sorteia o que o jogador já tem');
+    const fakeSprite = () => {
+        const sprite = { frame: 0 };
+        for (const method of ['setOrigin', 'setDepth', 'setTint']) sprite[method] = () => sprite;
+        sprite.setFrame = (frame) => { sprite.frame = frame; return sprite; };
+        return sprite;
+    };
+    world.add = { sprite: fakeSprite };
+    world.ownedItems = ['flame-sword', 'ice-staff', 'diamond-boots'];
+    world.itemChestRuns.set('room3', { startedAt: 0, unlocked: false, claimed: false });
+    world.createItemChest('room3', false);
+    assert.equal(world.itemChest, undefined, 'quem já tem tudo da lista encontra o baú aberto');
+});
+
+test('espada flamejante golpeia nas salas com tiro sem atrasar o tiro automático', () => {
+    const { combat, drones, groups, player, rings } = setup([[125, 100]]);
+    player.getAimDirection = () => ({ x: 1, y: 0 });
+    combat.update(0);
+    assert.equal(groups[0].getLength(), 1, 'o tiro saiu');
+    const afterShot = drones[0].health.current;
+    assert.equal(combat.swing(0), false, 'sem a espada flamejante não há golpe');
+    combat.setFlameSword(true);
+    assert.equal(combat.hasSword(), true, 'o botão USAR do toque vira a espada');
+    assert.equal(combat.swing(0), true);
+    const { damage } = COMBAT_CONFIG.player;
+    assert.equal(drones[0].health.current, afterShot - damage * COMBAT_CONFIG.flameSword.damageMultiplier);
+    assert.equal(combat.swing(0), false, 'a recarga do golpe vale');
+    // A recarga do tiro (600 ms) é a mais longa das duas: ao fim dela, saem o tiro e o golpe.
+    combat.update(Math.max(COMBAT_CONFIG.player.fireInterval, COMBAT_CONFIG.flameSword.interval));
+    assert.equal(groups[0].getLength(), 2, 'golpear não segurou o tiro seguinte');
+    assert.equal(combat.swing(0), true);
+    assert.ok(rings.length >= COMBAT_CONFIG.flameSword.trailFlames, 'cada golpe solta o rastro de labaredas pelo arco');
+    combat.setFlameSword(false);
+    assert.equal(combat.hasSword(), false, 'guardar a espada tira o golpe');
+});
+
+test('cajado de gelo congela só quem está no raio, por 1 s, sem dano, e espera alguém chegar perto', () => {
+    const { radius, interval, freezeDuration } = COMBAT_CONFIG.iceStaff;
+    const { combat, drones } = setup([[100 + radius - 10, 100], [100 + radius + 60, 100]]);
+    const [near, far] = drones;
+    for (const drone of drones) {
+        drone.tint = undefined;
+        drone.sprite.setVelocity = (x, y) => { drone.velocity = { x, y }; return drone.sprite; };
+        drone.sprite.setTint = (color) => { drone.tint = color; return drone.sprite; };
+        drone.sprite.clearTint = () => { drone.tint = undefined; return drone.sprite; };
+    }
+    combat.playerCooldown = 99_999;
+    combat.setIceStaff(true);
+    combat.update(0);
+    assert.equal(combat.isFrozen(near), true);
+    assert.equal(combat.isFrozen(far), false, 'fora do raio não congela');
+    assert.equal(near.health.current, COMBAT_CONFIG.drone.maxHealth, 'o gelo não fere');
+    combat.update(16);
+    assert.deepEqual(near.velocity, { x: 0, y: 0 });
+    assert.equal(near.tint, COMBAT_CONFIG.iceStaff.color);
+    combat.update(freezeDuration);
+    assert.equal(combat.isFrozen(near), false, 'derrete depois de 1 s');
+    assert.equal(near.tint, undefined, 'e volta à cor normal');
+    combat.update(interval - freezeDuration - 32);
+    assert.equal(combat.isFrozen(near), false, 'ainda na recarga de 4 s');
+    combat.update(32);
+    assert.equal(combat.isFrozen(near), true, 'fim da recarga congela de novo');
+    combat.setIceStaff(false);
+});
+
+test('cajado de fogo queima quem está em volta por 5 s com pouco dano e recarrega em 10 s', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('fire-staff'));
+    const { combat, drones } = setup([[200, 100], [100 + upgrades.burnRadius + 40, 100]], [], upgrades);
+    const [near, far] = drones;
+    const { tickInterval } = COMBAT_CONFIG.burn;
+    const tick = upgrades.damage * upgrades.burnDamageRatio;
+    combat.playerCooldown = 99_999;
+    combat.update(0);
+    assert.equal(near.health.current, COMBAT_CONFIG.drone.maxHealth, 'pegar fogo não dá dano de uma vez');
+    combat.playerCooldown = 99_999;
+    combat.update(tickInterval);
+    assert.ok(Math.abs(near.health.current - (COMBAT_CONFIG.drone.maxHealth - tick)) < 1e-9, 'um tick de queimadura');
+    assert.equal(far.health.current, COMBAT_CONFIG.drone.maxHealth, 'fora do raio não queima');
+    for (let elapsed = tickInterval; elapsed < upgrades.burnDuration + tickInterval * 2; elapsed += tickInterval) {
+        combat.playerCooldown = 99_999;
+        combat.update(tickInterval);
+    }
+    const ticks = upgrades.burnDuration / tickInterval;
+    assert.ok(Math.abs(near.health.current - (COMBAT_CONFIG.drone.maxHealth - tick * ticks)) < 1e-9, 'a queimadura para depois de 5 s');
+    assert.ok(tick * ticks <= upgrades.damage, 'no total, no máximo um tiro de dano');
+});
+
+test('golem joga o primeiro ônibus no jogador mais perto e depois alterna entre os dois', () => {
+    const { pickBusTarget } = load('../src/game/entities/TopazioGolem.ts');
+    const origin = { x: 0, y: 0 };
+    const host = { id: 'host', center: { x: 50, y: 0 } };
+    const guest = { id: 'guest', center: { x: 200, y: 0 } };
+    assert.equal(pickBusTarget(origin, [host, guest])?.id, 'host', 'o primeiro vai no mais perto');
+    assert.equal(pickBusTarget(origin, [host, guest], 'host')?.id, 'guest', 'o segundo vai no outro, mesmo mais longe');
+    assert.equal(pickBusTarget(origin, [host, guest], 'guest')?.id, 'host');
+    assert.equal(pickBusTarget(origin, [guest], 'guest')?.id, 'guest', 'com o parceiro caído, o vivo leva de novo');
+    assert.equal(pickBusTarget(origin, []), undefined);
+});
+
+test('no convidado, o alvo do ônibus aparece em quem o anfitrião escolheu', () => {
+    const { TopazioGolem } = load('../src/game/entities/TopazioGolem.ts');
+    const golem = Object.create(TopazioGolem.prototype);
+    const marks = [];
+    Object.assign(golem, {
+        health: new Health(10),
+        buses: [{ route: 4, col: 34, row: 20 }],
+        options: {
+            mirror: true,
+            getBusTargets: () => [{ id: 'host', center: { x: 300, y: 120 } }, { id: 'guest', center: { x: 40, y: 60 } }]
+        },
+        liftBus() {},
+        actionTime: 0,
+        busMarker: {
+            clear() { return this; },
+            fillStyle() { return this; },
+            fillEllipse(x, y) { marks.push({ x, y }); return this; },
+            lineStyle() { return this; },
+            strokeEllipse() { return this; },
+            setData() { return this; }
+        }
+    });
+    Object.defineProperty(golem, 'isMirror', { get: () => true });
+    golem.applyRemoteAction({ type: 'lift', route: 4, target: 'host' });
+    golem.updateHold(golem.getBusAim());
+    assert.equal(marks[0].x, 300, 'o alvo segue o anfitrião, não quem está jogando no convidado');
+});
+
+test('gelo do parceiro chega pela rede: congela sem dano e nunca por mais que o cajado', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const frozen = [];
+    let damaged = 0;
+    const enemy = { health: { isAlive: true }, sprite: { x: 0, y: 0 }, takeDamage() { damaged += 1; return 0; } };
+    world.drones = [enemy];
+    world.combat = { freezeEnemy: (target, duration) => frozen.push([target, duration]) };
+    world.isMultiplayerHost = () => true;
+    world.applyPartnerHit({ kind: 'enemy.hit', index: 0, damage: 0, dx: 0, dy: 0, freeze: 60_000 });
+    assert.deepEqual(frozen, [[enemy, COMBAT_CONFIG.iceStaff.freezeDuration]], 'valor vindo de fora não congela além do cajado');
+    assert.equal(damaged, 0, 'o gelo não fere');
+    world.applyPartnerHit({ kind: 'enemy.hit', index: 7, damage: 0, dx: 0, dy: 0, freeze: 1_000 });
+    assert.equal(frozen.length, 1, 'índice que não existe é ignorado');
+});
+
+test('atalho ?start= leva a dupla do multiplayer direto para a sala pedida', () => {
+    const { getMultiplayerStartRoom } = load('../src/game/config/rooms.ts');
+    assert.equal(getMultiplayerStartRoom('?room=teste'), 'room1', 'sem start, começa na Sala I');
+    assert.equal(getMultiplayerStartRoom('?room=teste&start=5'), 'room5');
+    assert.equal(getMultiplayerStartRoom('?start=3'), 'room3');
+});
+
+test('disputa do TICEN leva o anfitrião para a plataforma A e o convidado para a D', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { TICEN_DUEL } = load('../src/game/config/ticen.ts');
+    const place = (isHost) => {
+        const world = new World();
+        const body = {};
+        body.center = { x: 100, y: 110 };
+        body.reset = (x, y) => { body.at = { x, y }; };
+        world.player = { sprite: { x: 100, y: 100, body, setPosition() {} } };
+        world.roomMap = { hasTileAt: () => false };
+        world.collisionLayers = [];
+        world.cameras = { main: { flash() {} } };
+        world.isMultiplayerHost = () => isHost;
+        world.teleportToDuelCorner();
+        // O pé cai no tile do canto; o sprite fica 10 px acima, como estava em relação ao corpo.
+        return { x: body.at.x, y: body.at.y + 10 };
+    };
+    const [hostCorner, guestCorner] = TICEN_DUEL.corners;
+    const host = place(true);
+    const guest = place(false);
+    assert.ok(Math.abs(host.x - hostCorner.x) < 16 && Math.abs(host.y - hostCorner.y) < 16, 'anfitrião no canto A');
+    assert.ok(Math.abs(guest.x - guestCorner.x) < 16 && Math.abs(guest.y - guestCorner.y) < 16, 'convidado no canto D');
+});
+
+test('disputa do TICEN: teletransporte, close de duelo e só depois a luta', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const steps = [];
+    let finishStandoff;
+    world.player = {};
+    world.teleportToDuelCorner = () => steps.push('teleporte');
+    world.playDuelStandoff = (onDone) => { steps.push('close'); finishStandoff = onDone; };
+    world.beginDuelFight = () => steps.push('luta');
+    world.startDuel();
+    assert.deepEqual(steps, ['teleporte', 'close'], 'a luta espera o close terminar');
+    finishStandoff();
+    assert.deepEqual(steps, ['teleporte', 'close', 'luta']);
+});
+
+test('curva de Bézier das cenas segue a do CSS: começa em 0, termina em 1 e a de saída corre no começo', () => {
+    const { cubicBezier, EASE_OUT, EASE_IN_OUT, prefersReducedMotion } = load('../src/game/ui/easing.ts');
+    const linear = cubicBezier(0, 0, 1, 1);
+    for (const x of [0.1, 0.5, 0.9]) assert.ok(Math.abs(linear(x) - x) < 1e-4, 'a reta continua reta');
+    assert.equal(EASE_OUT(0), 0);
+    assert.equal(EASE_OUT(1), 1);
+    assert.ok(EASE_OUT(0.25) > 0.75, 'a de saída já percorreu quase tudo no primeiro quarto');
+    const samples = Array.from({ length: 21 }, (_, index) => EASE_IN_OUT(index / 20));
+    assert.ok(samples.every((value, index) => index === 0 || value >= samples[index - 1]), 'a de ida e volta só avança');
+    assert.ok(EASE_IN_OUT(0.2) < 0.1 && EASE_IN_OUT(0.8) > 0.9, 'devagar nas pontas, rápida no meio');
+    assert.equal(prefersReducedMotion(() => ({ matches: true })), true);
+    assert.equal(prefersReducedMotion(undefined), false);
+});
+
+test('raio do VS atravessa a tela de canto a canto e se desenha aos poucos', () => {
+    const { getBoltPoints, getPartialPath } = load('../src/game/ui/DuelStandoffView.ts');
+    const points = getBoltPoints(889, 500);
+    assert.ok(points[0].x < 0 && points[0].y > 500, 'nasce fora da tela, embaixo à esquerda');
+    assert.ok(points.at(-1).x > 889 && points.at(-1).y < 0, 'termina fora da tela, em cima à direita');
+    assert.deepEqual(getPartialPath(points, 0), [points[0]], 'no começo só existe a ponta');
+    assert.deepEqual(getPartialPath(points, 1), points, 'no fim, o raio inteiro');
+    const half = getPartialPath(points, 0.5);
+    assert.ok(half.length > 1 && half.length < points.length, 'na metade, parte das dobras');
+    assert.ok(half.at(-1).x > 0 && half.at(-1).x < 889);
+});
+
+test('golem solta uma cadeia de topázio e só abre as três abaixo de 70% da vida', () => {
+    const { TopazioGolem } = load('../src/game/entities/TopazioGolem.ts');
+    const { TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const slamWith = (healthRatio) => {
+        const golem = Object.create(TopazioGolem.prototype);
+        let spikes = 0;
+        const emitted = [];
+        Object.assign(golem, {
+            health: { current: TOPAZIO_BOSS.maxHealth * healthRatio, max: TOPAZIO_BOSS.maxHealth },
+            hasSlammed: false,
+            actionTime: TOPAZIO_BOSS.slam.windup,
+            sprite: { x: 100, y: 100 },
+            options: { onAction: (action) => emitted.push(action) },
+            playSlamImpact() {},
+            scene: { time: { delayedCall() { spikes += 1; } } }
+        });
+        golem.updateSlam({ x: 300, y: 100 });
+        return { chains: spikes / TOPAZIO_BOSS.slam.spikeCount, rows: emitted[0].rows };
+    };
+    assert.deepEqual(slamWith(1), { chains: 1, rows: 1 }, 'cheio: uma cadeia só');
+    assert.deepEqual(slamWith(0.71), { chains: 1, rows: 1 });
+    assert.deepEqual(slamWith(0.7), { chains: 3, rows: 3 }, 'em 70%: o leque de três, e o convidado recebe o mesmo número');
+});
+
+test('golem busca um ônibus a cada 20 s mesmo sem passar dos limiares de vida', () => {
+    const { TopazioGolem } = load('../src/game/entities/TopazioGolem.ts');
+    const { TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const golem = Object.create(TopazioGolem.prototype);
+    let fetches = 0;
+    Object.assign(golem, {
+        health: { current: TOPAZIO_BOSS.maxHealth, max: TOPAZIO_BOSS.maxHealth },
+        buses: [...TOPAZIO_BOSS.buses],
+        busesThrown: 0,
+        sinceLastBus: 0,
+        restTimer: Infinity,
+        roarsDone: 0,
+        isDeathDeferred: false,
+        startFetch() { fetches += 1; }
+    });
+    const body = { setVelocity() {} };
+    golem.updateWalk(body, undefined, TOPAZIO_BOSS.busInterval - 1);
+    assert.equal(fetches, 0, 'com vida cheia, ainda não');
+    golem.updateWalk(body, undefined, 1);
+    assert.equal(fetches, 1, 'passados 20 s, vai atrás de um ônibus');
+    golem.updateWalk(body, undefined, 1);
+    assert.equal(fetches, 1, 'e o tempo recomeça');
+});
+
+test('fim da Sala III não oferece sempre a mesma mesa', () => {
+    const { drawUpgradeCardsFeaturing } = load('../src/game/upgrades/drawUpgradeCards.ts');
+    const { ROOM3_FINAL_UPGRADE_IDS } = load('../src/game/upgrades/catalog.ts');
+    const all = new PlayerUpgradeState().availableCards();
+    const tables = new Set();
+    for (let seed = 1; seed <= 30; seed += 1) {
+        let state = seed;
+        const random = () => (state = (state * 9301 + 49297) % 233280) / 233280;
+        tables.add(drawUpgradeCardsFeaturing(ROOM3_FINAL_UPGRADE_IDS, random, all).map((card) => card.id).sort().join());
+    }
+    assert.ok(tables.size >= 5, `mesas diferentes em 30 partidas: ${tables.size}`);
+});
+
+test('carta Cajado de gelo congela como o item, com raio que cresce por nível', () => {
+    const upgrades = new PlayerUpgradeState();
+    upgrades.acquire(getUpgradeCard('ice-staff'));
+    assert.equal(upgrades.freezeRadius, 150);
+    const { combat, drones } = setup([[100 + 150 - 10, 100]], [], upgrades);
+    drones[0].sprite.setVelocity = () => drones[0].sprite;
+    drones[0].sprite.setTint = () => drones[0].sprite;
+    combat.playerCooldown = 99_999;
+    combat.update(0);
+    assert.equal(combat.isFrozen(drones[0]), true, 'congela sem o item, só com a carta');
+    upgrades.acquire(getUpgradeCard('ice-staff'));
+    assert.equal(upgrades.freezeRadius, 180, '+30 px no nível 2');
+});
+
+test('rodada do golem oferece cinco cartas novas das Salas II e III, sem básicas nem as já escolhidas', () => {
+    const { drawGolemCards } = load('../src/game/upgrades/drawUpgradeCards.ts');
+    const { BASIC_UPGRADE_IDS, UPGRADE_CARDS } = load('../src/game/upgrades/catalog.ts');
+    const acquired = ['shock-pulse', 'chain-lightning', 'spin-slash'];
+    for (const roll of [0, 0.3, 0.6, 0.99]) {
+        const cards = drawGolemCards(acquired, () => roll, UPGRADE_CARDS);
+        const ids = cards.map((card) => card.id);
+        assert.equal(cards.length, 5);
+        assert.equal(new Set(ids).size, 5, 'sem repetir');
+        assert.ok(!ids.some((id) => acquired.includes(id)), 'nenhuma já escolhida');
+        assert.ok(!ids.some((id) => BASIC_UPGRADE_IDS.includes(id) || id === 'overclock'), 'sem básicas nem a aposentada');
+    }
+    const everyOption = UPGRADE_CARDS.map((card) => card.id);
+    assert.deepEqual(drawGolemCards(everyOption, () => 0, UPGRADE_CARDS), [], 'quem já pegou tudo não recebe nada');
+});
+
+test('golem desaba atordoado em 60%, abre a rodada e levanta depois de 4 s sem machucar caído', () => {
+    const { TopazioGolem } = load('../src/game/entities/TopazioGolem.ts');
+    const { TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const golem = Object.create(TopazioGolem.prototype);
+    let stuns = 0;
+    const emitted = [];
+    Object.assign(golem, {
+        health: { current: TOPAZIO_BOSS.maxHealth * TOPAZIO_BOSS.stun.at, max: TOPAZIO_BOSS.maxHealth, isAlive: true },
+        hasStunned: false,
+        stunHalo: [],
+        roarsDone: 2,
+        buses: [],
+        busesThrown: 4,
+        sinceLastBus: 0,
+        isDeathDeferred: false,
+        stage: 2,
+        options: { onStun: () => { stuns += 1; }, onAction: (action) => emitted.push(action.type) },
+        sprite: {
+            x: 100, y: 100, height: 160, displayHeight: 160, depth: 10, angle: 0,
+            setTint() { return this; }, clearTint() { return this; }, setScale() { return this; }, setY() { return this; }
+        },
+        scene: {
+            tweens: { add() {} },
+            cameras: { main: { shake() {} } },
+            textures: { exists: () => true },
+            add: {
+                image() {
+                    const star = { destroyed: false };
+                    for (const method of ['setScale', 'setAlpha', 'setPosition', 'setDepth']) star[method] = () => star;
+                    star.destroy = () => { star.destroyed = true; };
+                    return star;
+                }
+            }
+        }
+    });
+    golem.updateWalk({ setVelocity() {} }, undefined, 16);
+    assert.equal(golem.action, 'stun');
+    assert.equal(golem.stunHalo.length, 5, 'cinco estrelas girando sobre a cabeça');
+    assert.equal(golem.sprite.angle, 0, 'fica de joelhos, sem tombar de lado');
+    assert.equal(stuns, 1, 'a rodada de cartas abre');
+    assert.deepEqual(emitted, ['stun'], 'o convidado recebe o atordoamento');
+    golem.startStun();
+    assert.equal(stuns, 1, 'só uma vez por luta');
+    golem.actionTime = TOPAZIO_BOSS.stun.duration;
+    golem.endStun();
+    assert.equal(golem.action, 'walk', 'levanta e volta a andar');
+    assert.equal(golem.stunHalo.length, 0, 'a auréola some ao levantar');
+});
+
+test('fim da Sala IV oferece as duas cartas mais fortes ainda disponíveis e uma aleatória', () => {
+    const { BASIC_UPGRADE_IDS, STRONGEST_UPGRADE_IDS } = load('../src/game/upgrades/catalog.ts');
+    const fresh = new PlayerUpgradeState();
+    for (const roll of [0, 0.5, 0.99]) {
+        const cards = drawTableCards('room4', () => roll, fresh.availableCards());
+        assert.deepEqual(cards.slice(0, 2).map((card) => card.id), STRONGEST_UPGRADE_IDS.slice(0, 2));
+        assert.equal(cards.length, 3);
+        assert.ok(!STRONGEST_UPGRADE_IDS.slice(0, 2).includes(cards[2].id), 'a aleatória não repete as fortes');
+        assert.ok(!BASIC_UPGRADE_IDS.includes(cards[2].id) && cards[2].id !== 'overclock', 'nem é básica ou aposentada');
+    }
+    const maxed = new PlayerUpgradeState();
+    const strongest = getUpgradeCard(STRONGEST_UPGRADE_IDS[0]);
+    for (let level = 0; level < strongest.maxLevel; level += 1) maxed.acquire(strongest);
+    const ids = drawTableCards('room4', () => 0, maxed.availableCards()).map((card) => card.id);
+    assert.deepEqual(ids.slice(0, 2), STRONGEST_UPGRADE_IDS.slice(1, 3), 'a mais forte no máximo dá lugar à seguinte');
+});
+
+test('pausa da dupla: avisa só quando o motivo muda e o parceiro congela até o menu fechar', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { multiplayerClient } = load('../src/game/network/MultiplayerClient.ts');
+    const sent = [];
+    const originalSend = multiplayerClient.sendEvent;
+    multiplayerClient.sendEvent = (event) => sent.push(event);
+    try {
+        const world = new World();
+        world.isCoopActive = () => true;
+        world.sendLocalPause('piranhas');
+        world.sendLocalPause('piranhas');
+        world.sendLocalPause(undefined);
+        assert.deepEqual(sent, [{ kind: 'game.pause', reason: 'piranhas' }, { kind: 'game.pause' }], 'um aviso ao abrir e outro ao fechar');
+        let paused = 0;
+        let resumed = 0;
+        world.physics = { pause: () => { paused += 1; }, resume: () => { resumed += 1; } };
+        world.player = { stopMovement() {} };
+        world.scene = { get: () => undefined };
+        world.applyPartnerPause('pause');
+        assert.equal(world.partnerPause, 'pause');
+        assert.equal(paused, 1, 'a física para também deste lado');
+        world.applyPartnerPause(undefined);
+        assert.equal(world.partnerPause, undefined);
+        assert.equal(resumed, 1, 'e volta quando o parceiro fecha o menu');
+        world.isPauseMenuOpen = true;
+        world.applyPartnerPause(undefined);
+        assert.equal(resumed, 1, 'com o próprio menu aberto, continua parado');
+        // Os dois pausam, o parceiro volta primeiro: ao fechar o próprio menu, a física tem de voltar.
+        world.applyPartnerPause('pause');
+        world.applyPartnerPause(undefined);
+        world.resetPauseMenuState();
+        assert.equal(resumed, 2, 'quem fecha a pausa por último não fica travado');
+        world.applyPartnerPause('pause');
+        world.isPauseMenuOpen = true;
+        world.resetPauseMenuState();
+        assert.equal(resumed, 2, 'com o parceiro ainda pausado, segue parado');
+    } finally {
+        multiplayerClient.sendEvent = originalSend;
+    }
+});
+
+test('esconderijo em dupla só passa com os dois SIM, e quem passa é o anfitrião', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const vote = (isHost) => {
+        const world = new World();
+        let passes = 0;
+        world.isMultiplayerHost = () => isHost;
+        world.showFloatingHint = () => undefined;
+        world.gatewayVote = { pass: () => { passes += 1; }, local: true, partner: false };
+        world.applyPartnerGatewayVote({ kind: 'gateway.vote', phase: 'yes' });
+        return passes;
+    };
+    assert.equal(vote(true), 1, 'os dois disseram SIM: o anfitrião leva a dupla');
+    assert.equal(vote(false), 0, 'o convidado espera o anfitrião trocar a sala');
+    const world = new World();
+    let stopped = 0;
+    let resumed = 0;
+    world.showFloatingHint = () => undefined;
+    world.scene = { stop: () => { stopped += 1; } };
+    world.physics = { resume: () => { resumed += 1; } };
+    world.isGatewayConfirmOpen = true;
+    world.gatewayVote = { pass: () => assert.fail('não pode passar'), local: false, partner: false };
+    world.applyPartnerGatewayVote({ kind: 'gateway.vote', phase: 'no' });
+    assert.equal(stopped, 1, 'o NÃO do parceiro fecha a pergunta aqui');
+    assert.equal(world.isGatewayConfirmOpen, false);
+    assert.equal(world.gatewayVote, undefined);
+});
+
+test('TENTAR NOVAMENTE em dupla recomeça os dois do início da sala salva', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { multiplayerClient } = load('../src/game/network/MultiplayerClient.ts');
+    const sent = [];
+    const originalSend = multiplayerClient.sendEvent;
+    multiplayerClient.sendEvent = (event) => sent.push(event);
+    try {
+        const registry = new Map([['coopCheckpoint', { roomKey: 'room3', playerProgress: { currentHealth: 4 } }]]);
+        const make = (isHost) => {
+            const world = new World();
+            const restarts = [];
+            world.registry = { get: (key) => registry.get(key) };
+            world.isMultiplayerGuest = () => !isHost;
+            world.restartCoopRoom = (roomKey) => restarts.push(roomKey);
+            return { world, restarts };
+        };
+        const guest = make(false);
+        guest.world.retryCoopRoom();
+        assert.deepEqual(sent.pop(), { kind: 'room.request', roomKey: 'room3', retry: true }, 'o convidado pede ao anfitrião');
+        assert.deepEqual(guest.restarts, []);
+        const host = make(true);
+        host.world.retryCoopRoom();
+        assert.deepEqual(sent.pop(), { kind: 'room.transition', roomKey: 'room3', retry: true }, 'o anfitrião avisa e recomeça');
+        assert.deepEqual(host.restarts, ['room3']);
+        registry.clear();
+        make(true).world.retryCoopRoom();
+        assert.equal(sent.pop().roomKey, 'room1', 'sem checkpoint, partida nova na Sala I');
+    } finally {
+        multiplayerClient.sendEvent = originalSend;
+    }
+});
+
+test('rajada espiral do parceiro aparece como fragmentos só de enfeite', () => {
+    const { combat, rings } = setup([]);
+    combat.playPartnerEffect({ effect: 'spiral', x: 100, y: 100, startAngle: 0, shards: 4, range: 150 });
+    assert.equal(rings.length, 8, 'halo e núcleo para cada fragmento');
+});
+
+test('botas viram perfil quando o personagem anda para o lado', () => {
+    const { getWalkSide } = load('../src/game/entities/WornItem.ts');
+    const { WALK_FRAMES } = load('../src/game/entities/PlayerAnimations.ts');
+    const { SILVER_BOOTS, sideBootPixels } = load('../src/game/config/items.ts');
+    assert.equal(getWalkSide(WALK_FRAMES.left[3]), -1);
+    assert.equal(getWalkSide(WALK_FRAMES.right[0]), 1);
+    assert.equal(getWalkSide(WALK_FRAMES.down[0]), 0);
+    assert.equal(getWalkSide(WALK_FRAMES.up[0]), 0);
+    assert.deepEqual(SILVER_BOOTS.sidePixels, sideBootPixels(0x9aa4b4, 0xe6ecf4));
+});
+
+test('direcional anda pelas cartas do inventário e sai pela direita de volta à mochila', () => {
+    const { moveCardFocus } = load('../src/game/ui/InventoryMenuView.ts');
+    assert.equal(moveCardFocus(0, 7, 3, 1, 0), 1);
+    assert.equal(moveCardFocus(2, 7, 3, 1, 0), undefined, 'da última coluna, para a direita volta à mochila');
+    assert.equal(moveCardFocus(6, 7, 3, 1, 0), undefined, 'a última carta também sai pela direita');
+    assert.equal(moveCardFocus(3, 7, 3, -1, 0), 3, 'na primeira coluna, para a esquerda fica');
+    assert.equal(moveCardFocus(1, 7, 3, 0, 1), 4, 'para baixo, uma linha');
+    assert.equal(moveCardFocus(5, 7, 3, 0, 1), 5, 'sem carta embaixo, fica');
+    assert.equal(moveCardFocus(4, 7, 3, 0, -1), 1);
+});
+
+test('no convidado, os rugidos do golem e a queda chegam pelo anfitrião e tocam as cutscenes', () => {
+    const { TopazioGolem } = load('../src/game/entities/TopazioGolem.ts');
+    const { TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const roars = [];
+    let doors = 0;
+    const golem = Object.create(TopazioGolem.prototype);
+    Object.assign(golem, {
+        health: new Health(TOPAZIO_BOSS.maxHealth),
+        roarsDone: 0,
+        options: { mirror: true },
+        onRoar: (caption) => roars.push(caption),
+        onDefeated: () => { doors += 1; },
+        finishDeath() { this.onDefeated(); }
+    });
+    for (const { caption } of TOPAZIO_BOSS.roar.cutscenes) golem.applyRemoteAction({ type: 'roar', caption });
+    assert.deepEqual(roars, TOPAZIO_BOSS.roar.cutscenes.map(({ caption }) => caption), 'os dois rugidos (70% e 40%) tocam no convidado');
+    golem.isDeathDeferred = false;
+    golem.flashHit = () => undefined;
+    golem.stage = 3;
+    golem.scene = { cameras: { main: { shake() {} } } };
+    golem.takeDamage(TOPAZIO_BOSS.maxHealth * 10);
+    assert.equal(golem.health.current, 1, 'o espelho não morre sozinho: segura em 1 até o aviso');
+    golem.applyRemoteAction({ type: 'defeated' });
+    assert.equal(golem.health.current, 0);
+    assert.equal(doors, 1, 'a queda chega e a cena das portas do 763.2 toca no convidado');
+});
+
+test('catraca, fliperama e perguntas não pausam o parceiro: só a pausa e o Piranhas', () => {
+    const source = readFileSync(path.resolve(__dirname, '../src/game/network/protocol.ts'), 'utf8');
+    assert.match(source, /PartnerPauseReason = 'pause' \| 'piranhas';/);
+});
+
+test('recomeço da sala em dupla devolve pelo menos 2 corações', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const progress = { currentHealth: 1, maxHealth: 8, movementSpeedMultiplier: 1, upgrades: [] };
+    let restarted;
+    world.registry = { get: () => ({ roomKey: 'room3', playerProgress: progress }) };
+    world.stopGameplayOverlays = () => {};
+    world.scene = { restart: (data) => { restarted = data; } };
+    world.restartCoopRoom('room3');
+    assert.equal(restarted.playerProgress.currentHealth, COMBAT_CONFIG.multiplayer.reviveMinHealth);
+    assert.equal(COMBAT_CONFIG.multiplayer.reviveMinHealth, 2 * COMBAT_CONFIG.player.healthPerHeart);
+});
+
+test('golem não para com os pés em cima dos quiosques do TICEN', () => {
+    const { TOPAZIO_BOSS } = load('../src/game/config/ticen.ts');
+    const { pushFeetOffKiosks } = load('../src/game/entities/TopazioGolem.ts');
+    const map = JSON.parse(readFileSync(path.resolve(__dirname, '../public/assets/maps/room5.json'), 'utf8'));
+    const tileset = map.tilesets.find(({ name }) => name === 'ticen_quiosques');
+    const isKioskTile = (gid) => gid >= tileset.firstgid && gid < tileset.firstgid + tileset.tilecount;
+    for (const layer of map.layers) {
+        (layer.data ?? []).forEach((gid, index) => {
+            if (!isKioskTile(gid)) return;
+            const x = (index % map.width) * 16 + 8;
+            const y = Math.floor(index / map.width) * 16 + 8;
+            assert.ok(TOPAZIO_BOSS.kiosks.some((kiosk) => x > kiosk.left && x < kiosk.right && y > kiosk.top && y < kiosk.bottom),
+                `tile de quiosque em ${x},${y} fora da configuração`);
+            const feet = pushFeetOffKiosks({ x, y });
+            assert.ok(feet.x !== x || feet.y !== y, 'pés em cima do quiosque são empurrados para fora');
+            assert.deepEqual(pushFeetOffKiosks(feet), feet, 'e fora dele ficam onde estão');
+        });
+    }
+    const spawnFeet = { x: TOPAZIO_BOSS.spawn.x, y: TOPAZIO_BOSS.spawn.y + TOPAZIO_BOSS.feetOffset };
+    assert.deepEqual(pushFeetOffKiosks(spawnFeet), spawnFeet);
+});
+
+test('solo, as cartas batem mais forte; a espada e a dupla ficam como estavam', () => {
+    const { combat } = setup();
+    const hits = [];
+    combat.network = { isHost: false, onEnemyHit: (_enemy, damage) => hits.push(damage) };
+    combat.cardDamageMultiplier = COMBAT_CONFIG.soloCardDamageMultiplier;
+    combat.hitEnemy({}, 10, { x: 0, y: 0 }, 'a');
+    combat.hitEnemy({}, 10, { x: 0, y: 0 }, 'a', true, 1);
+    assert.deepEqual(hits, [10 * COMBAT_CONFIG.soloCardDamageMultiplier, 10]);
+    assert.ok(COMBAT_CONFIG.soloCardDamageMultiplier > 1);
+});
+
+test('disputa da Sala V: o golpe no rival tira meio coração', () => {
+    const { TICEN_DUEL } = load('../src/game/config/ticen.ts');
+    assert.equal(TICEN_DUEL.rivalDamage, COMBAT_CONFIG.player.healthPerHeart / 2);
+});
+
+test('gerar nome da sala: pula as salas abertas e as que já estão em jogo', async () => {
+    const { MainMenu } = load('../src/game/scenes/MainMenu.ts');
+    const { multiplayerClient, ROOM_FULL_MESSAGE } = load('../src/game/network/MultiplayerClient.ts');
+    const originalConnect = multiplayerClient.connect;
+    const tried = [];
+    multiplayerClient.connect = async (_onStatus, roomName) => {
+        tried.push(roomName);
+        throw new Error(roomName === 'sala-2' ? ROOM_FULL_MESSAGE : 'fim do teste');
+    };
+    try {
+        const menu = new MainMenu();
+        menu.view = { showWaitingForPartner() {}, setStatus() {} };
+        menu.stopWatchingRooms = () => {};
+        menu.openMultiplayerMenu = () => {};
+        await menu.startMultiplayer(undefined, 1, ['sala-1']);
+        assert.deepEqual(tried, ['sala-2', 'sala-3']);
+    } finally {
+        multiplayerClient.connect = originalConnect;
+    }
 });

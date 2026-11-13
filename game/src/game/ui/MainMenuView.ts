@@ -47,7 +47,7 @@ export function createMainMenuActions(
 ): MenuAction[] {
     const actions: Omit<MenuAction, 'y'>[] = [{ label: 'JOGAR', onSelect: onPlay }];
     if (onLeaderboard) actions.push({ label: 'PLACAR', onSelect: onLeaderboard });
-    actions.push({ label: 'OPÇÕES' }, { label: 'SAIR' });
+    actions.push({ label: 'SAIR' });
     return positionActions(actions);
 }
 
@@ -73,13 +73,15 @@ export function createPlayMenuActions(
 
 export type MultiplayerMenuHandlers = {
     onCreate: () => void;
+    /** Sala com nome gerado (SALA-1, SALA-2...): quem joga no controle não tem como digitar. */
+    onCreateNumbered: () => void;
     onJoin: (roomId: string) => void;
     onBack: () => void;
 };
 
 export function createMultiplayerMenuActions(
     rooms: readonly string[],
-    { onCreate, onJoin, onBack }: MultiplayerMenuHandlers
+    { onCreate, onCreateNumbered, onJoin, onBack }: MultiplayerMenuHandlers
 ): MenuAction[] {
     const listed: Omit<MenuAction, 'y'>[] = rooms.slice(0, MAX_LISTED_ROOMS).map((roomId) => ({
         label: `${roomId.toUpperCase()}   [ ENTRAR ]`,
@@ -87,6 +89,7 @@ export function createMultiplayerMenuActions(
     }));
     return positionActions([
         { label: 'CRIAR SALA', onSelect: onCreate },
+        { label: 'GERAR NOME DA SALA', onSelect: onCreateNumbered },
         ...(listed.length > 0 ? listed : [{ label: 'NENHUMA SALA ABERTA', enabled: false }]),
         { label: 'VOLTAR', onSelect: onBack }
     ]);

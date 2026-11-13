@@ -31,7 +31,7 @@ export class PauseMenu extends Scene {
                 ...inventory,
                 upgrades,
                 selectedItem: data.selectedItem,
-                onBack: () => this.scene.restart({ ...data, view: 'pause' }),
+                onBack: () => this.scene.restart({ ...data, view: 'pause', selectedItem: undefined }),
                 // O mundo aplica a troca e devolve o inventário atualizado para redesenhar.
                 onToggle: (id, index) => this.scene.restart({
                     ...data,

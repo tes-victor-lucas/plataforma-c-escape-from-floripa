@@ -183,6 +183,24 @@ export const UPGRADE_CARDS = [
         effect: { type: 'bombard', targets: 4, targetsPerLevel: 2, radius: 55, range: 220, interval: 1_600, damageRatio: 3 }
     },
     {
+        id: 'fire-staff',
+        kind: 'ability',
+        title: 'Cajado de fogo',
+        description: 'A cada 10 s, incendeia quem está a 160 px: queima aos poucos por 5 s. +30 px por nível.',
+        maxLevel: 2,
+        // 10% do tiro a cada 0,5 s de queimadura: em 5 s, um tiro inteiro por inimigo.
+        effect: { type: 'burn-pulse', radius: 160, radiusPerLevel: 30, interval: 10_000, duration: 5_000, damageRatio: 0.1 }
+    },
+    {
+        id: 'ice-staff',
+        kind: 'ability',
+        title: 'Cajado de gelo',
+        description: 'A cada 4 s, congela por 1 s quem está a 150 px, quase sem dano. +30 px por nível.',
+        maxLevel: 2,
+        // Ritmo e duração são os do item (COMBAT_CONFIG.iceStaff); a carta só define o raio.
+        effect: { type: 'freeze-pulse', radius: 150, radiusPerLevel: 30 }
+    },
+    {
         id: 'spiral-volley',
         kind: 'ability',
         title: 'Rajada espiral',
@@ -192,7 +210,34 @@ export const UPGRADE_CARDS = [
     }
 ] as const satisfies readonly UpgradeCardDefinition[];
 
-/** Cartas de dano em área, oferecidas antes da horda maior da Sala II. */
+/** Cartas básicas: só a Sala I (e o esconderijo que sai dela) oferece. */
+export const BASIC_UPGRADE_IDS: readonly UpgradeId[] = [
+    'attack-range',
+    'projectile-speed',
+    'projectile-damage',
+    'fire-rate',
+    'max-health',
+    'double-shot',
+    'piercing-shot',
+    'companion-drone',
+    'emergency-repair'
+];
+
+/** Cartas que entram na mesa de qualquer sala. */
+export const EVERY_ROOM_UPGRADE_IDS: readonly UpgradeId[] = ['ice-staff'];
+
+/**
+ * As cartas mais fortes do jogo, da mais forte para a menos, pelo dano contra a horda (múltiplos do tiro por segundo):
+ * Nova de choque, 250% a cada 0,85 s em todos num raio de 150 px (≈ 29× com 10 inimigos no raio);
+ * Tempestade elétrica, 125% em 12 saltos a cada 0,75 s (≈ 20×); Bombardeio, 300% em 4 alvos a cada 1,6 s (≈ 7,5×);
+ * Golpe giratório, 900% em 170 px a cada 7 s (≈ 1,3× por inimigo). A mesa da Sala IV oferece as duas primeiras ainda disponíveis.
+ */
+export const STRONGEST_UPGRADE_IDS: readonly UpgradeId[] = ['nova-pulse', 'thunder-storm', 'bombard', 'spin-slash'];
+
+/** Fora de todas as mesas, mas ainda no catálogo: um checkpoint salvo com ela continua carregando. */
+export const RETIRED_UPGRADE_IDS: readonly UpgradeId[] = ['overclock'];
+
+/** Cartas de dano em área: a mesa da Sala II (e do esconderijo que sai dela). */
 export const AREA_UPGRADE_IDS: readonly UpgradeId[] = [
     'shock-pulse',
     'spiral-volley',
@@ -206,7 +251,7 @@ export const AREA_UPGRADE_IDS: readonly UpgradeId[] = [
 /** Cartas fortes que só aparecem na Sala III. */
 export const ROOM3_EXCLUSIVE_UPGRADE_IDS: readonly UpgradeId[] = [
     'heavy-rounds',
-    'overclock',
+    'fire-staff',
     'thunder-storm',
     'nova-pulse'
 ];

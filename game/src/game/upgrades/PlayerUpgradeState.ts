@@ -44,6 +44,11 @@ export class PlayerUpgradeState {
     bombardRange = 0;
     bombardInterval = 0;
     bombardDamageRatio = 0;
+    burnRadius = 0;
+    burnInterval = 0;
+    burnDuration = 0;
+    burnDamageRatio = 0;
+    freezeRadius = 0;
     volleyShards = 0;
     volleyRange = 0;
     volleyInterval = 0;
@@ -89,6 +94,11 @@ export class PlayerUpgradeState {
         this.bombardRange = 0;
         this.bombardInterval = 0;
         this.bombardDamageRatio = 0;
+        this.burnRadius = 0;
+        this.burnInterval = 0;
+        this.burnDuration = 0;
+        this.burnDamageRatio = 0;
+        this.freezeRadius = 0;
         this.volleyShards = 0;
         this.volleyRange = 0;
         this.volleyInterval = 0;
@@ -203,6 +213,15 @@ export class PlayerUpgradeState {
                 this.spinRadius = this.spinRadius === 0 ? effect.radius : this.spinRadius + effect.radiusPerLevel;
                 this.spinInterval = effect.interval;
                 this.spinDamageRatio = effect.damageRatio;
+                break;
+            case 'freeze-pulse':
+                this.freezeRadius = this.freezeRadius === 0 ? effect.radius : this.freezeRadius + effect.radiusPerLevel;
+                break;
+            case 'burn-pulse':
+                this.burnRadius = this.burnRadius === 0 ? effect.radius : this.burnRadius + effect.radiusPerLevel;
+                this.burnInterval = effect.interval;
+                this.burnDuration = effect.duration;
+                this.burnDamageRatio = effect.damageRatio;
                 break;
             case 'bombard':
                 this.bombardTargets = this.bombardTargets === 0

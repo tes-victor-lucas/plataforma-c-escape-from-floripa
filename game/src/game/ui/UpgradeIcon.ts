@@ -156,8 +156,19 @@ export function createUpgradeIcon(
             icon.strokeCircle(0, 0, 20);
             icon.fillCircle(0, -20, 6).fillCircle(17, 10, 6).fillCircle(-17, 10, 6);
             break;
-        case 'chain-lightning':
         case 'thunder-storm':
+            // Nuvem carregada com dois raios caindo: a cadeia mais forte, com cara diferente do raio simples.
+            icon.fillCircle(-10, -14, 10).fillCircle(4, -18, 12).fillCircle(16, -12, 9).fillRect(-18, -14, 40, 10);
+            for (const offset of [-10, 10]) {
+                icon.beginPath();
+                icon.moveTo(offset + 4, -2);
+                icon.lineTo(offset - 4, 12);
+                icon.lineTo(offset + 2, 12);
+                icon.lineTo(offset - 4, 28);
+                icon.strokePath();
+            }
+            break;
+        case 'chain-lightning':
             icon.beginPath();
             icon.moveTo(6, -28);
             icon.lineTo(-10, 2);
@@ -177,6 +188,23 @@ export function createUpgradeIcon(
                 drawLine(icon, Math.cos(angle) * 10, Math.sin(angle) * 10, Math.cos(angle) * 27, Math.sin(angle) * 27);
             }
             icon.fillCircle(0, 0, 5);
+            break;
+        case 'ice-staff':
+            // Floco de neve: três traços cruzados com pontas em V.
+            for (const angle of [0, Math.PI / 3, -Math.PI / 3]) {
+                const x = Math.cos(angle) * 24;
+                const y = Math.sin(angle) * 24;
+                drawLine(icon, -x, -y, x, y);
+            }
+            icon.fillCircle(0, 0, 5);
+            break;
+        case 'fire-staff':
+            // Cajado na diagonal com uma chama de três línguas na ponta.
+            drawLine(icon, -16, 20, 8, -6);
+            icon.fillCircle(11, -10, 7);
+            icon.fillTriangle(5, -12, 11, -28, 17, -12);
+            icon.fillTriangle(15, -10, 24, -20, 18, -4);
+            icon.fillTriangle(4, -8, -2, -18, 8, -14);
             break;
         case 'spin-slash':
             // Meia-lua girando em volta de um ponto.

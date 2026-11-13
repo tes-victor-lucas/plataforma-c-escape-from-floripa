@@ -8,6 +8,8 @@ export const TICEN_GATE = {
     // Encostado na catraca, vindo da calçada: é dali que o jogador passa o cartão.
     approach: { x: 384, y: 598 },
     triggerDistance: 16,
+    // Já dentro do terminal: a catraca fecha atrás de quem passou, e o próximo usa o próprio cartão.
+    passedMargin: 14,
     // Quem fechou a carteira sem usar o cartão precisa se afastar para ela abrir de novo.
     rearmDistance: 64,
     blockerLayer: 'catraca-fechada',
@@ -87,7 +89,16 @@ export const TOPAZIO_BOSS = {
     wakeY: 35 * 16,
     // Gigante: anda por cima de tudo, mas não sai do terminal nem desce até a catraca.
     bounds: { left: 56, right: 712, top: 8 * 16, bottom: 32 * 16 },
+    // Os dois quiosques do room5.json (tiles do ticen_quiosques), em pixels: ele não para com os pés em cima deles.
+    kiosks: [
+        { left: 208, top: 368, right: 272, bottom: 432 },
+        { left: 528, top: 224, right: 592, bottom: 288 }
+    ],
+    // Folga em volta do quiosque, do tamanho da base do golem.
+    kioskMargin: { x: 26, top: 4, bottom: 8 },
     maxHealth: 400,
+    // Em dupla, dois jogadores batendo derrubavam o golem rápido demais: três vezes a vida.
+    multiplayerHealthMultiplier: 3,
     // Gigante: anda por cima de toldos, pilares, placas e quiosques (camada itens-topo, profundidade 20).
     depth: 20.5,
     speed: 34,
@@ -97,8 +108,11 @@ export const TOPAZIO_BOSS = {
     // Respiro entre ataques em cada estágio de rachadura: quanto mais rachado, mais rápido.
     rest: [1700, 1400, 1150, 900],
     firstRest: 1200,
-    // Bate no chão: topázios brotam em três cadeias, em leque, na direção do jogador.
-    slam: { windup: 700, recover: 700, spikeInterval: 55, spikeSpacing: 22, spikeCount: 15, spikeRadius: 13, spikeLifetime: 640, damage: 2, spread: 0.42 },
+    // Bate no chão: topázios brotam numa cadeia na direção do jogador; abaixo de 70% da vida, em três, em leque.
+    slam: {
+        windup: 700, recover: 700, spikeInterval: 55, spikeSpacing: 22, spikeCount: 15, spikeRadius: 13, spikeLifetime: 640, damage: 2, spread: 0.42,
+        fanBelow: 0.7
+    },
     // Gira em pé no lugar, como um pião (turnSpeed em radianos por ms), cuspindo topázios em volta.
     // A varredura dos punhos (sweepRadius) machuca quem chega perto, como o giro do Garen e do Balmond.
     spin: {
@@ -117,6 +131,10 @@ export const TOPAZIO_BOSS = {
     busLayer: 'onibus',
     // Um ônibus a cada limiar de vida. O golem não morre enquanto sobrar ônibus para arremessar.
     busThresholds: [0.8, 0.6, 0.4, 0.2],
+    // Sem passar de limiar, ele busca um ônibus mesmo assim depois desse tempo: com pouco dano a luta não fica sem ônibus.
+    busInterval: 20_000,
+    // Em 60% da vida ele desaba atordoado: a dupla escolhe uma carta e depois bate nele caído por 4 s.
+    stun: { at: 0.6, duration: 4_000 },
     // Baias do room5.json (assets/ticen/gen_room5_map.py); `route` é a linha do ticen_onibus.png.
     // O 763.2 via Kobrasol (Estrela, rota 3, coluna 38 da linha 29) fica de fora: é a fuga.
     buses: [
@@ -167,6 +185,69 @@ export const TICEN_ESCAPE = {
     },
     departure: { distance: 460, duration: 2400 }
 } as const;
+
+/**
+ * Fim da fuga em dupla (multiplayer): os dois votam para embarcar, o motorista avisa que só cabe um e a dupla
+ * disputa a última vaga de espada, com gaúchos atrapalhando e baús de especiais. Tempos em milissegundos.
+ */
+export const TICEN_DUEL = {
+    question: 'ESCAPAR DE FLORIANÓPOLIS?',
+    waiting: 'AGUARDANDO JOGADOR',
+    caption: 'A ULTIMA VAGA',
+    start: 'LUTEM! SO UM EMBARCA',
+    leftBehind: 'VOCÊ FOI DEIXADO PARA TRÁS',
+    driver: {
+        texture: 'motorista',
+        path: 'assets/props/motorista.png',
+        frameWidth: 20,
+        frameHeight: 32,
+        speech: 'NÃO, NÃO! SÓ TEMOS ESPAÇO PARA UM DE VOCÊS... LUTEM ENTRE SI!',
+        // Quanto a câmera fica no ônibus: o motorista desce, avisa e volta para dentro.
+        cutscene: 4800
+    },
+    // Cada um começa num extremo do terminal: o anfitrião na plataforma A, o convidado na D. Pixels do room5.json.
+    corners: [{ x: 64, y: 136 }, { x: 640, y: 552 }],
+    // Gaúchos de espada entrando aos poucos para atrapalhar a disputa.
+    enemies: { count: 10, interval: 2500 },
+    chest: {
+        texture: 'bau',
+        path: 'assets/props/bau.png',
+        frameWidth: 18,
+        frameHeight: 16,
+        interval: 10_000,
+        touchRadius: 16
+    },
+    // Um especial diferente por baú, na ordem em que aparecem; depois do oitavo a lista recomeça.
+    // Capacete e galochas são itens de vestir: equipam sozinhos em quem abrir o baú.
+    specials: [
+        { id: 'heart', label: '+1 CORACAO' },
+        { id: 'helmet', label: 'CAPACETE' },
+        { id: 'club', label: 'CACETE MELHORADO' },
+        { id: 'boots', label: 'GALOCHAS' },
+        { id: 'speed', label: 'POCAO DE VELOCIDADE' },
+        { id: 'shield', label: 'ESCUDO' },
+        { id: 'lifesteal', label: 'ROUBO DE VIDA' },
+        { id: 'spin', label: 'GIRO DE LONGO ALCANCE' },
+        { id: 'silver-boots', label: 'BOTAS DE PRATA' },
+        { id: 'diamond-boots', label: 'BOTAS DE DIAMANTE' },
+        // Na disputa todos já lutam de espada: dos itens de mão, só o cajado muda alguma coisa.
+        { id: 'ice-staff', label: 'CAJADO DE GELO' }
+    ],
+    clubMultiplier: 1.6,
+    // Começo da luta: os dois com 5 corações cheios. O golpe no rival tira meio coração (1 com o cacete melhorado),
+    // e não o dano cheio da espada, que derrubava com um golpe só: a disputa dura uns dez golpes.
+    duelHearts: 5,
+    rivalDamage: 1,
+    speed: { multiplier: 1.5, duration: 8_000 },
+    shieldDuration: 5_000,
+    lifestealDuration: 12_000,
+    spin: { rangeMultiplier: 1.8, duration: 10_000 },
+    // Animação de morte de quem perdeu antes de a câmera ir para o ônibus.
+    deathTime: 1_400,
+    boardTime: 1_400
+} as const;
+
+export type DuelSpecialId = (typeof TICEN_DUEL.specials)[number]['id'];
 
 /** Estágio de rachadura do golem (0 a 3): cada quarto de vida perdido racha mais o corpo. */
 export function getGolemStage(current: number, max: number) {

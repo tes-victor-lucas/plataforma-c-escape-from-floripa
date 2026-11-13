@@ -14,6 +14,8 @@ export function getDefaultServerUrl(location: Pick<Location, 'protocol' | 'host'
 }
 
 /** Cliente persistente entre as cenas do menu e do mundo. */
+export const ROOM_FULL_MESSAGE = 'A sala já possui dois jogadores.';
+
 export class MultiplayerClient {
     private socket?: WebSocket;
     private handlers = new Set<MessageHandler>();
@@ -67,7 +69,7 @@ export class MultiplayerClient {
                     settle(() => resolve(message));
                 }
                 if (message.type === 'lobby.rejected') {
-                    settle(() => reject(new Error('A sala já possui dois jogadores.')));
+                    settle(() => reject(new Error(ROOM_FULL_MESSAGE)));
                 }
                 for (const handler of this.handlers) handler(message);
             });
@@ -158,6 +160,7 @@ export class MultiplayerClient {
         orbitCount: number;
         orbitRadius: number;
         companion: boolean;
+        worn: number;
     }) {
         if (this.socket?.readyState !== WebSocket.OPEN) return;
         this.socket.send(JSON.stringify({

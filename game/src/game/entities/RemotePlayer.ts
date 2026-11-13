@@ -5,6 +5,8 @@ import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import type { RemotePlayerState } from '../network/protocol';
 import { CHARACTERS, isCharacterId, type CharacterId } from '../config/characters';
 import { createWalkAnimations, walkAnimationKey, type Direction } from './PlayerAnimations';
+import { decodeWornItems, ITEMS, type ItemId } from '../config/items';
+import { attachWornItem } from './WornItem';
 
 /** Barra sobre a cabeça, usada para a vida do parceiro e para a ajuda ao caído. */
 export function drawPlayerBar(
@@ -31,6 +33,8 @@ export class RemotePlayer {
     private position: { x: number; y: number };
     private lastSequence = -1;
     private facing: Direction = 'down';
+    /** Espada da disputa do TICEN: o parceiro também luta com ela na mão. */
+    private heldSword?: Phaser.GameObjects.Image;
     private reviveProgress = 0;
     revivesLeft: number = COMBAT_CONFIG.multiplayer.maxRevives;
     private characterId: CharacterId = 'padrao';
@@ -39,6 +43,9 @@ export class RemotePlayer {
     private readonly orbitSparks: Phaser.GameObjects.Arc[] = [];
     private hasCompanion = false;
     private companion?: Phaser.GameObjects.Sprite;
+    /** Itens que o parceiro está vestindo, desenhados aqui como no personagem dele. */
+    private wornMask = 0;
+    private readonly wornItems = new Map<ItemId, () => void>();
 
     constructor(scene: Scene, x: number, y: number, onDamage: (amount: number) => void) {
         const { player } = WORLD_CONFIG;
@@ -76,6 +83,7 @@ export class RemotePlayer {
         this.orbitCount = state.orbitCount ?? 0;
         this.orbitRadius = state.orbitRadius ?? 0;
         this.hasCompanion = state.companion ?? false;
+        this.applyWorn(state.worn ?? 0);
         // Cliente antigo não envia o personagem: o parceiro continua no padrão.
         if (isCharacterId(state.character) && state.character !== this.characterId) {
             this.characterId = state.character;
@@ -99,6 +107,10 @@ export class RemotePlayer {
         this.center.x = this.sprite.x + feetOffset.x;
         this.center.y = this.sprite.y + feetOffset.y;
         this.sprite.setDepth(getActorDepth(this.center.y));
+        // Mesma posição da espada do jogador local: na mão do lado para onde olha, atrás do corpo de costas.
+        const side = this.facing === 'left' ? -1 : 1;
+        this.heldSword?.setPosition(this.center.x + side * 5, this.center.y - 6).setScale(side * 0.7, 0.7)
+            .setDepth(this.sprite.depth + (this.facing === 'up' ? -0.0001 : 0.0001));
 
         const isAlive = this.health.isAlive;
         this.sprite.setAngle(isAlive ? 0 : 90);
@@ -145,7 +157,36 @@ export class RemotePlayer {
         );
     }
 
+    /** Veste e tira só o que mudou; o estado chega 20 vezes por segundo. */
+    private applyWorn(mask: number) {
+        if (mask === this.wornMask) return;
+        this.wornMask = mask;
+        const wanted = decodeWornItems(mask);
+        for (const [id, detach] of this.wornItems) {
+            if (wanted.includes(id)) continue;
+            detach();
+            this.wornItems.delete(id);
+        }
+        for (const id of wanted) {
+            if (!this.wornItems.has(id)) this.wornItems.set(id, attachWornItem(this.sprite.scene, this.sprite, ITEMS[id], true));
+        }
+    }
+
+    holdSword() {
+        this.heldSword ??= this.sprite.scene.add.image(this.center.x, this.center.y, 'sword').setOrigin(0.15, 0.85);
+    }
+
+    /** O golpe do parceiro já desenha a espada girando: a parada some enquanto ele dura. */
+    hideSwordFor(duration: number) {
+        if (!this.heldSword) return;
+        this.heldSword.setVisible(false);
+        this.sprite.scene.time.delayedCall(duration, () => this.heldSword?.setVisible(true));
+    }
+
     destroy() {
+        this.heldSword?.destroy();
+        for (const detach of this.wornItems.values()) detach();
+        this.wornItems.clear();
         for (const spark of this.orbitSparks) spark.destroy();
         this.companion?.destroy();
         this.bar.destroy();

@@ -52,7 +52,7 @@ test('estado válido é enviado apenas ao companheiro da sala', () => {
     assert.deepEqual(messagesFor(sent, 'p2', 'player.state')[0].message, {
         type: 'player.state', playerId: 'p1', sequence: 4, x: 100, y: 200, facing: 'left',
         health: 3, maxHealth: 4, reviveProgress: 0, revivesLeft: 2, character: 'padrao',
-        orbitCount: 0, orbitRadius: 0, companion: false
+        orbitCount: 0, orbitRadius: 0, companion: false, worn: 0
     });
 });
 
@@ -237,10 +237,52 @@ test('efeitos das cartas e faíscas orbitais chegam ao parceiro', () => {
             health: 4, maxHealth: 4, reviveProgress: 0, revivesLeft: 2, ...extra
         }
     });
-    state({ orbitCount: 6, orbitRadius: 52, companion: true });
+    state({ orbitCount: 6, orbitRadius: 52, companion: true, worn: 5 });
     const relayed = messagesFor(sent, 'p2', 'player.state')[0].message;
-    assert.deepEqual([relayed.orbitCount, relayed.orbitRadius, relayed.companion], [6, 52, true]);
+    assert.deepEqual([relayed.orbitCount, relayed.orbitRadius, relayed.companion, relayed.worn], [6, 52, true, 5]);
     state({ orbitCount: -1 });
+    state({ worn: 256 });
+    state({ worn: 1.5 });
     assert.equal(messagesFor(sent, 'p2', 'player.state').length, 1);
     assert.equal(messagesFor(sent, 'p1', 'error').at(-1).message.code, 'INVALID_PLAYER_STATE');
+});
+
+test('catraca do TICEN e ações do golem chegam ao parceiro', () => {
+    const { broker, sent } = startedRoom();
+    const events = [
+        { kind: 'ticen.gate' },
+        { kind: 'boss.wake' },
+        { kind: 'boss.action', action: { type: 'slam', ox: 1, oy: 2, tx: 3, ty: 4 } }
+    ];
+    for (const event of events) broker.publish('client.message', { clientId: 'p1', message: { type: 'match.event', event } });
+    assert.deepEqual(messagesFor(sent, 'p2', 'match.event').map(({ message }) => message.event), events);
+    assert.equal(messagesFor(sent, 'p1', 'error').length, 0);
+});
+
+test('voto, baús e o fim da disputa pela vaga chegam ao parceiro', () => {
+    const { broker, sent } = startedRoom();
+    const events = [
+        { kind: 'escape.vote' },
+        { kind: 'escape.duel' },
+        { kind: 'chest.spawn', id: 1, x: 10, y: 20, special: 'heart' },
+        { kind: 'chest.claim', id: 1 },
+        { kind: 'chest.opened', id: 1, byHost: false },
+        { kind: 'duel.lost' }
+    ];
+    for (const event of events) broker.publish('client.message', { clientId: 'p1', message: { type: 'match.event', event } });
+    assert.deepEqual(messagesFor(sent, 'p2', 'match.event').map(({ message }) => message.event), events);
+    assert.equal(messagesFor(sent, 'p1', 'error').length, 0);
+});
+
+test('pausa da dupla e voto do esconderijo chegam ao parceiro', () => {
+    const { broker, sent } = startedRoom();
+    const events = [
+        { kind: 'game.pause', reason: 'pause' },
+        { kind: 'game.pause' },
+        { kind: 'gateway.vote', phase: 'ask', question: 'ENTRAR NO ESCONDERIJO?' },
+        { kind: 'gateway.vote', phase: 'yes' }
+    ];
+    for (const event of events) broker.publish('client.message', { clientId: 'p1', message: { type: 'match.event', event } });
+    assert.deepEqual(messagesFor(sent, 'p2', 'match.event').map(({ message }) => message.event), events);
+    assert.equal(messagesFor(sent, 'p1', 'error').length, 0);
 });

@@ -27,14 +27,8 @@ import {
 import { WaveThreatView } from '../ui/WaveThreatView';
 import { FlowField } from '../combat/FlowField';
 import { UpgradeSelectionView } from '../ui/UpgradeSelectionView';
-import {
-    basicUpgradeCards,
-    drawUpgradeCards,
-    drawUpgradeCardsFeaturing,
-    withoutRoom3Cards,
-    withoutRoom3FinalCards
-} from '../upgrades/drawUpgradeCards';
-import { AREA_UPGRADE_IDS, ROOM3_FINAL_UPGRADE_IDS, ROOM3_UPGRADE_IDS } from '../upgrades/catalog';
+import { drawGolemCards, drawTableCards, type RoomCardTable } from '../upgrades/drawUpgradeCards';
+import { ROOM3_UPGRADE_IDS } from '../upgrades/catalog';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import type { UpgradeCardDefinition } from '../upgrades/types';
 import { drawPlayerBar, RemotePlayer } from '../entities/RemotePlayer';
@@ -48,7 +42,8 @@ import {
     type CoopTarget
 } from '../network/coop';
 import { multiplayerClient } from '../network/MultiplayerClient';
-import type { CoopEvent, EnemySnapshotRow, ServerMessage } from '../network/protocol';
+import type { CoopEvent, EnemySnapshotRow, PartnerPauseReason, ServerMessage } from '../network/protocol';
+import { GAME_WIDTH } from '../config/display';
 import { playDamageNumber } from '../effects/playDamageNumber';
 import { playSwordHit } from '../effects/playSwordHit';
 import {
@@ -67,14 +62,21 @@ import type { ConfirmPromptData } from './ConfirmPrompt';
 import type { PauseMenuData } from './PauseMenu';
 import type { InventoryData } from '../ui/InventoryMenuView';
 import type { WalletMenuData } from './WalletMenu';
-import { formatBalance, TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_ESCAPE, TICEN_SITTERS, TOPAZIO_BOSS, WALLET_UI } from '../config/ticen';
-import { getBusFrame, TopazioGolem } from '../entities/TopazioGolem';
+import {
+    formatBalance, TICEN_DUEL, TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_ESCAPE, TICEN_SITTERS, TOPAZIO_BOSS, WALLET_UI,
+    type DuelSpecialId
+} from '../config/ticen';
+import { playExplosion } from '../effects/playAreaEffects';
+import { getBusFrame, TopazioGolem, type BusTarget } from '../entities/TopazioGolem';
 import { BusEndingView } from '../ui/BusEndingView';
 import { CinematicBarsView } from '../ui/CinematicBarsView';
-import { GAUCHO_HAT, ITEMS, type ItemId } from '../config/items';
-import { createGauchoHatTexture } from '../entities/GauchoHat';
+import { encodeWornItems, GAUCHO_HAT, getChestCandidates, ITEM_CHESTS, ITEM_IDS, ITEMS, type ItemId } from '../config/items';
+import { createItemTexture, createItemTextures } from '../entities/WornItem';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
 import { TchayQueue } from '../entities/TchayQueue';
+import { createMercadoEntranceSign } from '../map/createMercadoEntranceSign';
+import { DuelStandoffView } from '../ui/DuelStandoffView';
+import { prefersReducedMotion } from '../ui/easing';
 import { PAGODE, PAGODE_FRAMES, POPULAR_BARS, TCHAY } from '../config/tchay';
 import { createStringLights } from '../map/createStringLights';
 import { createRadioactiveFlowers } from '../map/createRadioactiveFlowers';
@@ -102,11 +104,13 @@ import {
     type PlayerProgress
 } from '../progress/PlayerProgress';
 import {
+    COOP_CHECKPOINT_KEY,
     clearCampaignProgress,
     loadCampaignProgress,
     saveCampaignProgress
 } from '../progress/CampaignProgress';
-import { runTracker } from '../scoring/RunTracker';
+import { runTracker, type RunCheckpoint } from '../scoring/RunTracker';
+import { formatElapsedTime } from '../scoring/ScoreCalculator';
 import { SCORE_CONFIG } from '../config/score';
 import {
     createDungeonSessionState,
@@ -117,6 +121,19 @@ import {
 import { createLampLight } from '../map/createLampLights';
 import { getGamepadInput } from '../input/GamepadInput';
 import { isTouchScreen, touchInput } from '../input/TouchInput';
+
+type CoopCheckpoint = Readonly<{ roomKey: RoomKey; playerProgress: PlayerProgress; run?: RunCheckpoint }>;
+
+/** Quem recomeça a sala em dupla volta com pelo menos o piso de vida do reviver. */
+function withMinimumHealth(progress: PlayerProgress): PlayerProgress {
+    const floor = Math.min(progress.maxHealth, COMBAT_CONFIG.multiplayer.reviveMinHealth);
+    return { ...progress, currentHealth: Math.max(progress.currentHealth, floor) };
+}
+
+const PARTNER_PAUSE_TEXT: Record<PartnerPauseReason, string> = {
+    pause: 'PARCEIRO PAUSOU',
+    piranhas: 'PARCEIRO NO PIRANHAS'
+};
 
 const ROOM2_WALKABLE_LAYERS = [
     'floor',
@@ -153,9 +170,19 @@ export function getIntermissionCardPicks(roomKey: RoomKey) {
     return roomKey === 'room2' ? 2 : 1;
 }
 
-/** A Sala I dá uma carta básica no fim; a Sala III, depois da horda 2, as cartas de área mais fortes. */
+/** Mesa de cartas de cada sala; o esconderijo usa a da sala por onde se entra nele. */
+export function getCardTable(roomKey: RoomKey): RoomCardTable {
+    if (roomKey === 'room2' || roomKey === 'dungeon') return 'room2';
+    if (roomKey === 'room3') return 'room3';
+    return 'room1';
+}
+
+/**
+ * A Sala I dá uma carta básica no fim; a Sala III, depois da horda 2, as cartas de área mais fortes;
+ * a Sala IV, as duas cartas mais fortes do jogo e uma aleatória.
+ */
 export function shouldOfferRoomCompletionUpgrade(roomKey: RoomKey) {
-    return roomKey === 'room1' || roomKey === 'room3';
+    return roomKey === 'room1' || roomKey === 'room3' || roomKey === 'room4';
 }
 
 export function recordRoomCompletionScore(roomKey: RoomKey) {
@@ -184,17 +211,52 @@ export class World extends Scene {
     private isWalletOpen = false;
     private isTicenGateArmed = true;
     private isTicenGateOpen = false;
+    /** A catraca fecha atrás de quem passa; isto lembra que o jogador local já entrou no terminal. */
+    private hasPassedTicenGate = false;
+    private hasPartnerPassedTicenGate = false;
+    private ticenRailTiles: Phaser.Tilemaps.Tile[] = [];
     private ticenGate?: Phaser.GameObjects.Sprite;
     private ticenGateHint?: Phaser.GameObjects.Text;
     private golem?: TopazioGolem;
     private isGolemAwake = false;
     private isCutsceneActive = false;
     private isBusDoorOpen = false;
+    /** Fuga em dupla: voto para embarcar, disputa pela vaga e quem foi deixado para trás. */
+    private isEscapeVoteArmed = true;
+    private hasVotedEscape = false;
+    private hasPartnerVotedEscape = false;
+    private isDuelActive = false;
+    private isDuelOver = false;
+    private duelTimers: Phaser.Time.TimerEvent[] = [];
+    private readonly duelChests = new Map<number, {
+        image: Phaser.GameObjects.Sprite;
+        glow: Phaser.GameObjects.Graphics;
+        special: DuelSpecialId;
+        opened: boolean;
+        claimed: boolean;
+    }>();
+    private duelChestSequence = 0;
+    private itemChest?: {
+        image: Phaser.GameObjects.Sprite;
+        hint: Phaser.GameObjects.Text;
+        glow?: Phaser.GameObjects.Graphics;
+        roomKey: RoomKey;
+    };
+    // Sobrevive à ida e volta dos esconderijos: quando a sala começou, se o baú destrancou, o item sorteado e se já foi pego.
+    private readonly itemChestRuns = new Map<RoomKey, { startedAt: number; unlocked: boolean; item?: ItemId; claimed: boolean }>();
+    private lifestealUntil = 0;
+    private victorySubtitle?: string;
     private busDoorObjects: Phaser.GameObjects.GameObject[] = [];
     private isArcadeArmed = true;
     private isGatewayConfirmOpen = false;
     private isClimbingLadder = false;
     private isGatewayConfirmArmed = true;
+    /** Motivo do menu aberto do parceiro, que congela esta tela também; e o último motivo que este cliente avisou. */
+    private partnerPause?: PartnerPauseReason;
+    private sentPauseReason?: PartnerPauseReason;
+    private partnerPauseLabel?: Phaser.GameObjects.Text;
+    /** Pergunta do esconderijo em aberto: a passagem e quem já respondeu SIM. */
+    private gatewayVote?: { pass: () => void; local: boolean; partner: boolean };
     private arcadePrompt?: Phaser.GameObjects.Text;
     private hasSelectedPiranhasItem = false;
     private isGameplayReady = false;
@@ -260,18 +322,35 @@ export class World extends Scene {
         this.isWalletOpen = false;
         this.isTicenGateArmed = true;
         this.isTicenGateOpen = false;
+        this.hasPassedTicenGate = false;
+        this.hasPartnerPassedTicenGate = false;
+        this.ticenRailTiles = [];
         this.ticenGate = undefined;
         this.ticenGateHint = undefined;
         this.golem = undefined;
         this.isGolemAwake = false;
         this.isCutsceneActive = false;
         this.isBusDoorOpen = false;
+        this.isEscapeVoteArmed = true;
+        this.hasVotedEscape = false;
+        this.hasPartnerVotedEscape = false;
+        this.isDuelActive = false;
+        this.isDuelOver = false;
+        this.duelTimers = [];
+        this.duelChests.clear();
+        this.duelChestSequence = 0;
+        this.lifestealUntil = 0;
+        this.victorySubtitle = undefined;
         this.busDoorObjects = [];
         this.isArcadeArmed = true;
         this.arcadePrompt = undefined;
         this.isGatewayConfirmOpen = false;
         this.isClimbingLadder = false;
         this.isGatewayConfirmArmed = true;
+        this.partnerPause = undefined;
+        this.sentPauseReason = undefined;
+        this.gatewayVote = undefined;
+        this.partnerPauseLabel = undefined;
         this.isGameOver = false;
         this.isGameplayReady = false;
         this.isRoomExitOpen = false;
@@ -370,6 +449,7 @@ export class World extends Scene {
                 this.upgrades
             );
         }
+        createItemTextures(this);
         this.applyEquipment();
         this.unsubscribeRunTracker = runTracker.subscribe((snapshot) => {
             // Na derrota solo o checkpoint fica: TENTAR NOVAMENTE e CONTINUAR voltam ao início da sala.
@@ -382,7 +462,7 @@ export class World extends Scene {
         }
         if (roomKey === 'room2') this.createPiranhasBarPrompt();
         if (roomKey === 'mercado-interior') this.createArcadePrompt();
-        if (isTicenRoom(roomKey)) this.createTicenGate(roomKey === 'room5' ? TICEN_GATE.originalTexture : TICEN_GATE.texture);
+        if (isTicenRoom(roomKey)) this.createTicenGate(roomKey === 'room51' ? TICEN_GATE.originalTexture : TICEN_GATE.texture);
         const secretGateway = SECRET_DUNGEON_GATEWAYS.find((gateway) => gateway.from === roomKey);
         if (secretGateway) this.createSecretEntranceHint(secretGateway);
         if (roomKey === 'room2') {
@@ -392,8 +472,10 @@ export class World extends Scene {
                     .setOrigin(0.5).setResolution(4).setAlpha(0.8).setDepth(20.5);
             }
         }
+        if (roomKey === 'room4') createMercadoEntranceSign(this);
         // Skatistas, comerciantes e o casal do Mercado Público; a horda espera a travessia.
         this.mercadoNpcs = roomKey === 'room4' ? new MercadoNpcs(this, !savedCombat) : undefined;
+        this.createItemChest(roomKey, !savedCombat);
         // Sala I: rua dos bares com o TCHAY lotado e o varal de lâmpadas.
         this.barQueues = [];
         // Sala III: as flores dos canteiros da Praça XV estão contaminadas.
@@ -439,8 +521,11 @@ export class World extends Scene {
             roomKey === 'gaucho-dungeon'
         );
         this.combat.shotMultipliers = getPlayerShotMultipliers(roomKey);
-        // shortcut: o chefe só existe na partida solo; no multiplayer o convidado não sabe criar o golem pelo snapshot.
-        if (isTicenRoom(roomKey) && !this.isMultiplayerEnabled()) {
+        this.combat.cardDamageMultiplier = this.isMultiplayerEnabled() ? 1 : COMBAT_CONFIG.soloCardDamageMultiplier;
+        // Os itens já foram vestidos antes do combate existir: a mão precisa ser aplicada de novo.
+        this.applyEquipment();
+        // No multiplayer o anfitrião decide o golem e o convidado tem um espelho que repete as ações dele.
+        if (isTicenRoom(roomKey)) {
             this.golem = new TopazioGolem(
                 this,
                 this.player,
@@ -456,8 +541,21 @@ export class World extends Scene {
                         return;
                     }
                     this.showFloatingHint(`TOPAZIO ${collected}/${total}`);
+                },
+                {
+                    mirror: this.isMultiplayerGuest(),
+                    onAction: (action) => {
+                        if (this.isMultiplayerHost()) multiplayerClient.sendEvent({ kind: 'boss.action', action });
+                    },
+                    getBusTargets: () => this.getBusTargets(),
+                    onStun: () => this.playGolemCardRound()
                 }
             );
+            // As duas telas dão a mesma vida ao golem: o convidado mostra a barra com o máximo certo.
+            if (this.isMultiplayerEnabled()) {
+                const max = TOPAZIO_BOSS.maxHealth * TOPAZIO_BOSS.multiplayerHealthMultiplier;
+                this.golem.health.restore(max, max);
+            }
         }
         this.connectCombatToPartner();
         if (roomKey === 'gaucho-dungeon') {
@@ -477,6 +575,7 @@ export class World extends Scene {
             this.isRoomCombatComplete = true;
             this.waves = undefined;
             recordRoomCompletionScore(roomKey);
+            this.finishItemChestRun(roomKey);
             if (roomKey === 'gaucho-dungeon') this.createGauchoHatPickup();
             if (this.isMultiplayerHost()) {
                 this.sendEnemySnapshot();
@@ -557,9 +656,9 @@ export class World extends Scene {
         this.scene.launch('CombatHud', {
             player: this.player,
             onPause: () => this.openPauseMenu(),
-            // Recomeçar sozinho deixaria o parceiro em outra partida: volta ao menu.
+            // Em dupla, os dois recomeçam juntos do início da sala.
             onRestart: () => this.isMultiplayerEnabled()
-                ? this.returnToMainMenuFromDefeat()
+                ? this.retryCoopRoom()
                 : this.restartFromDefeatMenu(),
             onQuit: () => this.returnToMainMenuFromDefeat(),
             getDefeatTitle: () => this.mercadoNpcs?.hasRunOverPlayer ? MERCADO_NPCS.skaters.defeatTitle : undefined,
@@ -567,6 +666,7 @@ export class World extends Scene {
                 : this.combat?.hasSword() ? 'sword'
                 : this.piranhasBarPrompt?.visible ? 'interact' : undefined,
             ...(this.isMultiplayerEnabled() ? { getCoopStatus: () => this.getCoopStatus() } : {}),
+            getVictorySubtitle: () => this.victorySubtitle,
             getBossHealth: () => this.isGolemAwake && this.golem?.health.isAlive
                 ? { title: TOPAZIO_BOSS.title, current: this.golem.health.current, max: this.golem.health.max }
                 : undefined
@@ -584,6 +684,34 @@ export class World extends Scene {
                 this.isWaveIntermissionOpen = false;
                 if (!this.isGameOver && !this.isPauseMenuOpen) this.physics.resume();
             });
+        });
+    }
+
+    /**
+     * TENTAR NOVAMENTE em dupla: quem apertar primeiro decide. O anfitrião recomeça e avisa; o convidado pede ao
+     * anfitrião. Sem checkpoint (perderam na Sala I), a dupla começa uma partida nova.
+     */
+    private retryCoopRoom() {
+        const roomKey = (this.registry.get(COOP_CHECKPOINT_KEY) as CoopCheckpoint | undefined)?.roomKey ?? 'room1';
+        if (this.isMultiplayerGuest()) {
+            multiplayerClient.sendEvent({ kind: 'room.request', roomKey, retry: true });
+            return;
+        }
+        multiplayerClient.sendEvent({ kind: 'room.transition', roomKey, retry: true });
+        this.restartCoopRoom(roomKey);
+    }
+
+    private restartCoopRoom(roomKey: RoomKey) {
+        const checkpoint = this.registry.get(COOP_CHECKPOINT_KEY) as CoopCheckpoint | undefined;
+        if (checkpoint?.roomKey === roomKey && checkpoint.run) runTracker.restore(checkpoint.run);
+        else runTracker.startNew('MULTIPLAYER');
+        replaceRequestedRoomKey(roomKey);
+        this.stopGameplayOverlays();
+        this.scene.restart({
+            waitForReveal: false,
+            roomKey,
+            spawn: ROOM_DEFINITIONS[roomKey].spawn,
+            ...(checkpoint?.roomKey === roomKey ? { playerProgress: withMinimumHealth(checkpoint.playerProgress) } : {})
         });
     }
 
@@ -639,12 +767,16 @@ export class World extends Scene {
         // Continua mesmo no fim: o parceiro precisa saber que este jogador caiu.
         this.updateMultiplayer(delta);
         if (this.isGameOver) return;
+        if (this.isDuelActive && !this.isDuelOver && this.player && !this.player.health.isAlive) {
+            this.loseDuel();
+            return;
+        }
         if (this.player && !this.player.health.isAlive && !this.canPartnerRevive()) {
             this.isGameOver = true;
             this.combat?.clear();
             this.physics.pause();
-            // Solo a partida continua aberta no servidor para recomeçar do checkpoint.
-            runTracker.lose(undefined, this.isMultiplayerEnabled());
+            // A partida continua aberta no servidor para recomeçar do checkpoint, solo ou em dupla.
+            runTracker.lose(undefined, false);
             return;
         }
         if (this.isHitStopActive) return;
@@ -654,6 +786,13 @@ export class World extends Scene {
             else this.handleSwordGamepad();
         }
         this.updateNauseaEffect();
+        // Catraca, fliperama e perguntas param só quem abriu: o parceiro segue jogando.
+        this.sendLocalPause(this.isPiranhasMenuOpen ? 'piranhas' : undefined);
+        if (this.partnerPause) {
+            // Um menu local que fecha retoma a física; com o parceiro pausado, ela volta a parar.
+            if (!this.physics.world.isPaused) this.physics.pause();
+            return;
+        }
         if (
             this.isPiranhasMenuOpen || this.isWaveIntermissionOpen || this.isArcadeOpen
             || this.isGatewayConfirmOpen || this.isWalletOpen || this.isClimbingLadder || this.isCutsceneActive
@@ -665,12 +804,18 @@ export class World extends Scene {
         this.updateTicenGate();
         this.wakeGolem();
         this.updateTicenGoal();
+        this.updateDuelChests();
+        this.updateItemChest();
         if (this.isRoomTransitioning) return;
         this.stairClimbEffect?.update();
         if (this.isMultiplayerGuest()) {
             this.updateEnemiesFromSnapshot();
+            // O espelho do golem corre o giro e o ônibus erguido deste lado, com o dano no jogador local.
+            if (this.isGolemAwake) this.golem?.update(this.player, delta);
         } else {
             for (const enemy of this.drones) {
+                // Congelado pelo cajado de gelo: nem anda nem persegue até derreter.
+                if (this.combat?.isFrozen(enemy)) continue;
                 enemy.update(this.getEnemyTarget(enemy.sprite) as Player | undefined, delta);
             }
         }
@@ -907,7 +1052,7 @@ export class World extends Scene {
     /** Todos os gaúchos do esconderijo caíram: o chapéu fica no chão, uma vez por partida. */
     private createGauchoHatPickup() {
         if (!this.player || this.ownedItems.includes('gaucho-hat')) return;
-        createGauchoHatTexture(this);
+        createItemTexture(this, GAUCHO_HAT);
         const feet = this.player.sprite.body?.center ?? this.player.sprite;
         const { x, y } = this.findOpenSpotNear(feet.x, feet.y);
         const item = this.physics.add.image(x, y, GAUCHO_HAT.texture).setScale(1.5).setDepth(9);
@@ -954,8 +1099,13 @@ export class World extends Scene {
     }
 
     private applyEquipment() {
-        if (this.equippedItems.includes('gaucho-hat')) this.player?.equipGauchoHat();
-        else this.player?.unequipGauchoHat();
+        for (const id of ITEM_IDS) {
+            if (this.equippedItems.includes(id)) this.player?.equipItem(id);
+            else this.player?.unequipItem(id);
+        }
+        // O que vai na mão também muda o combate: golpe da espada flamejante e o gelo do cajado.
+        this.combat?.setFlameSword(this.equippedItems.includes('flame-sword'));
+        this.combat?.setIceStaff(this.equippedItems.includes('ice-staff'));
     }
 
     private buildInventory(): InventoryData {
@@ -1147,8 +1297,15 @@ export class World extends Scene {
 
     /** Chegar na catraca abre a carteira; usar o cartão libera a passagem. */
     private updateTicenGate() {
-        if (!isTicenRoom(this.activeRoomKey) || !this.player || this.isTicenGateOpen) return;
+        if (!isTicenRoom(this.activeRoomKey) || !this.player) return;
         const center = this.player.sprite.body?.center ?? this.player.sprite;
+        if (this.isTicenGateOpen) {
+            // Passou para dentro do terminal: a catraca fecha atrás, e quem vem depois passa o próprio cartão.
+            if (center.y < TICEN_GATE.y - TICEN_GATE.passedMargin) this.closeTicenGateBehind();
+            return;
+        }
+        // Quem já entrou no terminal não passa o cartão de novo.
+        if (this.hasPassedTicenGate) return;
         const { approach, triggerDistance, rearmDistance, hintDistance } = TICEN_GATE;
         const distance = Math.hypot(center.x - approach.x, center.y - approach.y);
         this.ticenGateHint?.setVisible(distance <= hintDistance);
@@ -1176,9 +1333,20 @@ export class World extends Scene {
 
     /** O golem dorme até o jogador passar a catraca e subir para a Plataforma D; só então entra no combate. */
     private wakeGolem() {
-        if (!this.golem || this.isGolemAwake || !this.isTicenGateOpen || !this.player) return;
-        const { y } = this.player.sprite.body?.center ?? this.player.sprite;
-        if (y > TOPAZIO_BOSS.wakeY) return;
+        // No multiplayer quem acorda o golem é o anfitrião, quando qualquer um dos dois sobe depois da catraca.
+        if (!this.golem || this.isGolemAwake || !this.player || this.isMultiplayerGuest()) return;
+        const local = this.player.sprite.body?.center ?? this.player.sprite;
+        const partner = [...this.remotePlayers.values()][0]?.feet;
+        const isLocalUp = this.hasPassedTicenGate && local.y <= TOPAZIO_BOSS.wakeY;
+        const isPartnerUp = this.hasPartnerPassedTicenGate && !!partner && partner.y <= TOPAZIO_BOSS.wakeY;
+        if (!isLocalUp && !isPartnerUp) return;
+        if (this.isMultiplayerHost()) multiplayerClient.sendEvent({ kind: 'boss.wake' });
+        this.awakenGolem();
+    }
+
+    /** Entra no combate e mostra a barra; no convidado chega pelo aviso do anfitrião. */
+    private awakenGolem() {
+        if (!this.golem || this.isGolemAwake) return;
         this.isGolemAwake = true;
         this.drones.push(this.golem);
         this.combat?.registerEnemy(this.golem);
@@ -1228,7 +1396,14 @@ export class World extends Scene {
     }
 
     /** Congela a luta, leva a câmera até `focus` com faixas de cinema, roda `onFocus` e volta ao jogador. */
-    private playCutscene(focus: Readonly<{ x: number; y: number }>, caption: string, duration: number, zoom: number, onFocus: () => void) {
+    private playCutscene(
+        focus: Readonly<{ x: number; y: number }>,
+        caption: string,
+        duration: number,
+        zoom: number,
+        onFocus: () => void,
+        onDone: () => void = () => undefined
+    ) {
         const player = this.player;
         if (!player) return;
         const { panTime } = TOPAZIO_BOSS.roar;
@@ -1251,6 +1426,7 @@ export class World extends Scene {
             camera.startFollow(player.sprite, true, WORLD_CONFIG.camera.lerpX, WORLD_CONFIG.camera.lerpY);
             this.isCutsceneActive = false;
             if (!this.isPauseMenuOpen && !this.isGameOver) this.physics.resume();
+            onDone();
         });
     }
 
@@ -1261,7 +1437,25 @@ export class World extends Scene {
         if (this.golem && (this.golem.health.isAlive || !this.isBusDoorOpen)) return;
         const { x, y } = this.player.sprite.body?.center ?? this.player.sprite;
         const { left, right, top, bottom } = TICEN_GOAL;
-        if (x < left || x > right || y < top || y > bottom) return;
+        const isAtDoor = x >= left && x <= right && y >= top && y <= bottom;
+        // Em dupla, a porta pergunta se cada um quer fugir; só depois dos dois SIM vem a reviravolta.
+        // Se o parceiro saiu da partida, vale o final solo.
+        const partner = [...this.remotePlayers.values()][0];
+        if (this.golem && partner) {
+            const isLocalOut = !this.player.health.isAlive && this.getRevivesLeft() === 0;
+            const isPartnerOut = !partner.isAlive && partner.revivesLeft === 0;
+            if (!isLocalOut && !isPartnerOut) {
+                this.updateEscapeVote(isAtDoor);
+                return;
+            }
+            // Quem caiu sem renascimentos não vota: o outro embarca sozinho e ele é deixado para trás.
+            const boarder = isPartnerOut ? { x, y } : partner.feet;
+            if (boarder.x < left || boarder.x > right || boarder.y < top || boarder.y > bottom) return;
+            this.isDuelOver = true;
+            this.playDuelEnding(isPartnerOut);
+            return;
+        }
+        if (!isAtDoor) return;
         this.isGameOver = true;
         this.combat?.clear();
         this.physics.pause();
@@ -1278,7 +1472,14 @@ export class World extends Scene {
         if (!player) return;
         player.stopMovement();
         const ending = new BusEndingView(this.scene.get('CombatHud') as Scene, player.sprite.texture.key);
-        ending.play(() => {
+        ending.play(() => this.playBusDeparture(ending, () => void runTracker.win(undefined, !this.isMultiplayerGuest())));
+    }
+
+    /** O 763.2 sai do TICEN soltando fumaça, com a tela clareando depois do interior. */
+    private playBusDeparture(ending: BusEndingView, onDone: () => void) {
+        const player = this.player;
+        if (!player) return;
+        {
             const { bus, departure } = TICEN_ESCAPE;
             const { frameWidth, frameHeight, tilesWide, tilesHigh } = TOPAZIO_BOSS.bus;
             const layer = this.collisionLayers.find((candidate) => candidate.layer.name === TOPAZIO_BOSS.busLayer);
@@ -1304,9 +1505,491 @@ export class World extends Scene {
                 x: image.x + departure.distance,
                 duration: departure.duration,
                 ease: 'Quad.easeIn',
-                onComplete: () => void runTracker.win(undefined, !this.isMultiplayerGuest())
+                onComplete: onDone
             });
+        }
+    }
+
+    /** Na porta do 763.2 cada um decide se quer fugir; o SIM fica de pé até o parceiro decidir também. */
+    private updateEscapeVote(isAtDoor: boolean) {
+        if (!this.player?.health.isAlive || this.isDuelActive || this.isDuelOver || this.hasVotedEscape) return;
+        if (!isAtDoor) {
+            this.isEscapeVoteArmed = true;
+            return;
+        }
+        if (!this.isEscapeVoteArmed) return;
+        this.isEscapeVoteArmed = false;
+        this.isGatewayConfirmOpen = true;
+        this.player.stopMovement();
+        this.physics.pause();
+        const data: ConfirmPromptData = {
+            title: TICEN_DUEL.question,
+            onChoice: (confirmed) => {
+                this.isGatewayConfirmOpen = false;
+                if (!this.isCutsceneActive) this.physics.resume();
+                if (!confirmed) return;
+                this.hasVotedEscape = true;
+                if (this.isMultiplayerHost()) this.checkEscapeVotes();
+                else multiplayerClient.sendEvent({ kind: 'escape.vote' });
+            }
+        };
+        this.scene.launch('ConfirmPrompt', data);
+        this.scene.bringToTop('ConfirmPrompt');
+    }
+
+    /** O anfitrião começa a reviravolta quando os dois disseram SIM. */
+    private checkEscapeVotes() {
+        if (!this.hasVotedEscape || !this.hasPartnerVotedEscape || this.isDuelActive) return;
+        multiplayerClient.sendEvent({ kind: 'escape.duel' });
+        this.playDriverCutscene();
+    }
+
+    /** O motorista desce, avisa que só cabe um, volta e fecha a porta; depois começa a disputa. */
+    private playDriverCutscene() {
+        if (this.isDuelActive) return;
+        this.isDuelActive = true;
+        const { door, doorCutscene } = TICEN_ESCAPE;
+        const focus = { x: door.x + door.width / 2, y: door.y + door.height };
+        this.playCutscene(focus, TICEN_DUEL.caption, TICEN_DUEL.driver.cutscene, doorCutscene.zoom,
+            () => this.playDriver(focus), () => this.startDuel());
+    }
+
+    private playDriver(door: Readonly<{ x: number; y: number }>) {
+        const { texture, speech, cutscene } = TICEN_DUEL.driver;
+        const driver = this.add.sprite(door.x, door.y - 4, texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(door.y + 24)).setAlpha(0);
+        this.tweens.add({ targets: driver, alpha: 1, y: door.y + 22, duration: 600, ease: 'Quad.easeOut' });
+        // À esquerda do motorista: a porta fica rente à borda do mapa e o alto da tela é do HUD.
+        const bubble = this.createSpeechBubble(door.x - 12, door.y + 6, speech).setVisible(false);
+        this.time.delayedCall(700, () => {
+            driver.setFrame(1);
+            bubble.setVisible(true);
+            this.cameras.main.shake(200, 0.004);
         });
+        this.time.delayedCall(cutscene - 1200, () => {
+            bubble.destroy();
+            driver.setFrame(0);
+            this.tweens.add({ targets: driver, y: door.y - 4, alpha: 0, duration: 600, onComplete: () => driver.destroy() });
+        });
+        this.time.delayedCall(cutscene - 400, () => this.closeBusDoor());
+    }
+
+    /** Balão de fala branco à esquerda de quem fala, com a ponta apontando para ele em (x, y). */
+    private createSpeechBubble(x: number, y: number, text: string) {
+        const label = this.add.text(0, 0, text, {
+            fontFamily: 'PixelGamer, monospace',
+            fontSize: '9px',
+            color: '#101018',
+            align: 'center',
+            wordWrap: { width: 120 }
+        }).setOrigin(0.5).setResolution(4);
+        const width = label.width + 14;
+        const height = label.height + 10;
+        const left = -width - 8;
+        const box = this.add.graphics();
+        box.fillStyle(0xffffff).fillRoundedRect(left, -height / 2, width, height, 5);
+        box.lineStyle(1, 0x101018).strokeRoundedRect(left, -height / 2, width, height, 5);
+        box.fillStyle(0xffffff).fillTriangle(-9, -5, -9, 5, 0, 0);
+        label.setPosition(left + width / 2, 0);
+        return this.add.container(x, y, [box, label]).setDepth(22);
+    }
+
+    /** A porta do 763.2 fecha e a luz some: ninguém embarca até a disputa acabar. */
+    private closeBusDoor() {
+        this.isBusDoorOpen = false;
+        const objects = this.busDoorObjects;
+        this.busDoorObjects = [];
+        this.tweens.add({ targets: objects, alpha: 0, duration: 300, onComplete: () => objects.forEach((object) => object.destroy()) });
+    }
+
+    /** Fim do motorista: cada um vai para o seu extremo, passa o close de duelo e só então a luta começa. */
+    private startDuel() {
+        if (!this.player || this.isDuelOver) return;
+        this.teleportToDuelCorner();
+        this.playDuelStandoff(() => this.beginDuelFight());
+    }
+
+    /** Close de faroeste nos olhos dos dois antes da luta; o jogo fica parado enquanto passa. */
+    private playDuelStandoff(onDone: () => void) {
+        const player = this.player;
+        if (!player) return;
+        const partner = [...this.remotePlayers.values()][0];
+        const textures = [player.sprite.texture.key, partner?.sprite.texture.key ?? player.sprite.texture.key] as const;
+        this.isCutsceneActive = true;
+        player.stopMovement();
+        this.physics.pause();
+        new DuelStandoffView(this.scene.get('CombatHud') as Scene, textures).play(() => {
+            this.isCutsceneActive = false;
+            if (!this.isPauseMenuOpen && !this.isGameOver) this.physics.resume();
+            onDone();
+        });
+    }
+
+    /** Depois do close: a dupla perde as cartas, pega a espada e o anfitrião solta os gaúchos e os baús. */
+    private beginDuelFight() {
+        if (!this.player || this.isDuelOver) return;
+        this.upgrades.reset();
+        // Luta justa: os dois começam iguais, com 5 corações cheios, depois do close.
+        const duelHealth = TICEN_DUEL.duelHearts * COMBAT_CONFIG.player.healthPerHeart;
+        this.player.health.restore(duelHealth, duelHealth);
+        this.combat?.enterSwordDuel();
+        const partner = [...this.remotePlayers.values()][0];
+        partner?.holdSword();
+        if (this.combat && partner) {
+            this.combat.duelTarget = {
+                center: partner.feet,
+                isAlive: () => partner.isAlive && !this.isDuelOver,
+                hit: (damage) => this.hitRival(damage)
+            };
+        }
+        this.showFloatingHint(TICEN_DUEL.start);
+        if (!this.isMultiplayerHost()) return;
+        const { enemies, chest } = TICEN_DUEL;
+        this.duelTimers.push(
+            this.time.addEvent({ delay: enemies.interval, repeat: enemies.count - 1, callback: () => this.spawnDuelEnemy() }),
+            this.time.addEvent({ delay: chest.interval, loop: true, callback: () => this.spawnDuelChest() })
+        );
+    }
+
+    /** A espada acerta o parceiro: o dano vai para o cliente dele, que é quem manda na própria vida. */
+    private hitRival(_swordDamage: number) {
+        // Dano fixo entre os jogadores; o cacete melhorado do baú ainda vale, arredondado para meio coração.
+        const damage = Math.round(TICEN_DUEL.rivalDamage * (this.combat?.swordDamageMultiplier ?? 1));
+        multiplayerClient.sendEvent({ kind: 'player.damage', amount: damage });
+        if (this.time.now < this.lifestealUntil) this.player?.health.heal(1);
+    }
+
+    /** Um piso livre dentro do terminal, longe dos dois jogadores e fora da porta do 763.2. */
+    private findTicenFloorPoint(minDistance: number) {
+        const map = this.roomMap;
+        if (!map) return undefined;
+        const people = [this.player?.sprite.body?.center, ...[...this.remotePlayers.values()].map((partner) => partner.feet)]
+            .filter((point): point is { x: number; y: number } => !!point);
+        const { left, right, top, bottom } = TICEN_GOAL;
+        for (let attempt = 0; attempt < 80; attempt += 1) {
+            const tileX = 2 + Math.floor(Math.random() * (map.width - 4));
+            const tileY = 7 + Math.floor(Math.random() * 27);
+            const point = { x: tileX * 16 + 8, y: tileY * 16 + 14 };
+            if (!this.isTicenTileFree(map, tileX, tileY)) continue;
+            if (point.x > left - 24 && point.x < right + 24 && point.y > top - 24 && point.y < bottom + 24) continue;
+            if (people.some((person) => Math.hypot(person.x - point.x, person.y - point.y) < minDistance)) continue;
+            return point;
+        }
+        return undefined;
+    }
+
+    /** O baú e quem pisa ali sobem um tile a partir do pé: o tile, os vizinhos e o de cima precisam estar livres. */
+    private isTicenTileFree(map: Phaser.Tilemaps.Tilemap, tileX: number, tileY: number) {
+        const area = [[0, 0], [-1, 0], [1, 0], [0, -1], [-1, -1], [1, -1]];
+        return !area.some(([dx, dy]) => this.collisionLayers.some((layer) => layer.getTileAt(tileX + dx, tileY + dy)?.collides))
+            && !area.some(([dx, dy]) => map.hasTileAt(tileX + dx, tileY + dy, 'itens-topo'));
+    }
+
+    /** Pé no chão livre mais perto do ponto, procurando em anéis cada vez maiores até 6 tiles. */
+    private findTicenFloorNear(x: number, y: number) {
+        const map = this.roomMap;
+        if (!map) return undefined;
+        const centerX = Math.floor(x / 16);
+        const centerY = Math.floor(y / 16);
+        for (let ring = 0; ring <= 6; ring += 1) {
+            for (let dy = -ring; dy <= ring; dy += 1) {
+                for (let dx = -ring; dx <= ring; dx += 1) {
+                    if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+                    if (this.isTicenTileFree(map, centerX + dx, centerY + dy)) return { x: (centerX + dx) * 16 + 8, y: (centerY + dy) * 16 + 14 };
+                }
+            }
+        }
+        return undefined;
+    }
+
+    /** Começo da disputa: cada um vai para um extremo do terminal, o anfitrião num e o convidado no outro. */
+    private teleportToDuelCorner() {
+        const body = this.player?.sprite.body as Phaser.Physics.Arcade.Body | null | undefined;
+        if (!this.player || !body) return;
+        const corner = TICEN_DUEL.corners[this.isMultiplayerHost() ? 0 : 1];
+        const feet = this.findTicenFloorNear(corner.x, corner.y);
+        if (!feet) return;
+        // O ponto achado é o do pé; o sprite fica acima dele na mesma distância que o corpo tem do sprite agora.
+        const x = feet.x - (body.center.x - this.player.sprite.x);
+        const y = feet.y - (body.center.y - this.player.sprite.y);
+        this.player.sprite.setPosition(x, y);
+        body.reset(x, y);
+        if (!prefersReducedMotion()) this.cameras.main.flash(250, 255, 255, 255);
+    }
+
+    /** Roda no anfitrião: um gaúcho de espada entra na disputa e vai atrás de quem estiver mais perto. */
+    private spawnDuelEnemy() {
+        const point = this.findTicenFloorPoint(110);
+        if (!point || this.isDuelOver) return;
+        const spawn = { x: point.x, y: point.y, patrolLeft: point.x - 16, patrolRight: point.x + 16 };
+        const enemy = this.createEnemy('gaucho', spawn);
+        enemy.relentless = true;
+        for (const layer of this.collisionLayers) this.physics.add.collider(enemy.sprite, layer);
+        this.addEnemyToCombat(enemy);
+        multiplayerClient.sendEvent({
+            kind: 'enemy.spawn',
+            enemies: [{ kind: 'gaucho', ...spawn, health: enemy.health.current, maxHealth: enemy.health.max }]
+        });
+    }
+
+    /** Roda no anfitrião: um baú brilhando aparece com o próximo especial da lista. */
+    private spawnDuelChest() {
+        const point = this.findTicenFloorPoint(70);
+        if (!point || this.isDuelOver) return;
+        const id = ++this.duelChestSequence;
+        const { specials } = TICEN_DUEL;
+        const special = specials[(id - 1) % specials.length].id;
+        multiplayerClient.sendEvent({ kind: 'chest.spawn', id, x: point.x, y: point.y, special });
+        this.placeDuelChest(id, point.x, point.y, special);
+    }
+
+    /** Brilho extra para achar o baú de longe: halo dourado no chão, um facho de luz subindo e faíscas. */
+    private addChestGlow(image: Phaser.GameObjects.Sprite) {
+        const { x, y } = image;
+        const glow = this.add.graphics().setDepth(getActorDepth(y) - 0.001).setBlendMode(1);
+        for (const [radius, alpha] of [[26, 0.12], [17, 0.2], [9, 0.32]] as const) {
+            glow.fillStyle(0xffd75a, alpha).fillEllipse(x, y - 2, radius * 2, radius);
+        }
+        glow.fillStyle(0xfff2b0, 0.16).fillRect(x - 5, y - 70, 10, 66);
+        glow.fillStyle(0xfff2b0, 0.22).fillRect(x - 2, y - 70, 4, 66);
+        this.tweens.add({ targets: glow, alpha: { from: 1, to: 0.45 }, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        this.tweens.add({ targets: image, scale: { from: 1, to: 1.15 }, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        const sparks = this.time.addEvent({ delay: 220, loop: true, callback: () => {
+            if (!glow.active) {
+                sparks.remove();
+                return;
+            }
+            const spark = this.add.rectangle(x + (Math.random() - 0.5) * 18, y - 8, 2, 2, 0xfff2b0).setDepth(getActorDepth(y) + 0.01).setBlendMode(1);
+            this.tweens.add({ targets: spark, y: spark.y - 26, alpha: 0, duration: 800, onComplete: () => spark.destroy() });
+        } });
+        return glow;
+    }
+
+    /** Baú de item da sala: trancado até o combate terminar no tempo; quem já tem o item o encontra aberto. */
+    private createItemChest(roomKey: RoomKey, isFreshRoom: boolean) {
+        this.itemChest = undefined;
+        const config = ITEM_CHESTS[roomKey];
+        if (!config) return;
+        if (isFreshRoom) this.itemChestRuns.set(roomKey, { startedAt: runTracker.snapshot().elapsedTimeMs, unlocked: false, claimed: false });
+        const { x, y } = config;
+        const image = this.add.sprite(x, y, TICEN_DUEL.chest.texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(y));
+        // Já pego nesta partida, ou nada na lista que o jogador ainda não tenha: o baú fica aberto.
+        if (this.itemChestRuns.get(roomKey)?.claimed || getChestCandidates(config.items, this.ownedItems).length === 0) {
+            image.setFrame(1);
+            return;
+        }
+        const hint = this.createWorldHint(
+            `COMPLETE A ${config.roomName} EM ${formatElapsedTime(config.timeLimitMs)}\nPARA DESBLOQUEAR UM ITEM`
+        ).setAlign('center').setPosition(x, y - 32).setVisible(false);
+        this.itemChest = { image: image.setTint(0x7a7a8c), hint, roomKey };
+        if (this.itemChestRuns.get(roomKey)?.unlocked) this.unlockItemChest();
+    }
+
+    /** O combate da sala acabou: dentro do tempo, o baú destranca e passa a brilhar. */
+    private finishItemChestRun(roomKey: RoomKey, random = Math.random) {
+        const run = this.itemChestRuns.get(roomKey);
+        const config = ITEM_CHESTS[roomKey];
+        if (!run || !config) return;
+        run.unlocked = runTracker.snapshot().elapsedTimeMs - run.startedAt <= config.timeLimitMs;
+        // O sorteio sai na hora de destrancar e fica guardado: voltar do esconderijo não troca o item.
+        const candidates = getChestCandidates(config.items, this.ownedItems);
+        if (run.unlocked) run.item = candidates[Math.floor(random() * candidates.length)];
+        if (run.unlocked && this.itemChest) {
+            this.unlockItemChest();
+            this.showFloatingHint('BAÚ DESBLOQUEADO');
+        }
+    }
+
+    private unlockItemChest() {
+        const chest = this.itemChest;
+        if (!chest || chest.glow) return;
+        chest.image.clearTint();
+        chest.hint.setVisible(false);
+        chest.glow = this.addChestGlow(chest.image);
+    }
+
+    /** Trancado, o baú explica o desafio a quem chega perto; destrancado, basta encostar para vestir o item. */
+    private updateItemChest() {
+        const chest = this.itemChest;
+        if (!chest || !this.player) return;
+        const feet = this.player.sprite.body?.center ?? this.player.sprite;
+        const distance = Math.hypot(feet.x - chest.image.x, feet.y - (chest.image.y - 6));
+        const { touchRadius } = TICEN_DUEL.chest;
+        if (!chest.glow) {
+            chest.hint.setVisible(distance <= touchRadius * 2);
+            return;
+        }
+        if (distance > touchRadius) return;
+        this.itemChest = undefined;
+        this.tweens.killTweensOf(chest.image);
+        chest.image.setFrame(1).setScale(1);
+        chest.glow.destroy();
+        chest.hint.destroy();
+        const run = this.itemChestRuns.get(chest.roomKey);
+        const item = run?.item;
+        if (run) run.claimed = true;
+        if (!item) return;
+        this.equipFoundItem(item);
+        this.showFloatingHint(ITEMS[item].name);
+    }
+
+    private placeDuelChest(id: number, x: number, y: number, special: DuelSpecialId) {
+        const image = this.add.sprite(x, y, TICEN_DUEL.chest.texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(y));
+        const glow = this.addChestGlow(image);
+        playExplosion(this, x, y - 6, 14, 0xfff2b0);
+        this.duelChests.set(id, { image, glow, special, opened: false, claimed: false });
+    }
+
+    /** Basta encostar: o anfitrião abre na hora; o convidado pede, e o anfitrião diz quem chegou primeiro. */
+    private updateDuelChests() {
+        if (!this.isDuelActive || this.isDuelOver || !this.player?.health.isAlive) return;
+        const feet = this.player.sprite.body?.center ?? this.player.sprite;
+        for (const [id, chest] of this.duelChests) {
+            if (chest.opened || chest.claimed) continue;
+            if (Math.hypot(feet.x - chest.image.x, feet.y - (chest.image.y - 6)) > TICEN_DUEL.chest.touchRadius) continue;
+            chest.claimed = true;
+            if (this.isMultiplayerHost()) this.openDuelChest(id, true);
+            else multiplayerClient.sendEvent({ kind: 'chest.claim', id });
+        }
+    }
+
+    /** Só o anfitrião decide: o primeiro pedido vale, os outros chegam com o baú já aberto. */
+    private openDuelChest(id: number, byHost: boolean) {
+        const chest = this.duelChests.get(id);
+        if (!chest || chest.opened) return;
+        multiplayerClient.sendEvent({ kind: 'chest.opened', id, byHost });
+        this.revealDuelChest(id, byHost);
+    }
+
+    private revealDuelChest(id: number, byHost: boolean) {
+        const chest = this.duelChests.get(id);
+        if (!chest || chest.opened) return;
+        chest.opened = true;
+        this.tweens.killTweensOf(chest.image);
+        chest.image.setFrame(1).setScale(1);
+        this.tweens.killTweensOf(chest.glow);
+        this.tweens.add({ targets: chest.glow, alpha: 0, duration: 400, onComplete: () => chest.glow.destroy() });
+        const label = TICEN_DUEL.specials.find(({ id: special }) => special === chest.special)?.label ?? '';
+        const hint = this.createWorldHint(label).setPosition(chest.image.x, chest.image.y - 22);
+        this.tweens.add({ targets: hint, y: hint.y - 14, alpha: 0, delay: 900, duration: 600, onComplete: () => hint.destroy() });
+        this.tweens.add({ targets: chest.image, alpha: 0, delay: 700, duration: 400, onComplete: () => chest.image.destroy() });
+        if (byHost === this.isMultiplayerHost()) this.applyDuelSpecial(chest.special);
+    }
+
+    private applyDuelSpecial(special: DuelSpecialId) {
+        const player = this.player;
+        const combat = this.combat;
+        if (!player || !combat) return;
+        const { speed, shieldDuration, lifestealDuration, spin, clubMultiplier } = TICEN_DUEL;
+        switch (special) {
+            case 'heart':
+                player.health.increaseMax(COMBAT_CONFIG.player.healthPerHeart);
+                break;
+            case 'helmet':
+                this.equipFoundItem('helmet');
+                break;
+            case 'boots':
+                this.equipFoundItem('rubber-boots');
+                break;
+            case 'silver-boots':
+            case 'diamond-boots':
+            case 'ice-staff':
+                this.equipFoundItem(special);
+                break;
+            case 'club':
+                combat.swordDamageMultiplier *= clubMultiplier;
+                break;
+            case 'speed':
+                player.setTemporaryMovementSpeedMultiplier(speed.multiplier);
+                this.time.delayedCall(speed.duration, () => this.player?.setTemporaryMovementSpeedMultiplier(1));
+                break;
+            case 'shield':
+                player.grantInvulnerability(shieldDuration);
+                player.sprite.setTint(0x8fd8ff);
+                this.time.delayedCall(shieldDuration, () => this.player?.sprite.clearTint());
+                break;
+            case 'lifesteal':
+                this.lifestealUntil = this.time.now + lifestealDuration;
+                break;
+            case 'spin':
+                combat.swordFullCircle = true;
+                combat.swordRangeMultiplier = spin.rangeMultiplier;
+                this.time.delayedCall(spin.duration, () => {
+                    combat.swordFullCircle = false;
+                    combat.swordRangeMultiplier = 1;
+                });
+                break;
+        }
+    }
+
+    /** Item achado vai para o inventário e já entra no corpo, trocando o que estiver no mesmo lugar. */
+    private equipFoundItem(id: ItemId) {
+        if (!this.ownedItems.includes(id)) this.ownedItems.push(id);
+        this.equippedItems = [...this.equippedItems.filter((item) => ITEMS[item].slot !== ITEMS[id].slot), id];
+        this.applyEquipment();
+    }
+
+    /** Quem caiu avisa o parceiro: ele fica com a vaga. */
+    private loseDuel() {
+        if (this.isDuelOver) return;
+        this.isDuelOver = true;
+        multiplayerClient.sendEvent({ kind: 'duel.lost' });
+        this.playDuelEnding(false);
+    }
+
+    /**
+     * Fim da disputa, igual nas duas telas: quem perdeu morre, a porta do 763.2 reabre, o vencedor entra e
+     * senta (a cutscene do solo) e o ônibus vai embora. Quem perdeu vê que foi deixado para trás.
+     */
+    private playDuelEnding(localWon: boolean) {
+        const player = this.player;
+        // Sem parceiro (saiu no meio da disputa) só existe o vencedor na tela.
+        const partner = [...this.remotePlayers.values()][0];
+        if (!player) return;
+        for (const timer of this.duelTimers) timer.remove(false);
+        this.duelTimers = [];
+        this.isGameOver = true;
+        this.combat?.clear();
+        if (this.isMultiplayerHost()) {
+            for (const enemy of this.drones) {
+                if (enemy !== this.golem && enemy.health.isAlive) enemy.takeDamage(enemy.health.current);
+            }
+        }
+        player.stopMovement();
+        this.physics.pause();
+        const loser = localWon ? partner?.sprite : player.sprite;
+        const winner = localWon ? player.sprite : partner?.sprite ?? player.sprite;
+        if (loser) this.playDeathAnimation(loser);
+        const { deathTime, boardTime } = TICEN_DUEL;
+        const { door } = TICEN_ESCAPE;
+        const doorFeet = { x: door.x + door.width / 2, y: door.y + door.height + 12 };
+        this.time.delayedCall(deathTime, () => {
+            const camera = this.cameras.main;
+            camera.stopFollow();
+            camera.pan(doorFeet.x, doorFeet.y, 500, 'Sine.easeInOut');
+            camera.zoomTo(this.normalCameraZoom * TICEN_ESCAPE.doorCutscene.zoom, 500, 'Sine.easeInOut');
+            if (!this.isBusDoorOpen) this.openBusDoor();
+            // O vencedor anda até a porta na própria tela; o parceiro vê pelo estado dele.
+            if (localWon) {
+                this.tweens.add({ targets: player.sprite, x: doorFeet.x, y: doorFeet.y, duration: boardTime * 0.7, ease: 'Sine.easeInOut' });
+                this.tweens.add({ targets: player.sprite, alpha: 0, delay: boardTime * 0.7, duration: boardTime * 0.3 });
+            }
+        });
+        this.time.delayedCall(deathTime + boardTime + 300, () => {
+            const ending = new BusEndingView(this.scene.get('CombatHud') as Scene, winner.texture.key);
+            ending.play(() => this.playBusDeparture(ending, () => {
+                this.victorySubtitle = localWon ? undefined : TICEN_DUEL.leftBehind;
+                void runTracker.win(undefined, !this.isMultiplayerGuest());
+            }));
+        });
+    }
+
+    /** Morte de quem perdeu: clarão vermelho, tomba e se desfaz. */
+    private playDeathAnimation(sprite: Phaser.GameObjects.Sprite) {
+        sprite.setTint(0xff4060);
+        this.cameras.main.shake(300, 0.008);
+        playExplosion(this, sprite.x, sprite.y, 22, 0xff4060);
+        this.tweens.add({ targets: sprite, angle: 90, y: sprite.y + 8, duration: 350, ease: 'Quad.easeIn' });
+        this.tweens.add({ targets: sprite, alpha: 0.35, delay: 400, duration: 700 });
     }
 
     /** Luz verde, braço girando e passagem livre: some o bloqueio invisível da catraca. */
@@ -1314,13 +1997,38 @@ export class World extends Scene {
         this.isTicenGateOpen = true;
         this.ticenGateHint?.setVisible(false);
         const { openFrameDuration, railLayer, row, widenCols } = TICEN_GATE;
-        [1, 2, 3].forEach((frame, index) => {
-            this.time.delayedCall(openFrameDuration * index, () => this.ticenGate?.setFrame(frame));
-        });
+        this.playTicenGateFrames([1, 2, 3]);
         this.time.delayedCall(openFrameDuration * 2, () => {
             // A máquina continua sólida; a passagem abre na grade dos dois lados dela.
             const rails = this.collisionLayers.find((layer) => layer.layer.name === railLayer);
-            for (const col of widenCols) rails?.removeTileAt(col, row);
+            this.ticenRailTiles = widenCols.flatMap((col) => {
+                const tile = rails?.removeTileAt(col, row);
+                return tile ? [tile] : [];
+            });
+        });
+    }
+
+    /** Quem passou entra no terminal e a catraca volta a fechar a passagem, avisando o parceiro. */
+    private closeTicenGateBehind() {
+        this.isTicenGateOpen = false;
+        this.hasPassedTicenGate = true;
+        const rails = this.collisionLayers.find((layer) => layer.layer.name === TICEN_GATE.railLayer);
+        for (const tile of this.ticenRailTiles) rails?.putTileAt(tile, tile.x, tile.y);
+        this.ticenRailTiles = [];
+        this.playTicenGateFrames([2, 1, 0]);
+        if (this.isMultiplayerEnabled()) multiplayerClient.sendEvent({ kind: 'ticen.gate' });
+    }
+
+    /** O parceiro passou a catraca dele: aqui ela só gira e fecha, sem abrir a passagem. */
+    private playPartnerTicenGate() {
+        this.hasPartnerPassedTicenGate = true;
+        if (this.isTicenGateOpen) return;
+        this.playTicenGateFrames([1, 2, 3, 3, 2, 1, 0]);
+    }
+
+    private playTicenGateFrames(frames: readonly number[]) {
+        frames.forEach((frame, index) => {
+            this.time.delayedCall(TICEN_GATE.openFrameDuration * index, () => this.ticenGate?.setFrame(frame));
         });
     }
 
@@ -1407,23 +2115,11 @@ export class World extends Scene {
         // Quem respondeu NÃO só é perguntado de novo depois de sair da passagem.
         if (!isAtEntrance && !isAtReturn) this.isGatewayConfirmArmed = true;
         if (secretGateway && isAtEntrance) {
-            this.passSecretGateway(secretGateway.confirm?.enter, () => {
-                this.dungeonState ??= createDungeonSessionState();
-                this.transitionToRoom(secretGateway.to, {
-                    dungeonState: this.dungeonState
-                });
-            });
+            this.passSecretGateway(secretGateway.confirm?.enter, this.getSecretGatewayPass(secretGateway, 'enter'));
             return;
         }
         if (returnGateway && isAtReturn) {
-            const leave = () => this.transitionToRoom(returnGateway.from, {
-                spawn: returnGateway.returnSpawn,
-                dungeonState: this.dungeonState
-            });
-            this.passSecretGateway(returnGateway.confirm?.exit, () => {
-                if (this.activeRoomKey === 'gaucho-dungeon') this.climbSewerLadder(leave);
-                else leave();
-            });
+            this.passSecretGateway(returnGateway.confirm?.exit, this.getSecretGatewayPass(returnGateway, 'exit'));
             return;
         }
         const exitGateway = ROOM_EXIT_GATEWAYS.find(({ from }) => from === this.activeRoomKey);
@@ -1450,7 +2146,31 @@ export class World extends Scene {
         climbSewerLadder(this, this.player.sprite, this.dungeonReturnArea, leave);
     }
 
-    /** Passa direto, ou pergunta antes quando a passagem tem confirmação. */
+    /** Entrar no esconderijo ou voltar dele; a mesma função serve ao anfitrião quando quem perguntou foi o convidado. */
+    private getSecretGatewayPass(gateway: SecretDungeonGateway, direction: 'enter' | 'exit') {
+        if (direction === 'enter') {
+            return () => {
+                this.dungeonState ??= createDungeonSessionState();
+                this.transitionToRoom(gateway.to, { dungeonState: this.dungeonState });
+            };
+        }
+        const leave = () => this.transitionToRoom(gateway.from, { spawn: gateway.returnSpawn, dungeonState: this.dungeonState });
+        return () => {
+            if (this.activeRoomKey === 'gaucho-dungeon') this.climbSewerLadder(leave);
+            else leave();
+        };
+    }
+
+    /** A passagem que a pergunta do parceiro pede, nesta sala; outra pergunta qualquer não abre nada. */
+    private findSecretGatewayPass(question: string) {
+        const entrance = SECRET_DUNGEON_GATEWAYS.find((gateway) => gateway.from === this.activeRoomKey);
+        if (entrance?.confirm?.enter === question) return this.getSecretGatewayPass(entrance, 'enter');
+        const exit = SECRET_DUNGEON_GATEWAYS.find((gateway) => gateway.to === this.activeRoomKey);
+        if (exit?.confirm?.exit === question) return this.getSecretGatewayPass(exit, 'exit');
+        return undefined;
+    }
+
+    /** Passa direto, ou pergunta antes quando a passagem tem confirmação; em dupla, pergunta aos dois. */
     private passSecretGateway(question: string | undefined, pass: () => void) {
         if (!question) {
             pass();
@@ -1458,19 +2178,69 @@ export class World extends Scene {
         }
         if (!this.isGatewayConfirmArmed || !this.player) return;
         this.isGatewayConfirmArmed = false;
+        if (this.isCoopActive()) multiplayerClient.sendEvent({ kind: 'gateway.vote', phase: 'ask', question });
+        this.openGatewayPrompt(question, pass);
+    }
+
+    private openGatewayPrompt(question: string, pass: () => void, hint?: string) {
+        if (this.isGatewayConfirmOpen || !this.player) return;
         this.isGatewayConfirmOpen = true;
+        this.gatewayVote = { pass, local: false, partner: false };
         this.player.stopMovement();
         this.physics.pause();
         const data: ConfirmPromptData = {
             title: question,
+            hint,
             onChoice: (confirmed) => {
                 this.isGatewayConfirmOpen = false;
                 this.physics.resume();
-                if (confirmed) pass();
+                if (!this.isCoopActive()) {
+                    this.gatewayVote = undefined;
+                    if (confirmed) pass();
+                    return;
+                }
+                multiplayerClient.sendEvent({ kind: 'gateway.vote', phase: confirmed ? 'yes' : 'no' });
+                if (!confirmed || !this.gatewayVote) {
+                    this.gatewayVote = undefined;
+                    return;
+                }
+                this.gatewayVote.local = true;
+                if (!this.gatewayVote.partner) this.showFloatingHint('AGUARDANDO O PARCEIRO');
+                this.tryGatewayPass();
             }
         };
         this.scene.launch('ConfirmPrompt', data);
         this.scene.bringToTop('ConfirmPrompt');
+    }
+
+    /** Resposta do parceiro: o SIM conta para a passagem; o NÃO fecha a pergunta aqui também. */
+    private applyPartnerGatewayVote(event: Extract<CoopEvent, { kind: 'gateway.vote' }>) {
+        if (event.phase === 'ask') {
+            const pass = event.question ? this.findSecretGatewayPass(event.question) : undefined;
+            if (pass && event.question) this.openGatewayPrompt(event.question, pass, 'O PARCEIRO QUER PASSAR');
+            return;
+        }
+        if (!this.gatewayVote) return;
+        if (event.phase === 'yes') {
+            this.gatewayVote.partner = true;
+            this.tryGatewayPass();
+            return;
+        }
+        this.gatewayVote = undefined;
+        if (this.isGatewayConfirmOpen) {
+            this.scene.stop('ConfirmPrompt');
+            this.isGatewayConfirmOpen = false;
+            this.physics.resume();
+        }
+        this.showFloatingHint('PARCEIRO RECUSOU');
+    }
+
+    /** Com os dois SIM, o anfitrião faz a passagem e leva a dupla junto. */
+    private tryGatewayPass() {
+        const vote = this.gatewayVote;
+        if (!vote?.local || !vote.partner) return;
+        this.gatewayVote = undefined;
+        if (this.isMultiplayerHost()) vote.pass();
     }
 
     private transitionToRoom(
@@ -1527,6 +2297,15 @@ export class World extends Scene {
         this.physics.pause();
         const playerProgress = capturePlayerProgress(this.player, this.upgrades, this.chimarraosCollected, this.ownedItems, this.equippedItems);
         const checkpointRooms: readonly RoomKey[] = ['room1', 'room2', 'room3', 'room4', 'room5', 'dungeon'];
+        if (this.isMultiplayerEnabled() && checkpointRooms.includes(roomKey)) {
+            // Em dupla o checkpoint fica só na memória da partida: o menu não continua partida em dupla.
+            const checkpoint: CoopCheckpoint = {
+                roomKey: roomKey === 'dungeon' ? 'room2' : roomKey,
+                playerProgress,
+                run: runTracker.checkpoint()
+            };
+            this.registry.set(COOP_CHECKPOINT_KEY, checkpoint);
+        }
         if (!this.isMultiplayerEnabled() && checkpointRooms.includes(roomKey)) {
             // Todo início de sala é checkpoint; a dungeon é uma rota secreta da fase 2.
             saveCampaignProgress({
@@ -1618,15 +2397,8 @@ export class World extends Scene {
         this.isWaveIntermissionOpen = true;
         this.piranhasBarPrompt?.setVisible(false);
         const overlayScene = this.scene.get('CombatHud') as Scene;
-        // Antes das hordas maiores, as cartas fortes de cada sala ficam garantidas na mesa.
-        const drawCards = () => {
-            const availableCards = this.upgrades.availableCards();
-            return this.activeRoomKey === 'room3'
-                ? drawUpgradeCardsFeaturing(ROOM3_UPGRADE_IDS, undefined, withoutRoom3FinalCards(availableCards))
-                : this.activeRoomKey === 'room2'
-                    ? drawUpgradeCardsFeaturing(AREA_UPGRADE_IDS, undefined, withoutRoom3Cards(availableCards))
-                    : drawUpgradeCards(undefined, basicUpgradeCards(availableCards));
-        };
+        // Cada sala sorteia da sua mesa (BASIC/AREA/ROOM3 em catalog.ts), de novo a cada escolha.
+        const drawCards = () => drawTableCards(getCardTable(this.activeRoomKey), undefined, this.upgrades.availableCards());
         const finish = () => this.waitForPartnerCard(() => {
             new WaveThreatView(overlayScene, this.cameras.main).play(() => {
                 this.isWaveIntermissionOpen = false;
@@ -1647,6 +2419,30 @@ export class World extends Scene {
         choose(1);
     }
 
+    /** Golem atordoado em 60%: cinco cartas que o jogador ainda não pegou. O atordoamento só conta depois da escolha. */
+    private playGolemCardRound() {
+        const acquired = this.upgrades.exportProgress().map(([id]) => id);
+        const cards = drawGolemCards(acquired, undefined, this.upgrades.availableCards());
+        this.cardBarrier.open();
+        // Sem carta nova para oferecer, ainda conta como escolhida: no multiplayer o parceiro espera as duas escolhas.
+        // Caído também escolhe: a carta vale quando ele levantar, e a dupla não fica travada.
+        if (cards.length === 0) {
+            this.waitForPartnerCard(() => undefined);
+            return;
+        }
+        this.combat?.clear();
+        this.physics.pause();
+        this.isWaveIntermissionOpen = true;
+        const overlayScene = this.scene.get('CombatHud') as Scene;
+        new UpgradeSelectionView(overlayScene, cards, { title: 'GOLEM ATORDOADO', hint: 'Escolha uma carta e aproveite' }).play((selected) => {
+            this.acquireUpgrade(selected);
+            this.waitForPartnerCard(() => {
+                this.isWaveIntermissionOpen = false;
+                if (this.isGameplayReady && !this.isGameOver && !this.isPauseMenuOpen) this.physics.resume();
+            });
+        });
+    }
+
     /** Oferece uma escolha depois da onda final e só então libera a saída da sala. */
     private playRoomCompletionReward(onComplete: () => void) {
         this.cardBarrier.open();
@@ -1656,15 +2452,13 @@ export class World extends Scene {
         this.piranhasBarPrompt?.setVisible(false);
 
         const overlayScene = this.scene.get('CombatHud') as Scene;
-        const isRoom3 = this.activeRoomKey === 'room3';
-        const availableCards = this.upgrades.availableCards();
+        const roomKey = this.activeRoomKey;
+        const table = roomKey === 'room3' ? 'room3-final' : roomKey === 'room4' ? 'room4' : getCardTable(roomKey);
         new UpgradeSelectionView(
             overlayScene,
-            isRoom3
-                ? drawUpgradeCardsFeaturing(ROOM3_FINAL_UPGRADE_IDS, undefined, availableCards)
-                : drawUpgradeCards(undefined, basicUpgradeCards(availableCards)),
+            drawTableCards(table, undefined, this.upgrades.availableCards()),
             {
-                title: isRoom3 ? 'SALA III CONCLUÍDA' : 'SALA I CONCLUÍDA',
+                title: roomKey === 'room3' ? 'SALA III CONCLUÍDA' : roomKey === 'room4' ? 'SALA IV CONCLUÍDA' : 'SALA I CONCLUÍDA',
                 hint: 'Escolha uma recompensa'
             }
         ).play((selected) => {
@@ -1695,7 +2489,7 @@ export class World extends Scene {
         const overlayScene = this.scene.get('CombatHud') as Scene;
         new UpgradeSelectionView(
             overlayScene,
-            drawUpgradeCards(undefined, basicUpgradeCards(this.upgrades.availableCards())),
+            drawTableCards(getCardTable(this.activeRoomKey), undefined, this.upgrades.availableCards()),
             {
                 title: 'DUNGEON CONCLUÍDA',
                 hint: 'Escolha sua recompensa'
@@ -1945,6 +2739,8 @@ export class World extends Scene {
         ) return;
 
         this.isPauseMenuOpen = true;
+        // A cena para inteira com o menu aberto, então o aviso ao parceiro sai aqui, e não pelo update.
+        this.sendLocalPause('pause');
         const data: PauseMenuData = {
             upgrades: this.upgrades.exportProgress(),
             view,
@@ -1957,6 +2753,37 @@ export class World extends Scene {
 
     private resetPauseMenuState() {
         this.isPauseMenuOpen = false;
+        this.sendLocalPause(undefined);
+        // O parceiro pode ter pausado e voltado com este menu aberto: a física que ele parou volta aqui.
+        if (!this.partnerPause && !this.isGameOver) this.physics.resume();
+    }
+
+    /** Avisa o parceiro só quando o motivo muda: um evento ao abrir o menu e outro ao fechar. */
+    private sendLocalPause(reason: PartnerPauseReason | undefined) {
+        if (reason === this.sentPauseReason || !this.isCoopActive()) return;
+        this.sentPauseReason = reason;
+        multiplayerClient.sendEvent({ kind: 'game.pause', ...(reason ? { reason } : {}) });
+    }
+
+    /** Parceiro abriu um menu: a dupla inteira congela, inclusive os inimigos do anfitrião, e aparece o motivo. */
+    private applyPartnerPause(reason: PartnerPauseReason | undefined) {
+        this.partnerPause = reason;
+        this.partnerPauseLabel?.destroy();
+        this.partnerPauseLabel = undefined;
+        if (reason) {
+            this.player?.stopMovement();
+            this.physics.pause();
+            const hud = this.scene.get('CombatHud') as Scene | undefined;
+            if (hud?.sys.isActive()) {
+                this.partnerPauseLabel = hud.add.text(GAME_WIDTH / 2, 120, PARTNER_PAUSE_TEXT[reason], {
+                    fontFamily: 'PixelGamer, monospace', fontSize: '22px', color: '#f7f7f7', stroke: '#000000', strokeThickness: 6
+                }).setOrigin(0.5).setDepth(150).setResolution(2);
+            }
+            return;
+        }
+        const isLocallyFrozen = this.isPauseMenuOpen || this.isPiranhasMenuOpen || this.isWaveIntermissionOpen || this.isArcadeOpen
+            || this.isGatewayConfirmOpen || this.isWalletOpen || this.isCutsceneActive || this.isGameOver;
+        if (!isLocallyFrozen) this.physics.resume();
     }
 
     private getPlayerSpawn(base = this.activeSpawn) {
@@ -1992,7 +2819,7 @@ export class World extends Scene {
             onPlayerShot: (x, y, angle, speed, color, pierces) => multiplayerClient.sendEvent({
                 kind: 'player.shot', x, y, angle, speed, color, pierces
             }),
-            onPlayerSwing: (x, y, angle) => multiplayerClient.sendEvent({ kind: 'player.swing', x, y, angle }),
+            onPlayerSwing: (x, y, angle, flame) => multiplayerClient.sendEvent({ kind: 'player.swing', x, y, angle, flame }),
             onPlayerEffect: (effect) => multiplayerClient.sendEvent({ kind: 'player.effect', ...effect }),
             onEnemyHit: (enemy, damage, direction) => multiplayerClient.sendEvent({
                 kind: 'enemy.hit',
@@ -2000,6 +2827,14 @@ export class World extends Scene {
                 damage,
                 dx: direction.x,
                 dy: direction.y
+            }),
+            onEnemyFreeze: (enemy, duration) => multiplayerClient.sendEvent({
+                kind: 'enemy.hit',
+                index: this.drones.indexOf(enemy),
+                damage: 0,
+                dx: 0,
+                dy: 0,
+                freeze: duration
             })
         });
     }
@@ -2027,7 +2862,8 @@ export class World extends Scene {
             character: this.characterId,
             orbitCount: cardsActive ? this.upgrades.orbitCount : 0,
             orbitRadius: this.upgrades.orbitRadius,
-            companion: cardsActive && this.upgrades.companionCount > 0
+            companion: cardsActive && this.upgrades.companionCount > 0,
+            worn: encodeWornItems(this.equippedItems)
         });
         if (this.isMultiplayerHost()) this.sendEnemySnapshot();
     }
@@ -2046,7 +2882,8 @@ export class World extends Scene {
 
     /** O próprio caído conta o tempo, pois é a autoridade sobre a sua vida. */
     private updateRevive(delta: number) {
-        if (!this.player || !this.isMultiplayerEnabled()) return;
+        // Na disputa pela vaga ninguém levanta o outro.
+        if (!this.player || !this.isMultiplayerEnabled() || this.isDuelActive) return;
         if (this.player.health.isAlive) {
             this.reviveBar?.clear();
             return;
@@ -2073,7 +2910,8 @@ export class World extends Scene {
         if (!this.player || this.getRevivesLeft() === 0) return;
         multiplayerClient.revivesUsed += 1;
         const { max } = this.player.health;
-        this.player.revive(Math.ceil(max * COMBAT_CONFIG.multiplayer.reviveHealthRatio));
+        const { reviveHealthRatio, reviveMinHealth } = COMBAT_CONFIG.multiplayer;
+        this.player.revive(Math.min(max, Math.max(reviveMinHealth, Math.ceil(max * reviveHealthRatio))));
         this.reviveElapsed = 0;
         this.reviveBar?.clear();
     }
@@ -2082,7 +2920,8 @@ export class World extends Scene {
         const partner = [...this.remotePlayers.values()][0];
         const isLocalDown = !this.player?.health.isAlive;
         let message = '';
-        if (this.cardBarrier.isWaitingForPeer || this.cardRelease) message = 'AGUARDANDO O PARCEIRO ESCOLHER...';
+        if (this.hasVotedEscape && !this.isDuelActive) message = TICEN_DUEL.waiting;
+        else if (this.cardBarrier.isWaitingForPeer || this.cardRelease) message = 'AGUARDANDO O PARCEIRO ESCOLHER...';
         else if (isLocalDown && !this.isGameOver) {
             message = this.getRevivesLeft() > 0
                 ? `VOCE CAIU! O PARCEIRO PRECISA FICAR EM CIMA DE VOCE (${this.getRevivesLeft()} RESTANTES)`
@@ -2115,6 +2954,18 @@ export class World extends Scene {
         });
     }
 
+    /** Jogadores vivos com o id da partida, igual nos dois clientes: o golem alterna os ônibus entre eles. */
+    private getBusTargets(): BusTarget[] {
+        const targets: BusTarget[] = [];
+        if (this.player?.health.isAlive) {
+            targets.push({ id: multiplayerClient.playerId ?? 'local', center: this.player.sprite.body?.center ?? this.player.sprite });
+        }
+        for (const [id, partner] of this.remotePlayers) {
+            if (partner.target.health.isAlive) targets.push({ id, center: partner.target.sprite.body.center });
+        }
+        return targets;
+    }
+
     private getEnemyTarget(origin: { x: number; y: number }): CoopTarget | undefined {
         if (!this.isMultiplayerEnabled()) return this.player as CoopTarget | undefined;
         const targets = [...this.remotePlayers.values()].map((partner) => partner.target) as CoopTarget[];
@@ -2127,6 +2978,9 @@ export class World extends Scene {
             const row = this.enemySnapshot[index];
             if (!row || !enemy.health.isAlive) continue;
             enemy.sprite.anims.stop();
+            // O golem afina na horizontal quando gira; os outros inimigos não mandam escala.
+            // Só a largura vem do anfitrião (o giro); a altura é a do espelho, que ajoelha sozinho no atordoamento.
+            if (row[5] !== undefined) enemy.sprite.setScale(row[5], enemy.sprite.scaleY);
             enemy.sprite.setFrame(row[3]).setFlipX(row[4] === 1).setPosition(
                 Phaser.Math.Linear(enemy.sprite.x, row[0], 0.35),
                 Phaser.Math.Linear(enemy.sprite.y, row[1], 0.35)
@@ -2145,12 +2999,21 @@ export class World extends Scene {
                 remotePlayer.destroy();
                 this.remotePlayers.delete(playerId);
             }
+            // Quem sai com um menu aberto não pode deixar o outro congelado.
+            if (this.partnerPause) this.applyPartnerPause(undefined);
             this.handlePartnerLeft();
         }
         if (message.type === 'match.event') this.handleCoopEvent(message.event);
     }
 
     private handlePartnerLeft() {
+        this.hasVotedEscape = false;
+        // Quem abandona a disputa perde a vaga para quem ficou.
+        if (this.isDuelActive && !this.isDuelOver) {
+            this.isDuelOver = true;
+            this.playDuelEnding(true);
+            return;
+        }
         if (this.isMultiplayerGuest()) {
             // shortcut: sem migração de anfitrião a partida termina, trocar se quedas forem comuns.
             if (this.isGameOver) return;
@@ -2204,7 +3067,8 @@ export class World extends Scene {
                 this.combat?.spawnPartnerShot(event.x, event.y, event.angle, event.speed, event.color, event.pierces);
                 break;
             case 'player.swing':
-                this.combat?.playPartnerSwing(event.x, event.y, event.angle);
+                for (const partner of this.remotePlayers.values()) partner.hideSwordFor(COMBAT_CONFIG.melee.swingDuration);
+                this.combat?.playPartnerSwing(event.x, event.y, event.angle, event.flame === true);
                 break;
             case 'player.effect':
                 this.combat?.playPartnerEffect(event);
@@ -2238,6 +3102,11 @@ export class World extends Scene {
                 break;
             }
             case 'room.request':
+                // Pedido de recomeço do convidado: vale só com a dupla derrotada aqui também, e só uma vez.
+                if (event.retry) {
+                    if (this.isMultiplayerHost() && this.isGameOver) this.retryCoopRoom();
+                    break;
+                }
                 if (this.isMultiplayerHost()) {
                     if (isDungeonRoom(event.roomKey)) this.dungeonState ??= createDungeonSessionState();
                     this.transitionToRoom(event.roomKey, {
@@ -2247,6 +3116,10 @@ export class World extends Scene {
                 }
                 break;
             case 'room.transition': {
+                if (event.retry) {
+                    if (this.isGameOver) this.restartCoopRoom(event.roomKey);
+                    break;
+                }
                 // A semente do anfitrião vence a criada aqui ao pisar na entrada: o mapa precisa ser igual.
                 if (event.seed !== undefined) {
                     this.dungeonState ??= createDungeonSessionState(event.seed);
@@ -2258,6 +3131,42 @@ export class World extends Scene {
                 });
                 break;
             }
+            case 'ticen.gate':
+                this.playPartnerTicenGate();
+                break;
+            case 'boss.wake':
+                this.awakenGolem();
+                break;
+            case 'boss.action':
+                this.golem?.applyRemoteAction(event.action);
+                break;
+            case 'game.pause':
+                this.applyPartnerPause(event.reason);
+                break;
+            case 'gateway.vote':
+                this.applyPartnerGatewayVote(event);
+                break;
+            case 'escape.vote':
+                this.hasPartnerVotedEscape = true;
+                if (this.isMultiplayerHost()) this.checkEscapeVotes();
+                break;
+            case 'escape.duel':
+                this.playDriverCutscene();
+                break;
+            case 'chest.spawn':
+                this.placeDuelChest(event.id, event.x, event.y, event.special);
+                break;
+            case 'chest.claim':
+                if (this.isMultiplayerHost()) this.openDuelChest(event.id, false);
+                break;
+            case 'chest.opened':
+                this.revealDuelChest(event.id, event.byHost);
+                break;
+            case 'duel.lost':
+                if (this.isDuelOver) break;
+                this.isDuelOver = true;
+                this.playDuelEnding(true);
+                break;
             case 'world.ready':
                 break;
         }
@@ -2265,7 +3174,11 @@ export class World extends Scene {
 
     private applyPartnerHit(event: Extract<CoopEvent, { kind: 'enemy.hit' }>) {
         const enemy = this.drones[event.index];
-        if (!this.isMultiplayerHost() || !enemy?.health.isAlive) return;
+        // O gelo vale dos dois lados: no anfitrião o inimigo para de verdade; no convidado aparece congelado.
+        if (enemy && typeof event.freeze === 'number' && event.freeze > 0) {
+            this.combat?.freezeEnemy(enemy, Math.min(event.freeze, COMBAT_CONFIG.iceStaff.freezeDuration));
+        }
+        if (!this.isMultiplayerHost() || !enemy?.health.isAlive || event.damage <= 0) return;
         const center = { x: enemy.sprite.x, y: enemy.sprite.y };
         const damage = enemy.takeDamage(event.damage, { x: event.dx, y: event.dy });
         if (damage > 0) playDamageNumber(this, center.x, center.y, damage);

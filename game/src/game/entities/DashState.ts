@@ -5,6 +5,8 @@ export class DashState {
     private remainingDuration = 0;
     private remainingCooldown = 0;
     private currentDirection: DashDirection = { x: 0, y: 1 };
+    /** Itens que encurtam a recarga mudam este valor; vale a partir do próximo dash. */
+    cooldownMultiplier = 1;
 
     constructor(
         private readonly duration: number,
@@ -25,8 +27,9 @@ export class DashState {
 
     /** 0 logo após usar o dash e 1 quando ele está pronto novamente. */
     get charge() {
-        if (this.cooldown <= 0) return 1;
-        return Math.max(0, Math.min(1, 1 - this.remainingCooldown / this.cooldown));
+        const cooldown = this.cooldown * this.cooldownMultiplier;
+        if (cooldown <= 0) return 1;
+        return Math.max(0, Math.min(1, 1 - this.remainingCooldown / cooldown));
     }
 
     tick(delta: number) {
@@ -48,7 +51,7 @@ export class DashState {
             y: direction.y / length
         };
         this.remainingDuration = Math.max(0, this.duration);
-        this.remainingCooldown = Math.max(this.remainingDuration, this.cooldown);
+        this.remainingCooldown = Math.max(this.remainingDuration, this.cooldown * this.cooldownMultiplier);
         return this.isActive;
     }
 

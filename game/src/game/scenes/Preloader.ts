@@ -1,7 +1,7 @@
 import { CHARACTERS } from '../config/characters';
 import { MERCADO_NPCS } from '../config/mercado';
 import { PAGODE, POPULAR_BARS, TCHAY } from '../config/tchay';
-import { TICEN_ESCAPE, TICEN_GATE, TOPAZIO_BOSS, WALLET_UI } from '../config/ticen';
+import { TICEN_DUEL, TICEN_ESCAPE, TICEN_GATE, TOPAZIO_BOSS, WALLET_UI } from '../config/ticen';
 import { Scene } from 'phaser';
 import { AUDIO_CONFIG } from '../config/audio';
 import { DRONE_EXPLOSION } from '../effects/playDroneExplosion';
@@ -100,6 +100,9 @@ export class Preloader extends Scene {
         this.load.image(interior.viewTexture, interior.viewPath);
         this.load.image(interior.skyTexture, interior.skyPath);
         this.load.image(interior.passengersTexture, interior.passengersPath);
+        const { driver, chest } = TICEN_DUEL;
+        this.load.spritesheet(driver.texture, driver.path, { frameWidth: driver.frameWidth, frameHeight: driver.frameHeight });
+        this.load.spritesheet(chest.texture, chest.path, { frameWidth: chest.frameWidth, frameHeight: chest.frameHeight });
         this.load.spritesheet(TCHAY.peopleTexture, TCHAY.peoplePath, { frameWidth: TCHAY.frameWidth, frameHeight: TCHAY.frameHeight });
         this.load.image(TCHAY.signTexture, TCHAY.signPath);
         this.load.spritesheet(POPULAR_BARS.texture, POPULAR_BARS.path, { frameWidth: POPULAR_BARS.frameWidth, frameHeight: POPULAR_BARS.frameHeight });
