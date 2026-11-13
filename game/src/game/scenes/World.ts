@@ -126,8 +126,7 @@ type CoopCheckpoint = Readonly<{ roomKey: RoomKey; playerProgress: PlayerProgres
 
 const PARTNER_PAUSE_TEXT: Record<PartnerPauseReason, string> = {
     pause: 'PARCEIRO PAUSOU',
-    piranhas: 'PARCEIRO NO PIRANHAS',
-    menu: 'PARCEIRO NUM MENU'
+    piranhas: 'PARCEIRO NO PIRANHAS'
 };
 
 const ROOM2_WALKABLE_LAYERS = [
@@ -780,8 +779,8 @@ export class World extends Scene {
             else this.handleSwordGamepad();
         }
         this.updateNauseaEffect();
-        this.sendLocalPause(this.isPiranhasMenuOpen ? 'piranhas'
-            : this.isArcadeOpen || this.isGatewayConfirmOpen || this.isWalletOpen ? 'menu' : undefined);
+        // Catraca, fliperama e perguntas param só quem abriu: o parceiro segue jogando.
+        this.sendLocalPause(this.isPiranhasMenuOpen ? 'piranhas' : undefined);
         if (this.partnerPause) {
             // Um menu local que fecha retoma a física; com o parceiro pausado, ela volta a parar.
             if (!this.physics.world.isPaused) this.physics.pause();

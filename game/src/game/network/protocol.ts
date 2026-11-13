@@ -36,7 +36,7 @@ type Point = Readonly<{ x: number; y: number }>;
 
 /** Efeito visual de carta, repetido na tela do parceiro. */
 /** Por que o parceiro congelou a dupla: o texto que aparece na tela do outro. */
-export type PartnerPauseReason = 'pause' | 'piranhas' | 'menu';
+export type PartnerPauseReason = 'pause' | 'piranhas';
 
 export type PlayerEffect =
     | { effect: 'shockwave' | 'explosion' | 'slash'; x: number; y: number; radius: number; color: number }
