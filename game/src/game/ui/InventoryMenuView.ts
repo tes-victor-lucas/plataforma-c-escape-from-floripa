@@ -1,7 +1,7 @@
 import type { Scene } from 'phaser';
-import { CHARACTERS, type CharacterId } from '../config/characters';
+import { CHARACTERS, getCharacterTexture, type CharacterId } from '../config/characters';
 import type { EquipmentSlot, ItemId } from '../config/items';
-import { ITEMS } from '../config/items';
+import { getCombinedBlockChance, getShotDamageMultiplier, ITEMS } from '../config/items';
 import { getItemOffsetX, getItemOffsetY, getWornTexture } from '../entities/WornItem';
 import { WALK_FRAMES } from '../entities/PlayerAnimations';
 import { bindGamepadActions } from '../input/GamepadInput';
@@ -94,9 +94,10 @@ const STAT_PIPS = 10;
 /** O que os itens vestidos fazem somados: barrinhas de 0 a 10 e o número exato ao lado. */
 export function getEquipmentStats(ids: readonly ItemId[]): EquipmentStat[] {
     const worn = ids.map((id) => ITEMS[id]);
-    const block = Math.max(0, ...worn.map(({ blockChance }) => blockChance));
+    const block = getCombinedBlockChance(worn);
     const speed = worn.reduce((total, { speedMultiplier }) => total * speedMultiplier, 1) - 1;
     const dash = 1 - worn.reduce((total, { dashCooldownMultiplier }) => total * dashCooldownMultiplier, 1);
+    const damage = getShotDamageMultiplier(ids) - 1;
     const pips = (value: number, perPip: number) => Math.min(STAT_PIPS, Math.round(value / perPip));
     // Sem bônus fica só "0%": sinal na frente de zero parece erro.
     const percent = (value: number, sign = '') => `${Math.round(value * 100) === 0 ? '' : sign}${Math.round(value * 100)}%`;
@@ -105,7 +106,9 @@ export function getEquipmentStats(ids: readonly ItemId[]): EquipmentStat[] {
         // A velocidade sobe pouco por item: cada barrinha vale 5%.
         { label: 'VELOCIDADE', pips: pips(speed, 0.05), value: percent(speed, '+') },
         // No dash o ganho é recarga menor, por isso o sinal de menos.
-        { label: 'DASH', pips: pips(dash, 0.1), value: percent(dash, '-') }
+        { label: 'DASH', pips: pips(dash, 0.1), value: percent(dash, '-') },
+        // Dano do tiro comum: o chapéu dá pouco, cada barrinha vale 5%.
+        { label: 'DANO', pips: pips(damage, 0.05), value: percent(damage, '+') }
     ];
 }
 
@@ -340,19 +343,22 @@ export class InventoryMenuView {
         drawFramedBox(grid, DOLL, INV.backdrop);
         grid.fillStyle(INV.floor, 1).fillRect(DOLL.x + 7, DOLL.y + DOLL.height - 43, DOLL.width - 14, 36);
         const character = CHARACTERS[this.options.characterId];
+        const worn = this.equippedItems.flatMap(({ id }) => (id ? [ITEMS[id]] : []));
+        // O gaúcho com outro item na cabeça aparece sem o próprio chapéu, como no mapa.
+        const texture = getCharacterTexture(this.options.characterId, worn.some(({ slot }) => slot === 'CABEÇA'));
         // De frente e parado, ampliado: os itens equipados vão aparecer por cima dele.
-        const doll = this.scene.add.image(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height / 2 + 2, character.texture, WALK_FRAMES.down[0])
+        const doll = this.scene.add.image(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height / 2 + 2, texture, WALK_FRAMES.down[0])
             .setScale(3.6 * character.scaleMultiplier);
+        // O que vai no corpo aparece no boneco como no personagem pelo mapa; a capa, de frente, fica atrás dele.
+        const [behind, front] = [true, false].map((isBehind) => worn
+            .filter((item) => (item.backPixels !== undefined) === isBehind)
+            .map((item) => this.scene.add.image(
+                doll.x + getItemOffsetX(item, doll.displayWidth),
+                doll.y + getItemOffsetY(item, doll.displayHeight, texture),
+                getWornTexture(this.scene, item, texture)
+            ).setScale(doll.scale)));
         // O nome fica fora do cartão, embaixo, como legenda.
-        menu.add([grid, doll, this.text(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height + 16, character.label, 14, INV.text).setOrigin(0.5)]);
-        // O que vai na cabeça e nos pés aparece no boneco, como no personagem pelo mapa.
-        for (const equipped of this.equippedItems) {
-            const item = equipped.id ? ITEMS[equipped.id] : undefined;
-            if (!item) continue;
-            const offsetY = getItemOffsetY(item, doll.displayHeight, character.texture);
-            const offsetX = getItemOffsetX(item, doll.displayWidth);
-            menu.add(this.scene.add.image(doll.x + offsetX, doll.y + offsetY, getWornTexture(this.scene, item, character.texture)).setScale(doll.scale));
-        }
+        menu.add([grid, ...behind, doll, this.text(DOLL.x + DOLL.width / 2, DOLL.y + DOLL.height + 16, character.label, 14, INV.text).setOrigin(0.5), ...front]);
     }
 
     private addEquipmentSlots(menu: CleanOverlayMenu) {

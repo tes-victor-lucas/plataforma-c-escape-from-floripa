@@ -233,6 +233,14 @@ export const TICEN_DUEL = {
         // Na disputa todos já lutam de espada: dos itens de mão, só o cajado muda alguma coisa.
         { id: 'ice-staff', label: 'CAJADO DE GELO' }
     ],
+    // Itens dos baús especiais das salas: cada baú da disputa tem esta chance de trazer um deles no lugar
+    // do especial da vez, mesmo que o jogador já o tenha.
+    bonusItems: [
+        { id: 'iron-armor', label: 'ARMADURA DE FERRO' },
+        { id: 'vampire-cape', label: 'CAPA DE VAMPIRO' },
+        { id: 'wizard-hat', label: 'CHAPEU DE MAGO' }
+    ],
+    bonusItemChance: 0.35,
     clubMultiplier: 1.6,
     // Começo da luta: os dois com 5 corações cheios. O golpe no rival tira meio coração (1 com o cacete melhorado),
     // e não o dano cheio da espada, que derrubava com um golpe só: a disputa dura uns dez golpes.
@@ -247,7 +255,18 @@ export const TICEN_DUEL = {
     boardTime: 1_400
 } as const;
 
-export type DuelSpecialId = (typeof TICEN_DUEL.specials)[number]['id'];
+export type DuelSpecialId = (typeof TICEN_DUEL.specials)[number]['id'] | (typeof TICEN_DUEL.bonusItems)[number]['id'];
+
+/** Especial do baú `id` da disputa: o da vez na lista ou, com a chance de bônus, um item dos baús especiais. */
+export function pickDuelSpecial(id: number, random = Math.random): DuelSpecialId {
+    const { specials, bonusItems, bonusItemChance } = TICEN_DUEL;
+    if (random() < bonusItemChance) return bonusItems[Math.floor(random() * bonusItems.length)].id;
+    return specials[(id - 1) % specials.length].id;
+}
+
+export function getDuelSpecialLabel(special: DuelSpecialId) {
+    return [...TICEN_DUEL.specials, ...TICEN_DUEL.bonusItems].find(({ id }) => id === special)?.label ?? '';
+}
 
 /** Estágio de rachadura do golem (0 a 3): cada quarto de vida perdido racha mais o corpo. */
 export function getGolemStage(current: number, max: number) {

@@ -1,5 +1,5 @@
 import type { Scene } from 'phaser';
-import { CHARACTERS } from '../config/characters';
+import { getCharacterByTexture } from '../config/characters';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/display';
 import { WALK_FRAMES } from '../entities/PlayerAnimations';
 import { EASE_IN_OUT, EASE_OUT, prefersReducedMotion } from './easing';
@@ -137,7 +137,7 @@ export class DuelStandoffView {
     /** Uma faixa: areia, o rosto de frente recortado nos olhos e ampliado, as pálpebras e de quem é. */
     private playStrip(texture: string, index: number) {
         const { scene } = this;
-        const eyesY = Object.values(CHARACTERS).find((character) => character.texture === texture)?.eyesY ?? CHARACTERS.padrao.eyesY;
+        const { eyesY } = getCharacterByTexture(texture);
         const cropX = (FRAME - CROP.width) / 2;
         const cropY = Math.round(eyesY - CROP.height / 2);
         const centerY = GAME_HEIGHT / 2 + (index === 0 ? -1 : 1) * (STRIP_HEIGHT / 2 + 14);

@@ -3,7 +3,7 @@ import { Health } from '../combat/Health';
 import { COMBAT_CONFIG } from '../config/combat';
 import { getActorDepth, WORLD_CONFIG } from '../config/world';
 import type { RemotePlayerState } from '../network/protocol';
-import { CHARACTERS, isCharacterId, type CharacterId } from '../config/characters';
+import { CHARACTERS, getCharacterTexture, isCharacterId, type CharacterId } from '../config/characters';
 import { createWalkAnimations, walkAnimationKey, type Direction } from './PlayerAnimations';
 import { decodeWornItems, ITEMS, type ItemId } from '../config/items';
 import { attachWornItem } from './WornItem';
@@ -87,10 +87,9 @@ export class RemotePlayer {
         // Cliente antigo não envia o personagem: o parceiro continua no padrão.
         if (isCharacterId(state.character) && state.character !== this.characterId) {
             this.characterId = state.character;
-            createWalkAnimations(this.sprite.scene, CHARACTERS[state.character].texture);
-            this.sprite.setTexture(CHARACTERS[state.character].texture, WORLD_CONFIG.player.initialFrame);
             this.sprite.setScale(WORLD_CONFIG.player.scale * CHARACTERS[state.character].scaleMultiplier);
         }
+        this.refreshCharacterTexture();
     }
 
     update(feetOffset: { x: number; y: number }) {
@@ -115,7 +114,7 @@ export class RemotePlayer {
         const isAlive = this.health.isAlive;
         this.sprite.setAngle(isAlive ? 0 : 90);
         if (isAlive && distance > 1) {
-            this.sprite.anims.play(walkAnimationKey(CHARACTERS[this.characterId].texture, this.facing), true);
+            this.sprite.anims.play(walkAnimationKey(this.sprite.texture.key, this.facing), true);
         } else {
             this.sprite.anims.stop();
         }
@@ -158,6 +157,15 @@ export class RemotePlayer {
     }
 
     /** Veste e tira só o que mudou; o estado chega 20 vezes por segundo. */
+    /** Mesma troca do jogador local: o gaúcho de item na cabeça usa a folha sem chapéu. */
+    private refreshCharacterTexture() {
+        const wearsHeadItem = [...this.wornItems.keys()].some((id) => ITEMS[id].slot === 'CABEÇA');
+        const texture = getCharacterTexture(this.characterId, wearsHeadItem);
+        if (this.sprite.texture.key === texture) return;
+        createWalkAnimations(this.sprite.scene, texture);
+        this.sprite.setTexture(texture, WORLD_CONFIG.player.initialFrame);
+    }
+
     private applyWorn(mask: number) {
         if (mask === this.wornMask) return;
         this.wornMask = mask;

@@ -2,14 +2,33 @@ import type { FeetFit } from './characters';
 import type { RoomKey } from './rooms';
 
 /** Itens de equipar guardados no inventário; cada um entra aqui quando for implementado. */
-export type ItemId = 'gaucho-hat' | 'helmet' | 'rubber-boots' | 'silver-boots' | 'diamond-boots' | 'flame-sword' | 'ice-staff';
+export type ItemId = 'gaucho-hat' | 'helmet' | 'rubber-boots' | 'silver-boots' | 'diamond-boots' | 'flame-sword' | 'ice-staff'
+    | 'iron-armor' | 'vampire-cape' | 'wizard-hat';
 export type EquipmentSlot = 'CABEÇA' | 'CORPO' | 'MÃOS' | 'PÉS';
 
 // Itens novos entram sempre no fim: a posição é o bit enviado ao parceiro.
-export const ITEM_IDS: readonly ItemId[] = ['gaucho-hat', 'helmet', 'rubber-boots', 'silver-boots', 'diamond-boots', 'flame-sword', 'ice-staff'];
+export const ITEM_IDS: readonly ItemId[] = [
+    'gaucho-hat', 'helmet', 'rubber-boots', 'silver-boots', 'diamond-boots', 'flame-sword', 'ice-staff',
+    'iron-armor', 'vampire-cape', 'wizard-hat'
+];
 
 /** Pixel art do item: retângulos [x, y, largura, altura, cor] desenhados uma vez numa textura. */
 export type ItemPixels = readonly (readonly [number, number, number, number, number])[];
+
+/** Desenho em texto, uma letra por pixel ('.' é vazio, '#' é o contorno): vira os retângulos de ItemPixels, um por trecho de cor na linha. */
+export function gridPixels(rows: readonly string[], palette: Readonly<Record<string, number>>): ItemPixels {
+    const colors: Record<string, number> = { '#': 0x101018, ...palette };
+    const pixels: [number, number, number, number, number][] = [];
+    rows.forEach((row, y) => {
+        for (let x = 0; x < row.length;) {
+            let end = x + 1;
+            while (row[end] === row[x]) end += 1;
+            if (row[x] !== '.') pixels.push([x, y, end - x, 1, colors[row[x]]]);
+            x = end;
+        }
+    });
+    return pixels;
+}
 
 // Medida das pernas do personagem padrão: o ícone do inventário usa essa.
 const DEFAULT_FEET = { legWidth: 6, gap: 2 };
@@ -55,7 +74,15 @@ export type ItemDefinition = Readonly<{
     /** Multiplica a recarga do dash enquanto equipado: menor que 1 recarrega mais rápido. */
     dashCooldownMultiplier: number;
     /** Onde o item aparece no personagem pelo mapa. */
-    anchor: 'head' | 'feet' | 'hand';
+    anchor: 'head' | 'feet' | 'hand' | 'body';
+    /** Só o que vai no corpo: quantas linhas o desenho sobe acima da linha dos ombros (gola, ombreiras). */
+    bodyRise?: number;
+    /** Só a capa: de frente e de lado fica atrás do corpo; de costas, por cima, com este desenho do lado de fora. */
+    backPixels?: ItemPixels;
+    /** Multiplica o dano do tiro comum enquanto vestido. */
+    shotDamageMultiplier?: number;
+    /** Vida recuperada a cada horda vencida com o item vestido (2 = um coração). */
+    hordeHeal?: number;
     /** A espada flamejante é desenhada pelo combate, que a gira no golpe; o resto segue o personagem. */
     heldByCombat?: boolean;
     width: number;
@@ -234,6 +261,127 @@ export const ICE_STAFF: ItemDefinition = {
     ]
 };
 
+/** Peitoral de ferro do baú ao lado do Piranhas Bar: defesa leve, que soma com a do chapéu. */
+export const IRON_ARMOR: ItemDefinition = {
+    id: 'iron-armor',
+    name: 'ARMADURA DE FERRO',
+    texture: 'item-armadura-ferro',
+    slot: 'CORPO',
+    blockChance: 0.1,
+    speedMultiplier: 1,
+    dashCooldownMultiplier: 1,
+    anchor: 'body',
+    bodyRise: 1,
+    description: 'PEITORAL ACHADO NUM BAÚ AO LADO DO PIRANHAS BAR.\nBLOQUEIA 1 EM CADA 10 GOLPES, EM MÉDIA.',
+    // 14x9: ombreiras, peito com o brilho à esquerda e a barra escura na cintura.
+    width: 14,
+    height: 9,
+    pixels: gridPixels([
+        '.###......###.',
+        '#lmm#....#mmd#',
+        '#lmmd####dmmd#',
+        '.##d#llwm#d##.',
+        '...#lwlmmd#...',
+        '...#lwlmmd#...',
+        '...#llmmmd#...',
+        '...#mmmmdd#...',
+        '....#dddd#....'
+    ], { d: 0x5a6272, m: 0x9aa4b4, l: 0xd4dce6, w: 0xffffff })
+};
+
+const CAPE_PALETTE = { b: 0x1c1a26, g: 0x2e2b3c, r: 0x5a1420, R: 0x7e1e2c, p: 0xb07ab8 };
+
+/** Capa de vampiro do baú da Sala III: cada horda vencida devolve meio coração. */
+export const VAMPIRE_CAPE: ItemDefinition = {
+    id: 'vampire-cape',
+    name: 'CAPA DE VAMPIRO',
+    texture: 'item-capa-vampiro',
+    slot: 'CORPO',
+    blockChance: 0,
+    speedMultiplier: 1,
+    dashCooldownMultiplier: 1,
+    anchor: 'body',
+    bodyRise: 5,
+    hordeHeal: 1,
+    description: 'ACHADA NUM BAÚ DIANTE DO PRÉDIO AMARELO.\nCADA HORDA VENCIDA DEVOLVE MEIO CORAÇÃO.',
+    // 22x18: gola alta em pontas ao lado da cabeça, forro vinho por dentro e a barra recortada.
+    width: 22,
+    height: 18,
+    pixels: gridPixels([
+        '.#..................#.',
+        '.##................##.',
+        '.#R#..............#R#.',
+        '.#rR#............#Rr#.',
+        '.#rrR############Rrr#.',
+        '#gbrrrrrrrpprrrrrrrbg#',
+        '#gbrrrrrrrrrrrrrrrrbg#',
+        '#gbbrrrrrrrrrrrrrrbbg#',
+        '#gbbrrrrrrrrrrrrrrbbg#',
+        '#gbbrrrrrrrrrrrrrrbbg#',
+        '#gbbrrrrrrrrrrrrrrbbg#',
+        '#gbbrrrrrrrrrrrrrrbbg#',
+        '#gbbbrrrrrrrrrrrrbbbg#',
+        '#gbbbrrrrrrrrrrrrbbbg#',
+        '#gbbbrrrrrrrrrrrrbbbg#',
+        '#gbbb#rrrr#rrrr#bbbg#.',
+        '.#bb#.#rr#.#rr#.#bb#..',
+        '..##...##...##...##...'
+    ], CAPE_PALETTE),
+    backPixels: gridPixels([
+        '.#..................#.',
+        '.##................##.',
+        '.#g#..............#g#.',
+        '.#bg#............#gb#.',
+        '.#bbg############gbb#.',
+        '#gbbbbbbbbbbbbbbbbbbg#',
+        '#gbbbbbbbbbbbbbbbbbbg#',
+        '#gbbbbbbbgbbbbbbbbbbg#',
+        '#gbbbbbbbgbbbbbgbbbbg#',
+        '#gbbbbbbbgbbbbbgbbbbg#',
+        '#gbbbbbbbbbbbbbgbbbbg#',
+        '#gbbbbbgbbbbbbbbbbbbg#',
+        '#gbbbbbgbbbbbbbbbbbbg#',
+        '#gbbbbbgbbbbbbgbbbbbg#',
+        '#gbbbbbbbbbbbbgbbbbbg#',
+        '#gbbb#bbbb#bbbb#bbbg#.',
+        '.#bb#.#bb#.#bb#.#bb#..',
+        '..##...##...##...##...'
+    ], CAPE_PALETTE)
+};
+
+/** Chapéu de mago do baú da Sala I: o tiro comum fere um pouco mais; com o cajado de gelo, vira o tiro arcano. */
+export const WIZARD_HAT: ItemDefinition = {
+    id: 'wizard-hat',
+    name: 'CHAPÉU DE MAGO',
+    texture: 'item-chapeu-mago',
+    slot: 'CABEÇA',
+    blockChance: 0,
+    speedMultiplier: 1,
+    dashCooldownMultiplier: 1,
+    anchor: 'head',
+    shotDamageMultiplier: 1.1,
+    description: 'ACHADO NUM BAÚ PERTO DO GATUS ROCK BAR. TIRO +10%.\nCOM O CAJADO DE GELO, O TIRO FICA ROXO: +30%.',
+    // 19x14: cone roxo com a ponta caída e a lua pendurada, faixa com fivela e aba larga.
+    width: 19,
+    height: 14,
+    pixels: gridPixels([
+        '............####...',
+        '...........#Ppdd#..',
+        '..........#Ppk##dk.',
+        '..........#Pk...#k.',
+        '.........#Ppk...#m#',
+        '.........#Pyk....m.',
+        '........#Pppdk.....',
+        '........#Ppypdk....',
+        '.......#Ppppppdk...',
+        '......#ooOOssOOok..',
+        '......#OOOOssOOOk..',
+        '..#kkkPpppppppdkkk.',
+        '.#PPpppppppppppppd#',
+        '..#kkkkkkkkkkkkkkk.'
+    ], { k: 0x101018, d: 0x3c1f6a, p: 0x6a3cb4, P: 0x9a6ae0, y: 0xffd24a, o: 0xc8762c, O: 0x8a4a1a, s: 0xd8d8e0, m: 0xffe27a })
+};
+
 export const ITEMS: Readonly<Record<ItemId, ItemDefinition>> = {
     'gaucho-hat': GAUCHO_HAT,
     helmet: HELMET,
@@ -241,28 +389,64 @@ export const ITEMS: Readonly<Record<ItemId, ItemDefinition>> = {
     'silver-boots': SILVER_BOOTS,
     'diamond-boots': DIAMOND_BOOTS,
     'flame-sword': FLAME_SWORD,
-    'ice-staff': ICE_STAFF
+    'ice-staff': ICE_STAFF,
+    'iron-armor': IRON_ARMOR,
+    'vampire-cape': VAMPIRE_CAPE,
+    'wizard-hat': WIZARD_HAT
 };
 
 /**
- * Baús de item das salas: ficam trancados e só abrem se o combate da sala terminar dentro do tempo.
+ * Baús de item das salas, mais de um por sala. Os especiais (com tempo) ficam trancados e só abrem se o combate
+ * da sala terminar dentro do tempo; os sem tempo abrem quando a sala é vencida.
  * Ao destrancar, o baú sorteia um item da lista que o jogador ainda não tem.
  * Posição em pixels do mapa (base do baú); tempo em milissegundos, contado da entrada na sala.
  */
-export const ITEM_CHESTS: Partial<Record<RoomKey, Readonly<{
+export type ItemChestConfig = Readonly<{
+    room: RoomKey;
     x: number;
     y: number;
     items: readonly ItemId[];
-    timeLimitMs: number;
+    timeLimitMs?: number;
     roomName: string;
-}>>> = {
+}>;
+
+export const ITEM_CHESTS: Readonly<Record<string, ItemChestConfig>> = {
     // À direita do balcão do TCHAY, fora da fila.
-    room1: { x: 640, y: 88, items: ['silver-boots'], timeLimitMs: 90_000, roomName: 'SALA I' },
+    room1: { room: 'room1', x: 640, y: 88, items: ['silver-boots'], timeLimitMs: 90_000, roomName: 'SALA I' },
+    // Na calçada de baixo, à esquerda do Gatus Rock Bar.
+    'room1-gatus': { room: 'room1', x: 86, y: 552, items: ['wizard-hat'], timeLimitMs: 90_000, roomName: 'SALA I' },
     // No alto da escada do Centro Cultural da Marinha, logo abaixo da placa.
-    room2: { x: 216, y: 188, items: ['diamond-boots', 'flame-sword', 'ice-staff'], timeLimitMs: 180_000, roomName: 'SALA II' },
+    room2: { room: 'room2', x: 216, y: 188, items: ['diamond-boots', 'flame-sword', 'ice-staff'], timeLimitMs: 180_000, roomName: 'SALA II' },
+    // Ao lado do Piranhas Bar: sem desafio, abre quando a sala é vencida.
+    'room2-piranhas': { room: 'room2', x: 584, y: 232, items: ['iron-armor'], roomName: 'SALA II' },
     // No caminho de tijolos diante do monumento da Praça XV.
-    room3: { x: 576, y: 270, items: ['flame-sword', 'ice-staff', 'diamond-boots'], timeLimitMs: 240_000, roomName: 'SALA III' }
+    room3: { room: 'room3', x: 576, y: 270, items: ['flame-sword', 'ice-staff', 'diamond-boots'], timeLimitMs: 240_000, roomName: 'SALA III' },
+    // Bem em frente à Catedral, o prédio amarelo da Praça XV: ao pé da escadaria, à esquerda do bloqueio das colunas 23-26.
+    'room3-predio': { room: 'room3', x: 20.5 * 16, y: 19 * 16, items: ['vampire-cape'], timeLimitMs: 240_000, roomName: 'SALA III' }
 };
+
+/** Baús de uma sala, com o id de cada um. */
+export function getRoomChests(room: RoomKey) {
+    return Object.entries(ITEM_CHESTS).filter(([, chest]) => chest.room === room);
+}
+
+/** Chapéu de mago com o cajado de gelo: o tiro comum vira arcano, roxo e brilhante, e fere mais que só com o chapéu. */
+export const ARCANE_SHOT = { damageMultiplier: 1.3, color: 0xb36bff } as const;
+
+export function isArcaneShot(ids: readonly ItemId[]) {
+    return ids.includes('wizard-hat') && ids.includes('ice-staff');
+}
+
+/** Quanto os itens vestidos multiplicam o dano do tiro comum. */
+export function getShotDamageMultiplier(ids: readonly ItemId[]) {
+    if (isArcaneShot(ids)) return ARCANE_SHOT.damageMultiplier;
+    return ids.reduce((total, id) => total * (ITEMS[id].shotDamageMultiplier ?? 1), 1);
+}
+
+/** Cada peça tenta bloquear por conta própria: chapéu de 20% e armadura de 10% juntos seguram 28% dos golpes. */
+export function getCombinedBlockChance(worn: readonly Pick<ItemDefinition, 'blockChance'>[]) {
+    return 1 - worn.reduce((miss, { blockChance }) => miss * (1 - blockChance), 1);
+}
 
 /** Itens da lista do baú que o jogador ainda não tem; vazio, o baú já nasce aberto. */
 export function getChestCandidates(items: readonly ItemId[], owned: readonly ItemId[]) {
