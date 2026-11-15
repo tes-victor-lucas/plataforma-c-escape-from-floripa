@@ -2958,6 +2958,12 @@ test('multiplayer usa o nosso /ws no site publicado e na feira, e a porta 8080 l
     );
 });
 
+test('placar usa o nosso /api no site publicado e na feira, e o /api local no desenvolvimento', () => {
+    const { getDefaultScoreApiUrl } = load('../src/game/scoring/ScoreApi.ts');
+    assert.equal(getDefaultScoreApiUrl('https:'), 'https://escape-from-floripa.negoci.online/api');
+    assert.equal(getDefaultScoreApiUrl('http:'), '/api');
+});
+
 test('nome da sala aceita só o que o servidor mantém', () => {
     const { editRoomName } = load('../src/game/ui/MainMenuView.ts');
     let name = '';
