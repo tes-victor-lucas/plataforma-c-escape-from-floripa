@@ -4006,7 +4006,7 @@ test('itens vestidos vão ao parceiro como um bit por item', () => {
     assert.equal(encodeWornItems([]), 0);
     assert.deepEqual(decodeWornItems(encodeWornItems(['rubber-boots', 'gaucho-hat'])), ['gaucho-hat', 'rubber-boots']);
     assert.deepEqual(decodeWornItems(encodeWornItems(ITEM_IDS)), [...ITEM_IDS]);
-    assert.ok(encodeWornItems(ITEM_IDS) <= 255, 'cabe no limite que o servidor aceita');
+    assert.ok(encodeWornItems(ITEM_IDS) <= 0xffff, 'cabe no limite que o servidor aceita');
 });
 
 test('checkpoint recusa itens que não existem no jogo', () => {
@@ -4312,37 +4312,37 @@ test('baú da Sala I fica trancado com o aviso e só entrega as botas se a sala 
     };
 
     const late = createWorld();
-    late.createItemChest('room1', true);
-    assert.equal(late.itemChest.image.tinted, true, 'o baú nasce apagado');
+    late.createItemChests('room1', true);
+    assert.equal(late.itemChests.get('room1').image.tinted, true, 'o baú nasce apagado');
     assert.match(late.hints[0].text, /COMPLETE A SALA I EM 01:30\nPARA DESBLOQUEAR UM ITEM/);
-    late.updateItemChest();
+    late.updateItemChests();
     assert.equal(late.hints[0].visible, false, 'de longe não há aviso');
     late.player.sprite.x = x;
-    late.updateItemChest();
+    late.updateItemChests();
     assert.equal(late.hints[0].visible, true, 'perto do baú trancado aparece o desafio');
     late.itemChestRuns.get('room1').startedAt = -timeLimitMs - 1;
-    late.finishItemChestRun('room1');
-    late.updateItemChest();
+    late.finishItemChestRuns('room1');
+    late.updateItemChests();
     assert.deepEqual(late.ownedItems, [], 'fora do tempo o baú continua trancado');
     assert.equal(late.hints[0].visible, true);
 
     const fast = createWorld();
-    fast.createItemChest('room1', true);
-    fast.finishItemChestRun('room1');
-    assert.equal(fast.itemChest.image.tinted, false, 'no tempo, o baú acende');
-    const chest = fast.itemChest.image;
+    fast.createItemChests('room1', true);
+    fast.finishItemChestRuns('room1');
+    assert.equal(fast.itemChests.get('room1').image.tinted, false, 'no tempo, o baú acende');
+    const chest = fast.itemChests.get('room1').image;
     // Volta do esconderijo: a sala é recriada e o baú segue destrancado.
-    fast.createItemChest('room1', false);
-    assert.ok(fast.itemChest.glow, 'o destrancado sobrevive à ida ao esconderijo');
+    fast.createItemChests('room1', false);
+    assert.ok(fast.itemChests.get('room1').glow, 'o destrancado sobrevive à ida ao esconderijo');
     fast.player.sprite.x = x;
-    fast.updateItemChest();
+    fast.updateItemChests();
     assert.equal(chest.frame, 0);
-    assert.equal(fast.itemChest, undefined);
+    assert.equal(fast.itemChests.has('room1'), false);
     assert.deepEqual(fast.ownedItems, ['silver-boots']);
     assert.deepEqual(fast.equippedItems, ['silver-boots']);
     assert.ok(fast.equipped.includes('silver-boots'), 'as botas já entram nos pés');
-    fast.createItemChest('room1', false);
-    assert.equal(fast.itemChest, undefined, 'quem já tem as botas encontra o baú aberto');
+    fast.createItemChests('room1', false);
+    assert.equal(fast.itemChests.has('room1'), false, 'quem já tem as botas encontra o baú aberto');
 });
 
 test('arrastar no inventário equipa ao soltar no boneco e guarda ao soltar na grade', () => {
@@ -4361,13 +4361,14 @@ test('atributos do inventário somam os itens vestidos em barrinhas e porcentage
     assert.deepEqual(getEquipmentStats([]), [
         { label: 'BLOQUEIO', pips: 0, value: '0%' },
         { label: 'VELOCIDADE', pips: 0, value: '0%' },
-        { label: 'DASH', pips: 0, value: '0%' }
+        { label: 'DASH', pips: 0, value: '0%' },
+        { label: 'DANO', pips: 0, value: '0%' }
     ]);
     const [block, speed, dash] = getEquipmentStats(['gaucho-hat', 'silver-boots']);
     assert.deepEqual([block.pips, block.value], [2, '20%']);
     assert.deepEqual([speed.pips, speed.value], [2, '+10%']);
     assert.equal(dash.pips, 0);
-    assert.deepEqual(getEquipmentStats(['helmet', 'diamond-boots']).map(({ pips }) => pips), [3, 0, 4]);
+    assert.deepEqual(getEquipmentStats(['helmet', 'diamond-boots']).map(({ pips }) => pips), [3, 0, 4, 0]);
 });
 
 test('balão do inventário acompanha o encaixe e não sai do painel', () => {
@@ -4412,7 +4413,7 @@ test('baú sorteia ao destrancar só o que falta, guarda o sorteio e abre vazio 
     const world = new World();
     world.ownedItems = ['flame-sword'];
     world.itemChestRuns.set('room3', { startedAt: 0, unlocked: false, claimed: false });
-    world.finishItemChestRun('room3', () => 0);
+    world.finishItemChestRuns('room3', () => 0);
     const run = world.itemChestRuns.get('room3');
     assert.equal(run.unlocked, true);
     assert.ok(ITEM_CHESTS.room3.items.includes(run.item));
@@ -4424,10 +4425,10 @@ test('baú sorteia ao destrancar só o que falta, guarda o sorteio e abre vazio 
         return sprite;
     };
     world.add = { sprite: fakeSprite };
-    world.ownedItems = ['flame-sword', 'ice-staff', 'diamond-boots'];
+    world.ownedItems = ['flame-sword', 'ice-staff', 'diamond-boots', 'vampire-cape'];
     world.itemChestRuns.set('room3', { startedAt: 0, unlocked: false, claimed: false });
-    world.createItemChest('room3', false);
-    assert.equal(world.itemChest, undefined, 'quem já tem tudo da lista encontra o baú aberto');
+    world.createItemChests('room3', false);
+    assert.equal(world.itemChests.size, 0, 'quem já tem tudo da lista encontra o baú aberto');
 });
 
 test('espada flamejante golpeia nas salas com tiro sem atrasar o tiro automático', () => {
@@ -5019,4 +5020,109 @@ test('gerar nome da sala: pula as salas abertas e as que já estão em jogo', as
     } finally {
         multiplayerClient.connect = originalConnect;
     }
+});
+
+test('armadura soma o bloqueio ao do chapéu e o chapéu de mago com o cajado vira o tiro arcano', () => {
+    const { ITEMS, getCombinedBlockChance, getShotDamageMultiplier, isArcaneShot, ARCANE_SHOT, ITEM_IDS } = load('../src/game/config/items.ts');
+    assert.ok(Math.abs(getCombinedBlockChance([ITEMS['iron-armor']]) - 0.1) < 1e-9);
+    assert.ok(Math.abs(getCombinedBlockChance([ITEMS['gaucho-hat'], ITEMS['iron-armor']]) - 0.28) < 1e-9, '20% e 10% juntos seguram 28%');
+    assert.equal(getShotDamageMultiplier([]), 1);
+    assert.equal(getShotDamageMultiplier(['wizard-hat']), ITEMS['wizard-hat'].shotDamageMultiplier);
+    assert.equal(isArcaneShot(['wizard-hat']), false, 'só o chapéu não muda a cor');
+    assert.equal(isArcaneShot(['wizard-hat', 'ice-staff']), true);
+    assert.equal(getShotDamageMultiplier(['wizard-hat', 'ice-staff']), ARCANE_SHOT.damageMultiplier);
+    assert.ok(ARCANE_SHOT.damageMultiplier > ITEMS['wizard-hat'].shotDamageMultiplier, 'o combo fere mais que o chapéu sozinho');
+    assert.deepEqual(ITEM_IDS.slice(-3), ['iron-armor', 'vampire-cape', 'wizard-hat'], 'itens novos no fim: a posição é o bit do parceiro');
+});
+
+test('desenho em texto do item vira um retângulo por trecho de cor', () => {
+    const { gridPixels } = load('../src/game/config/items.ts');
+    assert.deepEqual(gridPixels(['#aa.', '.a#a'], { a: 0x123456 }), [
+        [0, 0, 1, 1, 0x101018],
+        [1, 0, 2, 1, 0x123456],
+        [1, 1, 1, 1, 0x123456],
+        [2, 1, 1, 1, 0x101018],
+        [3, 1, 1, 1, 0x123456]
+    ]);
+});
+
+test('capa de vampiro devolve meio coração por horda vencida, só a quem a veste e não está cheio', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const world = new World();
+    const health = new Health(8);
+    health.takeDamage(4);
+    const chain = () => { const object = {}; for (const method of ['setDisplaySize', 'setTint', 'setDepth']) object[method] = () => object; return object; };
+    world.player = { health, sprite: { x: 0, y: 0 } };
+    world.add = { image: chain };
+    world.tweens = { add() {} };
+    world.equippedItems = [];
+    world.healAfterHorde();
+    assert.equal(health.current, 4, 'sem a capa nada muda');
+    world.equippedItems = ['vampire-cape'];
+    world.healAfterHorde();
+    assert.equal(health.current, 5, 'meio coração = 1 de vida');
+    health.heal(99);
+    world.healAfterHorde();
+    assert.equal(health.current, 8);
+});
+
+test('baú sem tempo abre ao vencer a sala, mesmo bem depois do limite dos especiais', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { ITEM_CHESTS, getRoomChests } = load('../src/game/config/items.ts');
+    assert.equal(ITEM_CHESTS['room2-piranhas'].timeLimitMs, undefined);
+    assert.deepEqual(getRoomChests('room2').map(([id]) => id), ['room2', 'room2-piranhas']);
+    const world = new World();
+    world.ownedItems = [];
+    world.showFloatingHint = () => {};
+    world.itemChestRuns.set('room2', { startedAt: -1e9, unlocked: false, claimed: false });
+    world.itemChestRuns.set('room2-piranhas', { startedAt: -1e9, unlocked: false, claimed: false });
+    world.finishItemChestRuns('room2', () => 0);
+    assert.equal(world.itemChestRuns.get('room2').unlocked, false, 'o especial passou do tempo');
+    assert.equal(world.itemChestRuns.get('room2-piranhas').unlocked, true);
+    assert.equal(world.itemChestRuns.get('room2-piranhas').item, 'iron-armor');
+});
+
+test('baús da disputa às vezes trazem os itens dos baús especiais, mesmo repetidos', () => {
+    const { TICEN_DUEL, pickDuelSpecial, getDuelSpecialLabel } = load('../src/game/config/ticen.ts');
+    const rolls = (...values) => () => values.shift();
+    assert.equal(pickDuelSpecial(1, rolls(TICEN_DUEL.bonusItemChance)), TICEN_DUEL.specials[0].id, 'sem sorte, segue a lista');
+    assert.equal(pickDuelSpecial(1, rolls(0, 0)), 'iron-armor');
+    assert.equal(pickDuelSpecial(1, rolls(0, 0.99)), 'wizard-hat');
+    assert.equal(getDuelSpecialLabel('vampire-cape'), 'CAPA DE VAMPIRO');
+});
+
+test('gaúcho tira o próprio chapéu só quando veste algo na cabeça', () => {
+    const { CHARACTERS, getCharacterTexture, getCharacterByTexture } = load('../src/game/config/characters.ts');
+    assert.equal(getCharacterTexture('gaucho', false), CHARACTERS.gaucho.texture);
+    assert.equal(getCharacterTexture('gaucho', true), CHARACTERS.gaucho.hatlessTexture);
+    assert.equal(getCharacterTexture('padrao', true), CHARACTERS.padrao.texture, 'o padrão não tem chapéu na folha');
+    assert.equal(getCharacterByTexture(CHARACTERS.gaucho.hatlessTexture), CHARACTERS.gaucho, 'botas e armadura seguem as medidas do gaúcho');
+    assert.ok(existsSync(path.join(__dirname, '../public', CHARACTERS.gaucho.hatlessPath)));
+});
+
+test('placa de saída só aparece 15 s depois de vencer a sala e aponta para a saída', () => {
+    const { World } = load('../src/game/scenes/World.ts');
+    const { EXIT_SIGN, ROOM1_TO_ROOM2_GATEWAY } = load('../src/game/config/roomGateway.ts');
+    const world = new World();
+    const signs = [];
+    const object = () => { const o = { width: 20 }; for (const m of ['setOrigin', 'setResolution', 'setDepth', 'setPosition', 'setAlpha', 'fillStyle', 'fillEllipse', 'fillRect', 'fillTriangle']) o[m] = () => o; return o; };
+    world.activeRoomKey = 'room1';
+    world.collisionLayers = [];
+    world.time = { now: 0 };
+    world.tweens = { add() {} };
+    world.add = { text: (...args) => { signs.push(args[2]); return object(); }, graphics: object };
+    world.player = { sprite: { x: ROOM1_TO_ROOM2_GATEWAY.portal.x, y: 400 } };
+    world.roomExitOpenedAt = 0;
+    world.time.now = EXIT_SIGN.delay - 1;
+    world.updateExitSign();
+    assert.equal(world.exitSign, undefined, 'antes dos 15 s, nada');
+    world.time.now = EXIT_SIGN.delay;
+    world.updateExitSign();
+    assert.deepEqual(signs, ['SAÍDA']);
+    assert.equal(world.exitSign.y, 400 - EXIT_SIGN.offset, 'fincada à frente, rumo à saída lá em cima');
+    world.updateExitSign();
+    assert.equal(signs.length, 1, 'parado perto da placa, não nasce outra');
+    world.player.sprite.y = 400 - EXIT_SIGN.offset + EXIT_SIGN.replantDistance;
+    world.updateExitSign();
+    assert.equal(signs.length, 2, 'longe da placa e sem sair, outra placa');
 });
