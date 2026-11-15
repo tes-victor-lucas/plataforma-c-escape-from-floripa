@@ -43,6 +43,9 @@ export class RoomTransitionView {
                 color: '#ffffff',
                 fontFamily: 'PixelGamer, monospace',
                 fontSize: '42px',
+                // O nome da sala vem na linha de baixo, centralizado sob o número.
+                align: 'center',
+                lineSpacing: 12,
                 shadow: {
                     offsetX: 2,
                     offsetY: 3,

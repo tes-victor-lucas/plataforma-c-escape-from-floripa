@@ -86,3 +86,6 @@ export function clearCampaignProgress(
 ) {
     storage?.removeItem(STORAGE_KEY);
 }
+
+/** Checkpoint da dupla: fica no registro do jogo, que vive entre as salas e some ao recarregar a página. */
+export const COOP_CHECKPOINT_KEY = 'coopCheckpoint';

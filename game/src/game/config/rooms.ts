@@ -1,6 +1,6 @@
 export type RoomKey = 'room1' | 'room2' | 'room3' | 'room4' | 'room5' | 'room51' | 'mercado-interior' | 'dungeon' | 'gaucho-dungeon';
 
-/** Sala V (cores originais) e a versão guardada na paleta cyberpunk das Salas I e II (`?room=51`). */
+/** Sala V (paleta cyberpunk das Salas I e II) e a versão guardada com as cores originais (`?room=51`). */
 export function isTicenRoom(roomKey: RoomKey) {
     return roomKey === 'room5' || roomKey === 'room51';
 }
@@ -167,8 +167,8 @@ const ROOM5_TILESETS = [
     { mapName: 'objects_and_items-01', textureKey: 'objects', path: 'assets/tilesets/objects_and_items-01.png' }
 ] as const;
 
-// Sala V com as cores originais (folhas `*_original.png`, geradas com --original). A versão na paleta
-// cyberpunk das Salas I e II fica guardada em ?room=51, com o mesmo mapa.
+// Cores originais do TICEN (folhas `*_original.png`, geradas com --original). A Sala V oficial usa a paleta
+// cyberpunk das Salas I e II; as cores originais ficam guardadas em ?room=51, com o mesmo mapa.
 const ROOM5_ORIGINAL_TILESETS = ROOM5_TILESETS.map((tileset) => tileset.mapName.startsWith('ticen_')
     ? { ...tileset, textureKey: `${tileset.textureKey}_original`, path: tileset.path.replace('.png', '_original.png') }
     : tileset);
@@ -184,14 +184,14 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
     room2: {
         mapKey: 'room2',
         mapPath: 'assets/maps/room2.json',
-        title: 'Sala II: O Antigo Terminal',
+        title: 'Sala II:\nO Antigo Terminal',
         spawn: { x: 184, y: 536 },
         tilesets: ROOM2_TILESETS
     },
     room3: {
         mapKey: 'room3',
         mapPath: 'assets/maps/room3.json',
-        title: 'Sala III: A Praça XV',
+        title: 'Sala III:\nA Praça XV',
         // Continua a rua que sai pela direita da Sala II: entra pela borda esquerda.
         spawn: { x: 6 * 16, y: 20 * 16 },
         tilesets: ROOM3_TILESETS
@@ -199,7 +199,7 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
     room4: {
         mapKey: 'room4',
         mapPath: 'assets/maps/room4.json',
-        title: 'Sala IV: O Mercado Público',
+        title: 'Sala IV:\nO Mercado Público',
         // Mercado Público: entra pela rua, na borda esquerda.
         spawn: { x: 24, y: 20 * 16 },
         tilesets: ROOM4_TILESETS
@@ -207,18 +207,18 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
     room5: {
         mapKey: 'room5',
         mapPath: 'assets/maps/room5.json',
-        title: 'Sala V: O TICEN',
+        title: 'Sala V:\nO TICEN',
         // TICEN: chega pela calçada da Av. Paulo Fontes, diante da catraca fechada.
         spawn: { x: 24 * 16, y: 44 * 16 + 8 },
-        tilesets: ROOM5_ORIGINAL_TILESETS
+        tilesets: ROOM5_TILESETS
     },
     room51: {
         mapKey: 'room51',
         mapPath: 'assets/maps/room5.json',
-        title: 'Sala V (cyberpunk)',
+        title: 'Sala V (cores originais)',
         // Fora do fluxo do jogo: só abre pela URL em desenvolvimento, como alternativa guardada.
         spawn: { x: 24 * 16, y: 44 * 16 + 8 },
-        tilesets: ROOM5_TILESETS
+        tilesets: ROOM5_ORIGINAL_TILESETS
     },
     'mercado-interior': {
         mapKey: 'mercado-interior',
@@ -268,6 +268,17 @@ export function getRequestedRoomKey(
     if (requestedRoom === '51' || requestedRoom === 'room51') return 'room51';
     if (requestedRoom === 'mercado' || requestedRoom === 'mercado-interior') return 'mercado-interior';
     return requestedRoom === '2' || requestedRoom === 'room2' ? 'room2' : 'room1';
+}
+
+/**
+ * Atalho de teste do multiplayer: `?start=5` leva a dupla direto para a sala pedida.
+ * O `room` não serve aqui porque no multiplayer ele é o nome da partida.
+ */
+export function getMultiplayerStartRoom(
+    search = typeof window === 'undefined' ? '' : window.location.search
+): RoomKey {
+    const start = new URLSearchParams(search).get('start');
+    return start ? getRequestedRoomKey(`?room=${encodeURIComponent(start)}`) : 'room1';
 }
 
 export function getRoomSearch(roomKey: RoomKey, search = '') {

@@ -93,3 +93,15 @@ export const MERCADO_INTERIOR = {
         dropInterval: 550
     }
 } as const;
+
+/**
+ * Placa de pé na calçada, à direita do portal central (vão x 356-413): avisa que dá para entrar no mercado.
+ * Posição da base do poste, em pixels do room4.json.
+ */
+export const MERCADO_ENTRANCE_SIGN = {
+    x: 432,
+    y: 258,
+    text: 'ENTRADA',
+    // A seta aponta para o portal e balança alguns pixels nessa direção.
+    arrowBob: 3
+} as const;

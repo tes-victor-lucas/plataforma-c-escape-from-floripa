@@ -13,14 +13,19 @@ import {
     playShockwave,
     playSlash,
     SPIN_SLASH_DURATION,
-    SPIN_SLASH_START
+    spinSlashReach
 } from '../effects/playAreaEffects';
 import { WORLD_CONFIG } from '../config/world';
+import { FLAME_SWORD } from '../config/items';
+import { createItemTexture } from '../entities/WornItem';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import { runTracker, type RunTracker } from '../scoring/RunTracker';
 import type { PlayerEffect } from '../network/protocol';
 
 type Fighter = Player | CombatEnemy;
+
+/** Ritmo da Rajada espiral: um fragmento a cada 45 ms, 30° depois do anterior, a 420 px/s. */
+const SPIRAL_VOLLEY = { launchGap: 45, angleStep: Math.PI / 6, speed: 420, hitRadius: 12 };
 type Weapon = {
     damage: number;
     range: number;
@@ -45,9 +50,11 @@ export type CombatNetwork = {
     getEnemyTarget(origin: { x: number; y: number }): Fighter | undefined;
     onEnemyShot(x: number, y: number, angle: number): void;
     onPlayerShot(x: number, y: number, angle: number, speed: number, color: number, pierces: number): void;
-    onPlayerSwing(x: number, y: number, angle: number): void;
+    onPlayerSwing(x: number, y: number, angle: number, flame?: boolean): void;
     onPlayerEffect(effect: PlayerEffect): void;
     onEnemyHit(enemy: CombatEnemy, damage: number, direction: { x: number; y: number }): void;
+    /** Congelamento do cajado: o anfitrião para o inimigo de verdade e o parceiro vê o gelo. */
+    onEnemyFreeze?(enemy: CombatEnemy, duration: number): void;
 };
 
 // Metade da largura do feixe de luz, em pixels do mundo.
@@ -80,12 +87,39 @@ export class CombatSystem {
     private companionCooldown = 0;
     private heldSword?: Phaser.GameObjects.Image;
     private isSwingQueued = false;
+    /** Recarga do golpe, separada da do tiro: com a espada flamejante os dois andam juntos. */
+    private swingCooldown = 0;
+    /** Espada flamejante vestida: golpe de dano médio nas salas com tiro. */
+    private flameSword = false;
+    private iceStaff = false;
+    private iceCooldown = 0;
+    /** Inimigos congelados pelo cajado e quanto falta, em ms, para voltarem a andar. */
+    private readonly frozen = new Map<CombatEnemy, number>();
+    private burnCooldown = 0;
+    /** Inimigos em chamas pela carta Cajado de fogo: quanto falta da queimadura e do próximo tick. */
+    private readonly burning = new Map<CombatEnemy, { remaining: number; tick: number }>();
     private pulseCooldown = 0;
     /** Crescimento do tiro normal pela sala atual (getPlayerShotMultipliers). */
     shotMultipliers = { damage: 1, speed: 1 };
+    /** Reforço do dano das cartas (tudo que não é tiro normal nem espada); só a partida solo usa. */
+    cardDamageMultiplier = 1;
     private chainCooldown = 0;
     private beamCooldown = 0;
     private spinCooldown = 0;
+    private volleyCooldown = 0;
+    private volleyQueued = 0;
+    private volleyGap = 0;
+    private volleyAngle = 0;
+    /** Fragmentos da Rajada espiral em voo; cada um fere cada inimigo no máximo uma vez. */
+    private readonly volleyShards: {
+        origin: { x: number; y: number };
+        angle: number;
+        travelled: number;
+        hit: Set<CombatEnemy>;
+        attackId: string;
+        glow: Phaser.GameObjects.Arc;
+        core: Phaser.GameObjects.Arc;
+    }[] = [];
     private bombardCooldown = 0;
     /** Volta do Golpe giratório em andamento: quem já levou o corte nesta volta não leva de novo. */
     private spin?: { elapsed: number; hit: Set<CombatEnemy>; attackId: string };
@@ -217,15 +251,18 @@ export class CombatSystem {
         if (!isPlayerAlive && !this.network) return;
 
         this.playerCooldown = Math.max(0, this.playerCooldown - delta);
+        this.swingCooldown = Math.max(0, this.swingCooldown - delta);
         let nearest: CombatEnemy | undefined;
         let nearestDistance = this.playerStats.range ** 2;
 
+        this.updateFrozen(delta);
         for (const enemy of this.enemies) {
             if (!enemy.health.isAlive) continue;
             const cooldown = Math.max(0, (this.enemyCooldowns.get(enemy) ?? 0) - delta);
-            this.enemyCooldowns.set(enemy, cooldown);
+            // Congelado não atira: a recarga fica parada até o gelo derreter.
+            if (!this.frozen.has(enemy)) this.enemyCooldowns.set(enemy, cooldown);
             const origin = this.getCenter(enemy);
-            if (this.network?.isHost) this.fireAtNearestPlayer(enemy, origin, cooldown);
+            if (this.network?.isHost && !this.frozen.has(enemy)) this.fireAtNearestPlayer(enemy, origin, cooldown);
             if (!isPlayerAlive) continue;
             const target = this.getCenter(this.player);
             const distance = (origin.x - target.x) ** 2 + (origin.y - target.y) ** 2;
@@ -238,20 +275,31 @@ export class CombatSystem {
                 nearestDistance = distance;
             }
             const isRanged = isRangedEnemy(enemy.kind);
-            if (!this.network && isRanged && distance <= COMBAT_CONFIG.drone.range ** 2 && cooldown === 0) {
+            if (!this.network && isRanged && !this.frozen.has(enemy) && distance <= COMBAT_CONFIG.drone.range ** 2 && cooldown === 0) {
                 this.fire(enemy, this.player, this.enemyShots, COMBAT_CONFIG.drone);
                 this.enemyCooldowns.set(enemy, COMBAT_CONFIG.drone.fireInterval);
             }
         }
+        this.updateBurning(delta);
         if (!isPlayerAlive) return;
+        this.updateIceStaff(delta);
+        this.updateBurnPulse(delta);
         // Na sala corpo a corpo o jogador só ataca com a espada, sem tiro nem companheiro.
         if (this.melee) {
-            if (this.isSwingQueued && this.playerCooldown === 0) {
+            if (this.isSwingQueued && this.swingCooldown === 0) {
                 this.isSwingQueued = false;
                 this.swing();
             }
             this.updateHeldSword();
             return;
+        }
+        // Com a espada flamejante, o golpe guardado sai sem esperar o tiro.
+        if (this.flameSword) {
+            if (this.isSwingQueued && this.swingCooldown === 0) {
+                this.isSwingQueued = false;
+                this.swing();
+            }
+            this.updateHeldSword();
         }
         if (nearest && this.playerCooldown === 0) {
             this.firePlayer(nearest);
@@ -264,9 +312,74 @@ export class CombatSystem {
         this.updateBeams(delta);
         this.updateSpinSlash(delta);
         this.updateBombard(delta);
+        this.updateSpiralVolley(delta);
     }
 
-    /** Golpe giratório: a lâmina dá uma volta e fere cada inimigo do raio quando passa por ele. */
+    /** Rajada espiral: um fragmento por vez sai do jogador, cada um 30° depois do anterior. */
+    private updateSpiralVolley(delta: number) {
+        const { volleyShards, volleyRange, volleyInterval, volleyDamageRatio, damage } = this.playerStats;
+        if (volleyShards > 0) {
+            if (this.volleyQueued === 0) {
+                this.volleyCooldown -= delta;
+                if (this.volleyCooldown <= 0) {
+                    this.volleyCooldown = volleyInterval;
+                    this.volleyQueued = volleyShards;
+                    this.volleyGap = 0;
+                    // Só para o parceiro: aqui os fragmentos de verdade já aparecem.
+                    const origin = this.getCenter(this.player);
+                    this.network?.onPlayerEffect({
+                        effect: 'spiral', x: origin.x, y: origin.y, startAngle: this.volleyAngle, shards: volleyShards, range: volleyRange
+                    });
+                }
+            }
+            this.volleyGap -= delta;
+            while (this.volleyQueued > 0 && this.volleyGap <= 0) {
+                this.launchVolleyShard();
+                this.volleyQueued -= 1;
+                this.volleyGap += SPIRAL_VOLLEY.launchGap;
+            }
+        }
+        for (let index = this.volleyShards.length - 1; index >= 0; index -= 1) {
+            const shard = this.volleyShards[index];
+            shard.travelled = Math.min(volleyRange, shard.travelled + SPIRAL_VOLLEY.speed * delta / 1000);
+            const x = shard.origin.x + Math.cos(shard.angle) * shard.travelled;
+            const y = shard.origin.y + Math.sin(shard.angle) * shard.travelled;
+            shard.glow.setPosition(x, y);
+            shard.core.setPosition(x, y);
+            for (const enemy of this.enemies) {
+                if (!enemy.health.isAlive || shard.hit.has(enemy)) continue;
+                const target = this.getCenter(enemy);
+                if (Math.hypot(target.x - x, target.y - y) > SPIRAL_VOLLEY.hitRadius) continue;
+                shard.hit.add(enemy);
+                this.hitEnemy(enemy, damage * volleyDamageRatio, { x: Math.cos(shard.angle), y: Math.sin(shard.angle) }, shard.attackId);
+            }
+            if (shard.travelled < volleyRange) continue;
+            this.tracker.finalizeProjectile(shard.attackId);
+            shard.glow.destroy();
+            shard.core.destroy();
+            this.volleyShards.splice(index, 1);
+        }
+    }
+
+    private launchVolleyShard() {
+        const origin = this.getCenter(this.player);
+        const attackId = createProjectileId(this.tracker.snapshot().runId);
+        this.tracker.registerProjectile(attackId);
+        const angle = this.volleyAngle;
+        this.volleyAngle += SPIRAL_VOLLEY.angleStep;
+        this.volleyShards.push({
+            origin: { x: origin.x, y: origin.y },
+            angle,
+            travelled: 0,
+            hit: new Set(),
+            attackId,
+            // Halo vermelho somado ao mapa e núcleo branco, como o Golpe giratório.
+            glow: this.scene.add.circle(origin.x, origin.y, 5, 0xe90931, 0.55).setDepth(14).setBlendMode(1),
+            core: this.scene.add.circle(origin.x, origin.y, 2, 0xffffff).setDepth(15)
+        });
+    }
+
+    /** Golpe giratório: a lâmina sai do jogador em espiral e fere cada inimigo do raio quando chega nele. */
     private updateSpinSlash(delta: number) {
         const { spinRadius, spinInterval, spinDamageRatio, damage } = this.playerStats;
         if (spinRadius <= 0) return;
@@ -282,16 +395,14 @@ export class CombatSystem {
         }
         const spin = this.spin;
         spin.elapsed = Math.min(SPIN_SLASH_DURATION, spin.elapsed + delta);
-        const swept = spin.elapsed / SPIN_SLASH_DURATION * Math.PI * 2;
+        const reach = spinSlashReach(spinRadius, spin.elapsed / SPIN_SLASH_DURATION);
         for (const enemy of this.enemies) {
             if (!enemy.health.isAlive || spin.hit.has(enemy)) continue;
             const target = this.getCenter(enemy);
             const dx = target.x - center.x;
             const dy = target.y - center.y;
             const distance = Math.hypot(dx, dy);
-            if (distance > spinRadius) continue;
-            const angle = ((Math.atan2(dy, dx) - SPIN_SLASH_START) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
-            if (angle > swept) continue;
+            if (distance > reach) continue;
             spin.hit.add(enemy);
             this.hitEnemy(enemy, damage * spinDamageRatio, distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 1 }, spin.attackId);
         }
@@ -446,6 +557,27 @@ export class CombatSystem {
         this.network?.onPlayerEffect(effect);
     }
 
+    /** Fragmentos só de enfeite, no mesmo ritmo, ângulo e velocidade dos de verdade, sem colisão nem dano. */
+    private playPartnerSpiral(effect: Extract<PlayerEffect, { effect: 'spiral' }>) {
+        const { launchGap, angleStep, speed } = SPIRAL_VOLLEY;
+        const duration = effect.range / speed * 1000;
+        for (let index = 0; index < effect.shards; index += 1) {
+            const angle = effect.startAngle + index * angleStep;
+            const parts = [
+                this.scene.add.circle(effect.x, effect.y, 5, 0xe90931, 0.55).setDepth(14).setBlendMode(1),
+                this.scene.add.circle(effect.x, effect.y, 2, 0xffffff).setDepth(15)
+            ];
+            this.scene.tweens.add({
+                targets: parts,
+                x: effect.x + Math.cos(angle) * effect.range,
+                y: effect.y + Math.sin(angle) * effect.range,
+                delay: index * launchGap,
+                duration,
+                onComplete: () => parts.forEach((part) => part.destroy())
+            });
+        }
+    }
+
     playPartnerEffect(effect: PlayerEffect) {
         switch (effect.effect) {
             case 'shockwave': return playShockwave(this.scene, effect.x, effect.y, effect.radius, effect.color);
@@ -453,6 +585,7 @@ export class CombatSystem {
             case 'lightning': return playLightning(this.scene, effect.points, effect.color);
             case 'beams': return playBeams(this.scene, effect.origin, effect.angles, effect.length, effect.color);
             case 'slash': return playSlash(this.scene, effect.x, effect.y, effect.radius, effect.color);
+            case 'spiral': return this.playPartnerSpiral(effect);
         }
     }
 
@@ -516,8 +649,10 @@ export class CombatSystem {
         damage: number,
         direction: { x: number; y: number },
         attackId: string,
-        canDetonate = true
+        canDetonate = true,
+        multiplier = this.cardDamageMultiplier
     ) {
+        damage *= multiplier;
         if (this.network && !this.network.isHost) {
             this.network.onEnemyHit(enemy, damage, direction);
             return;
@@ -556,6 +691,123 @@ export class CombatSystem {
         this.equipSword();
     }
 
+    /** Espada flamejante vestida ou guardada no inventário; na sala corpo a corpo vale a espada da própria sala. */
+    setFlameSword(enabled: boolean) {
+        if (this.melee || this.flameSword === enabled) return;
+        this.flameSword = enabled;
+        this.heldSword?.destroy();
+        this.heldSword = undefined;
+        if (!enabled) return;
+        createItemTexture(this.scene, FLAME_SWORD);
+        this.heldSword = this.scene.add.image(0, 0, FLAME_SWORD.texture).setOrigin(0.15, 0.85);
+        this.updateHeldSword();
+    }
+
+    /** Cajado de gelo vestido: congela quem estiver em volta a cada recarga. */
+    setIceStaff(enabled: boolean) {
+        this.iceStaff = enabled;
+    }
+
+    /** Congelado pelo cajado: o mundo não move nem atualiza esse inimigo até o gelo derreter. */
+    isFrozen(enemy: CombatEnemy) {
+        return this.frozen.has(enemy);
+    }
+
+    /** Só lança quando há alguém no raio: sem inimigo perto, o cajado fica pronto esperando. */
+    private updateIceStaff(delta: number) {
+        // O item dos baús e a carta usam o mesmo gelo; com os dois, vale o raio maior.
+        const cardRadius = this.playerStats.freezeRadius;
+        if (!this.iceStaff && cardRadius <= 0) return;
+        this.iceCooldown = Math.max(0, this.iceCooldown - delta);
+        if (this.iceCooldown > 0) return;
+        const { interval, freezeDuration, color } = COMBAT_CONFIG.iceStaff;
+        const radius = Math.max(this.iceStaff ? COMBAT_CONFIG.iceStaff.radius : 0, cardRadius);
+        const origin = this.getCenter(this.player);
+        const targets = this.enemies.filter((enemy) => {
+            if (!enemy.health.isAlive) return false;
+            const center = this.getCenter(enemy);
+            return Math.hypot(center.x - origin.x, center.y - origin.y) <= radius;
+        });
+        if (targets.length === 0) return;
+        this.iceCooldown = interval;
+        this.shareEffect({ effect: 'shockwave', ...origin, radius, color });
+        for (const enemy of targets) {
+            this.freezeEnemy(enemy, freezeDuration);
+            this.network?.onEnemyFreeze?.(enemy, freezeDuration);
+        }
+    }
+
+    /** Para o inimigo onde está; vale para o gelo deste jogador e para o do parceiro, vindo pela rede. */
+    freezeEnemy(enemy: CombatEnemy, duration: number) {
+        if (!enemy.health.isAlive) return;
+        this.frozen.set(enemy, Math.max(duration, this.frozen.get(enemy) ?? 0));
+        enemy.sprite.setVelocity(0, 0);
+        enemy.sprite.anims?.pause();
+    }
+
+    /** Segura parado e azulado quem está congelado; ao derreter, volta a cor e a animação. */
+    private updateFrozen(delta: number) {
+        for (const [enemy, remaining] of this.frozen) {
+            const left = remaining - delta;
+            if (left <= 0 || !enemy.health.isAlive || !enemy.sprite.active) {
+                this.frozen.delete(enemy);
+                if (enemy.sprite.active) {
+                    enemy.sprite.clearTint();
+                    enemy.sprite.anims?.resume();
+                }
+                continue;
+            }
+            this.frozen.set(enemy, left);
+            // O piscar de dano troca a cor; reaplicar a cada quadro mantém o gelo visível.
+            // Modo SCREEN (4 em Phaser.TintModes): clareia para o azul-gelo até drones escuros, sem apagar o desenho.
+            enemy.sprite.setVelocity(0, 0).setTint(COMBAT_CONFIG.iceStaff.color);
+            enemy.sprite.setTintMode?.(4);
+        }
+    }
+
+    /** Carta Cajado de fogo: espera alguém no raio e então põe fogo em todos em volta. */
+    private updateBurnPulse(delta: number) {
+        const { burnRadius, burnInterval, burnDuration } = this.playerStats;
+        if (burnRadius <= 0) return;
+        this.burnCooldown = Math.max(0, this.burnCooldown - delta);
+        if (this.burnCooldown > 0) return;
+        const origin = this.getCenter(this.player);
+        const targets = this.enemies.filter((enemy) => {
+            if (!enemy.health.isAlive) return false;
+            const center = this.getCenter(enemy);
+            return Math.hypot(center.x - origin.x, center.y - origin.y) <= burnRadius;
+        });
+        if (targets.length === 0) return;
+        this.burnCooldown = burnInterval;
+        this.shareEffect({ effect: 'shockwave', ...origin, radius: burnRadius, color: COMBAT_CONFIG.burn.color });
+        const { tickInterval } = COMBAT_CONFIG.burn;
+        // Pegar fogo de novo recomeça a queimadura; o primeiro tick vem só depois de meio segundo.
+        for (const enemy of targets) this.burning.set(enemy, { remaining: burnDuration, tick: tickInterval });
+    }
+
+    /** Queimadura: um pedaço pequeno do dano a cada tick e uma brasa subindo do inimigo. */
+    private updateBurning(delta: number) {
+        const { tickInterval, color } = COMBAT_CONFIG.burn;
+        const damage = this.playerStats.damage * this.playerStats.burnDamageRatio;
+        for (const [enemy, burn] of this.burning) {
+            if (!enemy.health.isAlive || !enemy.sprite.active) {
+                this.burning.delete(enemy);
+                continue;
+            }
+            burn.remaining -= delta;
+            burn.tick -= delta;
+            while (burn.tick <= 0 && enemy.health.isAlive) {
+                burn.tick += tickInterval;
+                // Sem direção de impacto: a queimadura não empurra o inimigo.
+                this.withAttack((id) => this.hitEnemy(enemy, damage, { x: 0, y: 0 }, id));
+                const center = this.getCenter(enemy);
+                const ember = this.scene.add.circle(center.x + (Math.random() - 0.5) * 8, center.y - 4, 2, color).setDepth(15.1);
+                this.scene.tweens.add({ targets: ember, y: ember.y - 12, alpha: 0, duration: 420, onComplete: () => ember.destroy() });
+            }
+            if (burn.remaining <= 0) this.burning.delete(enemy);
+        }
+    }
+
     /** A espada coletada fica na mão do personagem até o próximo golpe. */
     equipSword() {
         if (!this.melee || this.heldSword) return;
@@ -570,23 +822,23 @@ export class CombatSystem {
     /** Golpe em arco para onde o personagem olha; cada golpe conta como um ataque para multi-kills. */
     swing(angle = this.getAimAngle()) {
         if (!this.heldSword || !this.player.health.isAlive) return false;
-        if (this.playerCooldown > 0) {
-            this.isSwingQueued ||= this.playerCooldown <= COMBAT_CONFIG.melee.bufferWindow;
+        if (this.swingCooldown > 0) {
+            this.isSwingQueued ||= this.swingCooldown <= COMBAT_CONFIG.melee.bufferWindow;
             return false;
         }
-        const { interval, damageMultiplier } = COMBAT_CONFIG.melee;
+        const { interval, damageMultiplier } = this.melee ? COMBAT_CONFIG.melee : COMBAT_CONFIG.flameSword;
         const range = COMBAT_CONFIG.melee.range * this.swordRangeMultiplier;
         const arc = this.swordFullCircle ? Math.PI * 2 : COMBAT_CONFIG.melee.arc;
         const swordDamage = this.playerStats.damage * damageMultiplier * this.swordDamageMultiplier;
-        this.playerCooldown = interval;
+        this.swingCooldown = interval;
         const origin = this.getCenter(this.player);
         const id = createProjectileId(this.tracker.snapshot().runId);
         this.tracker.registerProjectile(id);
 
         const hand = this.getHandPosition();
         this.heldSword.setVisible(false);
-        this.playSwing(hand.x, hand.y, angle, () => this.heldSword?.setVisible(true));
-        this.network?.onPlayerSwing(hand.x, hand.y, angle);
+        this.playSwing(hand.x, hand.y, angle, () => this.heldSword?.setVisible(true), this.flameSword && !this.melee);
+        this.network?.onPlayerSwing(hand.x, hand.y, angle, this.flameSword && !this.melee);
 
         for (const enemy of this.enemies) {
             if (!enemy.health.isAlive) continue;
@@ -602,8 +854,10 @@ export class CombatSystem {
             ) continue;
 
             playSwordHit(this.scene, target.x, target.y);
+            // Acerto da espada flamejante explode numa labareda pequena em cima do inimigo.
+            if (this.flameSword && !this.melee) playExplosion(this.scene, target.x, target.y, 10, COMBAT_CONFIG.burn.color);
             const direction = distance > 0 ? { x: dx / distance, y: dy / distance } : { x: Math.cos(angle), y: Math.sin(angle) };
-            this.hitEnemy(enemy, swordDamage, direction, id);
+            this.hitEnemy(enemy, swordDamage, direction, id, true, 1);
         }
         const rival = this.duelTarget;
         if (rival?.isAlive()) {
@@ -620,14 +874,15 @@ export class CombatSystem {
     }
 
     /** Golpe do parceiro: apenas visual, o dano é resolvido no cliente de quem golpeou. */
-    playPartnerSwing(x: number, y: number, angle: number) {
-        this.playSwing(x, y, angle);
+    playPartnerSwing(x: number, y: number, angle: number, flame = false) {
+        if (flame) createItemTexture(this.scene, FLAME_SWORD);
+        this.playSwing(x, y, angle, undefined, flame);
     }
 
-    private playSwing(x: number, y: number, angle: number, onComplete?: () => void) {
+    private playSwing(x: number, y: number, angle: number, onComplete?: () => void, flame = false) {
         const { arc, swingDuration } = COMBAT_CONFIG.melee;
         // O ícone da espada aponta a lâmina para cima e à direita (-45°).
-        const sword = this.scene.add.image(x, y - 2, 'sword')
+        const sword = this.scene.add.image(x, y - 2, flame ? FLAME_SWORD.texture : 'sword')
             .setOrigin(0.15, 0.85)
             .setDepth(15)
             .setRotation(angle - arc / 2 + Math.PI / 4);
@@ -641,6 +896,39 @@ export class CombatSystem {
                 onComplete?.();
             }
         });
+        if (flame) this.emitFlameTrail(x, y - 2, angle - arc / 2, angle + arc / 2, swingDuration, sword.displayWidth);
+    }
+
+    /**
+     * Rastro de fogo do golpe: labaredas ao longo do arco, cada uma acesa quando a lâmina passa por ela.
+     * Não depende da taxa de quadros: o golpe dura só 140 ms, e a 15 fps seriam duas chamas.
+     */
+    private emitFlameTrail(x: number, y: number, from: number, to: number, duration: number, reach: number) {
+        const { trailColors, trailFlames } = COMBAT_CONFIG.flameSword;
+        for (let index = 0; index < trailFlames; index += 1) {
+            const progress = index / (trailFlames - 1);
+            const angle = from + (to - from) * progress;
+            // Duas por ponto: o miolo claro por cima de uma chama maior.
+            for (const [radius, color] of [[4 + Math.random() * 2, trailColors[index % 2]], [2, trailColors[2]]] as const) {
+                const flame = this.scene.add.circle(
+                    x + Math.cos(angle) * reach * 0.85 + (Math.random() - 0.5) * 3,
+                    y + Math.sin(angle) * reach * 0.85 + (Math.random() - 0.5) * 3,
+                    radius,
+                    color
+                ).setDepth(15.1).setBlendMode(1).setVisible(false);
+                this.scene.tweens.add({
+                    targets: flame,
+                    delay: progress * duration,
+                    y: flame.y - 14 - Math.random() * 10,
+                    scale: 0.2,
+                    alpha: { from: 1, to: 0 },
+                    duration: 480 + Math.random() * 200,
+                    ease: 'Sine.Out',
+                    onStart: () => flame.setVisible(true),
+                    onComplete: () => flame.destroy()
+                });
+            }
+        }
     }
 
     private getAimAngle() {

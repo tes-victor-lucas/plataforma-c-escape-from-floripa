@@ -273,3 +273,16 @@ test('voto, baús e o fim da disputa pela vaga chegam ao parceiro', () => {
     assert.deepEqual(messagesFor(sent, 'p2', 'match.event').map(({ message }) => message.event), events);
     assert.equal(messagesFor(sent, 'p1', 'error').length, 0);
 });
+
+test('pausa da dupla e voto do esconderijo chegam ao parceiro', () => {
+    const { broker, sent } = startedRoom();
+    const events = [
+        { kind: 'game.pause', reason: 'pause' },
+        { kind: 'game.pause' },
+        { kind: 'gateway.vote', phase: 'ask', question: 'ENTRAR NO ESCONDERIJO?' },
+        { kind: 'gateway.vote', phase: 'yes' }
+    ];
+    for (const event of events) broker.publish('client.message', { clientId: 'p1', message: { type: 'match.event', event } });
+    assert.deepEqual(messagesFor(sent, 'p2', 'match.event').map(({ message }) => message.event), events);
+    assert.equal(messagesFor(sent, 'p1', 'error').length, 0);
+});

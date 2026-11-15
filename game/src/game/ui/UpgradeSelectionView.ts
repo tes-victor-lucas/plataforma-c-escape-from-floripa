@@ -13,6 +13,7 @@ const DEFAULT_CARD_CENTER_DISTANCE = 210;
 const CARD_BACKGROUND = 0x0c1219;
 const CARD_HOVER_BACKGROUND = 0x121b25;
 const ITEM_IMAGE_SIZE = 58;
+const CARD_GAP = 14;
 
 const PALETTES = {
     stat: {
@@ -68,6 +69,7 @@ type RenderedSelectionCard = Readonly<{
 export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefinition> {
     private readonly root: Phaser.GameObjects.Container;
     private selected = false;
+    private cardScale = 1;
 
     constructor(
         private readonly scene: Scene,
@@ -110,11 +112,11 @@ export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefini
         }
 
         const centerDistance = this.options.cardCenterDistance ?? DEFAULT_CARD_CENTER_DISTANCE;
-        const cardX = [
-            GAME_WIDTH / 2 - centerDistance,
-            GAME_WIDTH / 2,
-            GAME_WIDTH / 2 + centerDistance
-        ];
+        // Até três cartas, o espaçamento de sempre; com mais (a rodada do golem tem cinco), encolhem para caber na tela.
+        const count = this.cards.length;
+        this.cardScale = count > 3 ? Math.min(1, (GAME_WIDTH - 40) / (count * (CARD_WIDTH + CARD_GAP))) : 1;
+        const step = count > 3 ? (CARD_WIDTH + CARD_GAP) * this.cardScale : centerDistance;
+        const cardX = this.cards.map((_card, index) => GAME_WIDTH / 2 + (index - (count - 1) / 2) * step);
         let selectedIndex = 0;
         let cleanupInput = () => undefined;
         const renderedCards = this.cards.map((card, index) =>
@@ -194,6 +196,7 @@ export class UpgradeSelectionView<Card extends SelectionCard = UpgradeCardDefini
     ): RenderedSelectionCard {
         const palette = PALETTES[card.theme ?? card.kind];
         const cardContainer = this.scene.add.container(x, CARD_Y);
+        if (this.cardScale !== 1) cardContainer.setScale(this.cardScale);
         const background = this.scene.add
             .rectangle(0, 0, CARD_WIDTH, CARD_HEIGHT, CARD_BACKGROUND, 1)
             .setStrokeStyle(2, palette.border)

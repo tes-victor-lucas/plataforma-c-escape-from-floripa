@@ -1,17 +1,29 @@
+/**
+ * Pernas do personagem de frente no frame de 38 px: largura de cada perna, vão entre elas
+ * e a linha logo abaixo do pé. As botas são desenhadas nessa medida para calçar de verdade.
+ */
+export type FeetFit = Readonly<{ legWidth: number; gap: number; bottom: number }>;
+
 /** Personagens jogáveis: as folhas usam o mesmo layout, mas têm proporções visuais diferentes. */
 export const CHARACTERS = {
     padrao: {
         label: 'PADRÃO',
         texture: 'player-walk',
         path: 'assets/character.png',
-        scaleMultiplier: 1
+        scaleMultiplier: 1,
+        feet: { legWidth: 6, gap: 2, bottom: 36 } as FeetFit,
+        // Linha do meio dos olhos no frame de frente: o close do duelo enquadra ali.
+        eyesY: 17
     },
     gaucho: {
         label: 'GAÚCHO',
         texture: 'player-gaucho',
         path: 'assets/characters/gaucho.png',
         // 35 px de altura no frame contra 30 px do padrão: ambos ficam com 21 px no jogo.
-        scaleMultiplier: 6 / 7
+        scaleMultiplier: 6 / 7,
+        // Pernas mais grossas e mais afastadas que as do padrão, e o pé uma linha mais baixo.
+        feet: { legWidth: 7, gap: 6, bottom: 37 } as FeetFit,
+        eyesY: 14
     }
 } as const;
 

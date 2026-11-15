@@ -146,6 +146,27 @@ export const COMBAT_CONFIG = {
         // Clique dado nesse final da recarga fica guardado e sai assim que ela termina.
         bufferWindow: 150
     },
+    // Espada flamejante dos baús: golpe nas salas com tiro, sem parar de atirar.
+    // Dano médio: 1,25 do tiro, entre o tiro e a espada do esconderijo; cada golpe deixa um rastro de fogo.
+    flameSword: {
+        damageMultiplier: 1.25,
+        interval: 550,
+        trailColors: [0xff6a1f, 0xffb347, 0xffe27a],
+        // Labaredas espalhadas pelo arco de cada golpe.
+        trailFlames: 8
+    },
+    // Cajado de gelo dos baús: congela quem está em volta, sem dano, para atrasar a horda.
+    iceStaff: {
+        radius: 150,
+        interval: 4_000,
+        freezeDuration: 1_000,
+        color: 0x9fe6ff
+    },
+    // Queimadura da carta Cajado de fogo: o dano sai em pedaços a cada tick enquanto dura.
+    burn: {
+        tickInterval: 500,
+        color: 0xff7a2a
+    },
     gaucho: {
         maxHealth: PLAYER_COMBAT_STATS.maxHealth,
         range: 20,
@@ -198,12 +219,17 @@ export const COMBAT_CONFIG = {
     enemyHealthMultiplierByRoom: { room4: 2, room5: 2 } as Partial<Record<RoomKey, number>>,
     // O tiro normal do jogador cresce a cada sala depois da Sala I: +10% de dano e +5% de velocidade.
     playerShotGrowthPerRoom: { damage: 0.1, speed: 0.05 },
+    // Solo, as hordas têm o mesmo número de inimigos da dupla para um jogador só: todas as cartas batem 30% mais forte.
+    soloCardDamageMultiplier: 1.3,
     multiplayer: {
         // Dois jogadores causam o dobro de dano nos mesmos inimigos; acima de 2 fica mais difícil.
         enemyHealthMultiplier: 2.5,
-        reviveDuration: 5_000,
+        // Segurar 3 s ao lado do parceiro caído: 5 s deixava a dupla exposta tempo demais.
+        reviveDuration: 3_000,
         reviveRadius: 28,
         reviveHealthRatio: 0.5,
+        // Piso de 2 corações ao levantar e ao recomeçar a sala em dupla.
+        reviveMinHealth: 4,
         maxRevives: 2
     },
     spawnDistanceFromPlayer: 180,

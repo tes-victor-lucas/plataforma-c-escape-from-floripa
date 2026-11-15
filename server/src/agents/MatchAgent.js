@@ -8,7 +8,9 @@ const EVENT_KINDS = new Set([
     // Sala V: catraca de um em um e o golem decidido pelo anfitrião.
     'ticen.gate', 'boss.wake', 'boss.action',
     // Disputa pela última vaga do 763.2.
-    'escape.vote', 'escape.duel', 'chest.spawn', 'chest.claim', 'chest.opened', 'duel.lost'
+    'escape.vote', 'escape.duel', 'chest.spawn', 'chest.claim', 'chest.opened', 'duel.lost',
+    // Menus que congelam a dupla e a pergunta dos esconderijos, respondida pelos dois.
+    'game.pause', 'gateway.vote'
 ]);
 const MAX_EVENT_BYTES = 16_384;
 

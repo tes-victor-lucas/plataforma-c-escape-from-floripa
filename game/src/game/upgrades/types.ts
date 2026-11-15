@@ -20,7 +20,10 @@ export type UpgradeId =
     | 'nova-pulse'
     | 'spin-slash'
     | 'saw-orbit'
-    | 'bombard';
+    | 'bombard'
+    | 'fire-staff'
+    | 'ice-staff'
+    | 'spiral-volley';
 
 export type UpgradeKind = 'stat' | 'ability';
 
@@ -62,6 +65,21 @@ export type UpgradeEffect =
     | {
         type: 'heal-on-room-complete';
         amount: number;
+    }
+    | {
+        // Cajado de gelo: o mesmo congelamento do item dos baús, com raio que cresce por nível.
+        type: 'freeze-pulse';
+        radius: number;
+        radiusPerLevel: number;
+    }
+    | {
+        // Cajado de fogo: de tempos em tempos incendeia quem está em volta; o dano sai aos poucos enquanto queima.
+        type: 'burn-pulse';
+        radius: number;
+        radiusPerLevel: number;
+        interval: number;
+        duration: number;
+        damageRatio: number;
     }
     | {
         // Onda periódica em volta do jogador com o dano do tiro.
@@ -126,6 +144,15 @@ export type UpgradeEffect =
         targets: number;
         targetsPerLevel: number;
         radius: number;
+        range: number;
+        interval: number;
+        damageRatio: number;
+    }
+    | {
+        // Fragmentos saem do jogador um após o outro, cada um girado em relação ao anterior: uma espiral.
+        type: 'spiral-volley';
+        shards: number;
+        shardsPerLevel: number;
         range: number;
         interval: number;
         damageRatio: number;
