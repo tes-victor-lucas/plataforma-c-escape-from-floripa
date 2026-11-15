@@ -69,3 +69,6 @@ declare module '*.fs' {
     const src: string
     export default src
 }
+
+// O Parcel substitui `process.env.NODE_ENV` no build; o projeto não usa os tipos do Node.
+declare const process: { env: { NODE_ENV?: string } };

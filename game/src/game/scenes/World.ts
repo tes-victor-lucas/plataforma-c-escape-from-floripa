@@ -64,17 +64,21 @@ import type { InventoryData } from '../ui/InventoryMenuView';
 import type { WalletMenuData } from './WalletMenu';
 import {
     formatBalance, TICEN_DUEL, TICEN_GATE, TICEN_GOAL, TICEN_PARKED, TICEN_ESCAPE, TICEN_SITTERS, TOPAZIO_BOSS, WALLET_UI,
-    type DuelSpecialId
+    type DuelSpecialId,
+    getDuelSpecialLabel,
+    pickDuelSpecial
 } from '../config/ticen';
 import { playExplosion } from '../effects/playAreaEffects';
 import { getBusFrame, TopazioGolem, type BusTarget } from '../entities/TopazioGolem';
 import { BusEndingView } from '../ui/BusEndingView';
 import { CinematicBarsView } from '../ui/CinematicBarsView';
-import { encodeWornItems, GAUCHO_HAT, getChestCandidates, ITEM_CHESTS, ITEM_IDS, ITEMS, type ItemId } from '../config/items';
+import { HUD_CONFIG } from '../config/hud';
+import { encodeWornItems, GAUCHO_HAT, getChestCandidates, getRoomChests, getShotDamageMultiplier, isArcaneShot, ITEM_IDS, ITEMS, type ItemId } from '../config/items';
 import { createItemTexture, createItemTextures } from '../entities/WornItem';
 import { MercadoNpcs } from '../entities/MercadoNpcs';
 import { TchayQueue } from '../entities/TchayQueue';
-import { createMercadoEntranceSign } from '../map/createMercadoEntranceSign';
+import { hasLineOfSight } from '../map/hasLineOfSight';
+import { createMercadoEntranceSign, createSmallWaySign, type SignDirection } from '../map/createMercadoEntranceSign';
 import { DuelStandoffView } from '../ui/DuelStandoffView';
 import { prefersReducedMotion } from '../ui/easing';
 import { PAGODE, PAGODE_FRAMES, POPULAR_BARS, TCHAY } from '../config/tchay';
@@ -94,6 +98,8 @@ import {
     ROOM_EXIT_GATEWAYS,
     SECRET_DUNGEON_GATEWAYS,
     ROOM2_DUNGEON_SIGNS,
+    DUNGEON_ENTRANCE_SIGNS,
+    EXIT_SIGN,
     type SecretDungeonGateway
 } from '../config/roomGateway';
 import { RoomExitPortal } from '../map/RoomExitPortal';
@@ -236,14 +242,14 @@ export class World extends Scene {
         claimed: boolean;
     }>();
     private duelChestSequence = 0;
-    private itemChest?: {
+    /** Baús de item ainda fechados na sala atual, pelo id de ITEM_CHESTS. */
+    private readonly itemChests = new Map<string, {
         image: Phaser.GameObjects.Sprite;
         hint: Phaser.GameObjects.Text;
         glow?: Phaser.GameObjects.Graphics;
-        roomKey: RoomKey;
-    };
-    // Sobrevive à ida e volta dos esconderijos: quando a sala começou, se o baú destrancou, o item sorteado e se já foi pego.
-    private readonly itemChestRuns = new Map<RoomKey, { startedAt: number; unlocked: boolean; item?: ItemId; claimed: boolean }>();
+    }>();
+    // Sobrevive à ida e volta dos esconderijos, por baú: quando a sala começou, se destrancou, o item sorteado e se já foi pego.
+    private readonly itemChestRuns = new Map<string, { startedAt: number; unlocked: boolean; item?: ItemId; claimed: boolean }>();
     private lifestealUntil = 0;
     private victorySubtitle?: string;
     private busDoorObjects: Phaser.GameObjects.GameObject[] = [];
@@ -261,6 +267,9 @@ export class World extends Scene {
     private hasSelectedPiranhasItem = false;
     private isGameplayReady = false;
     private isRoomExitOpen = false;
+    /** Quando a saída abriu nesta visita à sala; a placa de saída só aparece depois de EXIT_SIGN.delay. */
+    private roomExitOpenedAt?: number;
+    private exitSign?: { x: number; y: number; objects: Phaser.GameObjects.GameObject[] };
     private isRoomTransitioning = false;
     private hasSpawnedRoom2Guards = false;
     private waveIndex = 0;
@@ -354,6 +363,8 @@ export class World extends Scene {
         this.isGameOver = false;
         this.isGameplayReady = false;
         this.isRoomExitOpen = false;
+        this.roomExitOpenedAt = undefined;
+        this.exitSign = undefined;
         this.isRoomTransitioning = false;
         this.hasSpawnedRoom2Guards = false;
         this.waveIndex = 0;
@@ -473,9 +484,11 @@ export class World extends Scene {
             }
         }
         if (roomKey === 'room4') createMercadoEntranceSign(this);
+        const entranceSign = DUNGEON_ENTRANCE_SIGNS[roomKey];
+        if (entranceSign) createSmallWaySign(this, entranceSign);
         // Skatistas, comerciantes e o casal do Mercado Público; a horda espera a travessia.
         this.mercadoNpcs = roomKey === 'room4' ? new MercadoNpcs(this, !savedCombat) : undefined;
-        this.createItemChest(roomKey, !savedCombat);
+        this.createItemChests(roomKey, !savedCombat);
         // Sala I: rua dos bares com o TCHAY lotado e o varal de lâmpadas.
         this.barQueues = [];
         // Sala III: as flores dos canteiros da Praça XV estão contaminadas.
@@ -574,8 +587,9 @@ export class World extends Scene {
             if (this.isRoomCombatComplete) return;
             this.isRoomCombatComplete = true;
             this.waves = undefined;
+            this.healAfterHorde();
             recordRoomCompletionScore(roomKey);
-            this.finishItemChestRun(roomKey);
+            this.finishItemChestRuns(roomKey);
             if (roomKey === 'gaucho-dungeon') this.createGauchoHatPickup();
             if (this.isMultiplayerHost()) {
                 this.sendEnemySnapshot();
@@ -805,7 +819,8 @@ export class World extends Scene {
         this.wakeGolem();
         this.updateTicenGoal();
         this.updateDuelChests();
-        this.updateItemChest();
+        this.updateItemChests();
+        this.updateExitSign();
         if (this.isRoomTransitioning) return;
         this.stairClimbEffect?.update();
         if (this.isMultiplayerGuest()) {
@@ -1098,6 +1113,17 @@ export class World extends Scene {
         this.applyEquipment();
     }
 
+    /** Capa de vampiro: cada horda vencida devolve meio coração, com um coraçãozinho subindo do jogador. */
+    private healAfterHorde() {
+        const heal = this.equippedItems.reduce((total, id) => total + (ITEMS[id].hordeHeal ?? 0), 0);
+        const player = this.player;
+        if (heal === 0 || !player?.health.isAlive || player.health.current >= player.health.max) return;
+        player.health.heal(heal);
+        const { x, y } = player.sprite;
+        const heart = this.add.image(x, y - 22, HUD_CONFIG.heart.texture).setDisplaySize(9, 8).setTint(0xff4f6d).setDepth(35);
+        this.tweens.add({ targets: heart, y: heart.y - 16, alpha: 0, duration: 900, ease: 'Sine.easeOut', onComplete: () => heart.destroy() });
+    }
+
     private applyEquipment() {
         for (const id of ITEM_IDS) {
             if (this.equippedItems.includes(id)) this.player?.equipItem(id);
@@ -1106,6 +1132,7 @@ export class World extends Scene {
         // O que vai na mão também muda o combate: golpe da espada flamejante e o gelo do cajado.
         this.combat?.setFlameSword(this.equippedItems.includes('flame-sword'));
         this.combat?.setIceStaff(this.equippedItems.includes('ice-staff'));
+        this.combat?.setShotItems(getShotDamageMultiplier(this.equippedItems), isArcaneShot(this.equippedItems));
     }
 
     private buildInventory(): InventoryData {
@@ -1736,8 +1763,7 @@ export class World extends Scene {
         const point = this.findTicenFloorPoint(70);
         if (!point || this.isDuelOver) return;
         const id = ++this.duelChestSequence;
-        const { specials } = TICEN_DUEL;
-        const special = specials[(id - 1) % specials.length].id;
+        const special = pickDuelSpecial(id);
         multiplayerClient.sendEvent({ kind: 'chest.spawn', id, x: point.x, y: point.y, special });
         this.placeDuelChest(id, point.x, point.y, special);
     }
@@ -1764,43 +1790,49 @@ export class World extends Scene {
         return glow;
     }
 
-    /** Baú de item da sala: trancado até o combate terminar no tempo; quem já tem o item o encontra aberto. */
-    private createItemChest(roomKey: RoomKey, isFreshRoom: boolean) {
-        this.itemChest = undefined;
-        const config = ITEM_CHESTS[roomKey];
-        if (!config) return;
-        if (isFreshRoom) this.itemChestRuns.set(roomKey, { startedAt: runTracker.snapshot().elapsedTimeMs, unlocked: false, claimed: false });
-        const { x, y } = config;
-        const image = this.add.sprite(x, y, TICEN_DUEL.chest.texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(y));
-        // Já pego nesta partida, ou nada na lista que o jogador ainda não tenha: o baú fica aberto.
-        if (this.itemChestRuns.get(roomKey)?.claimed || getChestCandidates(config.items, this.ownedItems).length === 0) {
-            image.setFrame(1);
-            return;
-        }
-        const hint = this.createWorldHint(
-            `COMPLETE A ${config.roomName} EM ${formatElapsedTime(config.timeLimitMs)}\nPARA DESBLOQUEAR UM ITEM`
-        ).setAlign('center').setPosition(x, y - 32).setVisible(false);
-        this.itemChest = { image: image.setTint(0x7a7a8c), hint, roomKey };
-        if (this.itemChestRuns.get(roomKey)?.unlocked) this.unlockItemChest();
-    }
-
-    /** O combate da sala acabou: dentro do tempo, o baú destranca e passa a brilhar. */
-    private finishItemChestRun(roomKey: RoomKey, random = Math.random) {
-        const run = this.itemChestRuns.get(roomKey);
-        const config = ITEM_CHESTS[roomKey];
-        if (!run || !config) return;
-        run.unlocked = runTracker.snapshot().elapsedTimeMs - run.startedAt <= config.timeLimitMs;
-        // O sorteio sai na hora de destrancar e fica guardado: voltar do esconderijo não troca o item.
-        const candidates = getChestCandidates(config.items, this.ownedItems);
-        if (run.unlocked) run.item = candidates[Math.floor(random() * candidates.length)];
-        if (run.unlocked && this.itemChest) {
-            this.unlockItemChest();
-            this.showFloatingHint('BAÚ DESBLOQUEADO');
+    /** Baús de item da sala: trancados até o combate terminar (no tempo, nos especiais); quem já tem o item os encontra abertos. */
+    private createItemChests(roomKey: RoomKey, isFreshRoom: boolean) {
+        this.itemChests.clear();
+        for (const [id, config] of getRoomChests(roomKey)) {
+            if (isFreshRoom) this.itemChestRuns.set(id, { startedAt: runTracker.snapshot().elapsedTimeMs, unlocked: false, claimed: false });
+            const { x, y } = config;
+            const image = this.add.sprite(x, y, TICEN_DUEL.chest.texture, 0).setOrigin(0.5, 1).setDepth(getActorDepth(y));
+            const run = this.itemChestRuns.get(id);
+            // Já pego nesta partida, ou nada na lista que o jogador ainda não tenha: o baú fica aberto.
+            if (run?.claimed || getChestCandidates(config.items, this.ownedItems).length === 0) {
+                image.setFrame(1);
+                continue;
+            }
+            const challenge = config.timeLimitMs === undefined
+                ? `VENÇA A ${config.roomName}\nPARA ABRIR O BAÚ`
+                : `COMPLETE A ${config.roomName} EM ${formatElapsedTime(config.timeLimitMs)}\nPARA DESBLOQUEAR UM ITEM`;
+            const hint = this.createWorldHint(challenge).setAlign('center').setPosition(x, y - 32).setVisible(false);
+            this.itemChests.set(id, { image: image.setTint(0x7a7a8c), hint });
+            if (run?.unlocked) this.unlockItemChest(id);
         }
     }
 
-    private unlockItemChest() {
-        const chest = this.itemChest;
+    /** O combate da sala acabou: os baús sem tempo abrem; os especiais, só dentro do tempo. Destrancados, passam a brilhar. */
+    private finishItemChestRuns(roomKey: RoomKey, random = Math.random) {
+        let unlockedAny = false;
+        for (const [id, config] of getRoomChests(roomKey)) {
+            const run = this.itemChestRuns.get(id);
+            if (!run) continue;
+            run.unlocked = config.timeLimitMs === undefined
+                || runTracker.snapshot().elapsedTimeMs - run.startedAt <= config.timeLimitMs;
+            // O sorteio sai na hora de destrancar e fica guardado: voltar do esconderijo não troca o item.
+            const candidates = getChestCandidates(config.items, this.ownedItems);
+            if (run.unlocked) run.item = candidates[Math.floor(random() * candidates.length)];
+            if (run.unlocked && this.itemChests.has(id)) {
+                this.unlockItemChest(id);
+                unlockedAny = true;
+            }
+        }
+        if (unlockedAny) this.showFloatingHint('BAÚ DESBLOQUEADO');
+    }
+
+    private unlockItemChest(id: string) {
+        const chest = this.itemChests.get(id);
         if (!chest || chest.glow) return;
         chest.image.clearTint();
         chest.hint.setVisible(false);
@@ -1808,28 +1840,29 @@ export class World extends Scene {
     }
 
     /** Trancado, o baú explica o desafio a quem chega perto; destrancado, basta encostar para vestir o item. */
-    private updateItemChest() {
-        const chest = this.itemChest;
-        if (!chest || !this.player) return;
+    private updateItemChests() {
+        if (!this.player || this.itemChests.size === 0) return;
         const feet = this.player.sprite.body?.center ?? this.player.sprite;
-        const distance = Math.hypot(feet.x - chest.image.x, feet.y - (chest.image.y - 6));
         const { touchRadius } = TICEN_DUEL.chest;
-        if (!chest.glow) {
-            chest.hint.setVisible(distance <= touchRadius * 2);
-            return;
+        for (const [id, chest] of this.itemChests) {
+            const distance = Math.hypot(feet.x - chest.image.x, feet.y - (chest.image.y - 6));
+            if (!chest.glow) {
+                chest.hint.setVisible(distance <= touchRadius * 2);
+                continue;
+            }
+            if (distance > touchRadius) continue;
+            this.itemChests.delete(id);
+            this.tweens.killTweensOf(chest.image);
+            chest.image.setFrame(1).setScale(1);
+            chest.glow.destroy();
+            chest.hint.destroy();
+            const run = this.itemChestRuns.get(id);
+            const item = run?.item;
+            if (run) run.claimed = true;
+            if (!item) continue;
+            this.equipFoundItem(item);
+            this.showFloatingHint(ITEMS[item].name);
         }
-        if (distance > touchRadius) return;
-        this.itemChest = undefined;
-        this.tweens.killTweensOf(chest.image);
-        chest.image.setFrame(1).setScale(1);
-        chest.glow.destroy();
-        chest.hint.destroy();
-        const run = this.itemChestRuns.get(chest.roomKey);
-        const item = run?.item;
-        if (run) run.claimed = true;
-        if (!item) return;
-        this.equipFoundItem(item);
-        this.showFloatingHint(ITEMS[item].name);
     }
 
     private placeDuelChest(id: number, x: number, y: number, special: DuelSpecialId) {
@@ -1868,7 +1901,7 @@ export class World extends Scene {
         chest.image.setFrame(1).setScale(1);
         this.tweens.killTweensOf(chest.glow);
         this.tweens.add({ targets: chest.glow, alpha: 0, duration: 400, onComplete: () => chest.glow.destroy() });
-        const label = TICEN_DUEL.specials.find(({ id: special }) => special === chest.special)?.label ?? '';
+        const label = getDuelSpecialLabel(chest.special);
         const hint = this.createWorldHint(label).setPosition(chest.image.x, chest.image.y - 22);
         this.tweens.add({ targets: hint, y: hint.y - 14, alpha: 0, delay: 900, duration: 600, onComplete: () => hint.destroy() });
         this.tweens.add({ targets: chest.image, alpha: 0, delay: 700, duration: 400, onComplete: () => chest.image.destroy() });
@@ -1893,6 +1926,9 @@ export class World extends Scene {
             case 'silver-boots':
             case 'diamond-boots':
             case 'ice-staff':
+            case 'iron-armor':
+            case 'vampire-cape':
+            case 'wizard-hat':
                 this.equipFoundItem(special);
                 break;
             case 'club':
@@ -2088,8 +2124,37 @@ export class World extends Scene {
         const gateway = ROOM_EXIT_GATEWAYS.find(({ from }) => from === this.activeRoomKey);
         if (this.isRoomExitOpen || !gateway) return;
         this.isRoomExitOpen = true;
+        this.roomExitOpenedAt = this.time.now;
         const { x, y } = gateway.portal;
         this.roomExitPortal = new RoomExitPortal(this, x, y, gateway.portalWall, gateway.portalScale);
+    }
+
+    /** Venceu a sala e não saiu: depois de um tempo, uma placa fincada ao lado aponta para a saída. */
+    private updateExitSign() {
+        const gateway = ROOM_EXIT_GATEWAYS.find(({ from }) => from === this.activeRoomKey);
+        const sprite = this.player?.sprite;
+        if (!gateway || !sprite || this.roomExitOpenedAt === undefined || this.isRoomTransitioning) return;
+        if (this.time.now - this.roomExitOpenedAt < EXIT_SIGN.delay) return;
+        const feet = sprite.body?.center ?? sprite;
+        if (this.exitSign && Math.hypot(feet.x - this.exitSign.x, feet.y - this.exitSign.y) < EXIT_SIGN.replantDistance) return;
+        const dx = gateway.portal.x - feet.x;
+        const dy = gateway.portal.y - feet.y;
+        if (Math.hypot(dx, dy) < EXIT_SIGN.nearExit) return;
+        for (const object of this.exitSign?.objects ?? []) {
+            this.tweens.add({ targets: object, alpha: 0, duration: 400, onComplete: () => object.destroy() });
+        }
+        const direction: SignDirection = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+        // Fincada um pouco à frente, no caminho da saída; se ali houver parede, fica onde o jogador está.
+        const length = Math.hypot(dx, dy);
+        const ahead = { x: feet.x + (dx / length) * EXIT_SIGN.offset, y: feet.y + (dy / length) * EXIT_SIGN.offset };
+        const spot = hasLineOfSight(this.collisionLayers, feet, ahead) ? ahead : { x: feet.x, y: feet.y };
+        const { sign, label } = createSmallWaySign(this, { ...spot, text: EXIT_SIGN.text, direction });
+        const objects = [sign, label];
+        for (const object of objects) {
+            object.setAlpha(0);
+            this.tweens.add({ targets: object, alpha: 1, duration: 400 });
+        }
+        this.exitSign = { ...spot, objects };
     }
 
     private updateRoomGateway() {
@@ -2387,6 +2452,7 @@ export class World extends Scene {
     }
 
     private playWaveIntermission(resume: () => void) {
+        this.healAfterHorde();
         if (this.isMultiplayerHost()) {
             this.sendEnemySnapshot();
             multiplayerClient.sendEvent({ kind: 'wave.intermission' });
@@ -2659,6 +2725,8 @@ export class World extends Scene {
         this.isPiranhasMenuOpen = false;
         this.isWaveIntermissionOpen = false;
         this.isRoomExitOpen = false;
+        this.roomExitOpenedAt = undefined;
+        this.exitSign = undefined;
         this.isRoomTransitioning = false;
         this.hasSpawnedRoom2Guards = false;
         this.waveIndex = 0;

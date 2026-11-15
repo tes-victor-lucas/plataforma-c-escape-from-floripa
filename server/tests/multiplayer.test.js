@@ -245,7 +245,7 @@ test('efeitos das cartas e faíscas orbitais chegam ao parceiro', () => {
     const relayed = messagesFor(sent, 'p2', 'player.state')[0].message;
     assert.deepEqual([relayed.orbitCount, relayed.orbitRadius, relayed.companion, relayed.worn], [6, 52, true, 5]);
     state({ orbitCount: -1 });
-    state({ worn: 256 });
+    state({ worn: 0x10000 });
     state({ worn: 1.5 });
     assert.equal(messagesFor(sent, 'p2', 'player.state').length, 1);
     assert.equal(messagesFor(sent, 'p1', 'error').at(-1).message.code, 'INVALID_PLAYER_STATE');

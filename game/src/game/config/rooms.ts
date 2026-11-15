@@ -257,9 +257,17 @@ export const ROOM_DEFINITIONS: Record<RoomKey, RoomDefinition> = {
     }
 };
 
+/**
+ * `?room=` pula direto para uma sala: atalho de desenvolvimento. No build de produção o Parcel
+ * troca NODE_ENV por 'production' e o atalho some, para ninguém avançar sem vencer as salas.
+ */
+export const ROOM_URL_JUMPS_ENABLED = process.env.NODE_ENV !== 'production';
+
 export function getRequestedRoomKey(
-    search = typeof window === 'undefined' ? '' : window.location.search
+    search = typeof window === 'undefined' ? '' : window.location.search,
+    jumpsEnabled = ROOM_URL_JUMPS_ENABLED
 ): RoomKey {
+    if (!jumpsEnabled) return 'room1';
     const requestedRoom = new URLSearchParams(search).get('room');
     if (requestedRoom === 'dungeon' || requestedRoom === 'gaucho-dungeon') return requestedRoom;
     if (requestedRoom === '3' || requestedRoom === 'room3') return 'room3';

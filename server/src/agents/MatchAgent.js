@@ -110,7 +110,7 @@ export class MatchAgent {
             || typeof companion !== 'boolean'
             || !Number.isSafeInteger(worn)
             || worn < 0
-            || worn > 255
+            || worn > 0xffff
         ) return undefined;
 
         return { sequence, x, y, facing, health, maxHealth, reviveProgress, revivesLeft, character, orbitCount, orbitRadius, companion, worn };

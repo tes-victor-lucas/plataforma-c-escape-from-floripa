@@ -1,5 +1,5 @@
 import type { Scene } from 'phaser';
-import { CHARACTERS, type FeetFit } from '../config/characters';
+import { getCharacterByTexture, type FeetFit } from '../config/characters';
 import { ITEMS, type ItemDefinition, type ItemPixels } from '../config/items';
 import { WALK_FRAMES } from './PlayerAnimations';
 
@@ -19,8 +19,17 @@ export function createItemTexture(scene: Scene, item: ItemDefinition) {
     drawPixelTexture(scene, item.texture, item.pixels, item.width, item.height);
 }
 
+function getCharacter(characterTexture: string) {
+    return getCharacterByTexture(characterTexture);
+}
+
 function getCharacterFeet(characterTexture: string): FeetFit {
-    return Object.values(CHARACTERS).find(({ texture }) => texture === characterTexture)?.feet ?? CHARACTERS.padrao.feet;
+    return getCharacter(characterTexture).feet;
+}
+
+/** De costas (andando para cima): a capa troca de desenho e passa para a frente do corpo. */
+export function isWalkingAway(frame: number) {
+    return WALK_FRAMES.up.includes(frame);
 }
 
 /** -1 andando para a esquerda, 1 para a direita, 0 de frente ou de costas: pelo quadro da folha de andar. */
@@ -31,7 +40,12 @@ export function getWalkSide(frame: number) {
 }
 
 /** Textura do item no corpo: as botas são redesenhadas na largura e no vão das pernas de quem as veste; de lado, de perfil. */
-export function getWornTexture(scene: Scene, item: ItemDefinition, characterTexture: string, isSide = false) {
+export function getWornTexture(scene: Scene, item: ItemDefinition, characterTexture: string, isSide = false, isBack = false) {
+    if (isBack && item.backPixels) {
+        const key = `${item.texture}-costas`;
+        drawPixelTexture(scene, key, item.backPixels, item.width, item.height);
+        return key;
+    }
     if (isSide && item.sidePixels) {
         const key = `${item.texture}-lado`;
         drawPixelTexture(scene, key, item.sidePixels, 10, item.height);
@@ -53,8 +67,11 @@ export function createItemTextures(scene: Scene) {
 }
 
 /** Posição do chapéu sobre a cabeça, proporcional ao tamanho do personagem na tela. */
-export function getHatOffsetY(displayHeight: number) {
-    return -displayHeight * 0.31;
+// O chapéu de gaúcho (8 px de altura) senta na cabeça nessa posição; chapéus mais altos crescem para cima a partir da mesma aba.
+const HAT_BRIM_HEIGHT = 8;
+
+export function getHatOffsetY(displayHeight: number, itemHeight = HAT_BRIM_HEIGHT) {
+    return -displayHeight * 0.31 + ((HAT_BRIM_HEIGHT - itemHeight) / 2 / CHARACTER_FRAME) * displayHeight;
 }
 
 /** Posição das botas: a sola encosta na linha de baixo do pé daquele personagem. */
@@ -63,9 +80,16 @@ export function getFeetOffsetY(displayHeight: number, item: ItemDefinition, char
     return ((bottom - item.height / 2 - CHARACTER_FRAME / 2) / CHARACTER_FRAME) * displayHeight;
 }
 
+/** Peças do corpo: o topo do desenho fica `bodyRise` linhas acima dos ombros daquele personagem. */
+export function getBodyOffsetY(displayHeight: number, item: ItemDefinition, characterTexture: string) {
+    const top = getCharacter(characterTexture).shoulderY - (item.bodyRise ?? 0);
+    return ((top + item.height / 2 - CHARACTER_FRAME / 2) / CHARACTER_FRAME) * displayHeight;
+}
+
 export function getItemOffsetY(item: ItemDefinition, displayHeight: number, characterTexture: string) {
     if (item.anchor === 'hand') return displayHeight * HAND.y;
-    return item.anchor === 'feet' ? getFeetOffsetY(displayHeight, item, characterTexture) : getHatOffsetY(displayHeight);
+    if (item.anchor === 'body') return getBodyOffsetY(displayHeight, item, characterTexture);
+    return item.anchor === 'feet' ? getFeetOffsetY(displayHeight, item, characterTexture) : getHatOffsetY(displayHeight, item.height);
 }
 
 // Mão direita do personagem de frente, em fração do frame a partir do centro.
@@ -92,8 +116,11 @@ export function attachWornItem(scene: Scene, sprite: Phaser.GameObjects.Sprite, 
         }
         // O parceiro pode trocar de personagem no meio da partida: a bota acompanha as pernas novas.
         // De lado, a bota vira perfil; o desenho aponta para a esquerda e espelha para a direita.
-        const side = item.anchor === 'feet' ? getWalkSide(Number(sprite.frame.name)) : 0;
-        const texture = getWornTexture(scene, item, sprite.texture.key, side !== 0);
+        const frame = Number(sprite.frame.name);
+        const side = item.anchor === 'feet' ? getWalkSide(frame) : 0;
+        // A capa fica atrás do corpo, menos de costas, quando cobre as costas por cima.
+        const isBack = item.backPixels !== undefined && isWalkingAway(frame);
+        const texture = getWornTexture(scene, item, sprite.texture.key, side !== 0, isBack);
         if (image.texture.key !== texture) image.setTexture(texture);
         image.setFlipX(side === 1);
         image.setPosition(
@@ -103,7 +130,7 @@ export function attachWornItem(scene: Scene, sprite: Phaser.GameObjects.Sprite, 
             .setScale(sprite.scaleX)
             .setAlpha(sprite.alpha)
             .setVisible(sprite.visible)
-            .setDepth(sprite.depth + 0.01);
+            .setDepth(sprite.depth + (item.backPixels && !isBack ? -0.01 : 0.01));
     };
     follow();
     scene.events.on('postupdate', follow);

@@ -16,7 +16,7 @@ import {
     spinSlashReach
 } from '../effects/playAreaEffects';
 import { WORLD_CONFIG } from '../config/world';
-import { FLAME_SWORD } from '../config/items';
+import { ARCANE_SHOT, FLAME_SWORD } from '../config/items';
 import { createItemTexture } from '../entities/WornItem';
 import { PlayerUpgradeState } from '../upgrades/PlayerUpgradeState';
 import { runTracker, type RunTracker } from '../scoring/RunTracker';
@@ -92,6 +92,8 @@ export class CombatSystem {
     /** Espada flamejante vestida: golpe de dano médio nas salas com tiro. */
     private flameSword = false;
     private iceStaff = false;
+    private itemShotDamage = 1;
+    private arcaneShot = false;
     private iceCooldown = 0;
     /** Inimigos congelados pelo cajado e quanto falta, em ms, para voltarem a andar. */
     private readonly frozen = new Map<CombatEnemy, number>();
@@ -703,6 +705,12 @@ export class CombatSystem {
         this.updateHeldSword();
     }
 
+    /** Itens vestidos que mexem no tiro comum: o chapéu de mago e, com o cajado de gelo, o tiro arcano. */
+    setShotItems(damageMultiplier: number, arcane: boolean) {
+        this.itemShotDamage = damageMultiplier;
+        this.arcaneShot = arcane;
+    }
+
     /** Cajado de gelo vestido: congela quem estiver em volta a cada recarga. */
     setIceStaff(enabled: boolean) {
         this.iceStaff = enabled;
@@ -1031,10 +1039,10 @@ export class CombatSystem {
         const angle = Math.atan2(destination.y - origin.y, destination.x - origin.x);
         const weapon: Weapon = {
             range: this.playerStats.range,
-            damage: this.playerStats.damage * this.shotMultipliers.damage,
+            damage: this.playerStats.damage * this.shotMultipliers.damage * this.itemShotDamage,
             projectileSpeed: this.playerStats.projectileSpeed * this.shotMultipliers.speed,
             fireInterval: this.playerStats.fireInterval,
-            color: COMBAT_CONFIG.player.color
+            color: this.arcaneShot ? ARCANE_SHOT.color : COMBAT_CONFIG.player.color
         };
         const spacing = 7;
 
@@ -1080,7 +1088,10 @@ export class CombatSystem {
 
     private configureShot(shot: Physics.Arcade.Image, angle: number, speed: number, color: number) {
         const { width, height, scale } = COMBAT_CONFIG.projectile;
+        // O tiro arcano soma luz ao que está atrás e parece brilhar; o parceiro recebe a mesma cor e vê igual.
         shot.setDepth(15).setTint(color);
+        // Cada tiro é um objeto novo do grupo, então só o arcano precisa trocar o modo de mistura.
+        if (color === ARCANE_SHOT.color) shot.setBlendMode(1);
         shot.setScale(scale).setRotation(angle);
         shot.setBodySize(
             Math.abs(Math.cos(angle)) * width + Math.abs(Math.sin(angle)) * height,

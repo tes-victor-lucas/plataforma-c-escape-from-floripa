@@ -7,9 +7,9 @@ import { Health } from '../combat/Health';
 import { DashState } from './DashState';
 import { getGamepadInput } from '../input/GamepadInput';
 import { touchInput } from '../input/TouchInput';
-import { CHARACTERS, type CharacterId } from '../config/characters';
+import { CHARACTERS, getCharacterTexture, type CharacterId } from '../config/characters';
 import { createWalkAnimations, walkAnimationKey, WALK_FRAMES, type Direction } from './PlayerAnimations';
-import { ITEMS, type ItemId } from '../config/items';
+import { getCombinedBlockChance, ITEMS, type ItemId } from '../config/items';
 import { attachWornItem } from './WornItem';
 
 export type { Direction } from './PlayerAnimations';
@@ -33,7 +33,7 @@ export class Player {
     );
     private readonly footsteps: FootstepAudio;
     private facing: Direction = 'down';
-    private readonly texture: string;
+    private texture: string;
     /** Última direção pedida pelo teclado; muda na hora, antes de a velocidade inverter. */
     private aimDirection: { x: number; y: number } = { x: 0, y: 1 };
     private movementSpeedMultiplier = 1;
@@ -56,7 +56,7 @@ export class Player {
         private readonly scene: Scene,
         spawnPosition: SpawnPosition,
         private readonly onDamageApplied?: (healthLost: number) => void,
-        characterId: CharacterId = 'padrao'
+        private readonly characterId: CharacterId = 'padrao'
     ) {
         const keyboard = scene.input.keyboard;
 
@@ -225,17 +225,31 @@ export class Player {
         if (this.wornItems.has(id)) return;
         this.wornItems.set(id, attachWornItem(this.scene, this.sprite, ITEMS[id]));
         this.refreshEquipment();
+        this.refreshCharacterTexture();
     }
 
     unequipItem(id: ItemId) {
         this.wornItems.get(id)?.();
         this.wornItems.delete(id);
         this.refreshEquipment();
+        this.refreshCharacterTexture();
+    }
+
+    /** O gaúcho troca de folha com um item na cabeça, mantendo o quadro e a animação em curso. */
+    private refreshCharacterTexture() {
+        const wearsHeadItem = [...this.wornItems.keys()].some((id) => ITEMS[id].slot === 'CABEÇA');
+        const texture = getCharacterTexture(this.characterId, wearsHeadItem);
+        if (texture === this.texture) return;
+        this.texture = texture;
+        createWalkAnimations(this.scene, texture);
+        const isWalking = this.sprite.anims.isPlaying;
+        this.sprite.setTexture(texture, this.sprite.frame.name);
+        if (isWalking) this.playWalkAnimation(walkAnimationKey(texture, this.facing));
     }
 
     private refreshEquipment() {
         const worn = [...this.wornItems.keys()].map((id) => ITEMS[id]);
-        this.blockChance = Math.max(0, ...worn.map(({ blockChance }) => blockChance));
+        this.blockChance = getCombinedBlockChance(worn);
         this.equipmentSpeedMultiplier = worn.reduce((total, { speedMultiplier }) => total * speedMultiplier, 1);
         this.dash.cooldownMultiplier = worn.reduce((total, { dashCooldownMultiplier }) => total * dashCooldownMultiplier, 1);
     }
