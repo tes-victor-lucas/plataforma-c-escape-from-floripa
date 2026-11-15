@@ -235,7 +235,7 @@ if pulumi.get_stack() == "prod":
         iam_instance_profile=aws.iam.InstanceProfile("multiplayer", role=multiplayer_role.name).name,
         vpc_security_group_ids=[multiplayer_security_group.id],
         associate_public_ip_address=True,
-        user_data=build_user_data(root / "server", f"https://{site_domain}"),
+        user_data=build_user_data(root / "server", f"https://{site_domain},https://feira-de-jogos.dev.br"),
         user_data_replace_on_change=True,
         metadata_options=aws.ec2.InstanceMetadataOptionsArgs(http_tokens="required"),
         root_block_device=aws.ec2.InstanceRootBlockDeviceArgs(encrypted=True),

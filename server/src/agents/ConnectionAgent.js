@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-/** Sem origem configurada, tudo é aceito: é o caso de rodar localmente. */
+/** Sem origem configurada, tudo é aceito: é o caso de rodar localmente. Várias origens vão separadas por vírgula. */
 export function isOriginAllowed(origin, allowedOrigin) {
-    return !allowedOrigin || origin === allowedOrigin;
+    return !allowedOrigin || allowedOrigin.split(',').includes(origin);
 }
 
 /** Cuida somente do transporte WebSocket; regras de negócio ficam nos outros agentes. */
