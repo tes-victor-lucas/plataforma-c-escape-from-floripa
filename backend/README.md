@@ -13,7 +13,7 @@ Na fórmula v2, cada dungeon concluída concede 1.000 pontos. O frontend envia a
 quantidade de dungeons concluídas e a Lambda recalcula o bônus antes de persistir
 uma vitória.
 
-O frontend usa o endereço exportado pelo Pulumi como `ESCAPE_FROM_FLORIPA_CONFIG.scoreApiUrl`. Runs ativas têm TTL de 24 horas. O registro vira permanente somente após uma vitória. Em produção, configure `pulumi config set requireAuthentication true`; os endpoints de escrita passam a exigir o JWT do Cognito e a Lambda usa `sub` como identidade.
+O frontend usa o endereço exportado pelo Pulumi como `ESCAPE_FROM_FLORIPA_CONFIG.scoreApiUrl`. Runs ativas têm TTL de 24 horas. O registro vira permanente somente após uma vitória. Em produção, configure `pulumi config set requireAuthentication true`; os endpoints de escrita passam a exigir o ID token do Google (login do jogo) e a Lambda usa `sub` como identidade e `name` como nome no placar.
 
 ## Testes
 

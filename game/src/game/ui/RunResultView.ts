@@ -13,6 +13,8 @@ type RunResultOptions = Readonly<{
     defeatTitle?: string;
     /** Linha em vermelho abaixo do título da vitória: quem perdeu a disputa pela vaga no TICEN. */
     victorySubtitle?: string;
+    /** Crédito da feira para quem venceu logado: a frase aparece quando a feira responde. */
+    fairCredit?: Promise<string | undefined>;
     onQuit: () => void;
 }>;
 
@@ -76,6 +78,14 @@ export class RunResultView {
             tone: 'success'
         });
         menu.addControlHints([{ key: 'ENTER', label: 'CONFIRMAR' }], 392);
+        void this.options.fairCredit?.then((message) => {
+            if (!message || !this.scene.scene.isActive()) return;
+            this.scene.add.text(VICTORY_PANEL.x + VICTORY_PANEL.width / 2, 323, message, {
+                fontFamily: 'PixelGamer, monospace',
+                fontSize: '13px',
+                color: '#ffff55'
+            }).setOrigin(0.5).setDepth(260).setResolution(2);
+        });
         menu.enableKeyboardNavigation();
         menu.fadeIn();
     }

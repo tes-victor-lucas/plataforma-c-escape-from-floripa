@@ -9,6 +9,7 @@ import { runTracker } from '../scoring/RunTracker';
 import { DashCooldownView } from '../ui/DashCooldownView';
 import { TouchControlsView, type UseAction } from '../ui/TouchControlsView';
 import { BossHealthView, type BossHealth } from '../ui/BossHealthView';
+import { payFairCredit } from '../auth/GoogleAuth';
 
 type HudData = {
     player: Player;
@@ -106,7 +107,8 @@ export class CombatHud extends Scene {
                 onQuit: this.dataSource.onQuit,
                 ...(this.dataSource.getCoopStatus ? { retryLabel: 'NOVA PARTIDA' } : {}),
                 ...(defeatTitle ? { defeatTitle } : {}),
-                ...(this.dataSource.getVictorySubtitle?.() ? { victorySubtitle: this.dataSource.getVictorySubtitle() } : {})
+                ...(this.dataSource.getVictorySubtitle?.() ? { victorySubtitle: this.dataSource.getVictorySubtitle() } : {}),
+                ...(result.status === 'WON' ? { fairCredit: payFairCredit() } : {})
             }).create();
         }
     }

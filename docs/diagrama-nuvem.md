@@ -8,7 +8,7 @@ Esta é uma proposta simples de arquitetura para o jogo **Plataforma C: Escape f
 flowchart LR
     J["Jogador<br/>navegador"]
     WEB["Site do jogo<br/>Route 53 + CloudFront + S3"]
-    LOGIN["Login<br/>Cognito + Google/Apple"]
+    LOGIN["Login<br/>Google (OAuth 2.0 / GSI)"]
     BACK["Backend<br/>API Gateway + Lambda"]
     DB["Banco de dados<br/>DynamoDB: usuários, runs e placar"]
     MULTI["Multiplayer<br/>GameLift + IoT Core (broker)"]
@@ -27,7 +27,7 @@ flowchart LR
 
 - **Site do jogo:** o jogador acessa um endereço do Route 53. O CloudFront entrega o frontend e os arquivos do jogo (imagens, sons e mapas), que ficam no S3. O CloudFront também fornece HTTPS.
 
-- **Login:** o Cognito permite entrar com Google ou Apple. Depois do login, ele identifica o usuário para que cada tempo no placar fique associado à pessoa correta.
+- **Login:** o jogador entra com a conta Google (Google Identity Services, OAuth 2.0), com o mesmo Client ID da Feira de Jogos do IFSC. O ID token identifica o usuário no placar, validado pelo API Gateway, e autoriza o crédito de tijolinhos na API da feira quando ele termina o jogo. Jogar sem entrar continua possível, sem placar nem crédito.
 
 - **Backend:** o frontend chama a API REST no API Gateway. As funções Lambda executam as regras que precisam ficar na nuvem, como iniciar/finalizar uma run, salvar o tempo e consultar o placar. O DynamoDB guarda usuários, runs vencedoras e o ranking.
 

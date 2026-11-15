@@ -6,10 +6,10 @@ type MessageHandler = (message: ServerMessage) => void;
 
 const ROOM_LIST_INTERVAL = 2_000;
 
-/** Publicado com HTTPS, o servidor fica no mesmo domínio em `/ws`; localmente, na porta 8080. */
-export function getDefaultServerUrl(location: Pick<Location, 'protocol' | 'host' | 'hostname'>) {
+/** Publicado com HTTPS, conecta sempre no nosso servidor, mesmo com o jogo hospedado na feira; localmente, na porta 8080. */
+export function getDefaultServerUrl(location: Pick<Location, 'protocol' | 'hostname'>) {
     return location.protocol === 'https:'
-        ? `wss://${location.host}/ws`
+        ? 'wss://escape-from-floripa.negoci.online/ws'
         : `ws://${location.hostname}:8080`;
 }
 

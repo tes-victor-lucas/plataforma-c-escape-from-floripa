@@ -13,12 +13,10 @@ O projeto possui os seguintes recursos:
 - Logs da Lambda no CloudWatch.
 - CORS habilitado na API.
 - Limite de 25 requisições por segundo, com burst de 50.
-- Cognito opcional nas stacks comuns e obrigatório na stack `prod`.
-- User Pool e cliente web do Cognito quando a autenticação está ativa.
-- Autenticação JWT nas rotas de escrita quando o Cognito está ativo.
+- Login com Google opcional (`requireAuthentication`): autorizador JWT do API Gateway que valida o ID token do Google nas rotas de escrita.
 - Rota pública para consulta do ranking.
 - Zona pública Route 53 para `escape-from-floripa.negoci.online` somente na stack `prod`.
 
-O Pulumi exporta a URL da API, o nome da tabela e o nome do stage. Quando Cognito está ativo, também exporta os identificadores do User Pool e do cliente web. Na stack `prod`, exporta os nameservers da zona Route 53.
+O Pulumi exporta a URL da API, o nome da tabela e o nome do stage. Na stack `prod`, exporta os nameservers da zona Route 53.
 
 GameLift, IoT Core, EventBridge, SQS, SES e SNS aparecem no diagrama de arquitetura, mas não estão implementados no Pulumi atual. No stack `prod`, o site usa S3 e CloudFront e o servidor multiplayer roda em uma EC2. O passo a passo está em [deploy-aws.md](deploy-aws.md).
