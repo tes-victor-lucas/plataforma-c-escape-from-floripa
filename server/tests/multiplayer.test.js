@@ -174,6 +174,10 @@ test('origem só é restrita quando configurada', () => {
     assert.equal(isOriginAllowed(allowed, allowed), true);
     assert.equal(isOriginAllowed('https://outro-site.com', allowed), false);
     assert.equal(isOriginAllowed(undefined, allowed), false);
+    const both = `${allowed},https://feira-de-jogos.dev.br`;
+    assert.equal(isOriginAllowed('https://feira-de-jogos.dev.br', both), true, 'o jogo hospedado na feira também conecta');
+    assert.equal(isOriginAllowed(allowed, both), true);
+    assert.equal(isOriginAllowed('https://outro-site.com', both), false);
 });
 
 function openRooms(broker, sent, clientId) {
