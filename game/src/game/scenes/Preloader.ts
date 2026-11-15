@@ -50,8 +50,11 @@ export class Preloader extends Scene {
             }
         }
 
-        for (const { texture, path } of Object.values(CHARACTERS)) {
-            this.load.spritesheet(texture, path, { frameWidth: 38, frameHeight: 38 });
+        for (const character of Object.values(CHARACTERS)) {
+            this.load.spritesheet(character.texture, character.path, { frameWidth: 38, frameHeight: 38 });
+            if ('hatlessTexture' in character) {
+                this.load.spritesheet(character.hatlessTexture, character.hatlessPath, { frameWidth: 38, frameHeight: 38 });
+            }
         }
 
         this.load.spritesheet(

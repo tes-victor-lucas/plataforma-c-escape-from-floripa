@@ -85,7 +85,7 @@ export const ROOM2_TO_DUNGEON_GATEWAY: SecretDungeonGateway = {
  */
 export const ROOM2_DUNGEON_SIGNS = [
     { x: 33 * 16, y: 26.5 * 16, text: '>' },
-    { x: 39 * 16, y: 26.5 * 16, text: '>>' },
+    { x: 39 * 16, y: 26.5 * 16, text: 'ENTRADA' },
     { x: 44 * 16, y: 26.5 * 16, text: '>>>' }
 ] as const;
 
@@ -115,6 +115,31 @@ export const ROOM4_TO_MERCADO_GATEWAY: SecretDungeonGateway = {
     // Vão do portal (x 358-410 no mapa); o corpo do jogador encosta na fachada logo abaixo da linha 14.
     area: { left: 364, right: 404, top: 220, bottom: 238 },
     portal: { x: 384, y: 224 }
+};
+
+/**
+ * Placas de saída: quem venceu a sala e ficou 15 s sem sair vê uma placa fincada ao lado apontando para a saída.
+ * Se ele se afasta da placa sem ir embora, outra nasce onde ele estiver; perto da saída, nenhuma.
+ */
+export const EXIT_SIGN = {
+    delay: 15_000,
+    text: 'SAÍDA',
+    // Distância do jogador até a placa nova, na direção da saída.
+    offset: 28,
+    replantDistance: 140,
+    nearExit: 96
+} as const;
+
+/** Placas fixas nas entradas dos esconderijos, para ninguém passar sem saber que há algo ali. */
+export const DUNGEON_ENTRANCE_SIGNS: Partial<Record<RoomKey, Readonly<{
+    x: number;
+    y: number;
+    text: string;
+    direction: 'left' | 'right' | 'up' | 'down';
+}>>> = {
+    // Ao lado do bueiro da Sala I: o esconderijo dos gaúchos fica no subsolo.
+    // No Terminal Velho o aviso vai na placa azul da passarela (ROOM2_DUNGEON_SIGNS).
+    room1: { x: 7 * 16 + 32, y: 26.5 * 16 + 8, text: 'DESCIDA', direction: 'down' }
 };
 
 export const SECRET_DUNGEON_GATEWAYS = [ROOM2_TO_DUNGEON_GATEWAY, ROOM1_TO_GAUCHO_DUNGEON_GATEWAY, ROOM4_TO_MERCADO_GATEWAY];
