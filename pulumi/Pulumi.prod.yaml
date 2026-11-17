@@ -1,2 +1,4 @@
 config:
   aws:region: sa-east-1
+  # As escritas no placar exigem o ID token do Google (RF22).
+  plataforma-c-escape-from-floripa:requireAuthentication: "true"

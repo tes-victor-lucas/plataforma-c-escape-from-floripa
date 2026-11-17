@@ -187,6 +187,26 @@ Sem essas variáveis, o workflow roda só os testes e pula a publicação. Os va
 
 Se o `pulumi up` responder `EntityAlreadyExists` para `github-actions`, a conta já tem esse provedor. Importe-o com `pulumi import aws:iam/openIdConnectProvider:OpenIdConnectProvider github-actions arn:aws:iam::<CONTA>:oidc-provider/token.actions.githubusercontent.com` e rode `pulumi up` de novo.
 
+### Atualizar a infraestrutura pelo GitHub
+
+Com isto configurado, o merge na `main` também roda `pulumi up` na stack `prod`, então backend, servidor e infraestrutura saem sozinhos. Faça uma única vez, depois do `pulumi up` que cria a role `github-infra`:
+
+1. Em [app.pulumi.com](https://app.pulumi.com) → **Settings → Access tokens**, crie um token (na conta dona da stack `prod`).
+2. Cadastre o token e a role no GitHub:
+
+```bash
+gh secret set PULUMI_ACCESS_TOKEN          # cole o token quando pedir
+gh variable set AWS_INFRA_ROLE_ARN --body "$(pulumi stack output infra_role_arn)"
+```
+
+Sem a variável `AWS_INFRA_ROLE_ARN`, o job **Atualizar a infraestrutura** é pulado e o `pulumi up` continua manual. A role `github-infra` é administradora da conta, mas só a `main` deste repositório consegue usá-la, então proteja a `main` contra push direto.
+
+### E-mail de vitória
+
+O `pulumi up` verifica o domínio no SES sozinho, pelos registros DKIM da zona, e a Lambda passa a mandar `placar@escape-from-floripa.negoci.online` para quem vence logado com Google. Confira em **SES → Identities** (São Paulo) se `escape-from-floripa.negoci.online` está **Verified**.
+
+Toda conta nova no SES começa no *sandbox*, que só entrega e-mails para endereços verificados. Para mandar a qualquer jogador, peça a saída em **SES → Account dashboard → Request production access** (tipo *Transactional*, citando o e-mail de vitória). Enquanto a AWS não aprova, verifique o seu e-mail em **SES → Identities → Create identity** para testar.
+
 Para voltar a uma versão anterior, reverta o commit na `main`. O merge da reversão publica o jogo de novo.
 
 ## Como atualizar
@@ -194,8 +214,8 @@ Para voltar a uma versão anterior, reverta o commit na `main`. O merge da rever
 | O que mudou | O que fazer |
 |---|---|
 | Jogo (`game/`) | Merge na `main`, e o resto é automático |
-| Servidor multiplayer (`server/`) | `pulumi up`: **recria a EC2 e derruba as partidas em andamento** |
-| Placar (`backend/`) ou infraestrutura (`pulumi/`) | `pulumi up` |
+| Servidor multiplayer (`server/`) | Merge na `main` com a infraestrutura automática configurada, senão `pulumi up`. **Recria a EC2 e derruba as partidas em andamento** |
+| Placar (`backend/`) ou infraestrutura (`pulumi/`) | Merge na `main` com a infraestrutura automática configurada, senão `pulumi up` |
 
 PRs que mexem em `server/`, `backend/` ou `pulumi/` recebem um comentário automático lembrando do `pulumi up`.
 
@@ -215,6 +235,8 @@ PRs que mexem em `server/`, `backend/` ou `pulumi/` recebem um comentário autom
 | Publicação falha com `Not authorized to perform sts:AssumeRoleWithWebIdentity` | Confira a variável `AWS_DEPLOY_ROLE_ARN` e se o workflow rodou na `main`. Se estiver certo, confira o `sub` com `gh api repos/tes-victor-lucas/plataforma-c-escape-from-floripa/actions/oidc/customization/sub`: o `sub_claim_prefix` precisa ser igual a `github_repository` em `pulumi/__main__.py`, com `repo:` na frente. Depois de corrigir, rode `pulumi up` |
 | Publicação pulada na aba Actions | As variáveis de "Publicação automática" não foram configuradas |
 | Placar com erro | **CloudWatch → Log groups**, grupo da Lambda `score-api` |
+| Erro 401 no placar | O token do Google expirou (dura 1 hora) ou o jogador não entrou. Os acessos recusados aparecem no grupo `score-api-access-logs`, com `authError` |
+| E-mail de vitória não chega | SES ainda no sandbox ou domínio não verificado (veja "E-mail de vitória"). Procure `victory_email_failure` nos logs da Lambda |
 
 ### Ver os logs do servidor multiplayer
 
@@ -241,8 +263,8 @@ Isso apaga tudo menos a zona do domínio, que tem proteção contra exclusão. M
 
 ## Limitações conhecidas
 
-- **Placar sem login:** qualquer pessoa consegue registrar uma run direto na API.
+- **Placar só com login:** quem joga sem entrar com Google não aparece no placar, e uma run com mais de 1 hora perde o registro, porque o ID token do Google expira.
 - **Combate decidido no cliente:** o computador do anfitrião simula os inimigos, então uma trapaça é possível.
 - **Servidor único:** um reinício derruba as partidas em andamento, e não há limite de mensagens por jogador.
 - **Trecho interno sem HTTPS:** do jogador ao CloudFront é criptografado, mas do CloudFront à EC2 não. O tráfego contém só o estado da partida, e a EC2 aceita conexões apenas do CloudFront.
-- **Servidor e infraestrutura manuais:** só o jogo é publicado automaticamente; o resto depende de `pulumi up`.
+- **Infraestrutura automática opcional:** sem o token do Pulumi e a role `github-infra` cadastrados no GitHub, backend, servidor e infraestrutura dependem de `pulumi up` manual.
