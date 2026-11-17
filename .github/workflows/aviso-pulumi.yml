@@ -17,7 +17,8 @@ jobs:
     name: Avisar que precisa de pulumi up
     runs-on: ubuntu-latest
     # PRs de forks recebem um token sem permissão de comentar.
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # Com a infraestrutura automática configurada, o merge já roda o pulumi up.
+    if: github.event.pull_request.head.repo.full_name == github.repository && vars.AWS_INFRA_ROLE_ARN == ''
     steps:
       - name: Comentar no PR
         env:

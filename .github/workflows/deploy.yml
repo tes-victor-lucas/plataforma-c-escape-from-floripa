@@ -39,6 +39,33 @@ jobs:
         working-directory: pulumi
         run: python3 -m unittest discover -s tests
 
+  infra:
+    name: Atualizar a infraestrutura
+    needs: test
+    # Sem a role e o token do Pulumi configurados no GitHub, o pulumi up continua manual (veja docs/deploy-aws.md).
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.AWS_INFRA_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    # Dois pulumi up ao mesmo tempo disputam o lock da stack.
+    concurrency:
+      group: infra-prod
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_INFRA_ROLE_ARN }}
+          aws-region: sa-east-1
+      - uses: pulumi/actions@v6
+        with:
+          command: up
+          stack-name: prod
+          work-dir: pulumi
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
   deploy:
     name: Publicar o jogo
     needs: test
