@@ -19,6 +19,9 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 TABLE_NAME = os.environ["SCORE_TABLE_NAME"]
 TABLE = boto3.resource("dynamodb").Table(TABLE_NAME)
+# Sem remetente configurado (stack dev ou local), a vitória não envia e-mail.
+EMAIL_SENDER = os.environ.get("EMAIL_SENDER", "")
+SES = boto3.client("sesv2") if EMAIL_SENDER else None
 ALLOWED_MODES = {"SINGLE_PLAYER", "MULTIPLAYER"}
 RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9-]{8,128}$")
 
@@ -65,6 +68,44 @@ def _identity(event: dict[str, Any]) -> tuple[str, str]:
     return f"anonymous:{source_ip}", "Jogador"
 
 
+def _audit(operation: str, **fields: Any) -> None:
+    """Registra a operação em JSON numa linha, para filtrar no CloudWatch Logs Insights."""
+    LOGGER.info(json.dumps({"operation": operation, **fields}, ensure_ascii=False, default=str))
+
+
+def _verified_email(event: dict[str, Any]) -> str | None:
+    claims = (((event.get("requestContext") or {}).get("authorizer") or {}).get("jwt") or {}).get("claims") or {}
+    # O authorizer HTTP repassa as claims como texto: `email_verified` chega como "true".
+    if str(claims.get("email_verified")).lower() != "true":
+        return None
+    email = claims.get("email")
+    return email if isinstance(email, str) and "@" in email else None
+
+
+def _send_victory_email(event: dict[str, Any], run_id: str, score: int, elapsed_ms: int) -> None:
+    email = _verified_email(event)
+    if not SES or not email:
+        return
+    minutes, seconds = divmod(elapsed_ms // 1_000, 60)
+    try:
+        SES.send_email(
+            FromEmailAddress=EMAIL_SENDER,
+            Destination={"ToAddresses": [email]},
+            Content={"Simple": {
+                "Subject": {"Data": "Sua vitória em Escape from Floripa foi registrada", "Charset": "UTF-8"},
+                "Body": {"Text": {"Data": (
+                    f"Você chegou à Plataforma C em {minutes} min {seconds:02d} s e fez {score} pontos.\n"
+                    "Confira o placar em https://escape-from-floripa.negoci.online"
+                ), "Charset": "UTF-8"}},
+            }},
+        )
+    except Exception:
+        # A vitória já está salva; um e-mail que falha não pode virar erro para o jogador.
+        LOGGER.exception("victory_email_failure")
+        return
+    _audit("victory_email_sent", run_id=run_id)
+
+
 def _validate_common(body: dict[str, Any]) -> tuple[str, int]:
     mode = body.get("mode")
     version = body.get("scoreVersion")
@@ -102,9 +143,10 @@ def _start_run(event: dict[str, Any]) -> dict[str, Any]:
             raise
         existing = TABLE.get_item(Key={"pk": item["pk"], "sk": "META"}, ConsistentRead=True).get("Item")
         if not existing or existing.get("playerId") != player_id:
+            _audit("run_start_rejected", run_id=run_id, player_id=player_id)
             return _response(409, {"message": "Não foi possível iniciar a run."})
         return _response(200, {"runId": run_id, "startedAt": existing["startedAt"]})
-    LOGGER.info("run_started", extra={"run_id": run_id, "player_id": player_id, "mode": mode})
+    _audit("run_started", run_id=run_id, player_id=player_id, mode=mode)
     return _response(201, {"runId": run_id, "startedAt": started_at})
 
 
@@ -208,7 +250,8 @@ def _finish_victory(event: dict[str, Any], run_id: str) -> dict[str, Any]:
     except ClientError as error:
         if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
             raise
-    LOGGER.info("run_won", extra={"run_id": run_id, "player_id": player_id, "score": breakdown.total})
+    _audit("run_won", run_id=run_id, player_id=player_id, mode=mode, score=breakdown.total, elapsed_ms=elapsed_ms)
+    _send_victory_email(event, run_id, breakdown.total, elapsed_ms)
     return _response(200, {"score": breakdown.total, "elapsedTimeMs": elapsed_ms, "breakdown": breakdown.to_dict()})
 
 
@@ -224,6 +267,9 @@ def _discard_run(event: dict[str, Any], run_id: str) -> dict[str, Any]:
     except ClientError as error:
         if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
             raise
+        _audit("run_discard_ignored", run_id=run_id, player_id=player_id)
+        return _response(204)
+    _audit("run_discarded", run_id=run_id, player_id=player_id)
     return _response(204)
 
 
@@ -310,7 +356,8 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
             return _leaderboard(event)
         return _response(404, {"message": "Recurso não encontrado."})
     except ValueError:
+        _audit("invalid_request", route=route)
         return _response(400, {"message": "Os dados enviados são inválidos."})
     except Exception:
-        LOGGER.exception("score_api_failure", extra={"route": route})
+        LOGGER.exception(json.dumps({"operation": "score_api_failure", "route": route}))
         return _response(500, {"message": "Não foi possível concluir a operação."})
