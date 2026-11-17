@@ -12,6 +12,9 @@ require_authentication = config.get_bool("requireAuthentication") or False
 google_client_id = config.get("googleClientId") or "331191695151-ku8mdhd76pc2k36itas8lm722krn0u64.apps.googleusercontent.com"
 root = Path(__file__).resolve().parent.parent
 site_domain = "escape-from-floripa.negoci.online"
+is_prod = pulumi.get_stack() == "prod"
+# Só o prod tem o domínio verificado no SES; nas outras stacks a Lambda não envia e-mail.
+email_sender = f"placar@{site_domain}" if is_prod else ""
 # Repositórios criados depois de 15/07/2026 identificam dono e repositório por ID no `sub` do OIDC.
 github_repository = "tes-victor-lucas@311227909/plataforma-c-escape-from-floripa@1317803667"
 
@@ -59,6 +62,21 @@ aws.iam.RolePolicy(
     })),
 )
 
+if is_prod:
+    aws.iam.RolePolicy(
+        "score-lambda-email",
+        role=lambda_role.id,
+        policy=json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Action": "ses:SendEmail",
+                "Resource": "*",
+                "Condition": {"StringEquals": {"ses:FromAddress": email_sender}},
+            }],
+        }),
+    )
+
 score_lambda = aws.lambda_.Function(
     "score-api",
     role=lambda_role.arn,
@@ -71,7 +89,7 @@ score_lambda = aws.lambda_.Function(
         "score.py": pulumi.FileAsset(str(root / "backend" / "score.py")),
     }),
     environment=aws.lambda_.FunctionEnvironmentArgs(
-        variables={"SCORE_TABLE_NAME": score_table.name},
+        variables={"SCORE_TABLE_NAME": score_table.name, "EMAIL_SENDER": email_sender},
     ),
 )
 
@@ -123,6 +141,8 @@ for name, route_key, protected in [
         **(route_auth if protected else {}),
     )
 
+# Toda chamada à API fica registrada, inclusive as recusadas pelo authorizer antes de chegar à Lambda.
+api_access_logs = aws.cloudwatch.LogGroup("score-api-access-logs", retention_in_days=90)
 stage = aws.apigatewayv2.Stage(
     "default-stage",
     api_id=api.id,
@@ -131,6 +151,18 @@ stage = aws.apigatewayv2.Stage(
     default_route_settings=aws.apigatewayv2.StageDefaultRouteSettingsArgs(
         throttling_burst_limit=50,
         throttling_rate_limit=25,
+    ),
+    access_log_settings=aws.apigatewayv2.StageAccessLogSettingsArgs(
+        destination_arn=api_access_logs.arn,
+        format=json.dumps({
+            "requestId": "$context.requestId",
+            "time": "$context.requestTime",
+            "ip": "$context.identity.sourceIp",
+            "route": "$context.routeKey",
+            "status": "$context.status",
+            "player": "$context.authorizer.claims.sub",
+            "authError": "$context.authorizer.error",
+        }),
     ),
 )
 aws.lambda_.Permission(
@@ -141,7 +173,7 @@ aws.lambda_.Permission(
     source_arn=api.execution_arn.apply(lambda arn: f"{arn}/*/*"),
 )
 
-if pulumi.get_stack() == "prod":
+if is_prod:
     zone = aws.route53.Zone(
         "escape-from-floripa",
         name=site_domain,
@@ -383,6 +415,44 @@ if pulumi.get_stack() == "prod":
         })),
     )
     pulumi.export("deploy_role_arn", deploy_role.arn)
+
+    # O `pulumi up` da main cria e apaga recursos de qualquer tipo, por isso a role é administradora.
+    infra_role = aws.iam.Role(
+        "github-infra",
+        max_session_duration=3600,
+        assume_role_policy=github_oidc.arn.apply(lambda arn: json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Principal": {"Federated": arn},
+                "Action": "sts:AssumeRoleWithWebIdentity",
+                "Condition": {"StringEquals": {
+                    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                    "token.actions.githubusercontent.com:sub": f"repo:{github_repository}:ref:refs/heads/main",
+                }},
+            }],
+        })),
+    )
+    aws.iam.RolePolicyAttachment(
+        "github-infra-admin",
+        role=infra_role.name,
+        policy_arn="arn:aws:iam::aws:policy/AdministratorAccess",
+    )
+    pulumi.export("infra_role_arn", infra_role.arn)
+
+    # O DKIM nos registros da zona verifica o domínio no SES sem passo manual.
+    email_identity = aws.sesv2.EmailIdentity("site-email", email_identity=site_domain)
+    for index in range(3):
+        token = email_identity.dkim_signing_attributes.tokens.apply(lambda tokens, i=index: tokens[i])
+        aws.route53.Record(
+            f"site-email-dkim-{index}",
+            zone_id=zone.zone_id,
+            name=pulumi.Output.concat(token, "._domainkey.", site_domain),
+            type="CNAME",
+            ttl=1800,
+            records=[pulumi.Output.concat(token, ".dkim.amazonses.com")],
+        )
+    pulumi.export("email_sender", email_sender)
     pulumi.export("site_bucket", site_bucket.bucket)
     pulumi.export("site_distribution_id", distribution.id)
     pulumi.export("site_url", pulumi.Output.concat("https://", zone.name))
