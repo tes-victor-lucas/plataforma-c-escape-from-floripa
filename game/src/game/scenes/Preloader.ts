@@ -1,3 +1,4 @@
+import { EVALUATION_FORM } from '../config/evaluation';
 import { CHARACTERS } from '../config/characters';
 import { MERCADO_NPCS } from '../config/mercado';
 import { PAGODE, POPULAR_BARS, TCHAY } from '../config/tchay';
@@ -30,6 +31,7 @@ export class Preloader extends Scene {
         this.load.image(menuLayout.title.texture, menuLayout.title.path);
         menuLayout.backgrounds.forEach(({ texture, path }) => this.load.image(texture, path));
 
+        this.load.image(EVALUATION_FORM.qrTexture, EVALUATION_FORM.qrPath);
         this.load.image(HUD_CONFIG.heart.texture, HUD_CONFIG.heart.path);
         this.load.image(
             HUD_CONFIG.controls.pauseTexture,

@@ -1,5 +1,6 @@
 import type { Scene } from 'phaser';
 import { GAME_WIDTH } from '../config/display';
+import { EVALUATION_FORM } from '../config/evaluation';
 import { formatElapsedTime } from '../scoring/ScoreCalculator';
 import type { RunSnapshot } from '../scoring/RunTracker';
 import { CLEAN_MENU_COLORS, CleanOverlayMenu, type CleanMenuBounds } from './CleanOverlayMenu';
@@ -86,8 +87,28 @@ export class RunResultView {
                 color: '#ffff55'
             }).setOrigin(0.5).setDepth(260).setResolution(2);
         });
+        this.addEvaluation(menu);
         menu.enableKeyboardNavigation();
         menu.fadeIn();
+    }
+
+    /** QR do formulário da Feira de Jogos ao lado do placar, com link clicável logo abaixo. */
+    private addEvaluation(menu: CleanOverlayMenu) {
+        const x = (VICTORY_PANEL.x + VICTORY_PANEL.width + GAME_WIDTH) / 2;
+        const title = this.scene.add.text(x, 140, 'AVALIE O JOGO', {
+            fontFamily: 'PixelGamer, monospace',
+            fontSize: '18px',
+            color: CLEAN_MENU_COLORS.text
+        }).setOrigin(0.5).setResolution(2);
+        const qr = this.scene.add.image(x, 255, EVALUATION_FORM.qrTexture);
+        const link = this.scene.add.text(x, 362, 'ABRIR FORMULARIO', {
+            fontFamily: 'PixelGamer, monospace',
+            fontSize: '14px',
+            color: CLEAN_MENU_COLORS.frameCss
+        }).setOrigin(0.5).setResolution(2).setInteractive({ useHandCursor: true });
+        // pointerup conta como gesto do usuário, então o navegador não bloqueia a nova aba.
+        link.on('pointerup', () => window.open(EVALUATION_FORM.url, '_blank', 'noopener'));
+        menu.add([title, qr, link]);
     }
 
     private createDefeat() {
