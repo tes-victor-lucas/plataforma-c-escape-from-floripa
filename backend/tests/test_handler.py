@@ -44,7 +44,7 @@ class FakeSes:
 def load_handler(sender):
     table, ses = FakeTable(), FakeSes()
     boto3 = types.ModuleType("boto3")
-    boto3.resource = lambda _name: types.SimpleNamespace(Table=lambda _table: table)
+    boto3.resource = lambda _name, **_: types.SimpleNamespace(Table=lambda _table: table)
     boto3.client = lambda _name: ses
     exceptions = types.ModuleType("botocore.exceptions")
     exceptions.ClientError = type("ClientError", (Exception,), {})
