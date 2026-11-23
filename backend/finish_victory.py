@@ -9,7 +9,9 @@ from typing import Any
 import boto3
 from botocore.exceptions import ClientError
 
-from common import LOGGER, TABLE, api_handler, audit, bounded_integer, identity, now, read_body, response, validate_common
+from common import (
+    LOGGER, TABLE, api_handler, audit, bounded_integer, identity, now, read_body, response, validate_common, verified_email,
+)
 from score import MAX_ARCADE_PAUSE_MS, calculate_score
 
 
@@ -18,17 +20,23 @@ EMAIL_SENDER = os.environ.get("EMAIL_SENDER", "")
 SES = boto3.client("sesv2") if EMAIL_SENDER else None
 
 
-def _verified_email(event: dict[str, Any]) -> str | None:
-    claims = (((event.get("requestContext") or {}).get("authorizer") or {}).get("jwt") or {}).get("claims") or {}
-    # O authorizer HTTP repassa as claims como texto: `email_verified` chega como "true".
-    if str(claims.get("email_verified")).lower() != "true":
-        return None
-    email = claims.get("email")
-    return email if isinstance(email, str) and "@" in email else None
+def _count_victory(player_id: str, completed_at: str) -> None:
+    """Soma a vitória no perfil de quem entrou com Google; sem perfil (anônimo), não há o que somar."""
+    try:
+        TABLE.update_item(
+            Key={"pk": f"USER#{player_id}", "sk": "PROFILE"},
+            UpdateExpression="ADD victories :one SET lastVictoryAt = :completed",
+            ConditionExpression="attribute_exists(pk)",
+            ExpressionAttributeValues={":one": 1, ":completed": completed_at},
+        )
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            # A vitória já está salva; o contador do perfil não pode virar erro para o jogador.
+            LOGGER.exception("profile_victory_failure")
 
 
 def _send_victory_email(event: dict[str, Any], run_id: str, score: int, elapsed_ms: int) -> None:
-    email = _verified_email(event)
+    email = verified_email(event)
     if not SES or not email:
         return
     minutes, seconds = divmod(elapsed_ms // 1_000, 60)
@@ -154,6 +162,7 @@ def handler(event: dict[str, Any]) -> dict[str, Any]:
         if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
             raise
     audit("run_won", run_id=run_id, player_id=player_id, mode=mode, score=breakdown.total, elapsed_ms=elapsed_ms)
+    _count_victory(player_id, completed_at)
     _send_victory_email(event, run_id, breakdown.total, elapsed_ms)
     return response(200, {"score": breakdown.total, "elapsedTimeMs": elapsed_ms, "breakdown": breakdown.to_dict()})
 

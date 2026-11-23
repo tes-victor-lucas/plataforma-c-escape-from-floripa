@@ -31,7 +31,7 @@ def response(status: int, body: dict[str, Any] | None = None) -> dict[str, Any]:
             "content-type": "application/json",
             "access-control-allow-origin": "*",
             "access-control-allow-headers": "authorization,content-type",
-            "access-control-allow-methods": "GET,POST,DELETE,OPTIONS",
+            "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
         },
         "body": json.dumps(body or {}, ensure_ascii=False),
     }
@@ -64,6 +64,15 @@ def identity(event: dict[str, Any]) -> tuple[str, str]:
 def audit(operation: str, **fields: Any) -> None:
     """Registra a operação em JSON numa linha, para filtrar no CloudWatch Logs Insights."""
     LOGGER.info(json.dumps({"operation": operation, **fields}, ensure_ascii=False, default=str))
+
+
+def verified_email(event: dict[str, Any]) -> str | None:
+    claims = (((event.get("requestContext") or {}).get("authorizer") or {}).get("jwt") or {}).get("claims") or {}
+    # O authorizer HTTP repassa as claims como texto: `email_verified` chega como "true".
+    if str(claims.get("email_verified")).lower() != "true":
+        return None
+    email = claims.get("email")
+    return email if isinstance(email, str) and "@" in email else None
 
 
 def validate_common(body: dict[str, Any]) -> tuple[str, int]:

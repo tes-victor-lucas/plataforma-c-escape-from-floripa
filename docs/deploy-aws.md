@@ -12,7 +12,7 @@ Tudo sai de um único comando, o `pulumi up`: ele gera o build do jogo, envia ca
 | Certificado HTTPS | ACM | Certificate Manager, região **N. Virginia (us-east-1)** |
 | Arquivos do jogo | S3, um objeto do Pulumi por arquivo | S3 |
 | Entrega e HTTPS | CloudFront | CloudFront |
-| Placar | API Gateway HTTP, 4 Lambdas Python (uma por rota) e DynamoDB | Mesmos nomes, região **São Paulo (sa-east-1)** |
+| Placar | API Gateway HTTP, 5 Lambdas Python (uma por rota) e DynamoDB | Mesmos nomes, região **São Paulo (sa-east-1)** |
 | Multiplayer | API Gateway WebSocket, 7 Lambdas Node.js (uma por rota) e DynamoDB | Mesmos nomes, região **São Paulo (sa-east-1)** |
 | E-mail de vitória | SES | SES → Identities, região **São Paulo** |
 
@@ -179,7 +179,7 @@ O CloudFront não precisa de invalidação: os arquivos com hash no nome (`game.
 | Jogo antigo depois de publicar | Recarregue sem cache (Ctrl+Shift+R). Se persistir, confira no preview se os arquivos `site/...` mudaram |
 | Publicação falha com `Not authorized to perform sts:AssumeRoleWithWebIdentity` | Confira a variável `AWS_INFRA_ROLE_ARN` e se o workflow rodou na `main`. Se estiver certo, confira o `sub` com `gh api repos/tes-victor-lucas/plataforma-c-escape-from-floripa/actions/oidc/customization/sub`: o `sub_claim_prefix` precisa ser igual a `github_repository` em `pulumi/__main__.py`, com `repo:` na frente. Depois de corrigir, rode `pulumi up` |
 | Publicação pulada na aba Actions | A variável `AWS_INFRA_ROLE_ARN` não foi configurada |
-| Placar com erro | **CloudWatch → Log groups**, grupo da Lambda da rota (`start-run`, `finish-victory`, `discard-run` ou `leaderboard`) |
+| Placar com erro | **CloudWatch → Log groups**, grupo da Lambda da rota (`start-run`, `finish-victory`, `discard-run`, `leaderboard` ou `save-profile`) |
 | Erro 401 no placar | O token do Google expirou (dura 1 hora) ou o jogador não entrou. Os acessos recusados aparecem no grupo `score-api-access-logs`, com `authError` |
 | E-mail de vitória não chega | SES ainda no sandbox ou domínio não verificado (veja "E-mail de vitória"). Procure `victory_email_failure` nos logs da Lambda `finish-victory` |
 

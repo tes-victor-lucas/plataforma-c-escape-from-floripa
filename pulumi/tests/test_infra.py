@@ -46,7 +46,7 @@ class InfraTest(unittest.TestCase):
             self.assertEqual(functions["leaderboard"]["handler"], "leaderboard.handler")
             self.assertEqual(set(functions["leaderboard"]["code"].assets), {"leaderboard.py", "common.py", "score.py"})
             self.assertEqual(set(functions["multiplayer-connect"]["code"].assets), {"package.json", "multiplayer.js", "lambda/connect.js"})
-            self.assertEqual(len(functions), 4 + 7)
+            self.assertEqual(len(functions), 5 + 7)
             routes = sorted(resource.inputs["routeKey"] for resource in of_type("aws:apigatewayv2/route:Route"))
             self.assertIn("GET /leaderboard", routes)
             self.assertIn("player.state", routes)

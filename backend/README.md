@@ -10,6 +10,7 @@ API serverless em Python para o placar do **Escape from Floripa**. O API Gateway
 | `POST /runs/{runId}/victory` | `finish_victory.py` | Encerra uma vitória, calcula a pontuação, atualiza o melhor resultado e manda o e-mail |
 | `DELETE /runs/{runId}` | `discard_run.py` | Remove uma run ativa abandonada ou derrotada |
 | `GET /leaderboard?mode=SINGLE_PLAYER` | `leaderboard.py` | Retorna o ranking ordenado |
+| `PUT /profile` | `save_profile.py` | Cria ou atualiza o perfil de quem entrou com Google (base de usuários) e devolve as vitórias |
 
 `common.py` reúne tabela, identidade, respostas e log de auditoria, e `score.py` tem a fórmula. Cada Lambda é publicada só com o próprio arquivo, `common.py` e `score.py`.
 
@@ -21,7 +22,7 @@ O frontend usa o endereço exportado pelo Pulumi como `ESCAPE_FROM_FLORIPA_CONFI
 
 ## Rodar localmente (AWS SAM)
 
-`template.yaml` descreve as mesmas quatro Lambdas para o `sam local`, com eventos `HttpApi` (o mesmo formato do API Gateway de produção). `compose.yaml` sobe o DynamoDB Local e cria a tabela, e `env.json` aponta as Lambdas para ele.
+`template.yaml` descreve as mesmas cinco Lambdas para o `sam local`, com eventos `HttpApi` (o mesmo formato do API Gateway de produção). `compose.yaml` sobe o DynamoDB Local e cria a tabela, e `env.json` aponta as Lambdas para ele.
 
 ```bash
 cd backend

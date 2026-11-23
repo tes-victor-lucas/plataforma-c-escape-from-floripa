@@ -5,7 +5,7 @@ A infraestrutura está definida em `pulumi/__main__.py` e usa a região `sa-east
 O projeto possui os seguintes recursos:
 
 - API Gateway HTTP API com as rotas de início de run, registro de vitória, descarte de run e consulta do ranking.
-- Uma Lambda em Python 3.12 por rota (`start_run`, `finish_victory`, `discard_run`, `leaderboard`), cada uma com só o próprio arquivo, `common.py` e `score.py`.
+- Uma Lambda em Python 3.12 por rota (`start_run`, `finish_victory`, `discard_run`, `leaderboard`, `save_profile`), cada uma com só o próprio arquivo, `common.py` e `score.py`.
 - DynamoDB para armazenar runs e o melhor resultado de cada jogador.
 - TTL de 24 horas para remover runs ativas abandonadas.
 - Criptografia e recuperação point-in-time na tabela DynamoDB.

@@ -81,7 +81,15 @@ export const scoreApi = {
             .catch(() => undefined);
     },
 
-    getLeaderboard(mode: GameMode = 'SINGLE_PLAYER') {
+    /** Cria ou atualiza o perfil de quem entrou com Google (nome, e-mail confirmado e vitórias). */
+    saveProfile() {
+        return request<{ playerName: string; victories: number; firstLoginAt: string; lastLoginAt: string }>(
+            '/profile',
+            { method: 'PUT' }
+        );
+    },
+
+        getLeaderboard(mode: GameMode = 'SINGLE_PLAYER') {
         const query = new URLSearchParams({ mode, scoreVersion: String(SCORE_VERSION) });
         return request<{ entries: LeaderboardEntry[] }>(`/leaderboard?${query}`).then(({ entries }) => entries);
     }
