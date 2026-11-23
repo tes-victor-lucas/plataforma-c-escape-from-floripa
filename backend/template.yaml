@@ -62,3 +62,14 @@ Resources:
           Properties:
             Path: /leaderboard
             Method: get
+
+  SaveProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: save_profile.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /profile
+            Method: put

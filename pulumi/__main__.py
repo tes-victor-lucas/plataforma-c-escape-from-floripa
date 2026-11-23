@@ -124,7 +124,7 @@ api = aws.apigatewayv2.Api(
     cors_configuration=aws.apigatewayv2.ApiCorsConfigurationArgs(
         allow_origins=["*"],
         allow_headers=["authorization", "content-type"],
-        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         max_age=86400,
     ),
 )
@@ -149,6 +149,7 @@ for name, route_key, module, protected in [
     ("finish-victory", "POST /runs/{runId}/victory", "finish_victory", True),
     ("discard-run", "DELETE /runs/{runId}", "discard_run", True),
     ("leaderboard", "GET /leaderboard", "leaderboard", False),
+    ("save-profile", "PUT /profile", "save_profile", True),
 ]:
     lambda_route(
         api, name, route_key,
