@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-ROUTES = ("common", "start_run", "finish_victory", "discard_run", "leaderboard")
+ROUTES = ("common", "start_run", "finish_victory", "discard_run", "leaderboard", "save_profile")
 
 
 class FakeTable:
@@ -22,8 +22,20 @@ class FakeTable:
         return {"Item": dict(item)} if item else {}
 
     def update_item(self, Key, ExpressionAttributeValues, **_):
-        item = self.items[(Key["pk"], Key["sk"])]
-        item.update(status="WON", score=ExpressionAttributeValues[":score"])
+        key, values = (Key["pk"], Key["sk"]), ExpressionAttributeValues
+        if ":type" in values and values[":type"] == "USER_PROFILE":
+            item = self.items.setdefault(key, dict(Key))
+            item.update(
+                playerName=values[":name"], email=values[":email"], lastLoginAt=values[":now"],
+                firstLoginAt=item.get("firstLoginAt", values[":now"]), victories=item.get("victories", 0),
+            )
+            return {"Attributes": dict(item)}
+        if ":one" in values:
+            if key not in self.items:
+                raise ClientError({"Error": {"Code": "ConditionalCheckFailedException"}})
+            self.items[key]["victories"] += 1
+            return {}
+        self.items[key].update(status="WON", score=values[":score"])
 
     def query(self, ExpressionAttributeValues, **_):
         pk = ExpressionAttributeValues[":pk"]
@@ -31,6 +43,12 @@ class FakeTable:
 
     def delete_item(self, Key, **_):
         self.items.pop((Key["pk"], Key["sk"]), None)
+
+
+class ClientError(Exception):
+    def __init__(self, response):
+        super().__init__(response)
+        self.response = response
 
 
 class FakeSes:
@@ -47,7 +65,7 @@ def load_handler(sender):
     boto3.resource = lambda _name, **_: types.SimpleNamespace(Table=lambda _table: table)
     boto3.client = lambda _name: ses
     exceptions = types.ModuleType("botocore.exceptions")
-    exceptions.ClientError = type("ClientError", (Exception,), {})
+    exceptions.ClientError = ClientError
     sys.modules.update({"boto3": boto3, "botocore": types.ModuleType("botocore"), "botocore.exceptions": exceptions})
     os.environ["SCORE_TABLE_NAME"] = "tabela"
     os.environ["EMAIL_SENDER"] = sender
@@ -125,6 +143,30 @@ class HandlerTests(unittest.TestCase):
             response = handler.start_run.handler(event("POST /runs", ["não é objeto"], CLAIMS), None)
         self.assertEqual(response["statusCode"], 400)
         self.assertEqual(json.loads(logs.output[0].split(":", 2)[2]), {"operation": "invalid_request", "route": "POST /runs"})
+
+    def test_login_salva_o_perfil_e_a_vitoria_soma_nele(self):
+        handler, table, _ = load_handler("")
+        first = handler.save_profile.handler(event("PUT /profile", claims=CLAIMS), None)
+        self.assertEqual(first["statusCode"], 200)
+        self.assertEqual(json.loads(first["body"])["victories"], 0)
+        self.assertEqual(table.items[("USER#123", "PROFILE")]["email"], "ana@example.com")
+
+        self.play(handler, CLAIMS)
+        again = json.loads(handler.save_profile.handler(event("PUT /profile", claims=CLAIMS), None)["body"])
+        self.assertEqual(again["victories"], 1)
+        self.assertEqual(again["firstLoginAt"], json.loads(first["body"])["firstLoginAt"])
+
+    def test_perfil_exige_login_e_guarda_so_email_verificado(self):
+        handler, table, _ = load_handler("")
+        self.assertEqual(handler.save_profile.handler(event("PUT /profile"), None)["statusCode"], 401)
+        self.assertEqual(table.items, {})
+        handler.save_profile.handler(event("PUT /profile", claims={**CLAIMS, "email_verified": "false"}), None)
+        self.assertEqual(table.items[("USER#123", "PROFILE")]["email"], "")
+
+    def test_vitoria_sem_perfil_nao_cria_perfil(self):
+        handler, table, _ = load_handler("")
+        self.assertEqual(self.play(handler, CLAIMS)["statusCode"], 200)
+        self.assertNotIn(("USER#123", "PROFILE"), table.items)
 
 
 if __name__ == "__main__":
