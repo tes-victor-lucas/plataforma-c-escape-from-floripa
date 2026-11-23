@@ -78,7 +78,7 @@ npm test
 npx tsc --noEmit
 ```
 
-Servidor multiplayer:
+Multiplayer (a integração com o DynamoDB Local roda só com `DYNAMODB_ENDPOINT`, veja `server/README.md`):
 
 ```bash
 cd server

@@ -2,22 +2,23 @@
 
 Passo a passo para publicar o jogo em **https://escape-from-floripa.negoci.online**, com site, placar e multiplayer. O domínio já está delegado pelo professor, então **ninguém precisa mexer no domínio `negoci.online`**.
 
+Tudo sai de um único comando, o `pulumi up`: ele gera o build do jogo, envia cada arquivo ao S3 e atualiza placar e multiplayer, sempre a partir do mesmo commit.
+
 ## O que será criado
 
 | Parte | Serviço | Onde ver no console da AWS |
 |---|---|---|
 | Domínio | Route 53 (a zona já existe) | Route 53 → Hosted zones |
 | Certificado HTTPS | ACM | Certificate Manager, região **N. Virginia (us-east-1)** |
-| Arquivos do jogo | S3 | S3 |
+| Arquivos do jogo | S3, um objeto do Pulumi por arquivo | S3 |
 | Entrega e HTTPS | CloudFront | CloudFront |
-| Placar | API Gateway, Lambda e DynamoDB | Mesmos nomes, região **São Paulo (sa-east-1)** |
-| Multiplayer | EC2 `t4g.micro` com IP fixo | EC2, região **São Paulo (sa-east-1)** |
+| Placar | API Gateway HTTP, 4 Lambdas Python (uma por rota) e DynamoDB | Mesmos nomes, região **São Paulo (sa-east-1)** |
+| Multiplayer | API Gateway WebSocket, 7 Lambdas Node.js (uma por rota) e DynamoDB | Mesmos nomes, região **São Paulo (sa-east-1)** |
+| E-mail de vitória | SES | SES → Identities, região **São Paulo** |
 
-Os jogadores acessam tudo pelo mesmo endereço: o CloudFront entrega o jogo, envia `/api/*` para o placar e `/ws` para o servidor multiplayer.
+Os jogadores acessam tudo pelo mesmo endereço: o CloudFront entrega o jogo, envia `/api/*` para o placar e `/ws` para o multiplayer.
 
 ## Passo 1: preparar o código
-
-Publique a partir da `main`, com o PR do multiplayer já mesclado:
 
 ```bash
 git checkout main
@@ -27,10 +28,10 @@ git pull
 ## Passo 2: conferir as ferramentas
 
 ```bash
-node -v && pulumi version && aws --version && uv --version
+node -v && npm -v && pulumi version && aws --version && uv --version
 ```
 
-Se faltar alguma, instale só ela. **Não rode o `Makefile` da raiz**: ele sobrescreve o `~/.bashrc`.
+O Node é necessário porque o `pulumi up` gera o build do jogo. Se faltar alguma ferramenta, instale só ela. **Não rode o `Makefile` da raiz**: ele sobrescreve o `~/.bashrc`.
 
 ## Passo 3: entrar na AWS
 
@@ -49,7 +50,7 @@ aws sts get-caller-identity   # deve mostrar o número da conta certa
 
 Nunca coloque essas chaves no repositório. Terminado o trabalho na disciplina, apague o usuário.
 
-**Recomendado:** crie um alerta de gastos em **Billing and Cost Management → Budgets → Create budget**, com um valor baixo, como US$ 15.
+**Recomendado:** crie um alerta de gastos em **Billing and Cost Management → Budgets → Create budget**, com um valor baixo, como US$ 5.
 
 ## Passo 4: entrar no Pulumi
 
@@ -91,31 +92,7 @@ pulumi import aws:route53/zone:Zone escape-from-floripa <HOSTED_ZONE_ID> --prote
 
 Depois confira os NS como descrito acima.
 
-## Passo 5: conferir a rede padrão
-
-A EC2 usa a VPC padrão de São Paulo. Este comando deve mostrar um ID:
-
-```bash
-aws ec2 describe-vpcs --region sa-east-1 --filters Name=isDefault,Values=true --query 'Vpcs[0].VpcId'
-```
-
-Se responder `null`, crie a VPC com `aws ec2 create-default-vpc --region sa-east-1`.
-
-## Passo 6: gerar o jogo
-
-Na raiz do repositório:
-
-```bash
-cd game
-npm install
-npm test
-npm run build-nolog   # gera game/dist
-cd ..
-```
-
-Não é preciso criar o `multiplayer-config.json`: em HTTPS, o jogo já se conecta a `wss://<domínio>/ws`.
-
-## Passo 7: criar a infraestrutura
+## Passo 5: publicar
 
 ```bash
 cd pulumi
@@ -123,28 +100,15 @@ pulumi stack select prod
 pulumi preview
 ```
 
-Revise a lista. **O preview não deve mostrar a zona sendo substituída ou apagada.** Se mostrar, pare e confira o passo 4. Estando certo:
+O preview roda o build do jogo (leva 1 ou 2 minutos) e lista cada arquivo `site/...` que vai mudar. Revise a lista. **O preview não deve mostrar a zona sendo substituída ou apagada.** Se mostrar, pare e confira o passo 4. Estando certo:
 
 ```bash
 pulumi up
 ```
 
-Leva uns 5 a 15 minutos, por causa do certificado e do CloudFront.
+Na primeira vez leva uns 5 a 15 minutos, por causa do certificado e do CloudFront. Depois, poucos minutos.
 
-## Passo 8: enviar o jogo
-
-Este envio manual só é necessário antes de configurar a publicação automática, descrita mais abaixo.
-
-Ainda em `pulumi/`:
-
-```bash
-aws s3 sync ../game/dist "s3://$(pulumi stack output site_bucket)" --delete
-aws cloudfront create-invalidation --distribution-id "$(pulumi stack output site_distribution_id)" --paths '/*'
-```
-
-## Passo 9: testar
-
-Espere uns 2 minutos, porque a EC2 ainda está instalando o servidor.
+## Passo 6: testar
 
 - [ ] https://escape-from-floripa.negoci.online abre o menu do jogo.
 - [ ] O endereço com `http://` redireciona para `https://`.
@@ -154,52 +118,35 @@ Espere uns 2 minutos, porque a EC2 ainda está instalando o servidor.
 - [ ] Outra dupla, em outra sala, joga separada.
 - [ ] A sala some da lista quando a partida começa ou quando quem a criou cancela.
 
-Um link com `?room=minha-sala` entra direto nessa sala, sem perguntar o nome.
+O multiplayer também pode ser testado pelo terminal, com dois jogadores falsos:
+
+```bash
+cd server && npm ci
+node scripts/smoke.js wss://escape-from-floripa.negoci.online/ws https://escape-from-floripa.negoci.online
+```
 
 ## Publicação automática
 
-Depois de configurada, cada merge na `main` roda os testes e, se passarem, publica o jogo no S3 e limpa o cache do CloudFront. Em PRs, só os testes rodam. O acompanhamento fica na aba **Actions** do GitHub.
+Configurada uma única vez, cada merge na `main` roda os testes e, se passarem, roda o `pulumi up` na stack `prod` e confere o site, o placar e o multiplayer no ar. Em PRs, só os testes rodam. O acompanhamento fica na aba **Actions** do GitHub.
 
 **Tudo que entra na `main` vai direto para os jogadores.**
 
 ### Configurar uma única vez
 
-Com a mudança que adiciona o workflow já na `main` e os passos 3 e 4 feitos:
-
-```bash
-cd pulumi
-pulumi stack select prod
-pulumi preview
-```
-
-O preview deve mostrar a **criação** de `github-actions`, `github-deploy` e `github-deploy-site`. Se `server/` mudou desde o último `pulumi up`, também mostra a **substituição da EC2 `multiplayer`**, que é esperada e derruba as partidas em andamento. Nenhum outro recurso deve ser substituído, principalmente a zona. Estando certo:
-
-```bash
-pulumi up
-gh variable set AWS_DEPLOY_ROLE_ARN --body "$(pulumi stack output deploy_role_arn)"
-gh variable set SITE_BUCKET --body "$(pulumi stack output site_bucket)"
-gh variable set SITE_DISTRIBUTION_ID --body "$(pulumi stack output site_distribution_id)"
-gh workflow run deploy.yml --ref main
-gh run watch
-```
-
-Sem essas variáveis, o workflow roda só os testes e pula a publicação. Os valores não são segredos, porque a role só pode ser usada por este repositório, na `main`.
-
-Se o `pulumi up` responder `EntityAlreadyExists` para `github-actions`, a conta já tem esse provedor. Importe-o com `pulumi import aws:iam/openIdConnectProvider:OpenIdConnectProvider github-actions arn:aws:iam::<CONTA>:oidc-provider/token.actions.githubusercontent.com` e rode `pulumi up` de novo.
-
-### Atualizar a infraestrutura pelo GitHub
-
-Com isto configurado, o merge na `main` também roda `pulumi up` na stack `prod`, então backend, servidor e infraestrutura saem sozinhos. Faça uma única vez, depois do `pulumi up` que cria a role `github-infra`:
+Depois de um `pulumi up` feito à mão (passo 5), que cria a role `github-infra`:
 
 1. Em [app.pulumi.com](https://app.pulumi.com) → **Settings → Access tokens**, crie um token (na conta dona da stack `prod`).
 2. Cadastre o token e a role no GitHub:
 
 ```bash
+cd pulumi
 gh secret set PULUMI_ACCESS_TOKEN          # cole o token quando pedir
 gh variable set AWS_INFRA_ROLE_ARN --body "$(pulumi stack output infra_role_arn)"
 ```
 
-Sem a variável `AWS_INFRA_ROLE_ARN`, o job **Atualizar a infraestrutura** é pulado e o `pulumi up` continua manual. A role `github-infra` é administradora da conta, mas só a `main` deste repositório consegue usá-la, então proteja a `main` contra push direto.
+Sem a variável `AWS_INFRA_ROLE_ARN`, o job **Publicar jogo e infraestrutura** é pulado e a publicação continua manual. A role `github-infra` é administradora da conta, mas só a `main` deste repositório consegue usá-la, então proteja a `main` contra push direto.
+
+Se o `pulumi up` responder `EntityAlreadyExists` para `github-actions`, a conta já tem esse provedor. Importe-o com `pulumi import aws:iam/openIdConnectProvider:OpenIdConnectProvider github-actions arn:aws:iam::<CONTA>:oidc-provider/token.actions.githubusercontent.com` e rode `pulumi up` de novo.
 
 ### E-mail de vitória
 
@@ -207,50 +154,38 @@ O `pulumi up` verifica o domínio no SES sozinho, pelos registros DKIM da zona, 
 
 Toda conta nova no SES começa no *sandbox*, que só entrega e-mails para endereços verificados. Para mandar a qualquer jogador, peça a saída em **SES → Account dashboard → Request production access** (tipo *Transactional*, citando o e-mail de vitória). Enquanto a AWS não aprova, verifique o seu e-mail em **SES → Identities → Create identity** para testar.
 
-Para voltar a uma versão anterior, reverta o commit na `main`. O merge da reversão publica o jogo de novo.
+## Como atualizar, voltar atrás e depurar
 
-## Como atualizar
-
-| O que mudou | O que fazer |
+| Situação | O que fazer |
 |---|---|
-| Jogo (`game/`) | Merge na `main`, e o resto é automático |
-| Servidor multiplayer (`server/`) | Merge na `main` com a infraestrutura automática configurada, senão `pulumi up`. **Recria a EC2 e derruba as partidas em andamento** |
-| Placar (`backend/`) ou infraestrutura (`pulumi/`) | Merge na `main` com a infraestrutura automática configurada, senão `pulumi up` |
+| Qualquer mudança (`game/`, `server/`, `backend/`, `pulumi/`) | Merge na `main` com a publicação automática configurada, senão `pulumi up` |
+| Saber o que vai mudar antes | `pulumi preview` (ou `pulumi preview --diff` para ver os detalhes): lista arquivos do jogo, Lambdas e o resto |
+| Voltar a uma versão anterior | Reverta o commit na `main`. O merge da reversão roda o `pulumi up` com o jogo e o backend antigos juntos |
+| O `pulumi up` falhou no meio | Corrija a causa e rode `pulumi up` de novo: ele compara o que existe com o código e termina o que faltou. Se alguém mexeu à mão no console, rode `pulumi refresh` antes |
+| Ver o que está no ar | `pulumi stack` lista os recursos, e `pulumi stack history` lista cada `pulumi up` com o commit |
 
-PRs que mexem em `server/`, `backend/` ou `pulumi/` recebem um comentário automático lembrando do `pulumi up`.
+Jogo e servidor saem sempre juntos, então o protocolo do multiplayer não fica desencontrado entre os dois.
 
-**Cuidado:** o jogo sai no merge, mas o servidor só muda com o `pulumi up`. Se o protocolo do multiplayer mudar, rode o `pulumi up` logo após o merge, porque o coop pode falhar nesse intervalo.
+O CloudFront não precisa de invalidação: os arquivos com hash no nome (`game.2f110086.js`) são imutáveis, e o resto (`index.html`, mapas, sprites) vai com `Cache-Control: no-cache`, então o CloudFront confere a versão no S3 a cada pedido.
 
 ## Se algo der errado
 
 | Sintoma | O que verificar |
 |---|---|
 | `pulumi up` parado no certificado por mais de 30 minutos | Os NS do passo 4 não batem com a delegação. Passe os valores de `ns_escape` ao professor |
-| Erro `no matching EC2 VPC found` | Passo 5 |
-| Erro de capacidade da `t4g.micro` | `pulumi config set multiplayerInstanceType t4g.small` e `pulumi up` |
-| Site abre, mas o multiplayer não conecta | Veja os logs abaixo. Confira também se a aba Network (F12) mostra `/ws` |
-| Erro 502 em `/ws` | O servidor não está rodando. Veja os logs abaixo |
-| Erro 401 em `/ws` | O site foi aberto por outro endereço, e só o domínio oficial é aceito |
-| Jogo antigo depois de publicar | Rode de novo a invalidação do passo 8 |
-| Publicação falha com `Not authorized to perform sts:AssumeRoleWithWebIdentity` | Confira a variável `AWS_DEPLOY_ROLE_ARN` e se o workflow rodou na `main`. Se estiver certo, confira o `sub` com `gh api repos/tes-victor-lucas/plataforma-c-escape-from-floripa/actions/oidc/customization/sub`: o `sub_claim_prefix` precisa ser igual a `github_repository` em `pulumi/__main__.py`, com `repo:` na frente. Depois de corrigir, rode `pulumi up` |
-| Publicação pulada na aba Actions | As variáveis de "Publicação automática" não foram configuradas |
-| Placar com erro | **CloudWatch → Log groups**, grupo da Lambda `score-api` |
+| `pulumi up` falha em `npm ci` ou no build | Rode `cd game && npm ci && npm run build-nolog` para ver o erro |
+| Site abre, mas o multiplayer não conecta | Rode o `scripts/smoke.js` do passo 6 e veja os logs das Lambdas `multiplayer-*` |
+| Erro 403 em `/ws` | O site foi aberto por outro endereço. Só o domínio oficial e a Feira de Jogos são aceitos (Lambda `multiplayer-connect`) |
+| Jogo antigo depois de publicar | Recarregue sem cache (Ctrl+Shift+R). Se persistir, confira no preview se os arquivos `site/...` mudaram |
+| Publicação falha com `Not authorized to perform sts:AssumeRoleWithWebIdentity` | Confira a variável `AWS_INFRA_ROLE_ARN` e se o workflow rodou na `main`. Se estiver certo, confira o `sub` com `gh api repos/tes-victor-lucas/plataforma-c-escape-from-floripa/actions/oidc/customization/sub`: o `sub_claim_prefix` precisa ser igual a `github_repository` em `pulumi/__main__.py`, com `repo:` na frente. Depois de corrigir, rode `pulumi up` |
+| Publicação pulada na aba Actions | A variável `AWS_INFRA_ROLE_ARN` não foi configurada |
+| Placar com erro | **CloudWatch → Log groups**, grupo da Lambda da rota (`start-run`, `finish-victory`, `discard-run` ou `leaderboard`) |
 | Erro 401 no placar | O token do Google expirou (dura 1 hora) ou o jogador não entrou. Os acessos recusados aparecem no grupo `score-api-access-logs`, com `authError` |
-| E-mail de vitória não chega | SES ainda no sandbox ou domínio não verificado (veja "E-mail de vitória"). Procure `victory_email_failure` nos logs da Lambda |
-
-### Ver os logs do servidor multiplayer
-
-Vá em **EC2 → Instances** (região São Paulo), selecione `escape-from-floripa-multiplayer` e clique em **Connect → Session Manager → Connect**. No terminal que abrir:
-
-```bash
-sudo systemctl status escape-multiplayer       # está rodando?
-sudo journalctl -u escape-multiplayer -n 50    # erros do servidor
-sudo tail -n 50 /var/log/cloud-init-output.log # erros da instalação
-```
+| E-mail de vitória não chega | SES ainda no sandbox ou domínio não verificado (veja "E-mail de vitória"). Procure `victory_email_failure` nos logs da Lambda `finish-victory` |
 
 ## Custos
 
-A estimativa é de **cerca de US$ 10 a 15 por mês** para pouco uso, quase tudo da EC2 e do IP fixo, que são cobrados mesmo sem jogadores. Placar, S3 e CloudFront tendem a custar centavos com pouco tráfego. São valores aproximados: confira na [calculadora da AWS](https://calculator.aws).
+Sem jogadores, o custo é praticamente zero: não há servidor ligado. Placar, S3, CloudFront e DynamoDB custam centavos com pouco tráfego. Uma hora de partida multiplayer fica entre US$ 0,50 e US$ 1 (a conta está em [diagrama-nuvem.md](diagrama-nuvem.md)). São valores aproximados: confira na [calculadora da AWS](https://calculator.aws).
 
 Para encerrar tudo ao fim da disciplina:
 
@@ -259,12 +194,11 @@ cd pulumi
 pulumi destroy --exclude-protected
 ```
 
-Isso apaga tudo menos a zona do domínio, que tem proteção contra exclusão. Mantenha a zona se o domínio ainda for usado, porque recriá-la muda os NS e exigiria falar de novo com o professor.
+Isso apaga tudo, inclusive os arquivos do jogo (que são recursos do Pulumi) e o bucket, menos a zona do domínio, que tem proteção contra exclusão. Mantenha a zona se o domínio ainda for usado, porque recriá-la muda os NS e exigiria falar de novo com o professor. Para apagar também a zona: `pulumi state unprotect 'urn:pulumi:prod::plataforma-c-escape-from-floripa::aws:route53/zone:Zone::escape-from-floripa'` e depois `pulumi destroy`.
 
 ## Limitações conhecidas
 
 - **Placar só com login:** quem joga sem entrar com Google não aparece no placar, e uma run com mais de 1 hora perde o registro, porque o ID token do Google expira.
 - **Combate decidido no cliente:** o computador do anfitrião simula os inimigos, então uma trapaça é possível.
-- **Servidor único:** um reinício derruba as partidas em andamento, e não há limite de mensagens por jogador.
-- **Trecho interno sem HTTPS:** do jogador ao CloudFront é criptografado, mas do CloudFront à EC2 não. O tráfego contém só o estado da partida, e a EC2 aceita conexões apenas do CloudFront.
-- **Infraestrutura automática opcional:** sem o token do Pulumi e a role `github-infra` cadastrados no GitHub, backend, servidor e infraestrutura dependem de `pulumi up` manual.
+- **Partida de até 2 horas:** é o limite de uma conexão WebSocket no API Gateway.
+- **Infraestrutura automática opcional:** sem o token do Pulumi e a role `github-infra` cadastrados no GitHub, a publicação depende de `pulumi up` manual.
