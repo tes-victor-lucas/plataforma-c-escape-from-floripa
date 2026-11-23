@@ -4367,6 +4367,26 @@ test('placar recebe o token do Google de quem entrou', async () => {
     assert.deepEqual(headers, [undefined, `Bearer ${token}`]);
 });
 
+test('perfil e salvo com PUT e o token do Google', async () => {
+    const { googleAuth } = load('../src/game/auth/GoogleAuth.ts');
+    const { scoreApi } = load('../src/game/scoring/ScoreApi.ts');
+    const token = googleIdToken({ name: 'Ana', exp: Date.now() / 1000 + 3600 });
+    const originalFetch = globalThis.fetch;
+    const calls = [];
+    globalThis.fetch = async (url, init) => {
+        calls.push([url, init.method, init.headers.authorization]);
+        return { ok: true, json: async () => ({ playerName: 'Ana', victories: 2 }) };
+    };
+    try {
+        googleAuth.accept(token);
+        assert.equal((await scoreApi.saveProfile()).victories, 2);
+    } finally {
+        globalThis.fetch = originalFetch;
+        googleAuth.signOut();
+    }
+    assert.deepEqual(calls, [['/api/profile', 'PUT', `Bearer ${token}`]]);
+});
+
 test('botas de prata aceleram o passo e as de diamante encurtam a recarga do dash', () => {
     const { Player } = load('../src/game/entities/Player.ts');
     const { SILVER_BOOTS, DIAMOND_BOOTS, ITEM_CHESTS, ITEMS } = load('../src/game/config/items.ts');
