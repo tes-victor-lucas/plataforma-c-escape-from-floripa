@@ -7,6 +7,9 @@ A tabela DynamoDB usa `pk` e `sk`. Resultados de versões ou modos diferentes nu
 | Run ativa | `RUN#<runId>` | `META` | TTL de 24 h; removida em abandono e na derrota do multiplayer (a derrota solo mantém a run para recomeçar do checkpoint) |
 | Run vencedora | `RUN#<runId>` | `META` | Permanente, com início/fim do servidor e detalhamento |
 | Melhor resultado | `LEADERBOARD#<mode>#V<version>` | `PLAYER#<sub>` | Um item por jogador |
+| Perfil do usuário | `USER#<sub>` | `PROFILE` | Permanente: nome, e-mail confirmado pelo Google, primeiro e último login, vitórias e data da última vitória |
+
+O perfil é criado ou atualizado no login (`PUT /profile`), sempre a partir do ID token validado pelo API Gateway: `<sub>` é o identificador da conta Google. O e-mail só é guardado quando o Google o marca como verificado, e é o mesmo usado no e-mail de vitória. Cada vitória soma 1 em `victories`, somente se o perfil já existir, para que uma vitória anônima não crie perfil.
 
 A atualização do melhor resultado é condicional: aceita pontuação maior ou, em empate, tempo menor. A consulta ordena por pontuação decrescente, tempo crescente e data de conclusão crescente.
 

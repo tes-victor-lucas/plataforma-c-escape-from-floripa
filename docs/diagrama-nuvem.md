@@ -12,9 +12,9 @@ flowchart LR
     S3["S3<br/>arquivos do jogo"]
     HTTP["API Gateway HTTP<br/>/api/*"]
     WS["API Gateway WebSocket<br/>/ws"]
-    LP["4 Lambdas Python<br/>uma por rota do placar"]
+    LP["5 Lambdas Python<br/>placar e perfil, uma por rota"]
     LM["7 Lambdas Node.js<br/>uma por rota do multiplayer"]
-    DBP["DynamoDB<br/>runs e placar"]
+    DBP["DynamoDB<br/>usuários, runs e placar"]
     DBM["DynamoDB<br/>salas e conexões"]
     SES["SES<br/>e-mail de vitória"]
     CW["CloudWatch<br/>logs e auditoria"]
@@ -40,7 +40,7 @@ flowchart LR
 
 - **Login:** o jogador entra com a conta Google (Google Identity Services), com o Client ID da Feira de Jogos do IFSC. O API Gateway valida o ID token nas rotas de escrita do placar. Jogar sem entrar continua possível, sem placar.
 
-- **Placar:** o API Gateway HTTP roteia cada rota para uma Lambda própria (`start_run`, `finish_victory`, `discard_run`, `leaderboard`, em `backend/`). Cada função leva só o próprio arquivo, o `common.py` e a fórmula (`score.py`). Só runs vencidas ficam salvas: a Lambda calcula a pontuação com os horários registrados no backend, e o ranking mantém o melhor resultado de cada jogador.
+- **Placar:** o API Gateway HTTP roteia cada rota para uma Lambda própria (`start_run`, `finish_victory`, `discard_run`, `leaderboard` e `save_profile`, em `backend/`). Cada função leva só o próprio arquivo, o `common.py` e a fórmula (`score.py`). Só runs vencidas ficam salvas: a Lambda calcula a pontuação com os horários registrados no backend, e o ranking mantém o melhor resultado de cada jogador.
 
 - **Multiplayer:** o API Gateway WebSocket mantém as conexões dos jogadores e escolhe a rota pelo campo `type` da mensagem (`lobby.join`, `lobby.list`, `player.state`, `match.event`, além de `$connect`, `$disconnect` e `$default`). Cada rota chama uma Lambda (`server/src/lambda/`), que guarda salas e conexões no DynamoDB e responde aos jogadores com `PostToConnection`. As regras ficam em `server/src/multiplayer.js`, as mesmas do servidor local de desenvolvimento.
 
