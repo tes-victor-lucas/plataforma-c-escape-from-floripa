@@ -1,39 +1,59 @@
 # Arquitetura de nuvem AWS
 
-Esta é uma proposta simples de arquitetura para o jogo **Plataforma C: Escape from Floripa**. A ideia é colocar o jogo web na AWS, guardar usuários e placar com segurança e deixar preparado o caminho para o multiplayer.
+Arquitetura do **Plataforma C: Escape from Floripa** como está implementada em `pulumi/__main__.py`. Tudo é serverless: nada fica ligado esperando jogador, e o custo acompanha o uso.
 
 ## Diagrama
 
 ```mermaid
 flowchart LR
     J["Jogador<br/>navegador"]
-    WEB["Site do jogo<br/>Route 53 + CloudFront + S3"]
-    LOGIN["Login<br/>Google (OAuth 2.0 / GSI)"]
-    BACK["Backend<br/>API Gateway + Lambda"]
-    DB["Banco de dados<br/>DynamoDB: usuários, runs e placar"]
-    MULTI["Multiplayer<br/>GameLift + IoT Core (broker)"]
-    SUPPORT["Apoio<br/>EventBridge, SQS, SES/SNS e CloudWatch"]
+    LOGIN["Login<br/>Google (GSI)"]
+    CDN["Route 53 + CloudFront<br/>escape-from-floripa.negoci.online"]
+    S3["S3<br/>arquivos do jogo"]
+    HTTP["API Gateway HTTP<br/>/api/*"]
+    WS["API Gateway WebSocket<br/>/ws"]
+    LP["4 Lambdas Python<br/>uma por rota do placar"]
+    LM["7 Lambdas Node.js<br/>uma por rota do multiplayer"]
+    DBP["DynamoDB<br/>runs e placar"]
+    DBM["DynamoDB<br/>salas e conexões"]
+    SES["SES<br/>e-mail de vitória"]
+    CW["CloudWatch<br/>logs e auditoria"]
 
-    J --> WEB
     J --> LOGIN
-    J --> BACK
-    BACK --> DB
-    J <-->|"multiplayer"| MULTI
-    BACK --> MULTI
-    BACK --> SUPPORT
+    J --> CDN
+    CDN --> S3
+    CDN --> HTTP
+    CDN <--> WS
+    HTTP --> LP
+    WS --> LM
+    LP --> DBP
+    LP --> SES
+    LM --> DBM
+    LM -->|"PostToConnection"| WS
+    LP --> CW
+    LM --> CW
 ```
 
 ## Explicação
 
-- **Site do jogo:** o jogador acessa um endereço do Route 53. O CloudFront entrega o frontend e os arquivos do jogo (imagens, sons e mapas), que ficam no S3. O CloudFront também fornece HTTPS.
+- **Site do jogo:** o Route 53 aponta o domínio para o CloudFront, que entrega o jogo guardado num bucket S3 privado e cuida do HTTPS. Os arquivos do build são recursos do Pulumi: o mesmo `pulumi up` publica jogo, placar e multiplayer a partir do mesmo commit.
 
-- **Login:** o jogador entra com a conta Google (Google Identity Services, OAuth 2.0), com o mesmo Client ID da Feira de Jogos do IFSC. O ID token identifica o usuário no placar, validado pelo API Gateway, e autoriza o crédito de tijolinhos na API da feira quando ele termina o jogo. Jogar sem entrar continua possível, sem placar nem crédito.
+- **Login:** o jogador entra com a conta Google (Google Identity Services), com o Client ID da Feira de Jogos do IFSC. O API Gateway valida o ID token nas rotas de escrita do placar. Jogar sem entrar continua possível, sem placar.
 
-- **Backend:** o frontend chama a API REST no API Gateway. As funções Lambda executam as regras que precisam ficar na nuvem, como iniciar/finalizar uma run, salvar o tempo e consultar o placar. O DynamoDB guarda usuários, runs vencedoras e o ranking.
+- **Placar:** o API Gateway HTTP roteia cada rota para uma Lambda própria (`start_run`, `finish_victory`, `discard_run`, `leaderboard`, em `backend/`). Cada função leva só o próprio arquivo, o `common.py` e a fórmula (`score.py`). Só runs vencidas ficam salvas: a Lambda calcula a pontuação com os horários registrados no backend, e o ranking mantém o melhor resultado de cada jogador.
 
-- **Placar:** somente runs vencidas são salvas. A Lambda calcula a pontuação com a versão da fórmula e com os horários de início e fim registrados no backend. O ranking separa modalidade e versão, mantém um resultado por jogador e ordena por maior pontuação, menor tempo e conclusão mais antiga.
+- **Multiplayer:** o API Gateway WebSocket mantém as conexões dos jogadores e escolhe a rota pelo campo `type` da mensagem (`lobby.join`, `lobby.list`, `player.state`, `match.event`, além de `$connect`, `$disconnect` e `$default`). Cada rota chama uma Lambda (`server/src/lambda/`), que guarda salas e conexões no DynamoDB e responde aos jogadores com `PostToConnection`. As regras ficam em `server/src/multiplayer.js`, as mesmas do servidor local de desenvolvimento.
 
-- **Multiplayer:** o GameLift Servers é o serviço da AWS voltado a hospedar partidas. O IoT Core funciona como o **broker**: recebe mensagens dos jogadores e distribui as atualizações da partida. O GameLift valida as ações importantes, como vitória e derrota.
+- **E-mail:** quando um jogador logado vence, a Lambda de vitória manda um e-mail pelo SES, com o domínio verificado por DKIM na zona do Route 53.
 
-- **Notificações e logs:** quando algo importante acontece, como uma run concluída, o EventBridge e o SQS enviam o evento para processamento sem atrasar o jogo. SES pode enviar e-mails e SNS notificações. CloudWatch guarda logs e ajuda a encontrar erros.
+- **Logs:** o CloudWatch guarda o log de acesso da API e uma linha JSON por operação crítica (início, vitória e descarte de run, entrada em sala, desconexão).
 
+## Por que não EC2 nem GameLift
+
+O multiplayer já rodou numa EC2 `t4g.micro`, cobrada 24 horas por dia mesmo sem jogadores (cerca de US$ 10 a 15 por mês com o IP fixo). O GameLift serve para servidores de jogo autoritativos, e aqui o servidor só repassa mensagens entre os dois jogadores de uma sala. Com WebSocket no API Gateway e Lambda, o custo é por mensagem e por minuto de conexão, e zero sem partidas.
+
+Limites desta escolha:
+
+- Uma conexão WebSocket do API Gateway cai após 10 minutos sem mensagens, o que não acontece: na partida o jogo manda 20 estados por segundo, e a espera por um parceiro termina em 5 minutos. A conexão também dura no máximo 2 horas, então uma partida mais longa que isso cai.
+- Cada mensagem passa por uma Lambda, o que soma alguns milissegundos à latência em relação a um servidor sempre ligado.
+- Cada jogador envia 20 estados por segundo e o anfitrião ainda envia os inimigos. Uma hora de partida dá cerca de 200 mil chamadas de Lambda e 400 mil mensagens no API Gateway, algo entre US$ 0,50 e US$ 1. Acima de umas 20 horas de partida por mês, a EC2 voltaria a sair mais barata.

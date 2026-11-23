@@ -1,32 +1,22 @@
 import { WebSocketServer } from 'ws';
-import { ConnectionAgent, isOriginAllowed } from './agents/ConnectionAgent.js';
-import { LobbyAgent } from './agents/LobbyAgent.js';
-import { MatchAgent } from './agents/MatchAgent.js';
-import { MessageBroker } from './broker/MessageBroker.js';
+import { attachMultiplayer } from './attachMultiplayer.js';
+import { isOriginAllowed } from './multiplayer.js';
 
-// Maior que o limite de eventos do MatchAgent, que responde com um erro claro.
+// Maior que o limite de eventos de multiplayer.js, que responde com um erro claro.
 const MAX_MESSAGE_BYTES = 32 * 1024;
 
+/** Servidor para desenvolvimento local; em produção o API Gateway WebSocket chama as Lambdas de src/lambda. */
 export function createMultiplayerServer({ port, allowedOrigin }) {
-    const broker = new MessageBroker();
     const webSocketServer = new WebSocketServer({
         port,
         maxPayload: MAX_MESSAGE_BYTES,
         verifyClient: ({ origin }) => isOriginAllowed(origin, allowedOrigin)
     });
-    const connectionAgent = new ConnectionAgent(broker, webSocketServer);
-    const lobbyAgent = new LobbyAgent(broker);
-    const matchAgent = new MatchAgent(broker, lobbyAgent);
-
-    lobbyAgent.start();
-    matchAgent.start();
-    connectionAgent.start();
+    const closeSockets = attachMultiplayer(webSocketServer);
 
     return {
         close() {
-            connectionAgent.stop();
-            lobbyAgent.stop();
-            matchAgent.stop();
+            closeSockets();
             return new Promise((resolve) => webSocketServer.close(resolve));
         }
     };

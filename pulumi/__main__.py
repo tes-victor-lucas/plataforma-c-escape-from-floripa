@@ -1,10 +1,13 @@
 import json
+import mimetypes
+import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pulumi
 import pulumi_aws as aws
 
-from multiplayer_server import SERVER_PORT, build_user_data
 
 config = pulumi.Config()
 require_authentication = config.get_bool("requireAuthentication") or False
@@ -17,6 +20,8 @@ is_prod = pulumi.get_stack() == "prod"
 email_sender = f"placar@{site_domain}" if is_prod else ""
 # Repositórios criados depois de 15/07/2026 identificam dono e repositório por ID no `sub` do OIDC.
 github_repository = "tes-victor-lucas@311227909/plataforma-c-escape-from-floripa@1317803667"
+# O Parcel põe 8 caracteres de hash no nome do que ele gera (game.2f110086.js); public/assets sai sem hash.
+PARCEL_HASHED_NAME = re.compile(r"\.[0-9a-f]{8}\.[a-z0-9]+$")
 
 score_table = aws.dynamodb.Table(
     "score-table",
@@ -77,21 +82,41 @@ if is_prod:
         }),
     )
 
-score_lambda = aws.lambda_.Function(
-    "score-api",
-    role=lambda_role.arn,
-    runtime="python3.12",
-    handler="handler.lambda_handler",
-    timeout=10,
-    memory_size=256,
-    code=pulumi.AssetArchive({
-        "handler.py": pulumi.FileAsset(str(root / "backend" / "handler.py")),
-        "score.py": pulumi.FileAsset(str(root / "backend" / "score.py")),
-    }),
-    environment=aws.lambda_.FunctionEnvironmentArgs(
-        variables={"SCORE_TABLE_NAME": score_table.name, "EMAIL_SENDER": email_sender},
-    ),
-)
+def lambda_route(api, name, route_key, *, runtime, handler, files, variables, role, http=True, **route_args):
+    """Uma Lambda por rota, como no exemplo da disciplina: cada uma leva só os arquivos que importa."""
+    function = aws.lambda_.Function(
+        name,
+        role=role.arn,
+        runtime=runtime,
+        handler=handler,
+        timeout=10,
+        memory_size=256,
+        code=pulumi.AssetArchive(files),
+        environment=aws.lambda_.FunctionEnvironmentArgs(variables=variables),
+    )
+    integration = aws.apigatewayv2.Integration(
+        name,
+        api_id=api.id,
+        integration_type="AWS_PROXY",
+        integration_uri=function.invoke_arn,
+        integration_method="POST",
+        **({"payload_format_version": "2.0"} if http else {}),
+    )
+    aws.lambda_.Permission(
+        name,
+        action="lambda:InvokeFunction",
+        function=function.name,
+        principal="apigateway.amazonaws.com",
+        source_arn=api.execution_arn.apply(lambda arn: f"{arn}/*/*"),
+    )
+    return aws.apigatewayv2.Route(
+        name,
+        api_id=api.id,
+        route_key=route_key,
+        target=pulumi.Output.concat("integrations/", integration.id),
+        **route_args,
+    )
+
 
 api = aws.apigatewayv2.Api(
     "score-http-api",
@@ -102,14 +127,6 @@ api = aws.apigatewayv2.Api(
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         max_age=86400,
     ),
-)
-integration = aws.apigatewayv2.Integration(
-    "score-lambda-integration",
-    api_id=api.id,
-    integration_type="AWS_PROXY",
-    integration_uri=score_lambda.arn,
-    integration_method="POST",
-    payload_format_version="2.0",
 )
 
 route_auth: dict[str, object] = {}
@@ -127,17 +144,19 @@ if require_authentication:
     )
     route_auth = {"authorization_type": "JWT", "authorizer_id": authorizer.id}
 
-for name, route_key, protected in [
-    ("start-run", "POST /runs", True),
-    ("finish-victory", "POST /runs/{runId}/victory", True),
-    ("discard-run", "DELETE /runs/{runId}", True),
-    ("leaderboard", "GET /leaderboard", False),
+for name, route_key, module, protected in [
+    ("start-run", "POST /runs", "start_run", True),
+    ("finish-victory", "POST /runs/{runId}/victory", "finish_victory", True),
+    ("discard-run", "DELETE /runs/{runId}", "discard_run", True),
+    ("leaderboard", "GET /leaderboard", "leaderboard", False),
 ]:
-    aws.apigatewayv2.Route(
-        name,
-        api_id=api.id,
-        route_key=route_key,
-        target=pulumi.Output.concat("integrations/", integration.id),
+    lambda_route(
+        api, name, route_key,
+        runtime="python3.12",
+        handler=f"{module}.handler",
+        files={file: pulumi.FileAsset(str(root / "backend" / file)) for file in (f"{module}.py", "common.py", "score.py")},
+        variables={"SCORE_TABLE_NAME": score_table.name, "EMAIL_SENDER": email_sender},
+        role=lambda_role,
         **(route_auth if protected else {}),
     )
 
@@ -165,12 +184,99 @@ stage = aws.apigatewayv2.Stage(
         }),
     ),
 )
-aws.lambda_.Permission(
-    "allow-http-api",
-    action="lambda:InvokeFunction",
-    function=score_lambda.name,
-    principal="apigateway.amazonaws.com",
-    source_arn=api.execution_arn.apply(lambda arn: f"{arn}/*/*"),
+
+# Multiplayer sem servidor ligado: o API Gateway mantém as conexões WebSocket e chama uma Lambda por mensagem.
+# Salas e conexões ficam no DynamoDB, porque cada chamada pode cair numa instância diferente da Lambda.
+multiplayer_table = aws.dynamodb.Table(
+    "multiplayer-table",
+    billing_mode="PAY_PER_REQUEST",
+    hash_key="pk",
+    attributes=[aws.dynamodb.TableAttributeArgs(name="pk", type="S")],
+    ttl=aws.dynamodb.TableTtlArgs(attribute_name="expiresAt", enabled=True),
+    server_side_encryption=aws.dynamodb.TableServerSideEncryptionArgs(enabled=True),
+    tags={"Application": "escape-from-floripa", "Data": "multiplayer-rooms"},
+)
+ws_api = aws.apigatewayv2.Api(
+    "multiplayer-ws-api",
+    protocol_type="WEBSOCKET",
+    route_selection_expression="$request.body.type",
+)
+# O CloudFront repassa /ws sem reescrever o caminho, então o estágio se chama "ws".
+WS_STAGE = "ws"
+multiplayer_role = aws.iam.Role(
+    "multiplayer-lambda-role",
+    assume_role_policy=lambda_role.assume_role_policy,
+)
+aws.iam.RolePolicyAttachment(
+    "multiplayer-lambda-logs",
+    role=multiplayer_role.name,
+    policy_arn="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+)
+aws.iam.RolePolicy(
+    "multiplayer-lambda-access",
+    role=multiplayer_role.id,
+    policy=pulumi.Output.all(multiplayer_table.arn, ws_api.execution_arn).apply(lambda arns: json.dumps({
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Scan"],
+                "Resource": arns[0],
+            },
+            {"Effect": "Allow", "Action": "execute-api:ManageConnections", "Resource": f"{arns[1]}/{WS_STAGE}/POST/@connections/*"},
+        ],
+    })),
+)
+multiplayer_variables = {
+    "TABLE_NAME": multiplayer_table.name,
+    "CALLBACK_URL": ws_api.api_endpoint.apply(lambda url: url.replace("wss://", "https://", 1) + f"/{WS_STAGE}"),
+    # Fora do prod (stack dev), qualquer origem conecta, como no servidor local.
+    "ALLOWED_ORIGIN": f"https://{site_domain},https://feira-de-jogos.dev.br" if is_prod else "",
+}
+server_src = root / "server" / "src"
+ws_routes = [
+    lambda_route(
+        ws_api, f"multiplayer-{name}", route_key,
+        runtime="nodejs22.x",
+        handler=f"lambda/{name}.handler",
+        files={
+            "package.json": pulumi.StringAsset('{"type": "module"}'),
+            **{file: pulumi.FileAsset(str(server_src / file))
+               for file in ["multiplayer.js", f"lambda/{name}.js", *([] if name == "connect" else ["lambda/aws.js"])]},
+        },
+        variables=multiplayer_variables,
+        role=multiplayer_role,
+        http=False,
+    )
+    for name, route_key in [
+        ("connect", "$connect"),
+        ("disconnect", "$disconnect"),
+        ("default", "$default"),
+        ("join", "lobby.join"),
+        ("list", "lobby.list"),
+        ("state", "player.state"),
+        ("event", "match.event"),
+    ]
+]
+# Estágio WebSocket não tem auto_deploy: uma rota nova ou trocada gera outro deployment.
+ws_deployment = aws.apigatewayv2.Deployment(
+    "multiplayer-ws-deployment",
+    api_id=ws_api.id,
+    triggers=pulumi.Output.all(*[route.target for route in ws_routes]).apply(
+        lambda targets: {"routes": ",".join(targets)}
+    ),
+    opts=pulumi.ResourceOptions(depends_on=ws_routes),
+)
+ws_stage = aws.apigatewayv2.Stage(
+    "multiplayer-ws-stage",
+    api_id=ws_api.id,
+    name=WS_STAGE,
+    deployment_id=ws_deployment.id,
+    # Cada jogador manda 20 estados por segundo, e o anfitrião ainda manda os inimigos.
+    default_route_settings=aws.apigatewayv2.StageDefaultRouteSettingsArgs(
+        throttling_burst_limit=500,
+        throttling_rate_limit=1000,
+    ),
 )
 
 if is_prod:
@@ -224,60 +330,26 @@ if is_prod:
 }""",
     )
 
-    # O servidor multiplayer só aceita conexões vindas do CloudFront, que cuida do HTTPS.
-    multiplayer_security_group = aws.ec2.SecurityGroup(
-        "multiplayer",
-        description="Servidor multiplayer acessivel somente pelo CloudFront",
-        vpc_id=aws.ec2.get_vpc(default=True).id,
-        ingress=[aws.ec2.SecurityGroupIngressArgs(
-            protocol="tcp",
-            from_port=SERVER_PORT,
-            to_port=SERVER_PORT,
-            prefix_list_ids=[
-                aws.ec2.get_managed_prefix_list(name="com.amazonaws.global.cloudfront.origin-facing").id,
-            ],
-        )],
-        egress=[aws.ec2.SecurityGroupEgressArgs(
-            protocol="-1", from_port=0, to_port=0, cidr_blocks=["0.0.0.0/0"],
-        )],
-    )
-    # Session Manager dá acesso aos logs sem abrir a porta de SSH.
-    multiplayer_role = aws.iam.Role(
-        "multiplayer",
-        assume_role_policy=json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Effect": "Allow",
-                "Principal": {"Service": "ec2.amazonaws.com"},
-                "Action": "sts:AssumeRole",
-            }],
-        }),
-    )
-    aws.iam.RolePolicyAttachment(
-        "multiplayer-session-manager",
-        role=multiplayer_role.name,
-        policy_arn="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
-    )
-    multiplayer_instance = aws.ec2.Instance(
-        "multiplayer",
-        ami=aws.ssm.get_parameter(
-            name="/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64",
-        ).value,
-        instance_type=config.get("multiplayerInstanceType") or "t4g.micro",
-        iam_instance_profile=aws.iam.InstanceProfile("multiplayer", role=multiplayer_role.name).name,
-        vpc_security_group_ids=[multiplayer_security_group.id],
-        associate_public_ip_address=True,
-        user_data=build_user_data(root / "server", f"https://{site_domain},https://feira-de-jogos.dev.br"),
-        user_data_replace_on_change=True,
-        metadata_options=aws.ec2.InstanceMetadataOptionsArgs(http_tokens="required"),
-        root_block_device=aws.ec2.InstanceRootBlockDeviceArgs(encrypted=True),
-        tags={"Name": "escape-from-floripa-multiplayer", "Application": "escape-from-floripa"},
-        # A AMI mais recente muda sozinha e não deve derrubar partidas a cada `pulumi up`.
-        opts=pulumi.ResourceOptions(ignore_changes=["ami"]),
-    )
-    # O CloudFront exige um nome, e este continua o mesmo quando a instância é recriada.
-    multiplayer_ip = aws.ec2.Eip("multiplayer", domain="vpc", instance=multiplayer_instance.id)
-    pulumi.export("multiplayer_instance_id", multiplayer_instance.id)
+    # O jogo sai no mesmo `pulumi up` que a API e o multiplayer: os dois lados vêm do mesmo commit,
+    # o preview lista cada arquivo que muda, e o destroy apaga os arquivos junto com o bucket.
+    game_dir = root / "game"
+    dist_dir = game_dir / "dist"
+    # O Parcel não limpa a pasta, e um arquivo velho viraria recurso.
+    shutil.rmtree(dist_dir, ignore_errors=True)
+    subprocess.run(["npm", "ci"], cwd=game_dir, check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(["npm", "run", "build-nolog"], cwd=game_dir, check=True, stdout=subprocess.DEVNULL)
+    for file in sorted(path for path in dist_dir.rglob("*") if path.is_file()):
+        key = file.relative_to(dist_dir).as_posix()
+        aws.s3.BucketObjectv2(
+            f"site/{key}",
+            bucket=site_bucket.id,
+            key=key,
+            source=pulumi.FileAsset(str(file)),
+            content_type=mimetypes.guess_type(key)[0] or "application/octet-stream",
+            # Nome com hash do Parcel nunca muda de conteúdo; o resto o CloudFront confere na origem,
+            # então um deploy vale na hora, sem invalidar o cache.
+            cache_control="public, max-age=31536000, immutable" if PARCEL_HASHED_NAME.search(key) else "no-cache",
+        )
 
     distribution = aws.cloudfront.Distribution(
         "site",
@@ -303,11 +375,11 @@ if is_prod:
             ),
             aws.cloudfront.DistributionOriginArgs(
                 origin_id="multiplayer",
-                domain_name=multiplayer_ip.public_dns,
+                domain_name=ws_api.api_endpoint.apply(lambda url: url.removeprefix("wss://")),
                 custom_origin_config=aws.cloudfront.DistributionOriginCustomOriginConfigArgs(
-                    http_port=SERVER_PORT,
+                    http_port=80,
                     https_port=443,
-                    origin_protocol_policy="http-only",
+                    origin_protocol_policy="https-only",
                     origin_ssl_protocols=["TLSv1.2"],
                 ),
             ),
@@ -341,7 +413,8 @@ if is_prod:
                 allowed_methods=["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"],
                 cached_methods=["GET", "HEAD"],
                 cache_policy_id="4135ea2d-6df8-44a3-9df3-4b5a84be39ad",  # Managed-CachingDisabled
-                origin_request_policy_id="216adef6-5c7f-47e4-b989-5492eafa07d3",  # Managed-AllViewer, exigida para WebSocket
+                # Repassa os cabeçalhos do WebSocket e a origem, mas não o Host: o API Gateway exige o próprio.
+                origin_request_policy_id="b689b0a8-53d0-40ab-baf2-68738e2966ac",  # Managed-AllViewerExceptHostHeader
             ),
         ],
         restrictions=aws.cloudfront.DistributionRestrictionsArgs(
@@ -380,41 +453,12 @@ if is_prod:
         )],
     )
 
-    # O GitHub Actions publica o jogo com credenciais temporárias, sem chave guardada no repositório.
+    # O GitHub Actions roda o `pulumi up` com credenciais temporárias, sem chave guardada no repositório.
     github_oidc = aws.iam.OpenIdConnectProvider(
         "github-actions",
         url="https://token.actions.githubusercontent.com",
         client_id_lists=["sts.amazonaws.com"],
     )
-    deploy_role = aws.iam.Role(
-        "github-deploy",
-        assume_role_policy=github_oidc.arn.apply(lambda arn: json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Effect": "Allow",
-                "Principal": {"Federated": arn},
-                "Action": "sts:AssumeRoleWithWebIdentity",
-                "Condition": {"StringEquals": {
-                    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                    # Só a main publica; PRs não conseguem assumir esta role.
-                    "token.actions.githubusercontent.com:sub": f"repo:{github_repository}:ref:refs/heads/main",
-                }},
-            }],
-        })),
-    )
-    aws.iam.RolePolicy(
-        "github-deploy-site",
-        role=deploy_role.id,
-        policy=pulumi.Output.all(site_bucket.arn, distribution.arn).apply(lambda arns: json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [
-                {"Effect": "Allow", "Action": "s3:ListBucket", "Resource": arns[0]},
-                {"Effect": "Allow", "Action": ["s3:PutObject", "s3:DeleteObject"], "Resource": f"{arns[0]}/*"},
-                {"Effect": "Allow", "Action": "cloudfront:CreateInvalidation", "Resource": arns[1]},
-            ],
-        })),
-    )
-    pulumi.export("deploy_role_arn", deploy_role.arn)
 
     # O `pulumi up` da main cria e apaga recursos de qualquer tipo, por isso a role é administradora.
     infra_role = aws.iam.Role(
@@ -460,3 +504,4 @@ if is_prod:
 pulumi.export("score_api_url", api.api_endpoint)
 pulumi.export("score_table_name", score_table.name)
 pulumi.export("score_api_stage", stage.name)
+pulumi.export("multiplayer_ws_url", pulumi.Output.concat(ws_api.api_endpoint, "/", WS_STAGE))

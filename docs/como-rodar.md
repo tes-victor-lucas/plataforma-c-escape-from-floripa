@@ -78,7 +78,7 @@ npm test
 npx tsc --noEmit
 ```
 
-Servidor multiplayer:
+Multiplayer (a integração com o DynamoDB Local roda só com `DYNAMODB_ENDPOINT`, veja `server/README.md`):
 
 ```bash
 cd server
@@ -94,6 +94,14 @@ python3 -m unittest discover -s tests
 
 ## API de placar
 
-A API de placar não possui um servidor local. Ela é executada na AWS por meio de Lambda e API Gateway.
+Com Docker e o [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) instalados, o placar roda localmente com as mesmas Lambdas da AWS e um DynamoDB Local:
 
-Sem a API configurada, o jogo funciona normalmente, mas não salva runs nem carrega o ranking remoto. A infraestrutura está descrita em `docs/nuvem-aws-pulumi.md`.
+```bash
+cd backend
+make api     # API em http://127.0.0.1:3000; Ctrl+C para parar
+make stop    # desliga o DynamoDB Local (os dados ficam só em memória)
+```
+
+Com `npm run dev` (ou `dev-nolog`) rodando no jogo, o `/api` de http://localhost:1234 é repassado para o SAM (`game/.proxyrc.json`), como o CloudFront faz em produção. Localmente não há login: as runs entram no placar como "Jogador".
+
+Sem o SAM rodando, o jogo funciona normalmente, mas não salva runs nem carrega o ranking. A infraestrutura da AWS está descrita em `docs/nuvem-aws-pulumi.md`.

@@ -78,13 +78,13 @@ No celular aparecem joystick e botões na tela, e o jogo entra em tela cheia com
 | Parte | Tecnologia | Onde |
 |---|---|---|
 | Jogo | Phaser 4, TypeScript, Parcel 2 | `game/` |
-| Servidor multiplayer | Node.js + WebSocket, em EC2 | `server/` |
-| Placar | Python em Lambda, API Gateway e DynamoDB | `backend/` |
-| Infraestrutura | Pulumi (Python): S3, CloudFront, ACM, Route 53, EC2 | `pulumi/` |
+| Multiplayer | API Gateway WebSocket + Lambdas Node.js + DynamoDB (servidor `ws` local para desenvolvimento) | `server/` |
+| Placar | API Gateway HTTP + uma Lambda Python por rota + DynamoDB | `backend/` |
+| Infraestrutura | Pulumi (Python): S3, CloudFront, ACM, Route 53, API Gateway, Lambda, DynamoDB, SES | `pulumi/` |
 | Documentação | GDD, requisitos, regras de negócio, casos de uso, diagramas | `docs/` |
 | Vídeo de abertura | HyperFrames | `video/intro/` |
 
-O CloudFront entrega o jogo e encaminha `/api/*` para o placar e `/ws` para o servidor multiplayer, tudo no mesmo domínio. Cada merge na `main` publica o jogo pelo GitHub Actions; mudanças em `server/`, `backend/` ou `pulumi/` exigem `pulumi up` (um workflow avisa no PR). Passo a passo em [docs/deploy-aws.md](docs/deploy-aws.md).
+O CloudFront entrega o jogo e encaminha `/api/*` para o placar e `/ws` para o multiplayer, tudo no mesmo domínio. Não há servidor ligado: tudo é API Gateway, Lambda e DynamoDB. Um único `pulumi up` gera o build do jogo e publica jogo, placar e multiplayer juntos, e o GitHub Actions roda esse `pulumi up` a cada merge na `main`. Arquitetura em [docs/diagrama-nuvem.md](docs/diagrama-nuvem.md), passo a passo em [docs/deploy-aws.md](docs/deploy-aws.md).
 
 ## Como rodar localmente
 
@@ -105,7 +105,6 @@ Multiplayer na mesma rede: na raiz, `npm run lan` e abra nos dois computadores o
 - **Atalhos de teste (ativos também em produção):** digitar `9090` nas Salas I a IV elimina a horda atual e encerra o combate, liberando a saída; `8080` na Sala III dá uma carta forte. O atalho `?room=N` na URL só funciona em desenvolvimento (bloqueado no build de produção pelo PR #41).
 - **Login com Google e Feira de Jogos (PR #40, em andamento):** usa o Client ID da feira. Para o login funcionar é preciso cadastrar em *Authorized JavaScript origins* os endereços `https://escape-from-floripa.negoci.online` e `http://localhost:1234`, e liberar o CORS do `POST /api/v2/credit` para o nosso domínio. Quem vence logado recebe 100 tijolinhos (produto 97).
 - **Hospedagem dentro da feira:** o build usa caminhos relativos, então funciona numa subpasta de `feira-de-jogos.dev.br`. No PR #40, o placar e o multiplayer passam a apontar para o nosso domínio quando o jogo roda em HTTPS, e o servidor multiplayer aceita a origem da feira.
-- **`pulumi up` pendente:** os PRs #40 e #41 mexem no servidor multiplayer (origem da feira e limite de itens vestidos). Até o `pulumi up` rodar, o servidor em produção continua com as regras antigas.
 - **Feira de jogos sem login:** sem login, nenhum crédito é enviado; o pagamento fica manual.
 - **Extensão do trabalho:** dungeon procedural por seed, descrita em [extensoes.md](extensoes.md).
 
