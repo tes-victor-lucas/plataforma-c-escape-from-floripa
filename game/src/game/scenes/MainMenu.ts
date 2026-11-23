@@ -14,6 +14,7 @@ import {
 import { runTracker } from '../scoring/RunTracker';
 import { playIntroVideo } from '../ui/IntroVideo';
 import { googleAuth } from '../auth/GoogleAuth';
+import { scoreApi } from '../scoring/ScoreApi';
 
 const GAMEPLAY_SCENES = [
     'World',
@@ -77,7 +78,9 @@ export class MainMenu extends Scene {
         }
         return {
             label: 'ENTRAR COM GOOGLE',
-            onSelect: () => void googleAuth.signIn().then(() => {
+            onSelect: () => void googleAuth.signIn().then((user) => {
+                // Sem placar no ar, o login continua valendo para a feira; o perfil fica para o próximo login.
+                if (user) void scoreApi.saveProfile().catch(() => undefined);
                 if (this.scene.isActive()) this.view?.refreshMainMenu();
             })
         };
