@@ -1,4 +1,9 @@
 import unittest
+import sys
+from pathlib import Path
+
+# Roda de qualquer pasta, inclusive da raiz: `python3 -m unittest discover -s backend/tests`.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from score import calculate_score, damage_points, multi_kill_bonus, time_points
 
