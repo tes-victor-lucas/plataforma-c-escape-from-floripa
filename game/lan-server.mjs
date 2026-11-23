@@ -6,10 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import parcelCore from '@parcel/core';
 import { WebSocketServer } from 'ws';
-import { ConnectionAgent } from '../server/src/agents/ConnectionAgent.js';
-import { LobbyAgent } from '../server/src/agents/LobbyAgent.js';
-import { MatchAgent } from '../server/src/agents/MatchAgent.js';
-import { MessageBroker } from '../server/src/broker/MessageBroker.js';
+import { attachMultiplayer } from '../server/src/attachMultiplayer.js';
 
 const { Parcel } = parcelCore;
 const gameDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -109,25 +106,11 @@ function getLanAddresses() {
 
 await buildGame();
 
-const broker = new MessageBroker();
 const httpServer = createServer((request, response) => {
     void serveFile(request, response);
 });
 const webSocketServer = new WebSocketServer({ server: httpServer });
-const connectionAgent = new ConnectionAgent(broker, webSocketServer);
-const lobbyAgent = new LobbyAgent(broker);
-const matchAgent = new MatchAgent(broker, lobbyAgent);
-
-lobbyAgent.start();
-matchAgent.start();
-connectionAgent.start();
-
-broker.subscribe('client.message', ({ clientId, message }) => {
-    if (message.type !== 'lobby.join') return;
-    const room = lobbyAgent.getRoomForClient(clientId);
-    console.log(`Sala ${room?.id ?? 'publica'}: ${room?.players.size ?? 0}/2 jogadores.`);
-    if (room?.ready) console.log('Dupla encontrada. Partida iniciada!');
-});
+const closeSockets = attachMultiplayer(webSocketServer);
 
 httpServer.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
@@ -151,9 +134,7 @@ httpServer.listen(port, '0.0.0.0', () => {
 });
 
 function shutdown() {
-    connectionAgent.stop();
-    lobbyAgent.stop();
-    matchAgent.stop();
+    closeSockets();
     webSocketServer.close();
     httpServer.close(() => process.exit(0));
 }
