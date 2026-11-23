@@ -14,7 +14,8 @@ from score import SCORE_VERSION
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
-TABLE = boto3.resource("dynamodb").Table(os.environ["SCORE_TABLE_NAME"])
+# DYNAMODB_ENDPOINT só existe no `sam local` (DynamoDB Local); na AWS fica vazio e o boto3 usa o padrão.
+TABLE = boto3.resource("dynamodb", endpoint_url=os.environ.get("DYNAMODB_ENDPOINT") or None).Table(os.environ["SCORE_TABLE_NAME"])
 ALLOWED_MODES = {"SINGLE_PLAYER", "MULTIPLAYER"}
 
 

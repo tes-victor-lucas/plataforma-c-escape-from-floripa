@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Placar do Escape from Floripa (execução local com SAM)
+
+# Usado só pelo `sam local` (make api); a infraestrutura real está em pulumi/__main__.py.
+# HttpApi gera o mesmo evento (payload 2.0) do API Gateway HTTP de produção.
+Globals:
+  Function:
+    Runtime: python3.12
+    CodeUri: .
+    Timeout: 10
+    Environment:
+      Variables:
+        SCORE_TABLE_NAME: escape-score
+        EMAIL_SENDER: ""
+        # Declaradas aqui para que o env.json possa sobrescrevê-las.
+        DYNAMODB_ENDPOINT: ""
+        AWS_ACCESS_KEY_ID: ""
+        AWS_SECRET_ACCESS_KEY: ""
+
+Resources:
+  StartRunFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: start_run.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /runs
+            Method: post
+
+  FinishVictoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: finish_victory.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /runs/{runId}/victory
+            Method: post
+
+  DiscardRunFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: discard_run.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /runs/{runId}
+            Method: delete
+
+  LeaderboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: leaderboard.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /leaderboard
+            Method: get
