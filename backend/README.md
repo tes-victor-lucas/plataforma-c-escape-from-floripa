@@ -19,6 +19,19 @@ uma vitória.
 
 O frontend usa o endereço exportado pelo Pulumi como `ESCAPE_FROM_FLORIPA_CONFIG.scoreApiUrl`. Runs ativas têm TTL de 24 horas. O registro vira permanente somente após uma vitória. Em produção, configure `pulumi config set requireAuthentication true`; os endpoints de escrita passam a exigir o ID token do Google (login do jogo) e a Lambda usa `sub` como identidade e `name` como nome no placar.
 
+## Rodar localmente (AWS SAM)
+
+`template.yaml` descreve as mesmas quatro Lambdas para o `sam local`, com eventos `HttpApi` (o mesmo formato do API Gateway de produção). `compose.yaml` sobe o DynamoDB Local e cria a tabela, e `env.json` aponta as Lambdas para ele.
+
+```bash
+cd backend
+make api            # DynamoDB Local + sam local start-api em http://127.0.0.1:3000
+make leaderboard    # GET /leaderboard
+make stop
+```
+
+A infraestrutura real continua só no Pulumi; o template é usado apenas localmente.
+
 ## Testes
 
 ```bash
