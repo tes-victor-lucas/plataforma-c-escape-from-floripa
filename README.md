@@ -106,7 +106,7 @@ Multiplayer na mesma rede: na raiz, `npm run lan` e abra nos dois computadores o
 - **Login com Google e Feira de Jogos (PR #40, em andamento):** usa o Client ID da feira. Para o login funcionar é preciso cadastrar em *Authorized JavaScript origins* os endereços `https://escape-from-floripa.negoci.online` e `http://localhost:1234`, e liberar o CORS do `POST /api/v2/credit` para o nosso domínio. Quem vence logado recebe 100 tijolinhos (produto 97).
 - **Hospedagem dentro da feira:** o build usa caminhos relativos, então funciona numa subpasta de `feira-de-jogos.dev.br`. No PR #40, o placar e o multiplayer passam a apontar para o nosso domínio quando o jogo roda em HTTPS, e o servidor multiplayer aceita a origem da feira.
 - **Feira de jogos sem login:** sem login, nenhum crédito é enviado; o pagamento fica manual.
-- **Extensão do trabalho:** dungeon procedural por seed, descrita em [extensoes.md](extensoes.md).
+- **Multiplayer e extensões:** o coop, a dungeon procedural por seed (Extensão 1) e o suporte a controle (Extensão 2) estão descritos em [extensoes.md](extensoes.md).
 
 ---
 
