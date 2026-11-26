@@ -6,11 +6,15 @@ type MessageHandler = (message: ServerMessage) => void;
 
 const ROOM_LIST_INTERVAL = 2_000;
 
-/** Publicado com HTTPS, conecta sempre no nosso servidor, mesmo com o jogo hospedado na feira; localmente, na porta 8080. */
+/**
+ * Publicado com HTTPS, conecta no nosso servidor, mesmo com o jogo hospedado na feira; no endereço
+ * *.cloudfront.net (stack dev), no /ws do próprio CloudFront; localmente, na porta 8080.
+ */
 export function getDefaultServerUrl(location: Pick<Location, 'protocol' | 'hostname'>) {
-    return location.protocol === 'https:'
-        ? 'wss://escape-from-floripa.negoci.online/ws'
-        : `ws://${location.hostname}:8080`;
+    if (location.protocol !== 'https:') return `ws://${location.hostname}:8080`;
+    return location.hostname.endsWith('.cloudfront.net')
+        ? `wss://${location.hostname}/ws`
+        : 'wss://escape-from-floripa.negoci.online/ws';
 }
 
 /** Cliente persistente entre as cenas do menu e do mundo. */

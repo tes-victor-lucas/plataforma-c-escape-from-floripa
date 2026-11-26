@@ -26,9 +26,15 @@ type VictoryPayload = Readonly<{
     pausedMs: number;
 }>;
 
-/** Publicado com HTTPS, usa sempre o nosso placar, mesmo com o jogo hospedado na feira; localmente, o `/api` do próprio servidor. */
-export function getDefaultScoreApiUrl(protocol = typeof window === 'undefined' ? '' : window.location.protocol) {
-    return protocol === 'https:' ? 'https://escape-from-floripa.negoci.online/api' : '/api';
+/**
+ * Publicado com HTTPS, usa o nosso placar, mesmo com o jogo hospedado na feira; no endereço *.cloudfront.net
+ * (stack dev) e localmente, o `/api` do próprio servidor.
+ */
+export function getDefaultScoreApiUrl(
+    protocol = typeof window === 'undefined' ? '' : window.location.protocol,
+    hostname = typeof window === 'undefined' ? '' : window.location.hostname
+) {
+    return protocol === 'https:' && !hostname.endsWith('.cloudfront.net') ? 'https://escape-from-floripa.negoci.online/api' : '/api';
 }
 
 const getBaseUrl = () => {
