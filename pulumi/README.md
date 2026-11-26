@@ -21,9 +21,9 @@ pulumi up
 
 Com autenticação ativa, só quem escolhe ENTRAR COM GOOGLE no menu do jogo registra runs, com o nome da conta no placar; quem joga sem entrar não aparece nele. O Client ID aceito é o da Feira de Jogos e pode ser trocado com `pulumi config set googleClientId <id>`. O endpoint público de consulta ao placar permanece sem autenticação.
 
-## Site do jogo (stack `prod`)
+## Site do jogo (stacks `dev` e `prod`)
 
-No stack `prod`, o jogo é servido em `https://escape-from-floripa.negoci.online` por CloudFront, a partir de um bucket S3 privado. O CloudFront também encaminha `/api/*` para a API de pontuação, que é o endereço padrão do frontend, então não é preciso configurar `scoreApiUrl`.
+As duas stacks servem o jogo por CloudFront, a partir de um bucket S3 privado: o `prod` em `https://escape-from-floripa.negoci.online`, e o `dev` no endereço `*.cloudfront.net` mostrado por `pulumi stack output site_url`. A diferença entre elas é só o domínio (Route 53 + ACM) e o SES. O CloudFront também encaminha `/api/*` para a API de pontuação, que é o endereço padrão do frontend, então não é preciso configurar `scoreApiUrl`.
 
 ```bash
 pulumi stack select prod
