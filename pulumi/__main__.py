@@ -313,135 +313,140 @@ if is_prod:
         opts=pulumi.ResourceOptions(provider=us_east_1),
     )
 
-    site_bucket = aws.s3.Bucket("site", force_destroy=True)
-    origin_access = aws.cloudfront.OriginAccessControl(
-        "site-origin-access",
-        origin_access_control_origin_type="s3",
-        signing_behavior="always",
-        signing_protocol="sigv4",
-    )
-    # O jogo chama a API em /api (ScoreApi.ts), mas as rotas do API Gateway não têm esse prefixo.
-    strip_api_prefix = aws.cloudfront.Function(
-        "strip-api-prefix",
-        runtime="cloudfront-js-2.0",
-        code="""function handler(event) {
+
+# dev e prod têm a mesma infraestrutura: o prod só acrescenta o domínio (Route 53 + ACM) e o SES.
+site_bucket = aws.s3.Bucket("site", force_destroy=True)
+origin_access = aws.cloudfront.OriginAccessControl(
+    "site-origin-access",
+    origin_access_control_origin_type="s3",
+    signing_behavior="always",
+    signing_protocol="sigv4",
+)
+# O jogo chama a API em /api (ScoreApi.ts), mas as rotas do API Gateway não têm esse prefixo.
+strip_api_prefix = aws.cloudfront.Function(
+    "strip-api-prefix",
+    runtime="cloudfront-js-2.0",
+    code="""function handler(event) {
     var request = event.request;
     request.uri = request.uri.replace(/^\\/api/, '') || '/';
     return request;
 }""",
-    )
+)
 
-    # O jogo sai no mesmo `pulumi up` que a API e o multiplayer: os dois lados vêm do mesmo commit,
-    # o preview lista cada arquivo que muda, e o destroy apaga os arquivos junto com o bucket.
-    game_dir = root / "game"
-    dist_dir = game_dir / "dist"
-    # O Parcel não limpa a pasta, e um arquivo velho viraria recurso.
-    shutil.rmtree(dist_dir, ignore_errors=True)
-    subprocess.run(["npm", "ci"], cwd=game_dir, check=True, stdout=subprocess.DEVNULL)
-    subprocess.run(["npm", "run", "build-nolog"], cwd=game_dir, check=True, stdout=subprocess.DEVNULL)
-    for file in sorted(path for path in dist_dir.rglob("*") if path.is_file()):
-        key = file.relative_to(dist_dir).as_posix()
-        aws.s3.BucketObjectv2(
-            f"site/{key}",
-            bucket=site_bucket.id,
-            key=key,
-            source=pulumi.FileAsset(str(file)),
-            content_type=mimetypes.guess_type(key)[0] or "application/octet-stream",
-            # Nome com hash do Parcel nunca muda de conteúdo; o resto o CloudFront confere na origem,
-            # então um deploy vale na hora, sem invalidar o cache.
-            cache_control="public, max-age=31536000, immutable" if PARCEL_HASHED_NAME.search(key) else "no-cache",
-        )
-
-    distribution = aws.cloudfront.Distribution(
-        "site",
-        enabled=True,
-        aliases=[zone.name],
-        default_root_object="index.html",
-        price_class="PriceClass_All",
-        origins=[
-            aws.cloudfront.DistributionOriginArgs(
-                origin_id="site",
-                domain_name=site_bucket.bucket_regional_domain_name,
-                origin_access_control_id=origin_access.id,
-            ),
-            aws.cloudfront.DistributionOriginArgs(
-                origin_id="score-api",
-                domain_name=api.api_endpoint.apply(lambda url: url.removeprefix("https://")),
-                custom_origin_config=aws.cloudfront.DistributionOriginCustomOriginConfigArgs(
-                    http_port=80,
-                    https_port=443,
-                    origin_protocol_policy="https-only",
-                    origin_ssl_protocols=["TLSv1.2"],
-                ),
-            ),
-            aws.cloudfront.DistributionOriginArgs(
-                origin_id="multiplayer",
-                domain_name=ws_api.api_endpoint.apply(lambda url: url.removeprefix("wss://")),
-                custom_origin_config=aws.cloudfront.DistributionOriginCustomOriginConfigArgs(
-                    http_port=80,
-                    https_port=443,
-                    origin_protocol_policy="https-only",
-                    origin_ssl_protocols=["TLSv1.2"],
-                ),
-            ),
-        ],
-        default_cache_behavior=aws.cloudfront.DistributionDefaultCacheBehaviorArgs(
-            target_origin_id="site",
-            viewer_protocol_policy="redirect-to-https",
-            allowed_methods=["GET", "HEAD"],
-            cached_methods=["GET", "HEAD"],
-            compress=True,
-            cache_policy_id="658327ea-f89d-4fab-a63d-7e88639e58f6",  # Managed-CachingOptimized
-        ),
-        ordered_cache_behaviors=[
-            aws.cloudfront.DistributionOrderedCacheBehaviorArgs(
-                path_pattern="/api/*",
-                target_origin_id="score-api",
-                viewer_protocol_policy="redirect-to-https",
-                allowed_methods=["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"],
-                cached_methods=["GET", "HEAD"],
-                cache_policy_id="4135ea2d-6df8-44a3-9df3-4b5a84be39ad",  # Managed-CachingDisabled
-                origin_request_policy_id="b689b0a8-53d0-40ab-baf2-68738e2966ac",  # Managed-AllViewerExceptHostHeader
-                function_associations=[aws.cloudfront.DistributionOrderedCacheBehaviorFunctionAssociationArgs(
-                    event_type="viewer-request",
-                    function_arn=strip_api_prefix.arn,
-                )],
-            ),
-            aws.cloudfront.DistributionOrderedCacheBehaviorArgs(
-                path_pattern="/ws",
-                target_origin_id="multiplayer",
-                viewer_protocol_policy="https-only",
-                allowed_methods=["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"],
-                cached_methods=["GET", "HEAD"],
-                cache_policy_id="4135ea2d-6df8-44a3-9df3-4b5a84be39ad",  # Managed-CachingDisabled
-                # Repassa os cabeçalhos do WebSocket e a origem, mas não o Host: o API Gateway exige o próprio.
-                origin_request_policy_id="b689b0a8-53d0-40ab-baf2-68738e2966ac",  # Managed-AllViewerExceptHostHeader
-            ),
-        ],
-        restrictions=aws.cloudfront.DistributionRestrictionsArgs(
-            geo_restriction=aws.cloudfront.DistributionRestrictionsGeoRestrictionArgs(restriction_type="none"),
-        ),
-        viewer_certificate=aws.cloudfront.DistributionViewerCertificateArgs(
-            acm_certificate_arn=certificate_validation.certificate_arn,
-            ssl_support_method="sni-only",
-            minimum_protocol_version="TLSv1.2_2021",
-        ),
-    )
-
-    aws.s3.BucketPolicy(
-        "site",
+# O jogo sai no mesmo `pulumi up` que a API e o multiplayer: os dois lados vêm do mesmo commit,
+# o preview lista cada arquivo que muda, e o destroy apaga os arquivos junto com o bucket.
+game_dir = root / "game"
+dist_dir = game_dir / "dist"
+# O Parcel não limpa a pasta, e um arquivo velho viraria recurso.
+shutil.rmtree(dist_dir, ignore_errors=True)
+subprocess.run(["npm", "ci"], cwd=game_dir, check=True, stdout=subprocess.DEVNULL)
+subprocess.run(["npm", "run", "build-nolog"], cwd=game_dir, check=True, stdout=subprocess.DEVNULL)
+for file in sorted(path for path in dist_dir.rglob("*") if path.is_file()):
+    key = file.relative_to(dist_dir).as_posix()
+    aws.s3.BucketObjectv2(
+        f"site/{key}",
         bucket=site_bucket.id,
-        policy=pulumi.Output.all(site_bucket.arn, distribution.arn).apply(lambda arns: json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Effect": "Allow",
-                "Principal": {"Service": "cloudfront.amazonaws.com"},
-                "Action": "s3:GetObject",
-                "Resource": f"{arns[0]}/*",
-                "Condition": {"StringEquals": {"AWS:SourceArn": arns[1]}},
-            }],
-        })),
+        key=key,
+        source=pulumi.FileAsset(str(file)),
+        content_type=mimetypes.guess_type(key)[0] or "application/octet-stream",
+        # Nome com hash do Parcel nunca muda de conteúdo; o resto o CloudFront confere na origem,
+        # então um deploy vale na hora, sem invalidar o cache.
+        cache_control="public, max-age=31536000, immutable" if PARCEL_HASHED_NAME.search(key) else "no-cache",
     )
+
+distribution = aws.cloudfront.Distribution(
+    "site",
+    enabled=True,
+    # Sem domínio (dev), o CloudFront responde no próprio endereço *.cloudfront.net, com o certificado dele.
+    aliases=[site_domain] if is_prod else [],
+    default_root_object="index.html",
+    price_class="PriceClass_All",
+    origins=[
+        aws.cloudfront.DistributionOriginArgs(
+            origin_id="site",
+            domain_name=site_bucket.bucket_regional_domain_name,
+            origin_access_control_id=origin_access.id,
+        ),
+        aws.cloudfront.DistributionOriginArgs(
+            origin_id="score-api",
+            domain_name=api.api_endpoint.apply(lambda url: url.removeprefix("https://")),
+            custom_origin_config=aws.cloudfront.DistributionOriginCustomOriginConfigArgs(
+                http_port=80,
+                https_port=443,
+                origin_protocol_policy="https-only",
+                origin_ssl_protocols=["TLSv1.2"],
+            ),
+        ),
+        aws.cloudfront.DistributionOriginArgs(
+            origin_id="multiplayer",
+            domain_name=ws_api.api_endpoint.apply(lambda url: url.removeprefix("wss://")),
+            custom_origin_config=aws.cloudfront.DistributionOriginCustomOriginConfigArgs(
+                http_port=80,
+                https_port=443,
+                origin_protocol_policy="https-only",
+                origin_ssl_protocols=["TLSv1.2"],
+            ),
+        ),
+    ],
+    default_cache_behavior=aws.cloudfront.DistributionDefaultCacheBehaviorArgs(
+        target_origin_id="site",
+        viewer_protocol_policy="redirect-to-https",
+        allowed_methods=["GET", "HEAD"],
+        cached_methods=["GET", "HEAD"],
+        compress=True,
+        cache_policy_id="658327ea-f89d-4fab-a63d-7e88639e58f6",  # Managed-CachingOptimized
+    ),
+    ordered_cache_behaviors=[
+        aws.cloudfront.DistributionOrderedCacheBehaviorArgs(
+            path_pattern="/api/*",
+            target_origin_id="score-api",
+            viewer_protocol_policy="redirect-to-https",
+            allowed_methods=["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"],
+            cached_methods=["GET", "HEAD"],
+            cache_policy_id="4135ea2d-6df8-44a3-9df3-4b5a84be39ad",  # Managed-CachingDisabled
+            origin_request_policy_id="b689b0a8-53d0-40ab-baf2-68738e2966ac",  # Managed-AllViewerExceptHostHeader
+            function_associations=[aws.cloudfront.DistributionOrderedCacheBehaviorFunctionAssociationArgs(
+                event_type="viewer-request",
+                function_arn=strip_api_prefix.arn,
+            )],
+        ),
+        aws.cloudfront.DistributionOrderedCacheBehaviorArgs(
+            path_pattern="/ws",
+            target_origin_id="multiplayer",
+            viewer_protocol_policy="https-only",
+            allowed_methods=["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"],
+            cached_methods=["GET", "HEAD"],
+            cache_policy_id="4135ea2d-6df8-44a3-9df3-4b5a84be39ad",  # Managed-CachingDisabled
+            # Repassa os cabeçalhos do WebSocket e a origem, mas não o Host: o API Gateway exige o próprio.
+            origin_request_policy_id="b689b0a8-53d0-40ab-baf2-68738e2966ac",  # Managed-AllViewerExceptHostHeader
+        ),
+    ],
+    restrictions=aws.cloudfront.DistributionRestrictionsArgs(
+        geo_restriction=aws.cloudfront.DistributionRestrictionsGeoRestrictionArgs(restriction_type="none"),
+    ),
+    viewer_certificate=aws.cloudfront.DistributionViewerCertificateArgs(
+        acm_certificate_arn=certificate_validation.certificate_arn,
+        ssl_support_method="sni-only",
+        minimum_protocol_version="TLSv1.2_2021",
+    ) if is_prod else aws.cloudfront.DistributionViewerCertificateArgs(cloudfront_default_certificate=True),
+)
+
+aws.s3.BucketPolicy(
+    "site",
+    bucket=site_bucket.id,
+    policy=pulumi.Output.all(site_bucket.arn, distribution.arn).apply(lambda arns: json.dumps({
+        "Version": "2012-10-17",
+        "Statement": [{
+            "Effect": "Allow",
+            "Principal": {"Service": "cloudfront.amazonaws.com"},
+            "Action": "s3:GetObject",
+            "Resource": f"{arns[0]}/*",
+            "Condition": {"StringEquals": {"AWS:SourceArn": arns[1]}},
+        }],
+    })),
+)
+
+if is_prod:
     aws.route53.Record(
         "site",
         zone_id=zone.zone_id,
@@ -498,9 +503,10 @@ if is_prod:
             records=[pulumi.Output.concat(token, ".dkim.amazonses.com")],
         )
     pulumi.export("email_sender", email_sender)
-    pulumi.export("site_bucket", site_bucket.bucket)
-    pulumi.export("site_distribution_id", distribution.id)
-    pulumi.export("site_url", pulumi.Output.concat("https://", zone.name))
+
+pulumi.export("site_bucket", site_bucket.bucket)
+pulumi.export("site_distribution_id", distribution.id)
+pulumi.export("site_url", f"https://{site_domain}" if is_prod else pulumi.Output.concat("https://", distribution.domain_name))
 
 pulumi.export("score_api_url", api.api_endpoint)
 pulumi.export("score_table_name", score_table.name)
