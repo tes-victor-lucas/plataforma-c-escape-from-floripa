@@ -48,10 +48,53 @@ jobs:
         working-directory: pulumi
         run: uv run python -m unittest discover -s tests
 
-  infra:
-    name: Publicar jogo e infraestrutura
+  dev:
+    name: Publicar no ambiente dev
     needs: test
     # Sem a role e o token do Pulumi configurados no GitHub, nada é publicado (veja docs/deploy-aws.md).
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.AWS_INFRA_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    # Dois pulumi up ao mesmo tempo disputam o lock da stack.
+    concurrency:
+      group: infra-dev
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      # O programa do Pulumi gera o build do jogo e envia cada arquivo ao S3.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: game/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_INFRA_ROLE_ARN }}
+          aws-region: sa-east-1
+      - uses: pulumi/actions@v6
+        id: pulumi
+        with:
+          command: up
+          stack-name: dev
+          work-dir: pulumi
+          # Cria a stack dev no Pulumi na primeira vez.
+          upsert: true
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      - name: Conferir o que está no ar
+        env:
+          SITE: ${{ steps.pulumi.outputs.site_url }}
+        run: |
+          curl -fsS -o /dev/null "$SITE/"
+          curl -fsS -o /dev/null "$SITE/api/leaderboard"
+          cd server && npm ci && node scripts/smoke.js "wss://${SITE#https://}/ws" "$SITE"
+
+  prod:
+    name: Publicar em produção
+    needs: dev
+    # Só publica para os jogadores o que já subiu e passou na conferência do dev.
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.AWS_INFRA_ROLE_ARN != ''
     runs-on: ubuntu-latest
     # Dois pulumi up ao mesmo tempo disputam o lock da stack.
@@ -74,6 +117,7 @@ jobs:
           role-to-assume: ${{ vars.AWS_INFRA_ROLE_ARN }}
           aws-region: sa-east-1
       - uses: pulumi/actions@v6
+        id: pulumi
         with:
           command: up
           stack-name: prod
@@ -81,8 +125,9 @@ jobs:
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
       - name: Conferir o que está no ar
+        env:
+          SITE: ${{ steps.pulumi.outputs.site_url }}
         run: |
-          site=https://escape-from-floripa.negoci.online
-          curl -fsS -o /dev/null "$site/"
-          curl -fsS -o /dev/null "$site/api/leaderboard"
-          cd server && npm ci && node scripts/smoke.js "wss://${site#https://}/ws" "$site"
+          curl -fsS -o /dev/null "$SITE/"
+          curl -fsS -o /dev/null "$SITE/api/leaderboard"
+          cd server && npm ci && node scripts/smoke.js "wss://${SITE#https://}/ws" "$SITE"

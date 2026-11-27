@@ -2963,12 +2963,16 @@ test('multiplayer usa o nosso /ws no site publicado e na feira, e a porta 8080 l
         getDefaultServerUrl({ protocol: 'http:', hostname: 'localhost' }),
         'ws://localhost:8080'
     );
+    // Stack dev: o jogo fala com o multiplayer do próprio ambiente, nunca com o de produção.
+    assert.equal(getDefaultServerUrl({ protocol: 'https:', hostname: 'd1.cloudfront.net' }), 'wss://d1.cloudfront.net/ws');
 });
 
 test('placar usa o nosso /api no site publicado e na feira, e o /api local no desenvolvimento', () => {
     const { getDefaultScoreApiUrl } = load('../src/game/scoring/ScoreApi.ts');
     assert.equal(getDefaultScoreApiUrl('https:'), 'https://escape-from-floripa.negoci.online/api');
     assert.equal(getDefaultScoreApiUrl('http:'), '/api');
+    assert.equal(getDefaultScoreApiUrl('https:', 'feira-de-jogos.dev.br'), 'https://escape-from-floripa.negoci.online/api');
+    assert.equal(getDefaultScoreApiUrl('https:', 'd1.cloudfront.net'), '/api', 'stack dev usa o placar do próprio ambiente');
 });
 
 test('nome da sala aceita só o que o servidor mantém', () => {

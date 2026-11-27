@@ -127,7 +127,12 @@ node scripts/smoke.js wss://escape-from-floripa.negoci.online/ws https://escape-
 
 ## Publicação automática
 
-Configurada uma única vez, cada merge na `main` roda os testes e, se passarem, roda o `pulumi up` na stack `prod` e confere o site, o placar e o multiplayer no ar. Em PRs, só os testes rodam. O acompanhamento fica na aba **Actions** do GitHub.
+Configurada uma única vez, cada merge na `main` roda os testes e, se passarem:
+
+1. **Publicar no ambiente dev:** `pulumi up` na stack `dev` (criada sozinha na primeira vez) e conferência do site, do placar e de uma partida multiplayer no endereço do CloudFront do dev.
+2. **Publicar em produção:** só se o dev passou, `pulumi up` na stack `prod` e a mesma conferência em https://escape-from-floripa.negoci.online.
+
+Em PRs, só os testes rodam. O acompanhamento fica na aba **Actions** do GitHub.
 
 **Tudo que entra na `main` vai direto para os jogadores.**
 
@@ -144,7 +149,7 @@ gh secret set PULUMI_ACCESS_TOKEN          # cole o token quando pedir
 gh variable set AWS_INFRA_ROLE_ARN --body "$(pulumi stack output infra_role_arn)"
 ```
 
-Sem a variável `AWS_INFRA_ROLE_ARN`, o job **Publicar jogo e infraestrutura** é pulado e a publicação continua manual. A role `github-infra` é administradora da conta, mas só a `main` deste repositório consegue usá-la, então proteja a `main` contra push direto.
+Sem a variável `AWS_INFRA_ROLE_ARN`, os jobs **Publicar no ambiente dev** e **Publicar em produção** são pulados e a publicação continua manual. A role `github-infra` é administradora da conta, mas só a `main` deste repositório consegue usá-la, então proteja a `main` contra push direto.
 
 Se o `pulumi up` responder `EntityAlreadyExists` para `github-actions`, a conta já tem esse provedor. Importe-o com `pulumi import aws:iam/openIdConnectProvider:OpenIdConnectProvider github-actions arn:aws:iam::<CONTA>:oidc-provider/token.actions.githubusercontent.com` e rode `pulumi up` de novo.
 

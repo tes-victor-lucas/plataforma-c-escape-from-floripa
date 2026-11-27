@@ -25,7 +25,7 @@ class Mocks(pulumi.runtime.Mocks):
         return {}
 
 
-# Stack dev: tem placar e multiplayer; o site (com build do jogo) só existe no prod.
+# Stack dev: a mesma infraestrutura do prod, sem domínio e sem SES. O programa gera o build do jogo.
 # O Pulumi registra recursos num event loop, que o Python novo não cria sozinho.
 asyncio.set_event_loop(asyncio.new_event_loop())
 pulumi.runtime.set_mocks(Mocks(), project="plataforma-c-escape-from-floripa", stack="dev", preview=False)
@@ -62,6 +62,20 @@ class InfraTest(unittest.TestCase):
             stages = {resource.name: resource.inputs["name"] for resource in of_type("aws:apigatewayv2/stage:Stage")}
             self.assertEqual(stages.get("multiplayer-ws-stage"), "ws", "o CloudFront repassa /ws direto para o estágio")
         return infra.ws_stage.id.apply(check)
+
+    @pulumi.runtime.test
+    def test_dev_tem_cloudfront_e_api_e_so_nao_tem_dominio_nem_ses(self):
+        def check(_):
+            [distribution] = of_type("aws:cloudfront/distribution:Distribution")
+            self.assertEqual(distribution.inputs.get("aliases", []), [])
+            self.assertTrue(distribution.inputs["viewerCertificate"]["cloudfrontDefaultCertificate"])
+            paths = [behavior["pathPattern"] for behavior in distribution.inputs["orderedCacheBehaviors"]]
+            self.assertEqual(paths, ["/api/*", "/ws"])
+            self.assertIn("index.html", [obj.inputs["key"] for obj in of_type("aws:s3/bucketObjectv2:BucketObjectv2")])
+            for prod_only in ["aws:route53/zone:Zone", "aws:route53/record:Record", "aws:acm/certificate:Certificate",
+                              "aws:sesv2/emailIdentity:EmailIdentity"]:
+                self.assertEqual(of_type(prod_only), [], prod_only)
+        return infra.distribution.id.apply(check)
 
 
 if __name__ == "__main__":
